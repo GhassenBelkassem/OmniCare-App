@@ -1,0 +1,205 @@
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../../l10n/app_localizations.dart';
+import 'otp_verification_screen.dart';
+import 'reset_password_screen.dart';
+
+class ForgotPasswordScreen extends StatefulWidget {
+  const ForgotPasswordScreen({super.key});
+
+  @override
+  State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
+}
+
+class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
+  final TextEditingController _contactController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  bool _isLoading = false;
+
+  @override
+  void dispose() {
+    _contactController.dispose();
+    super.dispose();
+  }
+
+  String? _validateContact(String? value) {
+    if (value == null || value.isEmpty) {
+      final l10n = AppLocalizations.of(context);
+      return l10n?.emailOrPhoneRequired ?? 'Email or phone number is required';
+    }
+    return null;
+  }
+
+  Future<void> _sendCode() async {
+    if (_formKey.currentState!.validate()) {
+      setState(() => _isLoading = true);
+      await Future.delayed(const Duration(seconds: 2));
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => OtpVerificationScreen(
+              verificationType: 'reset',
+              contactInfo: _contactController.text,
+              onVerified: () {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ResetPasswordScreen(),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF4F5F7),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Color(0xFF1D2939)),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 20),
+                Text(
+                  l10n?.resetPassword ?? 'Reset Password',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF0F6F73),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  l10n?.resetPasswordSubtitle ??
+                      'Enter your email or phone number to receive a verification code',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w400,
+                    color: const Color(0xFF667085),
+                  ),
+                ),
+                const SizedBox(height: 48),
+                Text(
+                  l10n?.emailOrPhone ?? 'Email or Phone Number',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFF1D2939),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _contactController,
+                  validator: _validateContact,
+                  keyboardType: TextInputType.emailAddress,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w400,
+                    color: const Color(0xFF1D2939),
+                  ),
+                  decoration: InputDecoration(
+                    hintText: l10n?.emailOrPhoneHint ??
+                        'Enter your email or phone number',
+                    hintStyle: GoogleFonts.plusJakartaSans(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w400,
+                      color: const Color(0xFF9CA3AF),
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(
+                        color: Color(0xFF1FBF9A),
+                        width: 2,
+                      ),
+                    ),
+                    errorBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFDC2626)),
+                    ),
+                    focusedErrorBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(
+                        color: Color(0xFFDC2626),
+                        width: 2,
+                      ),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 16,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 32),
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _sendCode,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1FBF9A),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      disabledBackgroundColor:
+                          const Color(0xFF1FBF9A).withOpacity(0.5),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 24,
+                            width: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : Text(
+                            l10n?.sendCode ?? 'Send Code',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
