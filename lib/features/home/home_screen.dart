@@ -717,95 +717,103 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Stack(
-            children: [
-              ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                child: Image.network(
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+            child: Stack(
+              children: [
+                Image.network(
                   doctor['photo'],
-                  height: 180,
+                  height: 160,
                   width: double.infinity,
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) {
                     return Container(
-                      height: 180,
+                      height: 160,
                       color: const Color(0xFFF4F5F7),
-                      child: const Icon(Icons.person, size: 80, color: Color(0xFF667085)),
+                      child: const Icon(Icons.person, size: 60, color: Color(0xFF667085)),
                     );
                   },
                 ),
-              ),
-              if (doctor['verified'] == true)
-                Positioned(
-                  top: 12,
-                  right: 12,
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF10B981),
-                      shape: BoxShape.circle,
+                if (doctor['verified'] == true)
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF10B981),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.check, color: Colors.white, size: 14),
                     ),
-                    child: const Icon(Icons.check, color: Colors.white, size: 16),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   doctor['name'],
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 18,
+                    fontSize: 16,
                     fontWeight: FontWeight.w600,
                     color: const Color(0xFF1D2939),
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
                 Text(
                   _translateSpecialty(doctor['specialty']),
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
+                    fontSize: 13,
                     color: const Color(0xFF667085),
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 Row(
                   children: [
-                    const Icon(Icons.location_on, size: 16, color: Color(0xFF667085)),
+                    const Icon(Icons.location_on, size: 14, color: Color(0xFF667085)),
                     const SizedBox(width: 4),
                     Text(
                       '${doctor['distance']} km',
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12,
+                        fontSize: 11,
                         color: const Color(0xFF667085),
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    const Icon(Icons.star, size: 16, color: Color(0xFFFBBF24)),
+                    const SizedBox(width: 12),
+                    const Icon(Icons.star, size: 14, color: Color(0xFFFBBF24)),
                     const SizedBox(width: 4),
                     Text(
                       '${doctor['rating']}',
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12,
+                        fontSize: 11,
                         fontWeight: FontWeight.w600,
                         color: const Color(0xFF1D2939),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Text(
                   '${doctor['experience']} ${AppLocalizations.of(context)?.yearsExperience ?? 'years experience'}',
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12,
+                    fontSize: 11,
                     color: const Color(0xFF667085),
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -814,7 +822,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       backgroundColor: const Color(0xFF1FBF9A),
                       foregroundColor: Colors.white,
                       elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -822,6 +830,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Text(
                       AppLocalizations.of(context)?.requestVisit ?? 'Request Visit',
                       style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
                         fontWeight: FontWeight.w600,
                       ),
                     ),

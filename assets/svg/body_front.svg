@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 650" width="300" height="650">
+  <rect width="300" height="650" fill="transparent"/>
+
+  <!-- HEAD -->
+  <ellipse cx="150" cy="45" rx="32" ry="38" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1.5"/>
+
+  <!-- NECK -->
+  <rect x="137" y="79" width="26" height="26" rx="4" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1.2"/>
+
+  <!-- TRAPEZIUS / UPPER SHOULDERS connecting piece -->
+  <path d="M 100 105 Q 150 98 200 105 L 205 120 Q 150 112 95 120 Z" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1"/>
+
+  <!-- LEFT DELTOID -->
+  <path d="M 100 108 L 80 118 L 72 142 L 82 162 L 102 160 L 110 140 Z" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1.2"/>
+  <!-- RIGHT DELTOID -->
+  <path d="M 200 108 L 220 118 L 228 142 L 218 162 L 198 160 L 190 140 Z" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1.2"/>
+
+  <!-- LEFT PECTORAL -->
+  <path d="M 112 108 L 102 115 L 100 148 L 118 162 L 135 165 L 148 154 L 148 122 L 132 108 Z" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1.2"/>
+  <!-- RIGHT PECTORAL -->
+  <path d="M 188 108 L 198 115 L 200 148 L 182 162 L 165 165 L 152 154 L 152 122 L 168 108 Z" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1.2"/>
+
+  <!-- LEFT SERRATUS -->
+  <path d="M 102 148 L 110 162 L 116 178 L 110 188 L 102 183 Z" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1"/>
+  <!-- RIGHT SERRATUS -->
+  <path d="M 198 148 L 190 162 L 184 178 L 190 188 L 198 183 Z" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1"/>
+
+  <!-- ABS UPPER -->
+  <rect x="127" y="168" width="46" height="28" rx="5" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1.2"/>
+  <line x1="150" y1="168" x2="150" y2="196" stroke="#9CA3AF" stroke-width="0.8" opacity="0.5"/>
+
+  <!-- ABS MIDDLE -->
+  <rect x="129" y="200" width="42" height="28" rx="5" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1.2"/>
+  <line x1="150" y1="200" x2="150" y2="228" stroke="#9CA3AF" stroke-width="0.8" opacity="0.5"/>
+
+  <!-- ABS LOWER -->
+  <rect x="131" y="232" width="38" height="26" rx="5" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1.2"/>
+  <line x1="150" y1="232" x2="150" y2="258" stroke="#9CA3AF" stroke-width="0.8" opacity="0.5"/>
+
+  <!-- LEFT OBLIQUE -->
+  <path d="M 108 188 L 114 210 L 118 240 L 124 252 L 118 266 L 108 252 L 104 218 Z" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1"/>
+  <!-- RIGHT OBLIQUE -->
+  <path d="M 192 188 L 186 210 L 182 240 L 176 252 L 182 266 L 192 252 L 196 218 Z" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1"/>
+
+  <!-- HIP / PELVIS area -->
+  <path d="M 118 258 Q 150 272 182 258 L 185 275 Q 150 290 115 275 Z" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1.2"/>
+
+  <!-- LEFT BICEP -->
+  <ellipse cx="87" cy="190" rx="12" ry="32" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1.2"/>
+  <!-- RIGHT BICEP -->
+  <ellipse cx="213" cy="190" rx="12" ry="32" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1.2"/>
+
+  <!-- LEFT FOREARM -->
+  <path d="M 80 224 L 75 296 L 92 296 L 94 224 Z" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1.2"/>
+  <!-- RIGHT FOREARM -->
+  <path d="M 220 224 L 225 296 L 208 296 L 206 224 Z" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1.2"/>
+
+  <!-- LEFT HAND -->
+  <ellipse cx="83" cy="312" rx="12" ry="17" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1.2"/>
+  <!-- RIGHT HAND -->
+  <ellipse cx="217" cy="312" rx="12" ry="17" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1.2"/>
+
+  <!-- LEFT QUAD -->
+  <path d="M 120 272 L 112 355 L 108 425 L 124 430 L 138 425 L 138 355 L 132 272 Z" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1.2"/>
+  <!-- RIGHT QUAD -->
+  <path d="M 180 272 L 188 355 L 192 425 L 176 430 L 162 425 L 162 355 L 168 272 Z" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1.2"/>
+
+  <!-- LEFT KNEE -->
+  <ellipse cx="120" cy="442" rx="17" ry="20" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1.2"/>
+  <!-- RIGHT KNEE -->
+  <ellipse cx="180" cy="442" rx="17" ry="20" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1.2"/>
+
+  <!-- LEFT SHIN -->
+  <rect x="110" y="464" width="16" height="100" rx="8" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1.2"/>
+  <!-- RIGHT SHIN -->
+  <rect x="174" y="464" width="16" height="100" rx="8" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1.2"/>
+
+  <!-- LEFT CALF -->
+  <ellipse cx="104" cy="516" rx="9" ry="44" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1"/>
+  <!-- RIGHT CALF -->
+  <ellipse cx="196" cy="516" rx="9" ry="44" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1"/>
+
+  <!-- LEFT FOOT -->
+  <ellipse cx="114" cy="592" rx="22" ry="26" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1.2"/>
+  <!-- RIGHT FOOT -->
+  <ellipse cx="186" cy="592" rx="22" ry="26" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1.2"/>
+</svg>

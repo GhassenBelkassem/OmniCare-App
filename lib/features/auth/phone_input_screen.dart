@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/user_onboarding_provider.dart';
 import 'otp_verification_screen.dart';
+import 'medical_data_welcome_screen.dart';
 
 class PhoneInputScreen extends StatefulWidget {
   const PhoneInputScreen({super.key});
@@ -51,7 +52,12 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
               verificationType: 'phone',
               contactInfo: phoneNumber,
               onVerified: () {
-                Navigator.pushReplacementNamed(context, '/conversational-onboarding');
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const MedicalDataWelcomeScreen(),
+                  ),
+                );
               },
             ),
           ),
@@ -63,12 +69,12 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F5F7),
+      backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF1D2939)),
+          icon: const Icon(Icons.arrow_back, color: Color(0xFF101828)),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -78,122 +84,140 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
           child: Form(
             key: _formKey,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 20),
-                Text(
-                  'Phone Verification',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF0F6F73),
+                const SizedBox(height: 4),
+                // Illustration placeholder
+                Container(
+                  width: 200,
+                  height: 200,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF0FDF9),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Image.asset(
+                      'assets/images/phone_verification.png',
+                      width: 160,
+                      height: 160,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Icon(
+                          Icons.phone_android_rounded,
+                          size: 90,
+                          color: const Color(0xFF1FBF9A),
+                        );
+                      },
+                    ),
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 Text(
-                  'Enter your phone number to receive a verification code',
+                  'Phone Verification',
+                  textAlign: TextAlign.center,
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 16,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF101828),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'We need to register your phone number before getting started!',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
                     fontWeight: FontWeight.w400,
                     color: const Color(0xFF667085),
                   ),
                 ),
-                const SizedBox(height: 48),
-                Text(
-                  'Phone Number',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: const Color(0xFF1D2939),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 16,
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    // Country code selector
+                    Container(
+                      height: 48,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF9FAFB),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFD0D5DD)),
+                      ),
+                      child: Row(
+                        children: [
+                          Text(
+                            '🇹🇳',
+                            style: const TextStyle(fontSize: 24),
+                          ),
+                          const SizedBox(width: 8),
+                          const Icon(
+                            Icons.arrow_drop_down,
+                            color: Color(0xFF667085),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Phone input
+                    Expanded(
+                      child: Container(
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFD0D5DD)),
                         ),
-                        decoration: const BoxDecoration(
-                          border: Border(
-                            right: BorderSide(
-                              color: Color(0xFFE5E7EB),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              child: Text(
+                                '+216',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                  color: const Color(0xFF101828),
+                                ),
+                              ),
+                            ),
+                            Container(
                               width: 1,
+                              height: 32,
+                              color: const Color(0xFFD0D5DD),
                             ),
-                          ),
-                        ),
-                        child: Text(
-                          '+216',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                            color: const Color(0xFF1D2939),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: TextFormField(
-                          controller: _phoneController,
-                          keyboardType: TextInputType.phone,
-                          validator: _validatePhone,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w400,
-                            color: const Color(0xFF1D2939),
-                          ),
-                          decoration: InputDecoration(
-                            hintText: '12 345 678',
-                            hintStyle: GoogleFonts.plusJakartaSans(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w400,
-                              color: const Color(0xFF9CA3AF),
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: Color(0xFF1FBF9A),
-                                width: 2,
+                            Expanded(
+                              child: TextFormField(
+                                controller: _phoneController,
+                                keyboardType: TextInputType.phone,
+                                validator: _validatePhone,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w400,
+                                  color: const Color(0xFF101828),
+                                ),
+                                decoration: InputDecoration(
+                                  hintText: '12 345 678',
+                                  hintStyle: GoogleFonts.plusJakartaSans(
+                                    fontSize: 16,
+                                    color: const Color(0xFF98A2B3),
+                                  ),
+                                  border: InputBorder.none,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 16,
+                                  ),
+                                ),
                               ),
                             ),
-                            errorBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFFDC2626)),
-                            ),
-                            focusedErrorBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: Color(0xFFDC2626),
-                                width: 2,
-                              ),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 16,
-                            ),
-                          ),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
                 const Spacer(),
                 SizedBox(
                   width: double.infinity,
-                  height: 56,
+                  height: 48,
                   child: ElevatedButton(
                     onPressed: _isLoading ? null : _submitPhone,
                     style: ElevatedButton.styleFrom(
@@ -217,7 +241,7 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
                             ),
                           )
                         : Text(
-                            'Continue',
+                            'Send the Code',
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
@@ -225,7 +249,7 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
                           ),
                   ),
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 8),
               ],
             ),
           ),

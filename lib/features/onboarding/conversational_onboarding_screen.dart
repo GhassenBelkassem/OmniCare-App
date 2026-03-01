@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 import '../../providers/user_onboarding_provider.dart';
+import 'onboarding_complete_screen.dart';
 
 class ConversationalOnboardingScreen extends StatefulWidget {
   const ConversationalOnboardingScreen({super.key});
@@ -26,6 +27,7 @@ class _ConversationalOnboardingScreenState
     'AB-',
     'O+',
     'O-',
+    'IDK',
   ];
 
   final List<String> availableConditions = [
@@ -126,16 +128,25 @@ class _ConversationalOnboardingScreenState
       }
     }
 
-    Navigator.pushReplacementNamed(context, '/home');
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const OnboardingCompleteScreen(),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<UserOnboardingProvider>(context);
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF4F5F7),
-      appBar: AppBar(
+    return GestureDetector(
+      onTap: () {
+        FocusScope.of(context).unfocus();
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF4F5F7),
+        appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: _currentPage > 0
@@ -235,6 +246,7 @@ class _ConversationalOnboardingScreenState
           ),
         ],
       ),
+      ),
     );
   }
 
@@ -244,6 +256,33 @@ class _ConversationalOnboardingScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Illustration
+          Center(
+            child: Container(
+              width: 140,
+              height: 140,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0FDF9),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Image.asset(
+                  'assets/images/blood_type.png',
+                  width: 100,
+                  height: 100,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Icon(
+                      Icons.bloodtype_rounded,
+                      size: 60,
+                      color: const Color(0xFF1FBF9A),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
           Text(
             'What is your blood type?',
             style: GoogleFonts.plusJakartaSans(
@@ -261,15 +300,15 @@ class _ConversationalOnboardingScreenState
               color: const Color(0xFF4B5563),
             ),
           ),
-          const SizedBox(height: 48),
+          const SizedBox(height: 32),
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 4,
+              crossAxisCount: 3,
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
-              childAspectRatio: 1.2,
+              childAspectRatio: 1.3,
             ),
             itemCount: bloodTypes.length,
             itemBuilder: (context, index) {
@@ -330,6 +369,33 @@ class _ConversationalOnboardingScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Illustration
+          Center(
+            child: Container(
+              width: 140,
+              height: 140,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0FDF9),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Image.asset(
+                  'assets/images/chronic_conditions.png',
+                  width: 100,
+                  height: 100,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Icon(
+                      Icons.health_and_safety_rounded,
+                      size: 60,
+                      color: const Color(0xFF1FBF9A),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
           Text(
             'Any chronic conditions?',
             style: GoogleFonts.plusJakartaSans(
@@ -347,7 +413,7 @@ class _ConversationalOnboardingScreenState
               color: const Color(0xFF4B5563),
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 24),
           TextField(
             controller: _searchController,
             onChanged: _filterConditions,
@@ -475,6 +541,33 @@ class _ConversationalOnboardingScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Illustration
+          Center(
+            child: Container(
+              width: 140,
+              height: 140,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0FDF9),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Image.asset(
+                  'assets/images/medications.png',
+                  width: 100,
+                  height: 100,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Icon(
+                      Icons.medication_rounded,
+                      size: 60,
+                      color: const Color(0xFF1FBF9A),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
           Text(
             'Current Medications',
             style: GoogleFonts.plusJakartaSans(
@@ -485,152 +578,248 @@ class _ConversationalOnboardingScreenState
           ),
           const SizedBox(height: 12),
           Text(
-            'Knowing your current meds prevents dangerous drug-to-drug interactions.',
+            'Add any medications you\'re currently taking 💊',
             style: GoogleFonts.plusJakartaSans(
               fontSize: 16,
               fontWeight: FontWeight.w400,
               color: const Color(0xFF4B5563),
             ),
           ),
-          const SizedBox(height: 32),
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _medicationNameControllers.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 16),
-            itemBuilder: (context, index) {
-              return Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE5E7EB)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
+          const SizedBox(height: 24),
+          // Medication chips/pills
+          if (_medicationNameControllers.any((controller) => controller.text.isNotEmpty))
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: List.generate(_medicationNameControllers.length, (index) {
+                if (_medicationNameControllers[index].text.isEmpty) return const SizedBox.shrink();
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1FBF9A).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: const Color(0xFF1FBF9A)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '💊',
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        _medicationNameControllers[index].text,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF1FBF9A),
+                        ),
+                      ),
+                      if (_medicationDosageControllers[index].text.isNotEmpty) ...[
+                        const SizedBox(width: 4),
                         Text(
-                          'Medication ${index + 1}',
+                          '• ${_medicationDosageControllers[index].text}',
                           style: GoogleFonts.plusJakartaSans(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF0F6F73),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: const Color(0xFF667085),
                           ),
                         ),
-                        if (_medicationNameControllers.length > 1)
-                          IconButton(
-                            icon: const Icon(
-                              Icons.delete_outline,
-                              size: 20,
-                              color: Color(0xFFDC2626),
-                            ),
-                            onPressed: () => _removeMedicationFields(index),
-                          ),
                       ],
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () => _removeMedicationFields(index),
+                        child: const Icon(
+                          Icons.close,
+                          size: 16,
+                          color: Color(0xFF1FBF9A),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).where((widget) => widget is! SizedBox).toList(),
+            ),
+          if (_medicationNameControllers.any((controller) => controller.text.isNotEmpty))
+            const SizedBox(height: 20),
+          // Simple input card
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFF1FBF9A).withOpacity(0.3), width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF1FBF9A).withOpacity(0.08),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0FDF9),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text('💊', style: TextStyle(fontSize: 20)),
                     ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _medicationNameControllers[index],
+                    const SizedBox(width: 12),
+                    Text(
+                      'Add a medication',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 16,
-                        color: const Color(0xFF1D2939),
-                      ),
-                      decoration: InputDecoration(
-                        labelText: 'Medicine Name',
-                        labelStyle: GoogleFonts.plusJakartaSans(
-                          fontSize: 14,
-                          color: const Color(0xFF667085),
-                        ),
-                        hintText: 'e.g., Aspirin',
-                        hintStyle: GoogleFonts.plusJakartaSans(
-                          fontSize: 16,
-                          color: const Color(0xFF9CA3AF),
-                        ),
-                        filled: true,
-                        fillColor: const Color(0xFFF4F5F7),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: Color(0xFF1FBF9A),
-                            width: 2,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _medicationDosageControllers[index],
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 16,
-                        color: const Color(0xFF1D2939),
-                      ),
-                      decoration: InputDecoration(
-                        labelText: 'Dosage',
-                        labelStyle: GoogleFonts.plusJakartaSans(
-                          fontSize: 14,
-                          color: const Color(0xFF667085),
-                        ),
-                        hintText: 'e.g., 100mg',
-                        hintStyle: GoogleFonts.plusJakartaSans(
-                          fontSize: 16,
-                          color: const Color(0xFF9CA3AF),
-                        ),
-                        filled: true,
-                        fillColor: const Color(0xFFF4F5F7),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: Color(0xFF1FBF9A),
-                            width: 2,
-                          ),
-                        ),
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF0F6F73),
                       ),
                     ),
                   ],
                 ),
-              );
-            },
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _medicationNameControllers.last,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 15,
+                    color: const Color(0xFF1D2939),
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Medicine name (e.g., Aspirin)',
+                    hintStyle: GoogleFonts.plusJakartaSans(
+                      fontSize: 15,
+                      color: const Color(0xFF9CA3AF),
+                    ),
+                    filled: true,
+                    fillColor: const Color(0xFFF9FAFB),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(
+                        color: Color(0xFF1FBF9A),
+                        width: 2,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _medicationDosageControllers.last,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 15,
+                    color: const Color(0xFF1D2939),
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Dosage (e.g., 100mg, 2x daily)',
+                    hintStyle: GoogleFonts.plusJakartaSans(
+                      fontSize: 15,
+                      color: const Color(0xFF9CA3AF),
+                    ),
+                    filled: true,
+                    fillColor: const Color(0xFFF9FAFB),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(
+                        color: Color(0xFF1FBF9A),
+                        width: 2,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 16),
-          OutlinedButton.icon(
-            onPressed: () {
+          // Add another button
+          GestureDetector(
+            onTap: () {
               setState(() {
                 _addMedicationFields();
               });
             },
-            icon: const Icon(Icons.add, color: Color(0xFF1FBF9A)),
-            label: Text(
-              'Add Another Medication',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: const Color(0xFF1FBF9A),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0FDF9),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: const Color(0xFF1FBF9A).withOpacity(0.3),
+                  width: 1.5,
+                  style: BorderStyle.solid,
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1FBF9A),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Icon(
+                      Icons.add,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Add Another Medication',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF1FBF9A),
+                    ),
+                  ),
+                ],
               ),
             ),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size(double.infinity, 56),
-              side: const BorderSide(color: Color(0xFF1FBF9A)),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+          ),
+          const SizedBox(height: 12),
+          // Skip option
+          Center(
+            child: TextButton(
+              onPressed: () {
+                setState(() {
+                  for (var controller in _medicationNameControllers) {
+                    controller.clear();
+                  }
+                  for (var controller in _medicationDosageControllers) {
+                    controller.clear();
+                  }
+                });
+              },
+              child: Text(
+                'I\'m not taking any medications',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: const Color(0xFF667085),
+                  decoration: TextDecoration.underline,
+                ),
               ),
             ),
           ),

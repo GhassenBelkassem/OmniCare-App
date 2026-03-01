@@ -9,6 +9,14 @@ import 'features/profile/medications_screen.dart';
 import 'features/profile/medical_documents_screen.dart';
 import 'features/onboarding/conversational_onboarding_screen.dart';
 import 'features/home/home_screen.dart';
+import 'features/home/new_home_screen.dart';
+import 'features/emergency/emergency_request_step1.dart';
+import 'features/emergency/emergency_request_step2.dart';
+import 'features/emergency/emergency_request_step3.dart';
+import 'features/emergency/doctor_selection_screen.dart';
+import 'features/emergency/review_confirm_screen.dart';
+import 'features/emergency/doctor_calling_screen.dart';
+import 'features/emergency/doctor_arriving_screen.dart';
 import 'providers/user_onboarding_provider.dart';
 import 'l10n/app_localizations.dart';
 
@@ -62,7 +70,47 @@ class OmniCareApp extends StatelessWidget {
               '/medications': (context) => const MedicationsScreen(),
               '/medical-documents': (context) => const MedicalDocumentsScreen(),
               '/conversational-onboarding': (context) => const ConversationalOnboardingScreen(),
-              '/home': (context) => const HomeScreen(),
+              '/home': (context) => const NewHomeScreen(),
+              '/emergency-step1': (context) => const EmergencyRequestStep1(),
+            },
+            onGenerateRoute: (settings) {
+              if (settings.name == '/emergency-step2') {
+                final args = settings.arguments as Map<String, dynamic>;
+                return MaterialPageRoute(
+                  builder: (context) => EmergencyRequestStep2(step1Data: args),
+                );
+              }
+              if (settings.name == '/emergency-step3') {
+                final args = settings.arguments as Map<String, dynamic>;
+                return MaterialPageRoute(
+                  builder: (context) => EmergencyRequestStep3(previousData: args),
+                );
+              }
+              if (settings.name == '/doctor-selection') {
+                final args = settings.arguments as Map<String, dynamic>;
+                return MaterialPageRoute(
+                  builder: (context) => DoctorSelectionScreen(emergencyData: args),
+                );
+              }
+              if (settings.name == '/review-confirm') {
+                final args = settings.arguments as Map<String, dynamic>;
+                return MaterialPageRoute(
+                  builder: (context) => ReviewConfirmScreen(requestData: args),
+                );
+              }
+              if (settings.name == '/doctor-calling') {
+                final args = settings.arguments as Map<String, dynamic>;
+                return MaterialPageRoute(
+                  builder: (context) => DoctorCallingScreen(requestData: args),
+                );
+              }
+              if (settings.name == '/doctor-arriving') {
+                final args = settings.arguments as Map<String, dynamic>;
+                return MaterialPageRoute(
+                  builder: (context) => DoctorArrivingScreen(requestData: args),
+                );
+              }
+              return null;
             },
           );
         },
