@@ -162,7 +162,7 @@ class _EmergencyRequestStep3State extends State<EmergencyRequestStep3> {
 
     Navigator.pushNamed(
       context,
-      '/doctor-selection',
+      '/emergency-review',
       arguments: data,
     );
   }

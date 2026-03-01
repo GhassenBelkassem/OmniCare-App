@@ -18,6 +18,9 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
   bool _isLoading = false;
+  bool _showEmailForm = false;
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
@@ -64,6 +67,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
   @override
   void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
     _animationController.dispose();
     super.dispose();
   }
@@ -80,12 +85,19 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   }
 
   Future<void> _handleEmailSignIn() async {
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(seconds: 2));
-    setState(() => _isLoading = false);
-    if (mounted) {
-      // Email login: Go directly to home (user already verified)
-      Navigator.pushReplacementNamed(context, '/home');
+    if (!_showEmailForm) {
+      // Toggle to show the form
+      setState(() => _showEmailForm = true);
+    } else {
+      // Handle actual sign in
+      setState(() => _isLoading = true);
+      await Future.delayed(const Duration(seconds: 2));
+      setState(() => _isLoading = false);
+      
+      if (mounted) {
+        // Navigate to home after login
+        Navigator.pushReplacementNamed(context, '/home');
+      }
     }
   }
 
@@ -146,14 +158,16 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           
           // Content Section
           Positioned.fill(
-            child: SafeArea(
-              child: Column(
-                children: [
-                  SizedBox(height: screenHeight * 0.35 - 40),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      physics: const ClampingScrollPhysics(),
-                      child: AnimatedBuilder(
+            child: GestureDetector(
+              onTap: () => FocusScope.of(context).unfocus(),
+              child: SafeArea(
+                child: Column(
+                  children: [
+                    SizedBox(height: screenHeight * 0.35 - 40),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        physics: const ClampingScrollPhysics(),
+                        child: AnimatedBuilder(
                         animation: _slideAnimation,
                         builder: (context, child) {
                           return Transform.translate(
@@ -165,40 +179,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                 padding: const EdgeInsets.symmetric(horizontal: 24),
                                 child: Column(
                                   children: [
-                                    // Logo Badge
-                                    Container(
-                                      width: 64,
-                                      height: 64,
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(18),
-                                        gradient: const LinearGradient(
-                                          begin: Alignment.topLeft,
-                                          end: Alignment.bottomRight,
-                                          colors: [
-                                            Color(0xFF1FBF9A),
-                                            Color(0xFF0F6F73),
-                                          ],
-                                        ),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: const Color(0xFF1FBF9A).withOpacity(0.3),
-                                            blurRadius: 20,
-                                            offset: const Offset(0, 6),
-                                          ),
-                                        ],
-                                      ),
-                                      child: Center(
-                                        child: Text(
-                                          'O',
-                                          style: GoogleFonts.plusJakartaSans(
-                                            fontSize: 28,
-                                            fontWeight: FontWeight.w800,
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 24),
                                     
                                     // Title Section
                                     Text(
@@ -231,6 +211,12 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                     _buildDivider(),
                                     const SizedBox(height: 20),
                                     
+                                    // Email/Password Form (conditionally shown)
+                                    if (_showEmailForm) ...[
+                                      _buildEmailPasswordForm(),
+                                      const SizedBox(height: 18),
+                                    ],
+                                    
                                     // Email Sign In Button
                                     _buildEmailButton(),
                                     const SizedBox(height: 24),
@@ -250,6 +236,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                 ],
               ),
             ),
+            ),
           ),
         ],
       ),
@@ -262,15 +249,15 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       height: 50,
       child: Material(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(12),
         elevation: 0,
         child: InkWell(
           onTap: _isLoading ? null : _handleGoogleSignIn,
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(12),
           child: Container(
             decoration: BoxDecoration(
               border: Border.all(color: const Color(0xFFD0D5DD)),
-              borderRadius: BorderRadius.circular(28),
+              borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
                   color: const Color(0xFF101828).withOpacity(0.05),
@@ -345,14 +332,14 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       height: 50,
       child: Material(
         color: const Color(0xFF1FBF9A),
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(12),
         elevation: 0,
         child: InkWell(
           onTap: _isLoading ? null : _handleEmailSignIn,
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(12),
           child: Container(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(28),
+              borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
                   color: const Color(0xFF101828).withOpacity(0.05),
@@ -372,7 +359,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                       ),
                     )
                   : Text(
-                      'Sign in with Email',
+                      _showEmailForm ? 'Sign In' : 'Sign in with Email',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
@@ -383,6 +370,92 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           ),
         ),
       ),
+    );
+  }
+  
+  Widget _buildEmailPasswordForm() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Email Input
+        TextField(
+          controller: _emailController,
+          keyboardType: TextInputType.emailAddress,
+          decoration: InputDecoration(
+            hintText: 'Email',
+            hintStyle: GoogleFonts.plusJakartaSans(
+              color: const Color(0xFF98A2B3),
+            ),
+            filled: true,
+            fillColor: const Color(0xFFF9FAFB),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFF1FBF9A), width: 2),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          ),
+        ),
+        const SizedBox(height: 14),
+        
+        // Password Input
+        TextField(
+          controller: _passwordController,
+          obscureText: true,
+          decoration: InputDecoration(
+            hintText: 'Password',
+            hintStyle: GoogleFonts.plusJakartaSans(
+              color: const Color(0xFF98A2B3),
+            ),
+            filled: true,
+            fillColor: const Color(0xFFF9FAFB),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFF1FBF9A), width: 2),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          ),
+        ),
+        const SizedBox(height: 12),
+        
+        // Forgot Password Link
+        Align(
+          alignment: Alignment.centerRight,
+          child: GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ForgotPasswordScreen(),
+                ),
+              );
+            },
+            child: Text(
+              'Forgot password?',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF1FBF9A),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
   

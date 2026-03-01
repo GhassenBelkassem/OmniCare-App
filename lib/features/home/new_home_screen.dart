@@ -152,7 +152,9 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
               width: double.infinity,
               height: 56,
               child: ElevatedButton(
-                onPressed: () {},
+                onPressed: () {
+                  Navigator.pushNamed(context, '/emergency-request-step1');
+                },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white,
                   foregroundColor: const Color(0xFF1FBF9A),
@@ -322,8 +324,8 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
           children: [
             // Image placeholder for doctors
             Container(
-              width: 120,
-              height: 120,
+              width: 180,
+              height: 180,
               decoration: BoxDecoration(
                 color: const Color(0xFFF4F5F7),
                 borderRadius: BorderRadius.circular(16),
@@ -331,8 +333,8 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
                 child: Image.asset(
-                  'assets/images/doctors_group.png',
-                  fit: BoxFit.cover,
+                  'assets/images/Doctors-bro.png',
+                  fit: BoxFit.contain,
                   errorBuilder: (context, error, stackTrace) {
                     return Container(
                       decoration: BoxDecoration(
@@ -2152,7 +2154,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
               // Logo from assets only
               Image.asset(
                 'assets/images/logo.png',
-                height: 32,
+                height: 48,
                 errorBuilder: (context, error, stackTrace) {
                   return Container(
                     padding: const EdgeInsets.all(6),

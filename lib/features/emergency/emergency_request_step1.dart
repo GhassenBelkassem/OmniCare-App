@@ -288,6 +288,13 @@ class _EmergencyRequestStep1State extends State<EmergencyRequestStep1> {
         setState(() {
           _selectedPatientId = option.id;
         });
+        
+        // Auto-advance for 'Moi' and 'Baba' (family_1)
+        if (option.id == 'me' || option.id == 'family_1') {
+          Future.delayed(const Duration(milliseconds: 300), () {
+            _handleNext();
+          });
+        }
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),

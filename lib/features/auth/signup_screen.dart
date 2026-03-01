@@ -4,9 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import '../../providers/user_onboarding_provider.dart';
 import '../../l10n/app_localizations.dart';
-import 'email_input_screen.dart';
 import 'login_screen.dart';
-import 'otp_verification_screen.dart';
 import 'phone_input_screen.dart';
 
 class SignupScreen extends StatefulWidget {
@@ -18,7 +16,6 @@ class SignupScreen extends StatefulWidget {
 
 class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderStateMixin {
   bool _isLoading = false;
-  final TextEditingController _emailController = TextEditingController();
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
@@ -65,7 +62,6 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
 
   @override
   void dispose() {
-    _emailController.dispose();
     _animationController.dispose();
     super.dispose();
   }
@@ -75,22 +71,11 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
     await Future.delayed(const Duration(seconds: 2));
     setState(() => _isLoading = false);
     if (mounted) {
-      // Google sign-up: User authenticated via Google, redirect to home
-      Navigator.pushReplacementNamed(context, '/home');
-    }
-  }
-
-  Future<void> _handleEmailSignUp() async {
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(seconds: 1));
-    setState(() => _isLoading = false);
-    
-    if (mounted) {
-      // Email sign-up: Navigate to email input screen first
+      // After Google authentication, navigate to phone input screen
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => const EmailInputScreen(),
+          builder: (context) => const PhoneInputScreen(),
         ),
       );
     }
@@ -153,14 +138,16 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
           
           // Content Section
           Positioned.fill(
-            child: SafeArea(
-              child: Column(
-                children: [
-                  SizedBox(height: screenHeight * 0.35 - 40),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      physics: const ClampingScrollPhysics(),
-                      child: AnimatedBuilder(
+            child: GestureDetector(
+              onTap: () => FocusScope.of(context).unfocus(),
+              child: SafeArea(
+                child: Column(
+                  children: [
+                    SizedBox(height: screenHeight * 0.35 - 40),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        physics: const ClampingScrollPhysics(),
+                        child: AnimatedBuilder(
                         animation: _slideAnimation,
                         builder: (context, child) {
                           return Transform.translate(
@@ -172,40 +159,6 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
                                 padding: const EdgeInsets.symmetric(horizontal: 24),
                                 child: Column(
                                   children: [
-                                    // Logo Badge
-                                    Container(
-                                      width: 64,
-                                      height: 64,
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(18),
-                                        gradient: const LinearGradient(
-                                          begin: Alignment.topLeft,
-                                          end: Alignment.bottomRight,
-                                          colors: [
-                                            Color(0xFF1FBF9A),
-                                            Color(0xFF0F6F73),
-                                          ],
-                                        ),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: const Color(0xFF1FBF9A).withOpacity(0.3),
-                                            blurRadius: 20,
-                                            offset: const Offset(0, 6),
-                                          ),
-                                        ],
-                                      ),
-                                      child: Center(
-                                        child: Text(
-                                          'O',
-                                          style: GoogleFonts.plusJakartaSans(
-                                            fontSize: 28,
-                                            fontWeight: FontWeight.w800,
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 24),
                                     
                                     // Title Section
                                     Text(
@@ -228,19 +181,11 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
                                         color: const Color(0xFF667085),
                                       ),
                                     ),
-                                    const SizedBox(height: 28),
+                                    const SizedBox(height: 32),
                                     
                                     // Google Button
                                     _buildGoogleButton(),
-                                    const SizedBox(height: 18),
-                                    
-                                    // Divider
-                                    _buildDivider(),
-                                    const SizedBox(height: 18),
-                                    
-                                    // Email Sign Up Button
-                                    _buildEmailButton(),
-                                    const SizedBox(height: 20),
+                                    const SizedBox(height: 24),
                                     
                                     // Terms Section
                                     _buildTermsSection(),
@@ -261,6 +206,7 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
                 ],
               ),
             ),
+            ),
           ),
         ],
       ),
@@ -273,15 +219,15 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
       height: 50,
       child: Material(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(12),
         elevation: 0,
         child: InkWell(
           onTap: _isLoading ? null : _handleGoogleSignUp,
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(12),
           child: Container(
             decoration: BoxDecoration(
               border: Border.all(color: const Color(0xFFD0D5DD)),
-              borderRadius: BorderRadius.circular(28),
+              borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
                   color: const Color(0xFF101828).withOpacity(0.05),
@@ -313,83 +259,6 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
                   ),
                 ),
               ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-  
-  Widget _buildDivider() {
-    return Row(
-      children: [
-        const Expanded(
-          child: Divider(
-            color: Color(0xFFEAECF0),
-            thickness: 1,
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Text(
-            'OR',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: const Color(0xFF98A2B3),
-            ),
-          ),
-        ),
-        const Expanded(
-          child: Divider(
-            color: Color(0xFFEAECF0),
-            thickness: 1,
-          ),
-        ),
-      ],
-    );
-  }
-  
-  Widget _buildEmailButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 50,
-      child: Material(
-        color: const Color(0xFF1FBF9A),
-        borderRadius: BorderRadius.circular(28),
-        elevation: 0,
-        child: InkWell(
-          onTap: _isLoading ? null : _handleEmailSignUp,
-          borderRadius: BorderRadius.circular(28),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(28),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF101828).withOpacity(0.05),
-                  blurRadius: 2,
-                  offset: const Offset(0, 1),
-                ),
-              ],
-            ),
-            child: Center(
-              child: _isLoading
-                  ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    )
-                  : Text(
-                      'Sign up with Email',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
             ),
           ),
         ),

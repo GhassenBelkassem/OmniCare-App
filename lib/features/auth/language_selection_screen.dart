@@ -76,14 +76,14 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
             children: [
               const Spacer(flex: 2),
               Image.asset(
-                'assets/images/logo.png',
-                width: 120,
-                height: 120,
+                'assets/images/language_image.png',
+                width: 200,
+                height: 200,
                 fit: BoxFit.contain,
                 errorBuilder: (context, error, stackTrace) {
                   return const Icon(
-                    Icons.local_hospital,
-                    size: 120,
+                    Icons.language,
+                    size: 200,
                     color: Color(0xFF1FBF9A),
                   );
                 },

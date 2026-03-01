@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:lottie/lottie.dart';
 import 'doctor_selection_screen.dart';
+import '../../services/notification_service.dart';
 
 class DoctorArrivingScreen extends StatefulWidget {
   final Map<String, dynamic> requestData;
@@ -39,6 +41,8 @@ class _DoctorArrivingScreenState extends State<DoctorArrivingScreen> with Single
   }
 
   void _startETACountdown() {
+    bool arrivedNotificationSent = false;
+    
     Timer.periodic(const Duration(seconds: 3), (timer) {
       if (!mounted) {
         timer.cancel();
@@ -49,6 +53,15 @@ class _DoctorArrivingScreenState extends State<DoctorArrivingScreen> with Single
         if (_eta > 1) {
           _eta--;
           _distance = (_distance - 0.4).clamp(0.1, 10.0);
+          
+          // Send critical notification when doctor is about to arrive (1 min left)
+          if (_eta == 1 && !arrivedNotificationSent) {
+            arrivedNotificationSent = true;
+            final doctor = widget.requestData['doctor'] as Doctor?;
+            if (doctor != null) {
+              NotificationService().showDoctorArrivedNotification(doctor.name);
+            }
+          }
         } else {
           timer.cancel();
         }
@@ -83,12 +96,322 @@ class _DoctorArrivingScreenState extends State<DoctorArrivingScreen> with Single
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F5F7),
-      body: Column(
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildHeader(),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    _buildAnimationCard(),
+                    const SizedBox(height: 20),
+                    _buildDoctorCard(doctor),
+                    const SizedBox(height: 20),
+                    _buildActionButtons(doctor),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      color: Colors.white,
+      child: Row(
         children: [
-          _buildMapPlaceholder(),
-          _buildDoctorInfoSheet(doctor),
+          IconButton(
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.arrow_back),
+            style: IconButton.styleFrom(
+              backgroundColor: const Color(0xFFF4F5F7),
+              foregroundColor: const Color(0xFF1A202C),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Médecin en Route',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF1A202C),
+                  ),
+                ),
+                Text(
+                  'Veuillez patienter',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    color: const Color(0xFF667085),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildAnimationCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Lottie.asset(
+            'assets/animations/doctor_coming.json',
+            height: 200,
+            repeat: true,
+            animate: true,
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Votre médecin arrive',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF1A202C),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildInfoChip(
+                Icons.access_time,
+                '$_eta min',
+                'Arrivée',
+                const Color(0xFF3B82F6),
+              ),
+              Container(
+                width: 1,
+                height: 40,
+                color: const Color(0xFFE2E8F0),
+              ),
+              _buildInfoChip(
+                Icons.navigation,
+                '${_distance.toStringAsFixed(1)} km',
+                'Distance',
+                const Color(0xFF1FBF9A),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoChip(IconData icon, String value, String label, Color color) {
+    return Column(
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              value,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF1A202C),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 12,
+            color: const Color(0xFF667085),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDoctorCard(Doctor? doctor) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Stack(
+            children: [
+              Container(
+                width: 70,
+                height: 70,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF3B82F6), Color(0xFF1FBF9A)],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(Icons.person, color: Colors.white, size: 35),
+              ),
+              Positioned(
+                bottom: 0,
+                right: 0,
+                child: AnimatedBuilder(
+                  animation: _pulseController,
+                  builder: (context, child) {
+                    return Transform.scale(
+                      scale: 1.0 + (_pulseController.value * 0.2),
+                      child: Container(
+                        width: 20,
+                        height: 20,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  doctor?.name ?? 'Dr. Nom',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF1A202C),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  doctor?.specialty ?? 'Spécialité',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    color: const Color(0xFF667085),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Icon(Icons.star, color: Color(0xFFFBBF24), size: 16),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${doctor?.rating ?? 0.0}',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF1A202C),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '(${doctor?.reviewCount ?? 0} avis)',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        color: const Color(0xFF667085),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButtons(Doctor? doctor) {
+    return Column(
+      children: [
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: () => _callDoctor(doctor),
+            icon: const Icon(Icons.phone, size: 20),
+            label: Text(
+              'Appeler',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1FBF9A),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 0,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () {
+              Navigator.pushNamed(
+                context,
+                '/consultation-qr',
+                arguments: widget.requestData,
+              );
+            },
+            icon: const Icon(Icons.qr_code_2, size: 20),
+            label: Text(
+              'Afficher le Code QR',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFF3B82F6),
+              side: const BorderSide(color: Color(0xFF3B82F6), width: 2),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -168,74 +491,59 @@ class _DoctorArrivingScreenState extends State<DoctorArrivingScreen> with Single
 
   Widget _buildETACard() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 20,
             offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      child: Column(
         children: [
-          Column(
+          Lottie.asset(
+            'assets/animations/doctor_coming.json',
+            height: 200,
+            repeat: true,
+            animate: true,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Votre médecin arrive',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF1A202C),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Row(
-                children: [
-                  const Icon(Icons.access_time, color: Color(0xFF3B82F6), size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    '$_eta min',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                      color: const Color(0xFF1A202C),
-                    ),
-                  ),
-                ],
-              ),
+              const Icon(Icons.access_time, color: Color(0xFF3B82F6), size: 16),
+              const SizedBox(width: 6),
               Text(
-                'Arrivée estimée',
+                '$_eta min',
                 style: GoogleFonts.plusJakartaSans(
-                  fontSize: 11,
-                  color: const Color(0xFF667085),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF3B82F6),
                 ),
               ),
-            ],
-          ),
-          Container(
-            width: 1,
-            height: 40,
-            margin: const EdgeInsets.symmetric(horizontal: 20),
-            color: const Color(0xFFE2E8F0),
-          ),
-          Column(
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.navigation, color: Color(0xFF1FBF9A), size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${_distance.toStringAsFixed(1)} km',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                      color: const Color(0xFF1A202C),
-                    ),
-                  ),
-                ],
-              ),
+              const SizedBox(width: 16),
+              const Icon(Icons.navigation, color: Color(0xFF1FBF9A), size: 16),
+              const SizedBox(width: 6),
               Text(
-                'Distance',
+                '${_distance.toStringAsFixed(1)} km',
                 style: GoogleFonts.plusJakartaSans(
-                  fontSize: 11,
-                  color: const Color(0xFF667085),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF1FBF9A),
                 ),
               ),
             ],

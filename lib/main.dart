@@ -13,14 +13,20 @@ import 'features/home/new_home_screen.dart';
 import 'features/emergency/emergency_request_step1.dart';
 import 'features/emergency/emergency_request_step2.dart';
 import 'features/emergency/emergency_request_step3.dart';
+import 'features/emergency/emergency_review_screen.dart';
 import 'features/emergency/doctor_selection_screen.dart';
 import 'features/emergency/review_confirm_screen.dart';
 import 'features/emergency/doctor_calling_screen.dart';
 import 'features/emergency/doctor_arriving_screen.dart';
+import 'features/emergency/consultation_qr_screen.dart';
+import 'features/emergency/consultation_complete_screen.dart';
 import 'providers/user_onboarding_provider.dart';
+import 'services/notification_service.dart';
 import 'l10n/app_localizations.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await NotificationService().initialize();
   runApp(const OmniCareApp());
 }
 
@@ -86,6 +92,12 @@ class OmniCareApp extends StatelessWidget {
                   builder: (context) => EmergencyRequestStep3(previousData: args),
                 );
               }
+              if (settings.name == '/emergency-review') {
+                final args = settings.arguments as Map<String, dynamic>;
+                return MaterialPageRoute(
+                  builder: (context) => EmergencyReviewScreen(requestData: args),
+                );
+              }
               if (settings.name == '/doctor-selection') {
                 final args = settings.arguments as Map<String, dynamic>;
                 return MaterialPageRoute(
@@ -108,6 +120,18 @@ class OmniCareApp extends StatelessWidget {
                 final args = settings.arguments as Map<String, dynamic>;
                 return MaterialPageRoute(
                   builder: (context) => DoctorArrivingScreen(requestData: args),
+                );
+              }
+              if (settings.name == '/consultation-qr') {
+                final args = settings.arguments as Map<String, dynamic>;
+                return MaterialPageRoute(
+                  builder: (context) => ConsultationQRScreen(requestData: args),
+                );
+              }
+              if (settings.name == '/consultation-complete') {
+                final args = settings.arguments as Map<String, dynamic>;
+                return MaterialPageRoute(
+                  builder: (context) => ConsultationCompleteScreen(requestData: args),
                 );
               }
               return null;

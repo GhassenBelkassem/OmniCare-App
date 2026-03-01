@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
 import 'doctor_selection_screen.dart';
+import '../../services/notification_service.dart';
 
 class DoctorCallingScreen extends StatefulWidget {
   final Map<String, dynamic> requestData;
@@ -26,6 +27,12 @@ class _DoctorCallingScreenState extends State<DoctorCallingScreen> with SingleTi
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat();
+
+    // Send notification that doctor is on the way
+    final doctor = widget.requestData['doctor'] as Doctor?;
+    if (doctor != null) {
+      NotificationService().showDoctorOnWayNotification(doctor.name);
+    }
 
     _navigationTimer = Timer(const Duration(seconds: 5), () {
       if (mounted) {

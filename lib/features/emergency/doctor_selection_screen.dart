@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
+import '../../services/notification_service.dart';
 
 class Doctor {
   final int id;
@@ -200,6 +201,11 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
   void initState() {
     super.initState();
     _startDoctorDiscovery();
+    
+    // Send test notification to verify notifications work
+    Future.delayed(const Duration(seconds: 2), () {
+      NotificationService().showTestNotification();
+    });
   }
 
   @override
@@ -247,6 +253,12 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
               setState(() {
                 doctor.status = 'ready';
               });
+              
+              // Send notification when all 3 doctors are ready
+              final readyDoctors = _visibleDoctors.where((d) => d.status == 'ready').length;
+              if (readyDoctors == 3) {
+                NotificationService().showDoctorsFoundNotification();
+              }
             }
           }));
         }
@@ -257,7 +269,7 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
   void _handleConfirmDoctor(Doctor doctor) {
     Navigator.pushNamed(
       context,
-      '/review-confirm',
+      '/doctor-arriving',
       arguments: {
         ...widget.emergencyData,
         'doctor': doctor,
