@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import 'consultation_detail_screen.dart';
+import '../../providers/user_provider.dart';
 
 class Consultation {
   final String id;
@@ -43,110 +45,28 @@ class _HistoryTabState extends State<HistoryTab> {
   String _searchQuery = '';
   String _selectedMonth = 'all';
 
-  final List<Consultation> _consultations = [
-    Consultation(
-      id: '1',
-      date: '2026-02-12',
-      time: '14:30',
-      doctorName: 'Dr. Karim Mansour',
-      specialty: 'Médecin Généraliste',
-      patientName: 'Sarah Ben Ahmed',
-      reason: 'Contrôle de routine',
-      location: 'Tunis, La Marsa',
-      status: 'completed',
-      medications: ['Paracétamol 500mg', 'Vitamine D 1000 UI'],
-      diagnosis: 'Bilan de santé normal. Légère carence en vitamine D.',
-      cost: '80 TND',
-    ),
-    Consultation(
-      id: '2',
-      date: '2026-02-08',
-      time: '10:15',
-      doctorName: 'Dr. Salma Gharbi',
-      specialty: 'Pédiatre',
-      patientName: 'Youssef Ben Ahmed',
-      reason: 'Fièvre et toux',
-      location: 'Tunis, Centre Ville',
-      status: 'completed',
-      medications: ['Doliprane Enfant 100mg', 'Sirop antitussif', 'Probiotiques'],
-      diagnosis: 'Infection virale bénigne. Repos recommandé pendant 3 jours.',
-      cost: '70 TND',
-    ),
-    Consultation(
-      id: '3',
-      date: '2026-02-05',
-      time: '16:00',
-      doctorName: 'Dr. Ahmed Trabelsi',
-      specialty: 'Cardiologue',
-      patientName: 'Mohamed Ben Ahmed',
-      reason: 'Hypertension - Suivi',
-      location: 'Tunis, Menzah',
-      status: 'completed',
-      medications: ['Lisinopril 10mg', 'Aspirine 81mg'],
-      diagnosis: 'Tension artérielle bien contrôlée. Continuer le traitement actuel.',
-      cost: '100 TND',
-    ),
-    Consultation(
-      id: '4',
-      date: '2026-01-28',
-      time: '11:30',
-      doctorName: 'Dr. Leila Ben Ali',
-      specialty: 'Dermatologue',
-      patientName: 'Amira Ben Ahmed',
-      reason: 'Éruption cutanée',
-      location: 'Ariana, Centre Ville',
-      status: 'completed',
-      medications: ['Crème hydrocortisone 1%', 'Lotion hydratante'],
-      diagnosis: 'Eczéma atopique léger. Application de crème 2x/jour.',
-      cost: '90 TND',
-    ),
-    Consultation(
-      id: '5',
-      date: '2026-01-22',
-      time: '09:00',
-      doctorName: 'Dr. Mehdi Khelifi',
-      specialty: 'Médecin Généraliste',
-      patientName: 'Fatma Ben Salem',
-      reason: 'Grippe',
-      location: 'Tunis, El Menzah',
-      status: 'completed',
-      medications: ['Paracétamol 1g', 'Vitamine C 500mg', 'Repos complet'],
-      diagnosis: 'Syndrome grippal. Hydratation et repos pendant 5 jours.',
-      cost: '75 TND',
-    ),
-    Consultation(
-      id: '6',
-      date: '2026-01-15',
-      time: '15:45',
-      doctorName: 'Dr. Karim Mansour',
-      specialty: 'Médecin Généraliste',
-      patientName: 'Sarah Ben Ahmed',
-      reason: 'Vaccination',
-      location: 'Tunis, La Marsa',
-      status: 'completed',
-      medications: ['Vaccin Grippe 2026'],
-      diagnosis: 'Vaccination antigrippale administrée avec succès.',
-      cost: '50 TND',
-    ),
-    Consultation(
-      id: '7',
-      date: '2026-01-10',
-      time: '14:00',
-      doctorName: 'Dr. Nadia Hamdi',
-      specialty: 'Gynécologue',
-      patientName: 'Sarah Ben Ahmed',
-      reason: 'Consultation annuelle',
-      location: 'Tunis, Lac 2',
-      status: 'cancelled',
-      cost: '0 TND',
-    ),
-  ];
+  static const String _currentUserPlaceholderName = '__CURRENT_USER__';
+
+  final List<Consultation> _consultations = [];
+
+  String _resolvePatientName(String rawName, String currentUserName) {
+    if (rawName == _currentUserPlaceholderName) {
+      return currentUserName;
+    }
+    return rawName;
+  }
 
   List<Consultation> get _filteredConsultations {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final currentUserName = (userProvider.isLoading && userProvider.user == null)
+        ? 'Loading...'
+        : (((userProvider.user?.displayName ?? '').trim().isNotEmpty) ? userProvider.user!.displayName : 'User');
+
     return _consultations.where((consultation) {
+      final patientName = _resolvePatientName(consultation.patientName, currentUserName);
       final matchesSearch = consultation.doctorName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           consultation.specialty.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          consultation.patientName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+          patientName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           consultation.reason.toLowerCase().contains(_searchQuery.toLowerCase());
 
       final consultationDate = DateTime.parse(consultation.date);
@@ -179,6 +99,11 @@ class _HistoryTabState extends State<HistoryTab> {
 
   @override
   Widget build(BuildContext context) {
+    final userProvider = context.watch<UserProvider>();
+    final currentUserName = (userProvider.isLoading && userProvider.user == null)
+        ? 'Loading...'
+        : (((userProvider.user?.displayName ?? '').trim().isNotEmpty) ? userProvider.user!.displayName : 'User');
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -192,7 +117,7 @@ class _HistoryTabState extends State<HistoryTab> {
           const SizedBox(height: 20),
           _buildResultsCount(),
           const SizedBox(height: 16),
-          _buildConsultationsList(),
+          _buildConsultationsList(currentUserName),
         ],
       ),
     );
@@ -360,7 +285,7 @@ class _HistoryTabState extends State<HistoryTab> {
     );
   }
 
-  Widget _buildConsultationsList() {
+  Widget _buildConsultationsList(String currentUserName) {
     if (_filteredConsultations.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(48),
@@ -379,7 +304,7 @@ class _HistoryTabState extends State<HistoryTab> {
               ),
               const SizedBox(height: 16),
               Text(
-                'Aucune consultation trouvée',
+                'Aucun historique',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
@@ -388,7 +313,7 @@ class _HistoryTabState extends State<HistoryTab> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Essayez de modifier vos filtres',
+                'Aucune consultation pour ce compte pour le moment',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 13,
                   color: const Color(0xFF667085),
@@ -404,14 +329,28 @@ class _HistoryTabState extends State<HistoryTab> {
       children: _filteredConsultations.map((consultation) {
         return Container(
           margin: const EdgeInsets.only(bottom: 16),
-          child: _buildConsultationCard(consultation),
+          child: _buildConsultationCard(consultation, currentUserName),
         );
       }).toList(),
     );
   }
 
-  Widget _buildConsultationCard(Consultation consultation) {
+  Widget _buildConsultationCard(Consultation consultation, String currentUserName) {
     final isCompleted = consultation.status == 'completed';
+    final resolvedConsultation = Consultation(
+      id: consultation.id,
+      date: consultation.date,
+      time: consultation.time,
+      doctorName: consultation.doctorName,
+      specialty: consultation.specialty,
+      patientName: _resolvePatientName(consultation.patientName, currentUserName),
+      reason: consultation.reason,
+      location: consultation.location,
+      status: consultation.status,
+      medications: consultation.medications,
+      diagnosis: consultation.diagnosis,
+      cost: consultation.cost,
+    );
     
     return GestureDetector(
       onTap: () {
@@ -419,7 +358,7 @@ class _HistoryTabState extends State<HistoryTab> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => ConsultationDetailScreen(consultation: consultation),
+            builder: (context) => ConsultationDetailScreen(consultation: resolvedConsultation),
           ),
         );
       },
@@ -443,21 +382,21 @@ class _HistoryTabState extends State<HistoryTab> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildConsultationHeader(consultation),
+            _buildConsultationHeader(resolvedConsultation),
             const SizedBox(height: 16),
-            _buildDoctorPatientInfo(consultation),
+            _buildDoctorPatientInfo(resolvedConsultation),
             const SizedBox(height: 16),
-            _buildReasonLocation(consultation),
-            if (isCompleted && consultation.diagnosis != null) ...[
+            _buildReasonLocation(resolvedConsultation),
+            if (isCompleted && resolvedConsultation.diagnosis != null) ...[
               const SizedBox(height: 16),
-              _buildDiagnosis(consultation.diagnosis!),
+              _buildDiagnosis(resolvedConsultation.diagnosis!),
             ],
-            if (isCompleted && consultation.medications != null && consultation.medications!.isNotEmpty) ...[
+            if (isCompleted && resolvedConsultation.medications != null && resolvedConsultation.medications!.isNotEmpty) ...[
               const SizedBox(height: 16),
-              _buildMedications(consultation.medications!),
+              _buildMedications(resolvedConsultation.medications!),
             ],
             const SizedBox(height: 16),
-            _buildFooter(consultation),
+            _buildFooter(resolvedConsultation),
           ],
         ),
       ),

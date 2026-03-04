@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'features/auth/splash_screen.dart';
 import 'features/auth/phone_input_screen.dart';
 import 'features/profile/vital_info_screen.dart';
@@ -21,11 +22,13 @@ import 'features/emergency/doctor_arriving_screen.dart';
 import 'features/emergency/consultation_qr_screen.dart';
 import 'features/emergency/consultation_complete_screen.dart';
 import 'providers/user_onboarding_provider.dart';
+import 'providers/user_provider.dart';
 import 'services/notification_service.dart';
 import 'l10n/app_localizations.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: '.env');
   await NotificationService().initialize();
   runApp(const OmniCareApp());
 }
@@ -35,8 +38,11 @@ class OmniCareApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => UserOnboardingProvider(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => UserOnboardingProvider()),
+        ChangeNotifierProvider(create: (_) => UserProvider()..loadIfLoggedIn()),
+      ],
       child: Consumer<UserOnboardingProvider>(
         builder: (context, provider, child) {
           Locale locale = const Locale('en');

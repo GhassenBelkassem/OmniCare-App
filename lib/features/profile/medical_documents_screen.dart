@@ -17,7 +17,11 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen> {
 
   void _showAddDocumentDialog({MedicalDocument? document, int? index}) {
     final nameController = TextEditingController(text: document?.documentName ?? '');
+    final allowedTypes = ['Prescription', 'Report', 'Scan', 'Lab Results', 'Other'];
     String documentType = document?.documentType ?? 'Prescription';
+    if (!allowedTypes.contains(documentType)) {
+      documentType = 'Other';
+    }
     DateTime selectedDate = document?.date ?? DateTime.now();
 
     showDialog(
@@ -97,10 +101,10 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen> {
                       value: documentType,
                       onChanged: (value) {
                         setDialogState(() {
-                          documentType = value!;
+                          documentType = value ?? 'Other';
                         });
                       },
-                      items: ['Prescription', 'Report', 'Scan', 'Lab Results', 'Other']
+                      items: allowedTypes
                           .map((type) => DropdownMenuItem(
                                 value: type,
                                 child: Text(

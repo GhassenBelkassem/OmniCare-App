@@ -6,6 +6,12 @@ import '../../providers/user_onboarding_provider.dart';
 import '../../l10n/app_localizations.dart';
 import 'login_screen.dart';
 import 'phone_input_screen.dart';
+import '../../core/api/auth_api.dart';
+import '../../core/utils/logger.dart';
+import '../../core/api/api_error_utils.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter/foundation.dart';
+import '../../core/auth/google_web_sign_in_button.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -16,6 +22,10 @@ class SignupScreen extends StatefulWidget {
 
 class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderStateMixin {
   bool _isLoading = false;
+  bool _showEmailForm = false;
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
@@ -57,27 +67,89 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
       if (mounted) {
         _animationController.forward();
       }
+
     });
   }
 
   @override
   void dispose() {
+    _emailController.dispose();
+    _nameController.dispose();
+    _passwordController.dispose();
     _animationController.dispose();
     super.dispose();
   }
 
   Future<void> _handleGoogleSignUp() async {
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(seconds: 2));
-    setState(() => _isLoading = false);
-    if (mounted) {
-      // After Google authentication, navigate to phone input screen
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const PhoneInputScreen(),
-        ),
+    if (kIsWeb) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please use the Google button to sign up on web.')),
       );
+      return;
+    }
+    setState(() => _isLoading = true);
+    try {
+      final googleSignIn = GoogleSignIn(
+        scopes: <String>['email', 'profile'],
+      );
+      final account = await googleSignIn.signIn();
+      if (account == null) {
+        return;
+      }
+
+      final auth = await account.authentication;
+      final idToken = auth.idToken;
+      if (idToken == null || idToken.isEmpty) {
+        throw StateError('Google idToken is null');
+      }
+
+      await AuthApi().googleLogin(idToken: idToken);
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(context, '/home');
+    } catch (e, st) {
+      AppLogger.error('Google sign-up failed', e, st);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Google sign-up failed: ${apiErrorMessage(e)}')),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _handleEmailSignUp() async {
+    if (!_showEmailForm) {
+      setState(() => _showEmailForm = true);
+      return;
+    }
+
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    final name = _nameController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Email and password are required')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      await AuthApi().register(email: email, password: password, name: name.isEmpty ? null : name);
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+      );
+    } catch (e, st) {
+      AppLogger.error('Register failed', e, st);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Register failed: ${apiErrorMessage(e)}')),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -186,6 +258,14 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
                                     // Google Button
                                     _buildGoogleButton(),
                                     const SizedBox(height: 24),
+
+                                    if (_showEmailForm) ...[
+                                      _buildEmailPasswordForm(),
+                                      const SizedBox(height: 18),
+                                    ],
+
+                                    _buildEmailButton(),
+                                    const SizedBox(height: 20),
                                     
                                     // Terms Section
                                     _buildTermsSection(),
@@ -212,8 +292,142 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
       ),
     );
   }
+
+  Widget _buildEmailButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 50,
+      child: Material(
+        color: const Color(0xFF1FBF9A),
+        borderRadius: BorderRadius.circular(12),
+        elevation: 0,
+        child: InkWell(
+          onTap: _isLoading ? null : _handleEmailSignUp,
+          borderRadius: BorderRadius.circular(12),
+          child: Center(
+            child: _isLoading
+                ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : Text(
+                    _showEmailForm ? 'Create account' : 'Sign up with Email',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmailPasswordForm() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: _nameController,
+          decoration: InputDecoration(
+            hintText: 'Name (optional)',
+            hintStyle: GoogleFonts.plusJakartaSans(color: const Color(0xFF98A2B3)),
+            filled: true,
+            fillColor: const Color(0xFFF9FAFB),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFF1FBF9A), width: 2),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          ),
+        ),
+        const SizedBox(height: 14),
+        TextField(
+          controller: _emailController,
+          keyboardType: TextInputType.emailAddress,
+          decoration: InputDecoration(
+            hintText: 'Email',
+            hintStyle: GoogleFonts.plusJakartaSans(color: const Color(0xFF98A2B3)),
+            filled: true,
+            fillColor: const Color(0xFFF9FAFB),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFF1FBF9A), width: 2),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          ),
+        ),
+        const SizedBox(height: 14),
+        TextField(
+          controller: _passwordController,
+          obscureText: true,
+          decoration: InputDecoration(
+            hintText: 'Password',
+            hintStyle: GoogleFonts.plusJakartaSans(color: const Color(0xFF98A2B3)),
+            filled: true,
+            fillColor: const Color(0xFFF9FAFB),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFF1FBF9A), width: 2),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          ),
+        ),
+      ],
+    );
+  }
   
   Widget _buildGoogleButton() {
+    if (kIsWeb) {
+      return GoogleWebSignInButton(
+        onIdToken: (idToken) async {
+          setState(() => _isLoading = true);
+          try {
+            await AuthApi().googleLogin(idToken: idToken);
+            if (!mounted) return;
+            Navigator.pushReplacementNamed(context, '/home');
+          } catch (e, st) {
+            AppLogger.error('Google web sign-up failed', e, st);
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Google sign-up failed: ${apiErrorMessage(e)}')),
+            );
+          } finally {
+            if (mounted) setState(() => _isLoading = false);
+          }
+        },
+      );
+    }
+
     return SizedBox(
       width: double.infinity,
       height: 50,

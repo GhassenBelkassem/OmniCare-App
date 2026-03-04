@@ -3,11 +3,18 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import '../../providers/user_onboarding_provider.dart';
+import '../../providers/user_provider.dart';
 import '../../l10n/app_localizations.dart';
 import 'otp_verification_screen.dart';
 import 'phone_input_screen.dart';
 import 'forgot_password_screen.dart';
 import 'signup_screen.dart';
+import '../../core/api/auth_api.dart';
+import '../../core/utils/logger.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import '../../core/api/api_error_utils.dart';
+import 'package:flutter/foundation.dart';
+import '../../core/auth/google_web_sign_in_button.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -75,12 +82,45 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
 
   Future<void> _handleGoogleSignIn() async {
+    if (kIsWeb) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please use the Google button to sign in on web.')),
+      );
+      return;
+    }
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(seconds: 2));
-    setState(() => _isLoading = false);
-    if (mounted) {
-      // Google sign-in: User authenticated via Google, redirect to home
+    try {
+      final googleSignIn = GoogleSignIn(
+        scopes: <String>['email', 'profile'],
+      );
+
+      final account = await googleSignIn.signIn();
+      if (account == null) {
+        return;
+      }
+
+      final auth = await account.authentication;
+      final idToken = auth.idToken;
+      if (idToken == null || idToken.isEmpty) {
+        throw StateError('Google idToken is null');
+      }
+
+      await AuthApi().googleLogin(idToken: idToken);
+      if (!mounted) return;
+      print('[LoginScreen] JWT saved. Forcing UserProvider.refresh() before /home navigation...');
+      await context.read<UserProvider>().refresh();
+      print('[LoginScreen] UserProvider.refresh() done. Navigating to /home');
       Navigator.pushReplacementNamed(context, '/home');
+    } catch (e, st) {
+      AppLogger.error('Google sign-in failed', e, st);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Google sign-in failed: ${apiErrorMessage(e)}')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -90,13 +130,33 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       setState(() => _showEmailForm = true);
     } else {
       // Handle actual sign in
+      final email = _emailController.text.trim();
+      final password = _passwordController.text;
+      if (email.isEmpty || password.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Email and password are required')),
+        );
+        return;
+      }
+
       setState(() => _isLoading = true);
-      await Future.delayed(const Duration(seconds: 2));
-      setState(() => _isLoading = false);
-      
-      if (mounted) {
-        // Navigate to home after login
+      try {
+        await AuthApi().login(email: email, password: password);
+        if (!mounted) return;
+        print('[LoginScreen] JWT saved. Forcing UserProvider.refresh() before /home navigation...');
+        await context.read<UserProvider>().refresh();
+        print('[LoginScreen] UserProvider.refresh() done. Navigating to /home');
         Navigator.pushReplacementNamed(context, '/home');
+      } catch (e, st) {
+        AppLogger.error('Login failed', e, st);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Login failed: ${apiErrorMessage(e)}')),
+        );
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
       }
     }
   }
@@ -244,6 +304,30 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   }
   
   Widget _buildGoogleButton() {
+    if (kIsWeb) {
+      return GoogleWebSignInButton(
+        onIdToken: (idToken) async {
+          setState(() => _isLoading = true);
+          try {
+            await AuthApi().googleLogin(idToken: idToken);
+            if (!mounted) return;
+            print('[LoginScreen] (Web) JWT saved. Forcing UserProvider.refresh() before /home navigation...');
+            await context.read<UserProvider>().refresh();
+            print('[LoginScreen] (Web) UserProvider.refresh() done. Navigating to /home');
+            Navigator.pushReplacementNamed(context, '/home');
+          } catch (e, st) {
+            AppLogger.error('Google web sign-in failed', e, st);
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Google sign-in failed: ${apiErrorMessage(e)}')),
+            );
+          } finally {
+            if (mounted) setState(() => _isLoading = false);
+          }
+        },
+      );
+    }
+
     return SizedBox(
       width: double.infinity,
       height: 50,

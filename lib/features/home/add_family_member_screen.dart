@@ -49,7 +49,7 @@ class _AddFamilyMemberScreenState extends State<AddFamilyMemberScreen> {
   List<String> _selectedConditions = [];
   final _criticalAlertController = TextEditingController();
 
-  final List<String> _bloodTypes = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
+  final List<String> _bloodTypes = ['-', 'A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
   
   final List<Map<String, String>> _relationships = [
     {'value': 'Baba', 'label': 'Baba (Père)', 'icon': '👨'},
@@ -520,7 +520,7 @@ class _AddFamilyMemberScreenState extends State<AddFamilyMemberScreen> {
             border: Border.all(color: const Color(0xFFE2E8F0)),
           ),
           child: DropdownButtonFormField<String>(
-            value: _selectedBloodType.isEmpty ? null : _selectedBloodType,
+            value: _bloodTypes.contains(_selectedBloodType) ? _selectedBloodType : '-',
             decoration: const InputDecoration(
               contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               border: InputBorder.none,
@@ -543,7 +543,7 @@ class _AddFamilyMemberScreenState extends State<AddFamilyMemberScreen> {
             }).toList(),
             onChanged: (value) {
               setState(() {
-                _selectedBloodType = value ?? '';
+                _selectedBloodType = (value == null || value.trim().isEmpty) ? '-' : value;
               });
             },
           ),

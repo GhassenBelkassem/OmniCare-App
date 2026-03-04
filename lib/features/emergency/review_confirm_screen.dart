@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'doctor_selection_screen.dart';
+import '../../core/api/consultations_api.dart';
+import '../../core/api/doctors_api.dart';
+import '../../core/utils/logger.dart';
+import '../../core/api/api_error_utils.dart';
 
 class ReviewConfirmScreen extends StatefulWidget {
   final Map<String, dynamic> requestData;
@@ -23,14 +27,87 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
       _isSubmitting = true;
     });
 
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      final painLevel = widget.requestData['painLevel'] as int?;
+      final bodyParts = (widget.requestData['bodyParts'] as List?)?.map((e) => e.toString()).toList() ?? <String>[];
+      final symptoms = (widget.requestData['description'] ?? widget.requestData['symptoms'])?.toString() ?? '';
 
-    if (mounted) {
+      final location = widget.requestData['location'] as Map<String, dynamic>?;
+      double? latitude;
+      double? longitude;
+      String? streetAddress;
+      String? apartmentSuite;
+      String? city;
+
+      if (location != null) {
+        if (location['type'] == 'gps') {
+          latitude = (location['latitude'] as num?)?.toDouble();
+          longitude = (location['longitude'] as num?)?.toDouble();
+          streetAddress = location['address']?.toString();
+        } else if (location['type'] == 'manual') {
+          streetAddress = location['street']?.toString();
+          apartmentSuite = location['apartment']?.toString();
+          city = location['city']?.toString();
+        }
+      }
+
+      if (painLevel == null) {
+        throw StateError('Missing painLevel');
+      }
+      if (bodyParts.isEmpty) {
+        throw StateError('Missing affectedAreas');
+      }
+      if (symptoms.trim().isEmpty) {
+        throw StateError('Missing symptoms');
+      }
+      if (latitude == null || longitude == null) {
+        throw StateError('Missing latitude/longitude');
+      }
+
+      final doctors = await DoctorsApi().listDoctors();
+      if (doctors.isEmpty) {
+        throw StateError('No doctors returned from /api/doctors');
+      }
+      final doctorId = doctors.first['doctorId']?.toString();
+      if (doctorId == null || doctorId.isEmpty) {
+        throw StateError('Missing doctorId field in /api/doctors response');
+      }
+
+      final created = await ConsultationsApi().createConsultation(
+        doctorId: doctorId,
+        patientId: null,
+        symptoms: symptoms.trim(),
+        painLevel: painLevel,
+        affectedAreas: bodyParts,
+        latitude: latitude,
+        longitude: longitude,
+        streetAddress: streetAddress,
+        apartmentSuite: apartmentSuite,
+        city: city,
+      );
+
+      if (!mounted) return;
+
       Navigator.pushNamed(
         context,
         '/doctor-calling',
-        arguments: widget.requestData,
+        arguments: {
+          ...widget.requestData,
+          'consultationId': created.id,
+        },
       );
+    } catch (e, st) {
+      AppLogger.error('Failed to confirm emergency request', e, st);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to submit: ${apiErrorMessage(e)}')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
     }
   }
 

@@ -55,7 +55,7 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
   late List<Medication> _medications;
   late List<MedicalDocument> _documents;
 
-  final List<String> _bloodTypes = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
+  final List<String> _bloodTypes = ['-', 'A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
   final List<String> _availableConditions = [
     'Diabète Type 2',
     'Diabète Type 1',
@@ -82,6 +82,9 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
   void initState() {
     super.initState();
     _bloodType = widget.bloodType;
+    if (_bloodType.trim().isEmpty || !_bloodTypes.contains(_bloodType)) {
+      _bloodType = '-';
+    }
     _chronicConditions = List.from(widget.chronicConditions);
     _medications = List.from(widget.medications);
     _documents = List.from(widget.documents);
@@ -199,7 +202,7 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
             border: Border.all(color: const Color(0xFFE2E8F0)),
           ),
           child: DropdownButtonFormField<String>(
-            value: _bloodType.isEmpty ? null : _bloodType,
+            value: _bloodTypes.contains(_bloodType) ? _bloodType : '-',
             decoration: const InputDecoration(
               contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               border: InputBorder.none,
@@ -222,7 +225,7 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
             }).toList(),
             onChanged: (value) {
               setState(() {
-                _bloodType = value ?? '';
+                _bloodType = (value == null || value.trim().isEmpty) ? '-' : value;
               });
             },
           ),

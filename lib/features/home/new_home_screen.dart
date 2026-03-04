@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/user_onboarding_provider.dart';
+import '../../providers/user_provider.dart';
 import 'edit_medical_data_screen.dart';
 import 'add_family_member_screen.dart';
 import 'family_member_detail_screen.dart';
@@ -21,9 +22,39 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
   int _selectedIndex = 0;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      if (userProvider.profile == null && !userProvider.isLoading) {
+        userProvider.loadIfLoggedIn();
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<UserOnboardingProvider>(context);
-    final userName = provider.email?.split('@')[0] ?? 'Sarah';
+    final onboarding = Provider.of<UserOnboardingProvider>(context);
+    final userProvider = Provider.of<UserProvider>(context);
+    final resolvedDisplayName = (userProvider.user?.displayName ?? '').trim();
+    final userName = resolvedDisplayName.isNotEmpty
+        ? resolvedDisplayName
+        : (onboarding.email?.split('@')[0] ?? 'User');
+
+    final String firstName = (userProvider.user?.derivedFirstName ?? '').trim();
+    final String lastName = (userProvider.user?.derivedLastName ?? '').trim();
+
+    final String healthCardPatientName;
+    if (userProvider.isLoading && userProvider.user == null) {
+      healthCardPatientName = 'Loading...';
+    } else if (firstName.isNotEmpty || lastName.isNotEmpty) {
+      healthCardPatientName = [firstName, lastName].where((e) => e.trim().isNotEmpty).join(' ');
+    } else if ((onboarding.email ?? '').isNotEmpty) {
+      healthCardPatientName = onboarding.email!.split('@')[0];
+    } else {
+      healthCardPatientName = 'User';
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F5F7),
@@ -802,8 +833,12 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
   }
 
   Widget _buildProfileTab() {
-    final provider = Provider.of<UserOnboardingProvider>(context);
-    final userName = provider.email?.split('@')[0] ?? 'Sarah';
+    final onboarding = Provider.of<UserOnboardingProvider>(context);
+    final userProvider = Provider.of<UserProvider>(context);
+    final resolvedDisplayName = (userProvider.user?.displayName ?? '').trim();
+    final userName = resolvedDisplayName.isNotEmpty
+        ? resolvedDisplayName
+        : (onboarding.email?.split('@')[0] ?? 'User');
     
     return SingleChildScrollView(
       child: Padding(
@@ -834,6 +869,36 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
   }
 
   Widget _buildMedicalPassportSection(String userName) {
+    final onboarding = Provider.of<UserOnboardingProvider>(context);
+    final userProvider = Provider.of<UserProvider>(context);
+
+    final Map<String, dynamic> medicalInfo = userProvider.user?.medicalInfo ?? const <String, dynamic>{};
+    final List<String> chronicConditions = (medicalInfo['chronicConditions'] is List)
+        ? (medicalInfo['chronicConditions'] as List).map((e) => e.toString()).where((e) => e.trim().isNotEmpty).toList()
+        : const <String>[];
+    final List<Map<String, dynamic>> currentMedications = (medicalInfo['currentMedications'] is List)
+        ? (medicalInfo['currentMedications'] as List)
+            .whereType<Map>()
+            .map((e) => e.cast<String, dynamic>())
+            .toList()
+        : const <Map<String, dynamic>>[];
+    final String bloodGroup = (userProvider.user?.bloodGroup ?? '').trim();
+
+    final String patientName;
+    if (userProvider.isLoading && userProvider.user == null) {
+      patientName = 'Loading...';
+    } else if ((userProvider.user?.displayName ?? '').trim().isNotEmpty) {
+      patientName = userProvider.user!.displayName;
+    } else if ((onboarding.email ?? '').isNotEmpty) {
+      patientName = onboarding.email!.split('@')[0];
+    } else {
+      patientName = 'User';
+    }
+
+    final String patientId = (userProvider.user?.email.isNotEmpty == true)
+        ? userProvider.user!.email
+        : (onboarding.email ?? '');
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -878,181 +943,220 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
               ),
             ],
           ),
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  children: [
-                    // QR Code Section
-                    GestureDetector(
-                      onTap: () {
-                        showDialog(
-                          context: context,
-                          builder: (context) => const QRCodeModal(
-                            patientName: 'Sarah Ben Ahmed',
-                            patientId: 'OMNI-2026-001',
-                            isFamilyMember: false,
-                          ),
-                        );
-                      },
-                      child: Container(
-                        width: 140,
-                        height: 140,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: const Color(0xFF1FBF9A).withOpacity(0.3),
-                            width: 2,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF1FBF9A).withOpacity(0.1),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.qr_code_2,
-                              size: 64,
-                              color: const Color(0xFF1FBF9A),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Cliquez pour afficher',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                                color: const Color(0xFF667085),
-                              ),
-                            ),
-                          ],
-                        ),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                GestureDetector(
+                  onTap: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) => QRCodeModal(
+                        patientName: patientName,
+                        patientId: patientId,
+                        isFamilyMember: false,
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      userName,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF1A202C),
+                    );
+                  },
+                  child: Container(
+                    height: 120,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: const Color(0xFF1FBF9A).withOpacity(0.3),
+                        width: 2,
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Pour scan médecin',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: const Color(0xFF667085),
-                      ),
-                    ),
-                    
-                    const SizedBox(height: 24),
-                    
-                    // Blood Type
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'GROUPE SANGUIN',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF667085),
-                            letterSpacing: 1,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFEF2F2),
-                            border: Border.all(color: const Color(0xFFFECACA)),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.favorite,
-                                color: const Color(0xFFDC2626),
-                                size: 20,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'A+',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w800,
-                                  color: const Color(0xFFDC2626),
-                                ),
-                              ),
-                            ],
-                          ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF1FBF9A).withOpacity(0.1),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
                         ),
                       ],
                     ),
-                    
-                    const SizedBox(height: 24),
-                    
-                    // Chronic Conditions
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(
-                          'CONDITIONS CHRONIQUES',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF667085),
-                            letterSpacing: 1,
-                          ),
+                        const Icon(
+                          Icons.qr_code_2,
+                          size: 64,
+                          color: Color(0xFF1FBF9A),
                         ),
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            _buildConditionChip('Diabète Type 2'),
-                            _buildConditionChip('Hypertension'),
-                          ],
-                        ),
-                      ],
-                    ),
-                    
-                    const SizedBox(height: 24),
-                    
-                    // Current Medications
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'MÉDICAMENTS ACTUELS',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF667085),
-                            letterSpacing: 1,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        _buildMedicationItem('Metformine', '500mg', '2x par jour'),
                         const SizedBox(height: 8),
-                        _buildMedicationItem('Lisinopril', '10mg', '1x par jour'),
-                        const SizedBox(height: 8),
-                        _buildMedicationItem('Aspirine', '81mg', '1x par jour'),
+                        Text(
+                          'Cliquez pour afficher',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: const Color(0xFF667085),
+                          ),
+                        ),
                       ],
                     ),
-                  ],
+                  ),
                 ),
+                const SizedBox(height: 16),
+                Text(
+                  patientName,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF1A202C),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Pour scan médecin',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFF667085),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // Blood Type
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'GROUPE SANGUIN',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF667085),
+                letterSpacing: 1,
               ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF2F2),
+                border: Border.all(color: const Color(0xFFFECACA)),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.favorite,
+                    color: Color(0xFFDC2626),
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    bloodGroup.isNotEmpty ? bloodGroup : '-',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFFDC2626),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 24),
+
+        // Chronic Conditions
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'CONDITIONS CHRONIQUES',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF667085),
+                letterSpacing: 1,
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (chronicConditions.isEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Text(
+                  'Aucune condition',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF667085),
+                  ),
+                ),
+              )
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: chronicConditions.map(_buildConditionChip).toList(),
+              ),
+          ],
+        ),
+
+        const SizedBox(height: 24),
+
+        // Current Medications
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'MÉDICAMENTS ACTUELS',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF667085),
+                letterSpacing: 1,
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (currentMedications.isEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Text(
+                  'Aucun médicament',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF667085),
+                  ),
+                ),
+              )
+            else
+              Column(
+                children: [
+                  for (int i = 0; i < currentMedications.length; i++) ...[
+                    _buildMedicationItem(
+                      (currentMedications[i]['name'] ?? currentMedications[i]['medicationId'] ?? 'Medication').toString(),
+                      (currentMedications[i]['dosage'] ?? '-').toString(),
+                      (currentMedications[i]['frequency'] ?? '-').toString(),
+                    ),
+                    if (i != currentMedications.length - 1) const SizedBox(height: 8),
+                  ],
+                ],
+              ),
+          ],
+        ),
               
               // Edit Button
               Container(
@@ -1067,17 +1171,20 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                   height: 48,
                   child: ElevatedButton(
                     onPressed: () {
+                      final editMedications = currentMedications.map((m) {
+                        return Medication(
+                          name: (m['name'] ?? m['medicationId'] ?? 'Medication').toString(),
+                          dosage: (m['dosage'] ?? '-').toString(),
+                          frequency: (m['frequency'] ?? '-').toString(),
+                        );
+                      }).toList();
                       Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) => EditMedicalDataScreen(
-                            bloodType: 'A+',
-                            chronicConditions: ['Diabète Type 2', 'Hypertension'],
-                            medications: [
-                              Medication(name: 'Metformine', dosage: '500mg', frequency: '2x par jour'),
-                              Medication(name: 'Lisinopril', dosage: '10mg', frequency: '1x par jour'),
-                              Medication(name: 'Aspirine', dosage: '81mg', frequency: '1x par jour'),
-                            ],
+                            bloodType: bloodGroup.isNotEmpty ? bloodGroup : '-',
+                            chronicConditions: chronicConditions,
+                            medications: editMedications,
                             documents: [],
                             onSave: (bloodType, conditions, medications, documents) {
                               setState(() {
@@ -1117,9 +1224,6 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                   ),
                 ),
               ),
-            ],
-          ),
-        ),
       ],
     );
   }
@@ -1404,6 +1508,8 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
   }
 
   Widget _buildFamilyCircleSection() {
+    final userProvider = Provider.of<UserProvider>(context);
+    final family = userProvider.familyMembers;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1426,6 +1532,41 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
         ),
         const SizedBox(height: 16),
         
+        if (family.isEmpty) ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Aucun membre de famille pour le moment',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF1A202C),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Ajoutez un proche pour gérer son carnet de santé.',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFF667085),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+
         // Family Members Grid
         GridView.count(
           shrinkWrap: true,
@@ -1435,9 +1576,11 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
           mainAxisSpacing: 12,
           childAspectRatio: 0.85,
           children: [
-            _buildFamilyMemberCard('Mohamed', 'Baba', '65 ans', 'Allergie Pénicilline'),
-            _buildFamilyMemberCard('Fatma', 'Maman', '60 ans', null),
-            _buildFamilyMemberCard('Youssef', 'Enfant', '8 ans', 'Asthme'),
+            ...family.map((m) {
+              final age = m.ageYears == null ? '' : '${m.ageYears} ans';
+              final alert = null;
+              return _buildFamilyMemberCard(m.fullName, m.relationship, age, alert, memberId: m.id);
+            }),
             _buildAddFamilyMemberCard(),
           ],
         ),
@@ -1506,7 +1649,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     );
   }
 
-  Widget _buildFamilyMemberCard(String name, String relationship, String age, String? alert) {
+  Widget _buildFamilyMemberCard(String name, String relationship, String age, String? alert, {String? memberId}) {
     return GestureDetector(
       onTap: () {
         // Parse age to int
@@ -1517,7 +1660,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
           MaterialPageRoute(
             builder: (context) => FamilyMemberDetailScreen(
               member: FamilyMember(
-                id: '1',
+                id: memberId ?? '1',
                 name: name,
                 age: ageInt,
                 relationship: relationship,
