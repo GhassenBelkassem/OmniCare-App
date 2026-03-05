@@ -5,6 +5,7 @@ import '../../core/api/consultations_api.dart';
 import '../../core/api/doctors_api.dart';
 import '../../core/utils/logger.dart';
 import '../../core/api/api_error_utils.dart';
+import '../../core/models/consultation.dart';
 
 class ReviewConfirmScreen extends StatefulWidget {
   final Map<String, dynamic> requestData;
@@ -86,6 +87,15 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
         city: city,
       );
 
+      final createdId = created.id;
+      if (createdId == null || createdId.isEmpty) {
+        throw StateError('Missing consultationId in createConsultation response');
+      }
+
+      final Consultation fetched = await ConsultationsApi().getConsultation(
+        consultationId: createdId,
+      );
+
       if (!mounted) return;
 
       Navigator.pushNamed(
@@ -93,7 +103,8 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
         '/doctor-calling',
         arguments: {
           ...widget.requestData,
-          'consultationId': created.id,
+          'consultationId': createdId,
+          'consultation': fetched,
         },
       );
     } catch (e, st) {

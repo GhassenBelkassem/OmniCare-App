@@ -14,9 +14,12 @@ class ConsultationQRScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final patientName = requestData['patientName'] ?? 'Patient';
     final patientId = requestData['patientId'] ?? 'unknown';
+    final consultationId = requestData['consultationId']?.toString();
     
-    // Generate QR data with patient info
-    final qrData = 'OMNICARE_PATIENT:$patientId:$patientName';
+    // Generate QR data with consultation info (preferred)
+    final qrData = (consultationId != null && consultationId.isNotEmpty)
+        ? 'OMNICARE_CONSULTATION:$consultationId'
+        : 'OMNICARE_PATIENT:$patientId:$patientName';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F5F7),

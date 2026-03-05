@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
 import 'doctor_selection_screen.dart';
+import '../../core/api/consultations_api.dart';
+import '../../core/models/consultation.dart';
 import '../../services/notification_service.dart';
 
 class DoctorCallingScreen extends StatefulWidget {
@@ -19,6 +21,10 @@ class DoctorCallingScreen extends StatefulWidget {
 class _DoctorCallingScreenState extends State<DoctorCallingScreen> with SingleTickerProviderStateMixin {
   late AnimationController _pulseController;
   Timer? _navigationTimer;
+  Timer? _pollTimer;
+
+  String? _consultationId;
+  Consultation? _consultation;
 
   @override
   void initState() {
@@ -27,6 +33,14 @@ class _DoctorCallingScreenState extends State<DoctorCallingScreen> with SingleTi
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat();
+
+    _consultationId = widget.requestData['consultationId']?.toString();
+    final c = widget.requestData['consultation'];
+    if (c is Consultation) {
+      _consultation = c;
+    }
+
+    _startPolling();
 
     // Send notification that doctor is on the way
     final doctor = widget.requestData['doctor'] as Doctor?;
@@ -39,8 +53,55 @@ class _DoctorCallingScreenState extends State<DoctorCallingScreen> with SingleTi
         Navigator.pushReplacementNamed(
           context,
           '/doctor-arriving',
-          arguments: widget.requestData,
+          arguments: {
+            ...widget.requestData,
+            'consultationId': _consultationId,
+            'consultation': _consultation,
+          },
         );
+      }
+    });
+  }
+
+  void _startPolling() {
+    if (_consultationId == null || _consultationId!.isEmpty) {
+      return;
+    }
+
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(seconds: 2), (t) async {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+
+      try {
+        final latest = await ConsultationsApi().getConsultation(
+          consultationId: _consultationId!,
+        );
+
+        if (!mounted) return;
+
+        setState(() {
+          _consultation = latest;
+        });
+
+        final status = (latest.status ?? '').toUpperCase();
+        if (status == 'COMPLETED' || status == 'CANCELLED') {
+          t.cancel();
+          _navigationTimer?.cancel();
+          if (!mounted) return;
+          Navigator.pushReplacementNamed(
+            context,
+            '/consultation-complete',
+            arguments: {
+              ...widget.requestData,
+              'consultationId': _consultationId,
+              'consultation': latest,
+            },
+          );
+        }
+      } catch (_) {
       }
     });
   }
@@ -49,6 +110,7 @@ class _DoctorCallingScreenState extends State<DoctorCallingScreen> with SingleTi
   void dispose() {
     _pulseController.dispose();
     _navigationTimer?.cancel();
+    _pollTimer?.cancel();
     super.dispose();
   }
 

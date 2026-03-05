@@ -6,6 +6,7 @@ import '../../providers/user_onboarding_provider.dart';
 import '../../l10n/app_localizations.dart';
 import 'login_screen.dart';
 import 'phone_input_screen.dart';
+import 'otp_verification_screen.dart';
 import '../../core/api/auth_api.dart';
 import '../../core/utils/logger.dart';
 import '../../core/api/api_error_utils.dart';
@@ -138,9 +139,22 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
     try {
       await AuthApi().register(email: email, password: password, name: name.isEmpty ? null : name);
       if (!mounted) return;
+      Provider.of<UserOnboardingProvider>(context, listen: false).setEmail(email);
+
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        MaterialPageRoute(
+          builder: (context) => OtpVerificationScreen(
+            verificationType: 'email',
+            contactInfo: email,
+            onVerified: () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const LoginScreen()),
+              );
+            },
+          ),
+        ),
       );
     } catch (e, st) {
       AppLogger.error('Register failed', e, st);

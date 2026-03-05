@@ -9,6 +9,16 @@ class ConsultationsApi {
 
   ConsultationsApi({Dio? dio}) : _dio = dio ?? DioClient.instance.dio;
 
+  Future<Consultation> getConsultation({required String consultationId}) async {
+    final res = await _dio.get('/consultations/$consultationId');
+
+    if (res.data is Map<String, dynamic>) {
+      return Consultation.fromJson(res.data as Map<String, dynamic>);
+    }
+
+    throw StateError('Unexpected /consultations/{id} response: ${res.data}');
+  }
+
   Future<Consultation> createConsultation({
     required String doctorId,
     String? patientId,
@@ -44,5 +54,52 @@ class ConsultationsApi {
     }
 
     throw StateError('Unexpected /consultations response: ${res.data}');
+  }
+
+  Future<Consultation> patchConsultation({
+    required String consultationId,
+    String? status,
+    String? diagnosis,
+    String? treatment,
+  }) async {
+    final payload = {
+      'status': status,
+      'diagnosis': diagnosis,
+      'treatment': treatment,
+    };
+
+    final res = await _dio.patch(
+      '/consultations/$consultationId',
+      data: payload,
+    );
+
+    if (res.data is Map<String, dynamic>) {
+      return Consultation.fromJson(res.data as Map<String, dynamic>);
+    }
+
+    throw StateError('Unexpected PATCH /consultations/{id} response: ${res.data}');
+  }
+
+  Future<Consultation> completeConsultation({
+    required String consultationId,
+    String? diagnosis,
+    String? treatment,
+  }) async {
+    final payload = {
+      'status': null,
+      'diagnosis': diagnosis,
+      'treatment': treatment,
+    };
+
+    final res = await _dio.post(
+      '/consultations/$consultationId/complete',
+      data: payload,
+    );
+
+    if (res.data is Map<String, dynamic>) {
+      return Consultation.fromJson(res.data as Map<String, dynamic>);
+    }
+
+    throw StateError('Unexpected POST /consultations/{id}/complete response: ${res.data}');
   }
 }

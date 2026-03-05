@@ -390,7 +390,11 @@ class _DoctorArrivingScreenState extends State<DoctorArrivingScreen> with Single
               Navigator.pushNamed(
                 context,
                 '/consultation-qr',
-                arguments: widget.requestData,
+                arguments: {
+                  ...widget.requestData,
+                  'consultationId': widget.requestData['consultationId'],
+                  'consultation': widget.requestData['consultation'],
+                },
               );
             },
             icon: const Icon(Icons.qr_code_2, size: 20),

@@ -4,6 +4,9 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/user_onboarding_provider.dart';
+import '../../core/api/auth_api.dart';
+import '../../core/api/api_error_utils.dart';
+import '../../core/utils/logger.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
   final String verificationType;
@@ -78,11 +81,20 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       _errorMessage = null;
     });
 
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      if (widget.verificationType == 'email') {
+        await AuthApi().verifyEmailOtp(
+          email: widget.contactInfo,
+          code: otp,
+        );
+      } else {
+        await Future.delayed(const Duration(seconds: 2));
+      }
 
-    if (mounted) {
+      if (!mounted) return;
+
       final provider = Provider.of<UserOnboardingProvider>(context, listen: false);
-      
+
       if (widget.verificationType == 'email') {
         provider.setEmailVerified(true);
       } else {
@@ -91,6 +103,13 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
       setState(() => _isLoading = false);
       widget.onVerified();
+    } catch (e, st) {
+      AppLogger.error('OTP verification failed', e, st);
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = apiErrorMessage(e);
+      });
     }
   }
 

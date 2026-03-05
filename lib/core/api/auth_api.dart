@@ -24,6 +24,19 @@ class AuthApi {
     await _dio.post('/auth/register', data: payload);
   }
 
+  Future<void> verifyEmailOtp({
+    required String email,
+    required String code,
+  }) async {
+    final payload = {
+      'email': email,
+      'code': code,
+    };
+
+    AppLogger.api('verifyEmailOtp payload=$payload');
+    await _dio.post('/auth/verify-email-otp', data: payload);
+  }
+
   Future<String> login({
     required String email,
     required String password,
