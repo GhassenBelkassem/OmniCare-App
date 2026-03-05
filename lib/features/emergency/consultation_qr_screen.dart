@@ -2,13 +2,95 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
-class ConsultationQRScreen extends StatelessWidget {
+import '../../core/api/consultations_api.dart';
+import '../../core/api/api_error_utils.dart';
+import '../../core/models/consultation.dart';
+import '../../core/utils/console_log.dart';
+
+class ConsultationQRScreen extends StatefulWidget {
   final Map<String, dynamic> requestData;
 
   const ConsultationQRScreen({
     Key? key,
     required this.requestData,
   }) : super(key: key);
+
+  @override
+  State<ConsultationQRScreen> createState() => _ConsultationQRScreenState();
+}
+
+class _ConsultationQRScreenState extends State<ConsultationQRScreen> {
+  bool _isCompleting = false;
+
+  Map<String, dynamic> get requestData => widget.requestData;
+
+  Future<void> _completeAndNavigate() async {
+    if (_isCompleting) return;
+
+    final consultationId = requestData['consultationId']?.toString();
+    if (consultationId == null || consultationId.isEmpty) {
+      consoleLog('[ConsultationQR] Missing consultationId; navigating without finalize.');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Missing consultationId; cannot finalize.')),
+        );
+      }
+      if (!mounted) return;
+      Navigator.pushNamed(
+        context,
+        '/consultation-complete',
+        arguments: requestData,
+      );
+      return;
+    }
+
+    consoleLog('[ConsultationQR] Finalizing consultationId=$consultationId');
+
+    setState(() {
+      _isCompleting = true;
+    });
+
+    try {
+      await ConsultationsApi().devAutoCompleteConsultation(
+        consultationId: consultationId,
+        diagnosis: 'Auto diagnosis',
+        treatment: 'Auto treatment',
+        clinicalNotes: 'Completed from Flutter QR dev flow',
+      );
+
+      consoleLog('[ConsultationQR] Auto-complete succeeded. Fetching latest consultation...');
+
+      final Consultation latest = await ConsultationsApi().getConsultation(
+        consultationId: consultationId,
+      );
+
+      consoleLog('[ConsultationQR] Latest status=${latest.status}');
+
+      if (!mounted) return;
+      Navigator.pushNamed(
+        context,
+        '/consultation-complete',
+        arguments: {
+          ...requestData,
+          'consultationId': consultationId,
+          'consultation': latest,
+        },
+      );
+    } catch (e, st) {
+      consoleLog('[ConsultationQR] Auto-complete failed: $e');
+      consoleLog('[ConsultationQR] Auto-complete stack: $st');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Finalize failed: ${apiErrorMessage(e)}')),
+        );
+      }
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isCompleting = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,6 +124,18 @@ class ConsultationQRScreen extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
+            if (_isCompleting)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                child: Text(
+                  'Finalizing consultation...',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF667085),
+                  ),
+                ),
+              ),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(20),
@@ -312,14 +406,7 @@ class ConsultationQRScreen extends StatelessWidget {
         width: double.infinity,
         height: 56,
         child: ElevatedButton(
-          onPressed: () {
-            // Navigate to consultation complete/review page
-            Navigator.pushNamed(
-              context,
-              '/consultation-complete',
-              arguments: requestData,
-            );
-          },
+          onPressed: _isCompleting ? null : _completeAndNavigate,
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF1FBF9A),
             elevation: 0,

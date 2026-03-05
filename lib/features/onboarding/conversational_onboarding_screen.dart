@@ -7,6 +7,7 @@ import '../../providers/user_provider.dart';
 import '../../core/api/account_api.dart';
 import '../../core/api/api_error_utils.dart';
 import '../../core/utils/logger.dart';
+import '../../core/api/medications_api.dart';
 import '../../core/widgets/medication_search_field.dart';
 import 'onboarding_complete_screen.dart';
 
@@ -58,6 +59,7 @@ class _ConversationalOnboardingScreenState
   final List<TextEditingController> _medicationNameControllers = [];
   final List<TextEditingController> _medicationDosageControllers = [];
   final List<String?> _medicationIds = [];
+  final List<MedicationSearchResult?> _medicationDetails = [];
 
   @override
   void initState() {
@@ -83,6 +85,7 @@ class _ConversationalOnboardingScreenState
     _medicationNameControllers.add(TextEditingController());
     _medicationDosageControllers.add(TextEditingController());
     _medicationIds.add(null);
+    _medicationDetails.add(null);
   }
 
   void _removeMedicationFields(int index) {
@@ -93,6 +96,7 @@ class _ConversationalOnboardingScreenState
         _medicationNameControllers.removeAt(index);
         _medicationDosageControllers.removeAt(index);
         _medicationIds.removeAt(index);
+        _medicationDetails.removeAt(index);
       });
     }
   }
@@ -111,7 +115,8 @@ class _ConversationalOnboardingScreenState
   }
 
   void _nextPage() {
-    if (_currentPage < 2) {
+    final lastPageIndex = _medicationNameControllers.length + 1;
+    if (_currentPage < lastPageIndex) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 400),
         curve: Curves.easeInOut,
@@ -250,7 +255,9 @@ class _ConversationalOnboardingScreenState
                     children: [
                       _buildBloodTypePage(provider),
                       _buildConditionsPage(provider),
-                      _buildMedicationsPage(provider),
+                      ...List.generate(_medicationNameControllers.length, (index) {
+                        return _buildMedicationsPage(provider, index);
+                      }),
                     ],
                   ),
                 ),
@@ -271,7 +278,7 @@ class _ConversationalOnboardingScreenState
                     children: [
                       SmoothPageIndicator(
                         controller: _pageController,
-                        count: 3,
+                        count: _medicationNameControllers.length + 2,
                         effect: ExpandingDotsEffect(
                           activeDotColor: const Color(0xFF1FBF9A),
                           dotColor: const Color(0xFFE5E7EB),
@@ -296,7 +303,7 @@ class _ConversationalOnboardingScreenState
                             ),
                           ),
                           child: Text(
-                            _currentPage == 2 ? 'Complete' : 'Continue',
+                            _currentPage == _medicationNameControllers.length + 1 ? 'Complete' : 'Continue',
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
@@ -609,7 +616,7 @@ class _ConversationalOnboardingScreenState
     );
   }
 
-  Widget _buildMedicationsPage(UserOnboardingProvider provider) {
+  Widget _buildMedicationsPage(UserOnboardingProvider provider, int index) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -665,35 +672,42 @@ class _ConversationalOnboardingScreenState
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: List.generate(_medicationNameControllers.length, (index) {
-                if (_medicationNameControllers[index].text.isEmpty) return const SizedBox.shrink();
+              children: List.generate(_medicationNameControllers.length, (i) {
+                if (_medicationNameControllers[i].text.isEmpty) return const SizedBox.shrink();
                 return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1FBF9A).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: const Color(0xFF1FBF9A)),
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Color(0x0A000000),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
                   child: Row(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         '💊',
                         style: const TextStyle(fontSize: 16),
                       ),
                       const SizedBox(width: 6),
-                      Text(
-                        _medicationNameControllers[index].text,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF1FBF9A),
+                      Expanded(
+                        child: Text(
+                          _medicationNameControllers[i].text,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF1FBF9A),
+                          ),
                         ),
                       ),
-                      if (_medicationDosageControllers[index].text.isNotEmpty) ...[
+                      if (_medicationDosageControllers[i].text.isNotEmpty) ...[
                         const SizedBox(width: 4),
                         Text(
-                          '• ${_medicationDosageControllers[index].text}',
+                          '• ${_medicationDosageControllers[i].text}',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
@@ -701,9 +715,31 @@ class _ConversationalOnboardingScreenState
                           ),
                         ),
                       ],
+                      if (_medicationDetails.length > i && _medicationDetails[i] != null) ...[
+                        const SizedBox(width: 4),
+                        Builder(builder: (context) {
+                          final d = _medicationDetails[i]!;
+                          final parts = <String>[];
+                          final form = (d.form ?? '').trim();
+                          final dci = (d.dci ?? '').trim();
+                          final type = (d.type ?? '').trim();
+                          if (form.isNotEmpty) parts.add(form);
+                          if (dci.isNotEmpty) parts.add(dci);
+                          if (type.isNotEmpty) parts.add(type);
+                          if (d.isSoluble) parts.add('Soluble');
+                          if (parts.isEmpty) return const SizedBox.shrink();
+                          return Text(
+                            parts.join(' • '),
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              color: const Color(0xFF667085),
+                            ),
+                          );
+                        }),
+                      ],
                       const SizedBox(width: 8),
                       GestureDetector(
-                        onTap: () => _removeMedicationFields(index),
+                        onTap: () => _removeMedicationFields(i),
                         child: const Icon(
                           Icons.close,
                           size: 16,
@@ -723,7 +759,10 @@ class _ConversationalOnboardingScreenState
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFF1FBF9A).withOpacity(0.3), width: 2),
+              border: Border.all(
+                color: const Color(0xFF1FBF9A).withOpacity(0.3),
+                width: 2,
+              ),
               boxShadow: [
                 BoxShadow(
                   color: const Color(0xFF1FBF9A).withOpacity(0.08),
@@ -758,34 +797,61 @@ class _ConversationalOnboardingScreenState
                 ),
                 const SizedBox(height: 16),
                 MedicationSearchField(
-                  controller: _medicationNameControllers.last,
-                  dosageController: _medicationDosageControllers.last,
+                  controller: _medicationNameControllers[index],
+                  dosageController: _medicationDosageControllers[index],
                   hintText: 'Medicine name (e.g., Aspirin)',
                   onSelected: (r) {
-                    final idx = _medicationNameControllers.length - 1;
-                    if (idx >= 0 && idx < _medicationIds.length) {
-                      _medicationIds[idx] = r.id;
+                    if (index >= 0 && index < _medicationIds.length) {
+                      _medicationIds[index] = r.id;
+                    }
+                    if (index >= 0 && index < _medicationDetails.length) {
+                      _medicationDetails[index] = r;
                     }
                     setState(() {});
                   },
                   onChanged: (_) {
-                    final idx = _medicationNameControllers.length - 1;
-                    if (idx >= 0 && idx < _medicationIds.length) {
-                      _medicationIds[idx] = null;
+                    if (index >= 0 && index < _medicationIds.length) {
+                      _medicationIds[index] = null;
                     }
+                    if (index >= 0 && index < _medicationDetails.length) {
+                      _medicationDetails[index] = null;
+                    }
+                    setState(() {});
                   },
                 ),
+                if (_medicationDetails.length > index && _medicationDetails[index] != null) ...[
+                  const SizedBox(height: 10),
+                  Builder(builder: (context) {
+                    final d = _medicationDetails[index]!;
+                    final parts = <String>[];
+                    final form = (d.form ?? '').trim();
+                    final dci = (d.dci ?? '').trim();
+                    final type = (d.type ?? '').trim();
+                    if (form.isNotEmpty) parts.add(form);
+                    if (dci.isNotEmpty) parts.add(dci);
+                    if (type.isNotEmpty) parts.add(type);
+                    if (d.isSoluble) parts.add('Soluble');
+                    if (parts.isEmpty) return const SizedBox.shrink();
+                    return Text(
+                      parts.join(' • '),
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        color: const Color(0xFF667085),
+                      ),
+                    );
+                  }),
+                ],
                 const SizedBox(height: 12),
                 TextField(
-                  controller: _medicationDosageControllers.last,
+                  controller: _medicationDosageControllers[index],
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 15,
+                    fontSize: 14,
                     color: const Color(0xFF1D2939),
                   ),
                   decoration: InputDecoration(
                     hintText: 'Dosage (e.g., 100mg, 2x daily)',
                     hintStyle: GoogleFonts.plusJakartaSans(
-                      fontSize: 15,
+                      fontSize: 14,
                       color: const Color(0xFF9CA3AF),
                     ),
                     filled: true,

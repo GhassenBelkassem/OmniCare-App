@@ -269,7 +269,7 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
   void _handleConfirmDoctor(Doctor doctor) {
     Navigator.pushNamed(
       context,
-      '/doctor-arriving',
+      '/review-confirm',
       arguments: {
         ...widget.emergencyData,
         'doctor': doctor,

@@ -1,7 +1,10 @@
 class Consultation {
   final String? id;
   final String? doctorId;
+  final String? doctorName;
+  final String? doctorSpecialty;
   final String? patientId;
+  final String? patientName;
   final String? symptoms;
   final String? diagnosis;
   final String? treatment;
@@ -22,7 +25,10 @@ class Consultation {
   const Consultation({
     this.id,
     this.doctorId,
+    this.doctorName,
+    this.doctorSpecialty,
     this.patientId,
+    this.patientName,
     this.symptoms,
     this.diagnosis,
     this.treatment,
@@ -45,7 +51,10 @@ class Consultation {
     return Consultation(
       id: json['id']?.toString(),
       doctorId: json['doctorId']?.toString(),
+      doctorName: json['doctorName']?.toString(),
+      doctorSpecialty: json['doctorSpecialty']?.toString(),
       patientId: json['patientId']?.toString(),
+      patientName: json['patientName']?.toString(),
       symptoms: json['symptoms']?.toString(),
       diagnosis: json['diagnosis']?.toString(),
       treatment: json['treatment']?.toString(),

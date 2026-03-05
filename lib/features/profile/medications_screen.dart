@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../providers/user_onboarding_provider.dart';
 
 import '../../core/widgets/medication_search_field.dart';
+import '../../core/api/medications_api.dart';
 
 class MedicationsScreen extends StatefulWidget {
   const MedicationsScreen({super.key});
@@ -17,6 +18,8 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
     final nameController = TextEditingController(text: medication?.name ?? '');
     final dosageController = TextEditingController(text: medication?.dosage ?? '');
     String frequency = medication?.frequency ?? '1x daily';
+    String? selectedMedicationId = medication?.medicationId;
+    MedicationSearchResult? selectedDetails;
 
     showDialog(
       context: context,
@@ -68,7 +71,41 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                       controller: nameController,
                       dosageController: dosageController,
                       hintText: 'e.g., Aspirin',
+                      onSelected: (r) {
+                        setDialogState(() {
+                          selectedMedicationId = r.id;
+                          selectedDetails = r;
+                        });
+                      },
+                      onChanged: (_) {
+                        setDialogState(() {
+                          selectedMedicationId = null;
+                          selectedDetails = null;
+                        });
+                      },
                     ),
+                    if (selectedDetails != null) ...[
+                      const SizedBox(height: 10),
+                      Builder(builder: (context) {
+                        final d = selectedDetails!;
+                        final parts = <String>[];
+                        final form = (d.form ?? '').trim();
+                        final dci = (d.dci ?? '').trim();
+                        final type = (d.type ?? '').trim();
+                        if (form.isNotEmpty) parts.add(form);
+                        if (dci.isNotEmpty) parts.add(dci);
+                        if (type.isNotEmpty) parts.add(type);
+                        if (d.isSoluble) parts.add('Soluble');
+                        if (parts.isEmpty) return const SizedBox.shrink();
+                        return Text(
+                          parts.join(' • '),
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            color: const Color(0xFF667085),
+                          ),
+                        );
+                      }),
+                    ],
                     const SizedBox(height: 16),
                     Text(
                       'Dosage',
@@ -169,7 +206,20 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                   onPressed: () {
                     if (nameController.text.isNotEmpty &&
                         dosageController.text.isNotEmpty) {
+                      if (selectedMedicationId == null || selectedMedicationId!.trim().isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Please select the medication from the list. (autocomplete)',
+                              style: GoogleFonts.plusJakartaSans(fontSize: 13),
+                            ),
+                            backgroundColor: const Color(0xFFEF4444),
+                          ),
+                        );
+                        return;
+                      }
                       final newMedication = MedicationEntry(
+                        medicationId: selectedMedicationId,
                         name: nameController.text,
                         dosage: dosageController.text,
                         frequency: frequency,

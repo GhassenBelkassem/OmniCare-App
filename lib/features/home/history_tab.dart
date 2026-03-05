@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'consultation_detail_screen.dart';
+import '../../core/api/consultations_api.dart';
+import '../../core/models/consultation.dart' as api;
 import '../../providers/user_provider.dart';
 
 class Consultation {
@@ -48,6 +50,90 @@ class _HistoryTabState extends State<HistoryTab> {
   static const String _currentUserPlaceholderName = '__CURRENT_USER__';
 
   final List<Consultation> _consultations = [];
+
+  bool _isLoading = false;
+  String? _loadError;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _loadConsultations();
+    });
+  }
+
+  Future<void> _loadConsultations() async {
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
+
+    try {
+      final items = await ConsultationsApi().listConsultations();
+      if (!mounted) return;
+
+      final mapped = items.map(_mapFromApi).toList();
+      setState(() {
+        _consultations
+          ..clear()
+          ..addAll(mapped);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadError = e.toString();
+      });
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Consultation _mapFromApi(api.Consultation c) {
+    final rawTs = (c.timestamp ?? '').trim();
+    DateTime? when;
+    if (rawTs.isNotEmpty) {
+      when = DateTime.tryParse(rawTs);
+    }
+
+    final date = (when ?? DateTime.now()).toIso8601String().split('T').first;
+    final time = (when == null)
+        ? '--:--'
+        : '${when.hour.toString().padLeft(2, '0')}:${when.minute.toString().padLeft(2, '0')}';
+
+    final statusRaw = (c.status ?? '').toLowerCase();
+    String status;
+    if (statusRaw.contains('complete')) {
+      status = 'completed';
+    } else if (statusRaw.contains('cancel')) {
+      status = 'cancelled';
+    } else {
+      status = 'pending';
+    }
+
+    final locationParts = <String>[];
+    if ((c.streetAddress ?? '').trim().isNotEmpty) locationParts.add(c.streetAddress!.trim());
+    if ((c.city ?? '').trim().isNotEmpty) locationParts.add(c.city!.trim());
+    final location = locationParts.isEmpty ? '-' : locationParts.join(', ');
+
+    return Consultation(
+      id: c.id ?? '',
+      date: date,
+      time: time,
+      doctorName: (c.doctorName ?? '').trim().isEmpty ? 'Doctor' : c.doctorName!.trim(),
+      specialty: (c.doctorSpecialty ?? '').trim().isEmpty ? '-' : c.doctorSpecialty!.trim(),
+      patientName: (c.patientName ?? '').trim().isEmpty ? _currentUserPlaceholderName : c.patientName!.trim(),
+      reason: (c.symptoms ?? '').trim().isEmpty ? '-' : c.symptoms!.trim(),
+      location: location,
+      status: status,
+      medications: null,
+      diagnosis: (c.diagnosis ?? '').trim().isEmpty ? null : c.diagnosis!.trim(),
+      cost: (c.fee ?? '').trim().isEmpty ? '-' : '${c.fee} TND',
+    );
+  }
 
   String _resolvePatientName(String rawName, String currentUserName) {
     if (rawName == _currentUserPlaceholderName) {
@@ -104,21 +190,49 @@ class _HistoryTabState extends State<HistoryTab> {
         ? 'Loading...'
         : (((userProvider.user?.displayName ?? '').trim().isNotEmpty) ? userProvider.user!.displayName : 'User');
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildHeader(),
-          const SizedBox(height: 20),
-          _buildSearchBar(),
-          const SizedBox(height: 16),
-          _buildMonthFilters(),
-          const SizedBox(height: 20),
-          _buildResultsCount(),
-          const SizedBox(height: 16),
-          _buildConsultationsList(currentUserName),
-        ],
+    return RefreshIndicator(
+      onRefresh: _loadConsultations,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildHeader(),
+            const SizedBox(height: 20),
+            _buildSearchBar(),
+            const SizedBox(height: 16),
+            _buildMonthFilters(),
+            const SizedBox(height: 20),
+            if (_isLoading) ...[
+              Text(
+                'Loading...',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13,
+                  color: const Color(0xFF667085),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ] else if (_loadError != null) ...[
+              Text(
+                _loadError!,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13,
+                  color: const Color(0xFFDC2626),
+                ),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: _loadConsultations,
+                child: const Text('Retry'),
+              ),
+              const SizedBox(height: 12),
+            ],
+            _buildResultsCount(),
+            const SizedBox(height: 16),
+            _buildConsultationsList(currentUserName),
+          ],
+        ),
       ),
     );
   }

@@ -4,7 +4,11 @@ import 'dart:async';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:lottie/lottie.dart';
 import 'doctor_selection_screen.dart';
+import '../../core/api/consultations_api.dart';
+import '../../core/api/api_error_utils.dart';
+import '../../core/models/consultation.dart';
 import '../../services/notification_service.dart';
+import '../../core/utils/console_log.dart';
 
 class DoctorArrivingScreen extends StatefulWidget {
   final Map<String, dynamic> requestData;
@@ -23,6 +27,10 @@ class _DoctorArrivingScreenState extends State<DoctorArrivingScreen> with Single
   double _distance = 3.2;
   late AnimationController _pulseController;
 
+  Timer? _etaTimer;
+
+  bool _isCompleting = false;
+
   @override
   void initState() {
     super.initState();
@@ -37,13 +45,15 @@ class _DoctorArrivingScreenState extends State<DoctorArrivingScreen> with Single
   @override
   void dispose() {
     _pulseController.dispose();
+    _etaTimer?.cancel();
     super.dispose();
   }
 
   void _startETACountdown() {
     bool arrivedNotificationSent = false;
-    
-    Timer.periodic(const Duration(seconds: 3), (timer) {
+
+    _etaTimer?.cancel();
+    _etaTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
       if (!mounted) {
         timer.cancel();
         return;
@@ -53,8 +63,7 @@ class _DoctorArrivingScreenState extends State<DoctorArrivingScreen> with Single
         if (_eta > 1) {
           _eta--;
           _distance = (_distance - 0.4).clamp(0.1, 10.0);
-          
-          // Send critical notification when doctor is about to arrive (1 min left)
+
           if (_eta == 1 && !arrivedNotificationSent) {
             arrivedNotificationSent = true;
             final doctor = widget.requestData['doctor'] as Doctor?;
@@ -66,7 +75,74 @@ class _DoctorArrivingScreenState extends State<DoctorArrivingScreen> with Single
           timer.cancel();
         }
       });
+
+      if (_eta <= 1) {
+        _etaTimer?.cancel();
+        _completeConsultationAndNavigate();
+      }
     });
+  }
+
+  Future<void> _completeConsultationAndNavigate() async {
+    if (_isCompleting) return;
+
+    final consultationId = widget.requestData['consultationId']?.toString();
+    if (consultationId == null || consultationId.isEmpty) {
+      consoleLog('[DoctorArriving] Missing consultationId; cannot complete.');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Missing consultationId; cannot finalize.')),
+        );
+      }
+      return;
+    }
+
+    consoleLog('[DoctorArriving] Finalizing consultationId=$consultationId');
+
+    setState(() {
+      _isCompleting = true;
+    });
+
+    try {
+      await ConsultationsApi().devAutoCompleteConsultation(
+        consultationId: consultationId,
+        diagnosis: 'Auto diagnosis',
+        treatment: 'Auto treatment',
+        clinicalNotes: 'Completed from Flutter dev flow',
+      );
+
+      consoleLog('[DoctorArriving] Auto-complete succeeded. Fetching latest consultation...');
+
+      final latest = await ConsultationsApi().getConsultation(
+        consultationId: consultationId,
+      );
+
+      consoleLog('[DoctorArriving] Latest status=${latest.status}');
+
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(
+        context,
+        '/consultation-complete',
+        arguments: {
+          ...widget.requestData,
+          'consultationId': consultationId,
+          'consultation': latest,
+        },
+      );
+    } catch (e, st) {
+      consoleLog('[DoctorArriving] Auto-complete failed: $e');
+      consoleLog('[DoctorArriving] Auto-complete stack: $st');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Finalize failed: ${apiErrorMessage(e)}')),
+        );
+      }
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isCompleting = false;
+      });
+    }
   }
 
   Future<void> _callDoctor(Doctor? doctor) async {
@@ -100,6 +176,18 @@ class _DoctorArrivingScreenState extends State<DoctorArrivingScreen> with Single
         child: Column(
           children: [
             _buildHeader(),
+            if (_isCompleting)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                child: Text(
+                  'Finalizing consultation...',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF667085),
+                  ),
+                ),
+              ),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(20),
@@ -379,6 +467,29 @@ class _DoctorArrivingScreenState extends State<DoctorArrivingScreen> with Single
                 borderRadius: BorderRadius.circular(12),
               ),
               elevation: 0,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: _isCompleting ? null : _completeConsultationAndNavigate,
+            icon: const Icon(Icons.check_circle, size: 20),
+            label: Text(
+              'Finaliser maintenant',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFF10B981),
+              side: const BorderSide(color: Color(0xFF10B981), width: 2),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
         ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
@@ -386,6 +387,8 @@ class _EmergencyRequestStep3State extends State<EmergencyRequestStep3> {
   }
 
   Widget _buildMapSection() {
+    // GoogleMap is currently unstable on web in this project (MapTypeId error).
+    // Use GPS/manual address instead.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -394,47 +397,21 @@ class _EmergencyRequestStep3State extends State<EmergencyRequestStep3> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: const Color(0xFFE2E8F0)),
+            color: Colors.white,
           ),
           clipBehavior: Clip.hardEdge,
-          child: Stack(
-            children: [
-              GoogleMap(
-                initialCameraPosition: CameraPosition(
-                  target: _selectedLocation,
-                  zoom: 15,
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'Map is disabled in this build. Please use "Ma Position" or enter your address manually.',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13,
+                  color: const Color(0xFF667085),
                 ),
-                onMapCreated: (controller) {
-                  _mapController = controller;
-                },
-                onTap: (position) {
-                  setState(() {
-                    _selectedLocation = position;
-                  });
-                  _getAddressFromLatLng(position);
-                },
-                markers: {
-                  Marker(
-                    markerId: const MarkerId('selected_location'),
-                    position: _selectedLocation,
-                    icon: BitmapDescriptor.defaultMarkerWithHue(
-                      BitmapDescriptor.hueGreen,
-                    ),
-                  ),
-                },
-                myLocationEnabled: true,
-                myLocationButtonEnabled: false,
-                zoomControlsEnabled: false,
+                textAlign: TextAlign.center,
               ),
-              if (_isLoadingLocation)
-                Container(
-                  color: Colors.white.withOpacity(0.8),
-                  child: const Center(
-                    child: CircularProgressIndicator(
-                      color: Color(0xFF1FBF9A),
-                    ),
-                  ),
-                ),
-            ],
+            ),
           ),
         ),
         const SizedBox(height: 16),

@@ -200,9 +200,14 @@ class _MedicationSearchFieldState extends State<MedicationSearchField> {
                       final r = _results[index];
                       final subtitleParts = <String>[];
                       final dosage = (r.dosage ?? '').trim();
+                      final form = (r.form ?? '').trim();
                       final dci = (r.dci ?? '').trim();
+                      final type = (r.type ?? '').trim();
                       if (dosage.isNotEmpty) subtitleParts.add(dosage);
+                      if (form.isNotEmpty) subtitleParts.add(form);
                       if (dci.isNotEmpty) subtitleParts.add(dci);
+                      if (type.isNotEmpty) subtitleParts.add(type);
+                      if (r.isSoluble) subtitleParts.add('Soluble');
 
                       return GestureDetector(
                         behavior: HitTestBehavior.opaque,

@@ -9,6 +9,23 @@ class ConsultationsApi {
 
   ConsultationsApi({Dio? dio}) : _dio = dio ?? DioClient.instance.dio;
 
+  Future<List<Consultation>> listConsultations({String? status}) async {
+    final res = await _dio.get(
+      '/consultations',
+      queryParameters: {
+        if (status != null && status.trim().isNotEmpty) 'status': status.trim(),
+      },
+    );
+
+    if (res.data is List) {
+      return (res.data as List).whereType<Map>().map((e) {
+        return Consultation.fromJson(Map<String, dynamic>.from(e));
+      }).toList();
+    }
+
+    throw StateError('Unexpected GET /consultations response: ${res.data}');
+  }
+
   Future<Consultation> getConsultation({required String consultationId}) async {
     final res = await _dio.get('/consultations/$consultationId');
 
@@ -17,6 +34,40 @@ class ConsultationsApi {
     }
 
     throw StateError('Unexpected /consultations/{id} response: ${res.data}');
+  }
+
+  Future<Map<String, dynamic>> getPrescription({required String consultationId}) async {
+    final res = await _dio.get('/consultations/$consultationId/prescription');
+
+    if (res.data is Map) {
+      return Map<String, dynamic>.from(res.data as Map);
+    }
+
+    throw StateError('Unexpected /consultations/{id}/prescription response: ${res.data}');
+  }
+
+  Future<Map<String, dynamic>> devAutoCompleteConsultation({
+    required String consultationId,
+    String? diagnosis,
+    String? treatment,
+    String? clinicalNotes,
+  }) async {
+    final payload = {
+      'diagnosis': diagnosis,
+      'treatment': treatment,
+      'clinicalNotes': clinicalNotes,
+    };
+
+    final res = await _dio.post(
+      '/auth/dev/consultations/$consultationId/auto-complete',
+      data: payload,
+    );
+
+    if (res.data is Map) {
+      return Map<String, dynamic>.from(res.data as Map);
+    }
+
+    throw StateError('Unexpected POST /auth/dev/consultations/{id}/auto-complete response: ${res.data}');
   }
 
   Future<Consultation> createConsultation({

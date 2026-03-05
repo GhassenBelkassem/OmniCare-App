@@ -1,14 +1,77 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'history_tab.dart';
+import '../../core/api/consultations_api.dart';
 
-class ConsultationDetailScreen extends StatelessWidget {
+class ConsultationDetailScreen extends StatefulWidget {
   final Consultation consultation;
 
   const ConsultationDetailScreen({
     Key? key,
     required this.consultation,
   }) : super(key: key);
+
+  @override
+  State<ConsultationDetailScreen> createState() => _ConsultationDetailScreenState();
+}
+
+class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
+  Consultation get consultation => widget.consultation;
+
+  List<String>? _prescribedMedications;
+  bool _isLoadingPrescription = false;
+  String? _prescriptionError;
+
+  @override
+  void initState() {
+    super.initState();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _loadPrescriptionIfNeeded();
+    });
+  }
+
+  Future<void> _loadPrescriptionIfNeeded() async {
+    final isCompleted = (widget.consultation.status == 'completed');
+    if (!isCompleted) return;
+    if ((widget.consultation.id ?? '').trim().isEmpty) return;
+
+    setState(() {
+      _isLoadingPrescription = true;
+      _prescriptionError = null;
+    });
+
+    try {
+      final raw = await ConsultationsApi().getPrescription(consultationId: widget.consultation.id!);
+      final items = raw['items'];
+
+      final meds = <String>[];
+      if (items is List) {
+        for (final it in items) {
+          if (it is Map) {
+            final name = (it['medicationName'] ?? '').toString().trim();
+            if (name.isNotEmpty) meds.add(name);
+          }
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _prescribedMedications = meds;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _prescriptionError = e.toString();
+      });
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingPrescription = false;
+      });
+    }
+  }
 
   String _formatDate(String dateString) {
     final date = DateTime.parse(dateString);
@@ -25,7 +88,12 @@ class ConsultationDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final consultation = widget.consultation;
     final isCompleted = consultation.status == 'completed';
+
+    final List<String>? medications = (consultation.medications != null && consultation.medications!.isNotEmpty)
+        ? consultation.medications
+        : _prescribedMedications;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F5F7),
@@ -49,7 +117,27 @@ class ConsultationDetailScreen extends StatelessWidget {
                     const SizedBox(height: 20),
                     _buildDiagnosisSection(),
                   ],
-                  if (isCompleted && consultation.medications != null && consultation.medications!.isNotEmpty) ...[
+                  if (isCompleted && _prescriptionError != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      _prescriptionError!,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        color: const Color(0xFFDC2626),
+                      ),
+                    ),
+                  ],
+                  if (isCompleted && _isLoadingPrescription) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      'Loading prescription...',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        color: const Color(0xFF667085),
+                      ),
+                    ),
+                  ],
+                  if (isCompleted && medications != null && medications.isNotEmpty) ...[
                     const SizedBox(height: 20),
                     _buildMedicationsSection(),
                   ],

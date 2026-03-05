@@ -185,7 +185,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
               height: 56,
               child: ElevatedButton(
                 onPressed: () {
-                  Navigator.pushNamed(context, '/emergency-request-step1');
+                  Navigator.pushNamed(context, '/emergency-step1');
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white,
@@ -1148,8 +1148,20 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                 children: [
                   for (int i = 0; i < currentMedications.length; i++) ...[
                     _buildMedicationItem(
-                      (currentMedications[i]['name'] ?? currentMedications[i]['medicationId'] ?? 'Medication').toString(),
-                      (currentMedications[i]['dosage'] ?? '-').toString(),
+                      (() {
+                        final m = currentMedications[i];
+                        final name = (m['name'] ?? '').toString().trim();
+                        final fallback = (m['medicationId'] ?? 'Medication').toString();
+                        final form = (m['form'] ?? '').toString().trim();
+                        final soluble = m['soluble'] == true;
+                        final base = name.isNotEmpty ? name : fallback;
+                        final extras = <String>[];
+                        if (form.isNotEmpty) extras.add(form);
+                        if (soluble) extras.add('Soluble');
+                        if (extras.isEmpty) return base;
+                        return '$base (${extras.join(' • ')})';
+                      })(),
+                      (currentMedications[i]['dosage'] ?? currentMedications[i]['catalogDosage'] ?? '-').toString(),
                       (currentMedications[i]['frequency'] ?? '-').toString(),
                     ),
                     if (i != currentMedications.length - 1) const SizedBox(height: 8),
@@ -2291,7 +2303,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
   }
 
   Widget _buildHistoryTab() {
-    return const HistoryTab();
+    return HistoryTab();
   }
 
   Widget _buildStickyHeader(String userName) {

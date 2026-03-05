@@ -29,6 +29,11 @@ class MedicationSearchResult {
       type: json['type']?.toString(),
     );
   }
+
+  bool get isSoluble {
+    final f = (form ?? '').toLowerCase();
+    return f.contains('soluble') || f.contains('efferves') || f.contains('orodispers') || f.contains('dispers');
+  }
 }
 
 class MedicationsApi {
