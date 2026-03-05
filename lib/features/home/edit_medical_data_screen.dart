@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../core/widgets/medication_search_field.dart';
+
 class Medication {
+  String? medicationId;
   String name;
   String dosage;
   String frequency;
 
   Medication({
+    this.medicationId,
     required this.name,
     required this.dosage,
     required this.frequency,
@@ -34,7 +38,7 @@ class EditMedicalDataScreen extends StatefulWidget {
   final List<String> chronicConditions;
   final List<Medication> medications;
   final List<MedicalDocument> documents;
-  final Function(String, List<String>, List<Medication>, List<MedicalDocument>) onSave;
+  final Future<void> Function(String, List<String>, List<Medication>, List<MedicalDocument>) onSave;
 
   const EditMedicalDataScreen({
     Key? key,
@@ -54,6 +58,12 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
   late List<String> _chronicConditions;
   late List<Medication> _medications;
   late List<MedicalDocument> _documents;
+
+  final List<TextEditingController> _medNameControllers = [];
+  final List<TextEditingController> _medDosageControllers = [];
+  final List<TextEditingController> _medFrequencyControllers = [];
+
+  bool _isSaving = false;
 
   final List<String> _bloodTypes = ['-', 'A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
   final List<String> _availableConditions = [
@@ -88,6 +98,26 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
     _chronicConditions = List.from(widget.chronicConditions);
     _medications = List.from(widget.medications);
     _documents = List.from(widget.documents);
+
+    for (final med in _medications) {
+      _medNameControllers.add(TextEditingController(text: med.name));
+      _medDosageControllers.add(TextEditingController(text: med.dosage));
+      _medFrequencyControllers.add(TextEditingController(text: med.frequency));
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final c in _medNameControllers) {
+      c.dispose();
+    }
+    for (final c in _medDosageControllers) {
+      c.dispose();
+    }
+    for (final c in _medFrequencyControllers) {
+      c.dispose();
+    }
+    super.dispose();
   }
 
   void _toggleCondition(String condition) {
@@ -102,13 +132,19 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
 
   void _addMedication() {
     setState(() {
-      _medications.add(Medication(name: '', dosage: '', frequency: ''));
+      _medications.add(Medication(medicationId: null, name: '', dosage: '', frequency: ''));
+      _medNameControllers.add(TextEditingController());
+      _medDosageControllers.add(TextEditingController());
+      _medFrequencyControllers.add(TextEditingController());
     });
   }
 
   void _removeMedication(int index) {
     setState(() {
       _medications.removeAt(index);
+      _medNameControllers.removeAt(index).dispose();
+      _medDosageControllers.removeAt(index).dispose();
+      _medFrequencyControllers.removeAt(index).dispose();
     });
   }
 
@@ -130,10 +166,52 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
     });
   }
 
-  void _handleSave() {
-    final validMedications = _medications.where((med) => med.name.trim().isNotEmpty).toList();
-    widget.onSave(_bloodType, _chronicConditions, validMedications, _documents);
-    Navigator.pop(context);
+  Future<void> _handleSave() async {
+    if (_isSaving) return;
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      for (var i = 0; i < _medications.length; i++) {
+        if (i < _medNameControllers.length) {
+          _medications[i].name = _medNameControllers[i].text;
+        }
+        if (i < _medDosageControllers.length) {
+          _medications[i].dosage = _medDosageControllers[i].text;
+        }
+        if (i < _medFrequencyControllers.length) {
+          _medications[i].frequency = _medFrequencyControllers[i].text;
+        }
+      }
+
+      final invalid = _medications.where((m) => m.name.trim().isNotEmpty && (m.medicationId == null || m.medicationId!.trim().isEmpty)).toList();
+      if (invalid.isNotEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Veuillez sélectionner le médicament depuis la liste (autocomplete) avant d\'enregistrer.',
+                style: GoogleFonts.plusJakartaSans(fontSize: 13),
+              ),
+              backgroundColor: const Color(0xFFEF4444),
+            ),
+          );
+        }
+        return;
+      }
+
+      final validMedications = _medications.where((med) => med.name.trim().isNotEmpty).toList();
+      await widget.onSave(_bloodType, _chronicConditions, validMedications, _documents);
+      if (!mounted) return;
+      Navigator.pop(context);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
   }
 
   @override
@@ -145,7 +223,7 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.close, color: Color(0xFF1A202C)),
-          onPressed: () => Navigator.pop(context),
+          onPressed: _isSaving ? null : () => Navigator.pop(context),
         ),
         title: Text(
           'Modifier Mes Données Médicales',
@@ -369,31 +447,24 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    TextField(
-                      controller: TextEditingController(text: med.name)
-                        ..selection = TextSelection.collapsed(offset: med.name.length),
-                      onChanged: (value) => med.name = value,
-                      decoration: InputDecoration(
-                        hintText: 'Ex: Metformine',
-                        hintStyle: GoogleFonts.plusJakartaSans(
-                          fontSize: 13,
-                          color: const Color(0xFF667085),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Color(0xFF1FBF9A), width: 2),
-                        ),
-                      ),
-                      style: GoogleFonts.plusJakartaSans(fontSize: 13),
+                    MedicationSearchField(
+                      controller: _medNameControllers[index],
+                      dosageController: _medDosageControllers[index],
+                      hintText: 'Ex: Metformine',
+                      onSelected: (r) {
+                        med.medicationId = r.id;
+                        med.name = r.name;
+                        final d = (r.dosage ?? '').trim();
+                        if (d.isNotEmpty) {
+                          med.dosage = d;
+                        }
+                      },
+                      onChanged: (value) {
+                        med.name = value;
+                        if (value.trim().isEmpty) {
+                          med.medicationId = null;
+                        }
+                      },
                     ),
                     const SizedBox(height: 12),
                     Row(
@@ -412,9 +483,10 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
                               ),
                               const SizedBox(height: 8),
                               TextField(
-                                controller: TextEditingController(text: med.dosage)
-                                  ..selection = TextSelection.collapsed(offset: med.dosage.length),
-                                onChanged: (value) => med.dosage = value,
+                                controller: _medDosageControllers[index],
+                                onChanged: (value) {
+                                  med.dosage = value;
+                                },
                                 decoration: InputDecoration(
                                   hintText: 'Ex: 500mg',
                                   hintStyle: GoogleFonts.plusJakartaSans(
@@ -455,9 +527,10 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
                               ),
                               const SizedBox(height: 8),
                               TextField(
-                                controller: TextEditingController(text: med.frequency)
-                                  ..selection = TextSelection.collapsed(offset: med.frequency.length),
-                                onChanged: (value) => med.frequency = value,
+                                controller: _medFrequencyControllers[index],
+                                onChanged: (value) {
+                                  med.frequency = value;
+                                },
                                 decoration: InputDecoration(
                                   hintText: 'Ex: 2x/jour',
                                   hintStyle: GoogleFonts.plusJakartaSans(
@@ -630,8 +703,14 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: const Color(0xFFE2E8F0)),
                       ),
+                      
+                      // Ensure DropdownButton value is always present in items to avoid assertion crash
+                      
+                      
                       child: DropdownButtonFormField<String>(
-                        value: doc.type,
+                        value: _documentTypes.any((t) => t['value'] == doc.type)
+                            ? doc.type
+                            : (_documentTypes.first['value'] as String),
                         decoration: const InputDecoration(
                           contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                           border: InputBorder.none,
@@ -725,7 +804,7 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
           width: double.infinity,
           height: 52,
           child: ElevatedButton(
-            onPressed: _handleSave,
+            onPressed: _isSaving ? null : _handleSave,
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF1FBF9A),
               foregroundColor: Colors.white,
@@ -737,10 +816,17 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.save, size: 20),
+                if (_isSaving)
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                else
+                  const Icon(Icons.save, size: 20),
                 const SizedBox(width: 8),
                 Text(
-                  'Enregistrer les Modifications',
+                  _isSaving ? 'Enregistrement...' : 'Enregistrer les Modifications',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,

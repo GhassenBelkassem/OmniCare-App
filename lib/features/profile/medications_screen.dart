@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/user_onboarding_provider.dart';
 
+import '../../core/widgets/medication_search_field.dart';
+
 class MedicationsScreen extends StatefulWidget {
   const MedicationsScreen({super.key});
 
@@ -21,6 +23,20 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            final frequencyItems = ['1x daily', '2x daily', '3x daily', 'As needed']
+                .map(
+                  (freq) => DropdownMenuItem(
+                    value: freq,
+                    child: Text(
+                      freq,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 16,
+                        color: const Color(0xFF1D2939),
+                      ),
+                    ),
+                  ),
+                )
+                .toList();
             return AlertDialog(
               backgroundColor: Colors.white,
               shape: RoundedRectangleBorder(
@@ -48,36 +64,10 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    TextField(
+                    MedicationSearchField(
                       controller: nameController,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 16,
-                        color: const Color(0xFF1D2939),
-                      ),
-                      decoration: InputDecoration(
-                        hintText: 'e.g., Aspirin',
-                        hintStyle: GoogleFonts.plusJakartaSans(
-                          fontSize: 16,
-                          color: const Color(0xFF9CA3AF),
-                        ),
-                        filled: true,
-                        fillColor: const Color(0xFFF4F5F7),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: Color(0xFF1FBF9A),
-                            width: 2,
-                          ),
-                        ),
-                      ),
+                      dosageController: dosageController,
+                      hintText: 'e.g., Aspirin',
                     ),
                     const SizedBox(height: 16),
                     Text(
@@ -131,24 +121,15 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                     ),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
-                      value: frequency,
+                      value: frequencyItems.any((i) => i.value == frequency)
+                          ? frequency
+                          : frequencyItems.first.value,
                       onChanged: (value) {
                         setDialogState(() {
                           frequency = value!;
                         });
                       },
-                      items: ['1x daily', '2x daily', '3x daily', 'As needed']
-                          .map((freq) => DropdownMenuItem(
-                                value: freq,
-                                child: Text(
-                                  freq,
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 16,
-                                    color: const Color(0xFF1D2939),
-                                  ),
-                                ),
-                              ))
-                          .toList(),
+                      items: frequencyItems,
                       decoration: InputDecoration(
                         filled: true,
                         fillColor: const Color(0xFFF4F5F7),

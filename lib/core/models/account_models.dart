@@ -36,6 +36,24 @@ class AccountFullProfile {
   }
 }
 
+String? _bloodGroupFromBackend(String? raw) {
+  if (raw == null) return null;
+  final v = raw.trim();
+  if (v.isEmpty) return null;
+  return switch (v) {
+    'A_POS' => 'A+',
+    'A_NEG' => 'A-',
+    'B_POS' => 'B+',
+    'B_NEG' => 'B-',
+    'AB_POS' => 'AB+',
+    'AB_NEG' => 'AB-',
+    'O_POS' => 'O+',
+    'O_NEG' => 'O-',
+    _ => v,
+  };
+}
+
+
 class AccountUser {
   final String email;
   final String name;
@@ -75,7 +93,7 @@ class AccountUser {
       name: resolvedName,
       firstName: resolvedFirst.trim().isEmpty ? null : resolvedFirst,
       lastName: resolvedLast.trim().isEmpty ? null : resolvedLast,
-      bloodGroup: json['bloodGroup']?.toString(),
+      bloodGroup: _bloodGroupFromBackend(json['bloodGroup']?.toString()),
       medicalInfo: (json['medicalInfo'] is Map)
           ? (json['medicalInfo'] as Map).cast<String, dynamic>()
           : null,
@@ -141,7 +159,7 @@ class AccountFamilyMember {
       relationship: (json['relationship'] ?? '').toString(),
       gender: json['gender']?.toString(),
       ageYears: (json['ageYears'] is num) ? (json['ageYears'] as num).toInt() : null,
-      bloodGroup: json['bloodGroup']?.toString(),
+      bloodGroup: _bloodGroupFromBackend(json['bloodGroup']?.toString()),
       medicalInfo: (json['medicalInfo'] is Map)
           ? (json['medicalInfo'] as Map).cast<String, dynamic>()
           : null,

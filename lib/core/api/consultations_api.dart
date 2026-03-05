@@ -21,11 +21,6 @@ class ConsultationsApi {
     String? apartmentSuite,
     String? city,
   }) async {
-    final jwt = await TokenStorage.readJwt();
-    if (jwt == null || jwt.isEmpty) {
-      throw StateError('Missing JWT. Please login first.');
-    }
-
     final payload = {
       'doctorId': doctorId,
       'patientId': patientId,
@@ -42,7 +37,6 @@ class ConsultationsApi {
     final res = await _dio.post(
       '/consultations',
       data: payload,
-      options: Options(headers: {'Authorization': 'Bearer $jwt'}),
     );
 
     if (res.data is Map<String, dynamic>) {

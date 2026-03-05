@@ -1,8 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-import '../utils/logger.dart';
 import '../auth/token_storage.dart';
+import '../utils/console_log.dart';
 
 class DioClient {
   DioClient._internal() {
@@ -26,36 +26,41 @@ class DioClient {
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
-          final token = await TokenStorage.readJwt();
-          if (token != null && token.isNotEmpty) {
-            options.headers['Authorization'] = 'Bearer $token';
+          final isAuthEndpoint = options.path.startsWith('/api/auth') || options.path.startsWith('/v1/auth');
+          if (!isAuthEndpoint) {
+            final token = await TokenStorage.readJwt();
+            if (token != null && token.isNotEmpty) {
+              options.headers['Authorization'] = 'Bearer $token';
+            }
+          } else {
+            options.headers.remove('Authorization');
           }
-          AppLogger.api('authHeader=${options.headers.containsKey('Authorization')}');
-          AppLogger.api('${options.method} ${options.baseUrl}${options.path}');
+          consoleLog('🚀 API authHeader=${options.headers.containsKey('Authorization')}');
+          consoleLog('🚀 API ${options.method} ${options.baseUrl}${options.path}');
           if (options.queryParameters.isNotEmpty) {
-            AppLogger.api('query=${options.queryParameters}');
+            consoleLog('🚀 API query=${options.queryParameters}');
           }
           if (options.data != null) {
-            AppLogger.api('📦 ${options.data}');
+            consoleLog('🚀 API 📦 ${options.data}');
           }
           handler.next(options);
         },
         onResponse: (response, handler) {
-          AppLogger.api('✅ ${response.statusCode} ${response.requestOptions.method} ${response.requestOptions.baseUrl}${response.requestOptions.path}');
+          consoleLog(
+            '✅ API ${response.statusCode} ${response.requestOptions.method} ${response.requestOptions.baseUrl}${response.requestOptions.path}',
+          );
           if (response.data != null) {
-            AppLogger.api('📦 ${response.data}');
+            consoleLog('✅ API 📦 ${response.data}');
           }
           handler.next(response);
         },
         onError: (e, handler) {
           final r = e.response;
-          AppLogger.error(
-            'API error ${r?.statusCode ?? '-'} ${e.requestOptions.method} ${e.requestOptions.baseUrl}${e.requestOptions.path}',
-            e,
-            e.stackTrace,
+          consoleLog(
+            '❌ API error ${r?.statusCode ?? '-'} ${e.requestOptions.method} ${e.requestOptions.baseUrl}${e.requestOptions.path} :: ${e.toString()}',
           );
           if (r?.data != null) {
-            AppLogger.api('📦 ${r?.data}');
+            consoleLog('❌ API 📦 ${r?.data}');
           }
           handler.next(e);
         },

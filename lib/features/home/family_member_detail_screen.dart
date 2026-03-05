@@ -63,7 +63,7 @@ class _FamilyMemberDetailScreenState extends State<FamilyMemberDetailScreen> {
           chronicConditions: _member.chronicConditions,
           medications: _member.currentMedications,
           documents: _member.documents,
-          onSave: (bloodType, conditions, medications, documents) {
+          onSave: (bloodType, conditions, medications, documents) async {
             setState(() {
               _member.bloodType = bloodType;
               _member.chronicConditions = conditions;

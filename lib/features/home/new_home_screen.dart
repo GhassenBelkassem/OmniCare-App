@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import '../../core/api/account_api.dart';
 import '../../providers/user_onboarding_provider.dart';
 import '../../providers/user_provider.dart';
 import 'edit_medical_data_screen.dart';
@@ -1173,6 +1174,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                     onPressed: () {
                       final editMedications = currentMedications.map((m) {
                         return Medication(
+                          medicationId: m['medicationId']?.toString(),
                           name: (m['name'] ?? m['medicationId'] ?? 'Medication').toString(),
                           dosage: (m['dosage'] ?? '-').toString(),
                           frequency: (m['frequency'] ?? '-').toString(),
@@ -1186,10 +1188,26 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                             chronicConditions: chronicConditions,
                             medications: editMedications,
                             documents: [],
-                            onSave: (bloodType, conditions, medications, documents) {
-                              setState(() {
-                                // Update profile data here
-                              });
+                            onSave: (bloodType, conditions, medications, documents) async {
+                              final medsJson = medications
+                                  .map((m) => {
+                                        'medicationId': m.medicationId,
+                                        'name': m.name,
+                                        'dosage': m.dosage,
+                                        'frequency': m.frequency,
+                                      })
+                                  .toList();
+
+                              await AccountApi().patchMedicalPassport(
+                                bloodGroup: bloodType,
+                                medicalInfo: {
+                                  'chronicConditions': conditions,
+                                  'currentMedications': medsJson,
+                                },
+                              );
+
+                              if (!context.mounted) return;
+                              await Provider.of<UserProvider>(context, listen: false).refresh();
                             },
                           ),
                         ),
@@ -1356,7 +1374,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                         Medication(name: 'Aspirine', dosage: '81mg', frequency: '1x par jour'),
                       ],
                       documents: [],
-                      onSave: (bloodType, conditions, medications, documents) {
+                      onSave: (bloodType, conditions, medications, documents) async {
                         setState(() {
                           // Update profile data here
                         });

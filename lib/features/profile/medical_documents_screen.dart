@@ -29,6 +29,20 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            final documentTypeItems = allowedTypes
+                .map(
+                  (type) => DropdownMenuItem(
+                    value: type,
+                    child: Text(
+                      type,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 16,
+                        color: const Color(0xFF1D2939),
+                      ),
+                    ),
+                  ),
+                )
+                .toList();
             return AlertDialog(
               backgroundColor: Colors.white,
               shape: RoundedRectangleBorder(
@@ -98,24 +112,15 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen> {
                     ),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
-                      value: documentType,
+                      value: documentTypeItems.any((i) => i.value == documentType)
+                          ? documentType
+                          : documentTypeItems.first.value,
                       onChanged: (value) {
                         setDialogState(() {
                           documentType = value ?? 'Other';
                         });
                       },
-                      items: allowedTypes
-                          .map((type) => DropdownMenuItem(
-                                value: type,
-                                child: Text(
-                                  type,
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 16,
-                                    color: const Color(0xFF1D2939),
-                                  ),
-                                ),
-                              ))
-                          .toList(),
+                      items: documentTypeItems,
                       decoration: InputDecoration(
                         filled: true,
                         fillColor: const Color(0xFFF4F5F7),

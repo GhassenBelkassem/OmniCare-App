@@ -27,4 +27,38 @@ class AccountApi {
     }
     throw StateError('Unexpected /account/full-profile response: ${response.data}');
   }
+
+  Future<void> patchMedicalPassport({String? bloodGroup, Map<String, dynamic>? medicalInfo}) async {
+    debugPrint('[AccountApi] patchMedicalPassport() -> PATCH /account/medical-passport');
+
+    final payload = <String, dynamic>{};
+    final backendBlood = _bloodGroupToBackend(bloodGroup);
+    if (backendBlood != null) {
+      payload['bloodGroup'] = backendBlood;
+    }
+    if (medicalInfo != null) {
+      payload['medicalInfo'] = medicalInfo;
+    }
+
+    debugPrint('[AccountApi] patchMedicalPassport() payload: $payload');
+
+    await _dio.patch('/account/medical-passport', data: payload);
+  }
+}
+
+String? _bloodGroupToBackend(String? ui) {
+  if (ui == null) return null;
+  final v = ui.trim();
+  if (v.isEmpty || v == '-') return null;
+  return switch (v) {
+    'A+' => 'A_POS',
+    'A-' => 'A_NEG',
+    'B+' => 'B_POS',
+    'B-' => 'B_NEG',
+    'AB+' => 'AB_POS',
+    'AB-' => 'AB_NEG',
+    'O+' => 'O_POS',
+    'O-' => 'O_NEG',
+    _ => v,
+  };
 }
