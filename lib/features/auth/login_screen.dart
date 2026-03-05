@@ -7,6 +7,7 @@ import '../../providers/user_provider.dart';
 import '../../l10n/app_localizations.dart';
 import 'otp_verification_screen.dart';
 import 'phone_input_screen.dart';
+import 'medical_data_welcome_screen.dart';
 import 'forgot_password_screen.dart';
 import 'signup_screen.dart';
 import '../../core/api/auth_api.dart';
@@ -32,6 +33,36 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
   late Animation<double> _scaleAnimation;
+
+  void _navigateAfterLogin(AuthLoginResult result) {
+    if (!mounted) return;
+
+    final onboarding = context.read<UserOnboardingProvider>();
+    onboarding.setEmail(result.email);
+    if (result.phoneNumber != null && result.phoneNumber!.isNotEmpty) {
+      onboarding.setPhoneNumber(result.phoneNumber!);
+    }
+    onboarding.setEmailVerified(result.emailVerified);
+    onboarding.setPhoneVerified(result.phoneVerified);
+
+    if (!result.phoneVerified) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const PhoneInputScreen()),
+      );
+      return;
+    }
+
+    if (!result.onboardingComplete) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const MedicalDataWelcomeScreen()),
+      );
+      return;
+    }
+
+    Navigator.pushReplacementNamed(context, '/home');
+  }
 
   @override
   void initState() {
@@ -105,12 +136,12 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         throw StateError('Google idToken is null');
       }
 
-      await AuthApi().googleLogin(idToken: idToken);
+      final result = await AuthApi().googleLoginWithStatus(idToken: idToken);
       if (!mounted) return;
       print('[LoginScreen] JWT saved. Forcing UserProvider.refresh() before /home navigation...');
       await context.read<UserProvider>().refresh();
       print('[LoginScreen] UserProvider.refresh() done. Navigating to /home');
-      Navigator.pushReplacementNamed(context, '/home');
+      _navigateAfterLogin(result);
     } catch (e, st) {
       AppLogger.error('Google sign-in failed', e, st);
       if (!mounted) return;
@@ -141,12 +172,12 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
       setState(() => _isLoading = true);
       try {
-        await AuthApi().login(email: email, password: password);
+        final result = await AuthApi().loginWithStatus(email: email, password: password);
         if (!mounted) return;
         print('[LoginScreen] JWT saved. Forcing UserProvider.refresh() before /home navigation...');
         await context.read<UserProvider>().refresh();
         print('[LoginScreen] UserProvider.refresh() done. Navigating to /home');
-        Navigator.pushReplacementNamed(context, '/home');
+        _navigateAfterLogin(result);
       } catch (e, st) {
         AppLogger.error('Login failed', e, st);
         if (!mounted) return;
@@ -228,74 +259,73 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                       child: SingleChildScrollView(
                         physics: const ClampingScrollPhysics(),
                         child: AnimatedBuilder(
-                        animation: _slideAnimation,
-                        builder: (context, child) {
-                          return Transform.translate(
-                            offset: _slideAnimation.value,
-                            child: FadeTransition(
-                              opacity: _fadeAnimation,
-                              child: Container(
-                                constraints: const BoxConstraints(maxWidth: 384),
-                                padding: const EdgeInsets.symmetric(horizontal: 24),
-                                child: Column(
-                                  children: [
-                                    
-                                    // Title Section
-                                    Text(
-                                      'Welcome back',
-                                      textAlign: TextAlign.center,
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 28,
-                                        fontWeight: FontWeight.w700,
-                                        letterSpacing: -0.5,
-                                        color: const Color(0xFF101828),
+                          animation: _slideAnimation,
+                          builder: (context, child) {
+                            return Transform.translate(
+                              offset: _slideAnimation.value,
+                              child: FadeTransition(
+                                opacity: _fadeAnimation,
+                                child: Container(
+                                  constraints: const BoxConstraints(maxWidth: 384),
+                                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                                  child: Column(
+                                    children: [
+                                      // Title Section
+                                      Text(
+                                        'Welcome back',
+                                        textAlign: TextAlign.center,
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 28,
+                                          fontWeight: FontWeight.w700,
+                                          letterSpacing: -0.5,
+                                          color: const Color(0xFF101828),
+                                        ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      'Sign in to continue to OmniCare',
-                                      textAlign: TextAlign.center,
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w400,
-                                        color: const Color(0xFF667085),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        'Sign in to continue to OmniCare',
+                                        textAlign: TextAlign.center,
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w400,
+                                          color: const Color(0xFF667085),
+                                        ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 32),
-                                    
-                                    // Google Button
-                                    _buildGoogleButton(),
-                                    const SizedBox(height: 20),
-                                    
-                                    // Divider
-                                    _buildDivider(),
-                                    const SizedBox(height: 20),
-                                    
-                                    // Email/Password Form (conditionally shown)
-                                    if (_showEmailForm) ...[
-                                      _buildEmailPasswordForm(),
-                                      const SizedBox(height: 18),
+                                      const SizedBox(height: 32),
+
+                                      // Google Button
+                                      _buildGoogleButton(),
+                                      const SizedBox(height: 20),
+
+                                      // Divider
+                                      _buildDivider(),
+                                      const SizedBox(height: 20),
+
+                                      // Email/Password Form (conditionally shown)
+                                      if (_showEmailForm) ...[
+                                        _buildEmailPasswordForm(),
+                                        const SizedBox(height: 18),
+                                      ],
+
+                                      // Email Sign In Button
+                                      _buildEmailButton(),
+                                      const SizedBox(height: 24),
+
+                                      // Footer
+                                      _buildFooter(),
+                                      const SizedBox(height: 24),
                                     ],
-                                    
-                                    // Email Sign In Button
-                                    _buildEmailButton(),
-                                    const SizedBox(height: 24),
-                                    
-                                    // Footer
-                                    _buildFooter(),
-                                    const SizedBox(height: 24),
-                                  ],
+                                  ),
                                 ),
                               ),
-                            ),
-                          );
-                        },
+                            );
+                          },
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
             ),
           ),
         ],

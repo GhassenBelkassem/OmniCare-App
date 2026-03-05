@@ -4,6 +4,9 @@ import 'package:provider/provider.dart';
 import '../../providers/user_onboarding_provider.dart';
 import 'otp_verification_screen.dart';
 import 'medical_data_welcome_screen.dart';
+import '../../core/api/auth_api.dart';
+import '../../core/api/api_error_utils.dart';
+import '../../core/utils/logger.dart';
 
 class PhoneInputScreen extends StatefulWidget {
   const PhoneInputScreen({super.key});
@@ -41,9 +44,23 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
       final provider = Provider.of<UserOnboardingProvider>(context, listen: false);
       provider.setPhoneNumber(phoneNumber);
 
-      await Future.delayed(const Duration(seconds: 1));
+      final email = provider.email;
+      if (email == null || email.isEmpty) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Missing email for phone verification. Please sign up again.')),
+          );
+        }
+        return;
+      }
 
-      if (mounted) {
+      try {
+        await AuthApi().setPhone(email: email, phoneNumber: phoneNumber);
+        await AuthApi().requestPhoneOtp(phoneNumber: phoneNumber);
+
+        if (!mounted) return;
+
         setState(() => _isLoading = false);
         Navigator.push(
           context,
@@ -51,7 +68,7 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
             builder: (context) => OtpVerificationScreen(
               verificationType: 'phone',
               contactInfo: phoneNumber,
-              onVerified: () {
+              onVerified: () async {
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(
@@ -61,6 +78,13 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
               },
             ),
           ),
+        );
+      } catch (e, st) {
+        AppLogger.error('Phone verification setup failed', e, st);
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to send phone code: ${apiErrorMessage(e)}')),
         );
       }
     }

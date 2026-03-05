@@ -51,7 +51,7 @@ class _EmailInputScreenState extends State<EmailInputScreen> {
             builder: (context) => OtpVerificationScreen(
               verificationType: 'email',
               contactInfo: _emailController.text,
-              onVerified: () {
+              onVerified: () async {
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(

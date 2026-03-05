@@ -43,7 +43,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             builder: (context) => OtpVerificationScreen(
               verificationType: 'reset',
               contactInfo: _contactController.text,
-              onVerified: () {
+              onVerified: () async {
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(

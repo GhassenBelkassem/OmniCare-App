@@ -3,6 +3,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 import '../../providers/user_onboarding_provider.dart';
+import '../../providers/user_provider.dart';
+import '../../core/api/account_api.dart';
+import '../../core/api/api_error_utils.dart';
+import '../../core/utils/logger.dart';
+import '../../core/widgets/medication_search_field.dart';
 import 'onboarding_complete_screen.dart';
 
 class ConversationalOnboardingScreen extends StatefulWidget {
@@ -17,6 +22,7 @@ class _ConversationalOnboardingScreenState
     extends State<ConversationalOnboardingScreen> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
+  bool _saving = false;
 
   final List<String> bloodTypes = [
     'A+',
@@ -51,6 +57,7 @@ class _ConversationalOnboardingScreenState
   final TextEditingController _searchController = TextEditingController();
   final List<TextEditingController> _medicationNameControllers = [];
   final List<TextEditingController> _medicationDosageControllers = [];
+  final List<String?> _medicationIds = [];
 
   @override
   void initState() {
@@ -75,6 +82,7 @@ class _ConversationalOnboardingScreenState
   void _addMedicationFields() {
     _medicationNameControllers.add(TextEditingController());
     _medicationDosageControllers.add(TextEditingController());
+    _medicationIds.add(null);
   }
 
   void _removeMedicationFields(int index) {
@@ -84,6 +92,7 @@ class _ConversationalOnboardingScreenState
       setState(() {
         _medicationNameControllers.removeAt(index);
         _medicationDosageControllers.removeAt(index);
+        _medicationIds.removeAt(index);
       });
     }
   }
@@ -112,20 +121,72 @@ class _ConversationalOnboardingScreenState
     }
   }
 
-  void _completeOnboarding() {
+  Future<void> _completeOnboarding() async {
     final provider = Provider.of<UserOnboardingProvider>(context, listen: false);
 
+    provider.medications.clear();
+
     for (int i = 0; i < _medicationNameControllers.length; i++) {
-      if (_medicationNameControllers[i].text.isNotEmpty &&
-          _medicationDosageControllers[i].text.isNotEmpty) {
+      final name = _medicationNameControllers[i].text.trim();
+      final dosage = _medicationDosageControllers[i].text.trim();
+      final medId = _medicationIds[i];
+      final hasAnyInput = name.isNotEmpty || dosage.isNotEmpty;
+      if (!hasAnyInput) continue;
+
+      if (medId == null || medId.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please select a medication from the list.')),
+        );
+        return;
+      }
+
+      if (dosage.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please enter a dosage for the selected medication.')),
+        );
+        return;
+      }
+
         provider.addMedication(
           MedicationEntry(
-            name: _medicationNameControllers[i].text,
-            dosage: _medicationDosageControllers[i].text,
+            medicationId: medId,
+            name: name,
+            dosage: dosage,
             frequency: '1x daily',
           ),
         );
-      }
+    }
+
+    setState(() => _saving = true);
+    try {
+      final medicalInfo = <String, dynamic>{
+        'chronicConditions': provider.chronicConditions,
+        'currentMedications': provider.medications
+            .where((m) => (m.medicationId ?? '').trim().isNotEmpty)
+            .map((m) => {
+                  'medicationId': m.medicationId,
+                  'dosage': m.dosage,
+                  'frequency': m.frequency,
+                })
+            .toList(),
+      };
+
+      await AccountApi().patchMedicalPassport(
+        bloodGroup: provider.bloodGroup,
+        medicalInfo: medicalInfo,
+      );
+
+      if (!mounted) return;
+      await context.read<UserProvider>().refresh();
+    } catch (e, st) {
+      AppLogger.error('Failed to save medical passport', e, st);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to save: ${apiErrorMessage(e)}')),
+      );
+      return;
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
 
     Navigator.pushReplacement(
@@ -144,108 +205,121 @@ class _ConversationalOnboardingScreenState
       onTap: () {
         FocusScope.of(context).unfocus();
       },
-      child: Scaffold(
-        backgroundColor: const Color(0xFFF4F5F7),
-        appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: _currentPage > 0
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back, color: Color(0xFF1D2939)),
-                onPressed: () {
-                  _pageController.previousPage(
-                    duration: const Duration(milliseconds: 400),
-                    curve: Curves.easeInOut,
-                  );
-                },
-              )
-            : null,
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pushReplacementNamed(context, '/home');
-            },
-            child: Text(
-              'Skip',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: const Color(0xFF667085),
+      child: Stack(
+        children: [
+          Scaffold(
+            backgroundColor: const Color(0xFFF4F5F7),
+            appBar: AppBar(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              leading: _currentPage > 0
+                  ? IconButton(
+                      icon: const Icon(Icons.arrow_back, color: Color(0xFF1D2939)),
+                      onPressed: () {
+                        _pageController.previousPage(
+                          duration: const Duration(milliseconds: 400),
+                          curve: Curves.easeInOut,
+                        );
+                      },
+                    )
+                  : null,
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pushReplacementNamed(context, '/home');
+                  },
+                  child: Text(
+                    'Skip',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF667085),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            body: Column(
+              children: [
+                Expanded(
+                  child: PageView(
+                    controller: _pageController,
+                    onPageChanged: (index) {
+                      setState(() => _currentPage = index);
+                    },
+                    children: [
+                      _buildBloodTypePage(provider),
+                      _buildConditionsPage(provider),
+                      _buildMedicationsPage(provider),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Color(0x0A000000),
+                        blurRadius: 8,
+                        offset: Offset(0, -2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SmoothPageIndicator(
+                        controller: _pageController,
+                        count: 3,
+                        effect: ExpandingDotsEffect(
+                          activeDotColor: const Color(0xFF1FBF9A),
+                          dotColor: const Color(0xFFE5E7EB),
+                          dotHeight: 8,
+                          dotWidth: 8,
+                          expansionFactor: 4,
+                          spacing: 8,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 56,
+                        child: ElevatedButton(
+                          onPressed: _saving ? null : _nextPage,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF1FBF9A),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: Text(
+                            _currentPage == 2 ? 'Complete' : 'Continue',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_saving)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black.withOpacity(0.2),
+                child: const Center(
+                  child: CircularProgressIndicator(),
+                ),
               ),
             ),
-          ),
         ],
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: PageView(
-              controller: _pageController,
-              onPageChanged: (index) {
-                setState(() => _currentPage = index);
-              },
-              children: [
-                _buildBloodTypePage(provider),
-                _buildConditionsPage(provider),
-                _buildMedicationsPage(provider),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Color(0x0A000000),
-                  blurRadius: 8,
-                  offset: Offset(0, -2),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SmoothPageIndicator(
-                  controller: _pageController,
-                  count: 3,
-                  effect: ExpandingDotsEffect(
-                    activeDotColor: const Color(0xFF1FBF9A),
-                    dotColor: const Color(0xFFE5E7EB),
-                    dotHeight: 8,
-                    dotWidth: 8,
-                    expansionFactor: 4,
-                    spacing: 8,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: _nextPage,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1FBF9A),
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: Text(
-                      _currentPage == 2 ? 'Complete' : 'Continue',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
       ),
     );
   }
@@ -683,37 +757,23 @@ class _ConversationalOnboardingScreenState
                   ],
                 ),
                 const SizedBox(height: 16),
-                TextField(
+                MedicationSearchField(
                   controller: _medicationNameControllers.last,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 15,
-                    color: const Color(0xFF1D2939),
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'Medicine name (e.g., Aspirin)',
-                    hintStyle: GoogleFonts.plusJakartaSans(
-                      fontSize: 15,
-                      color: const Color(0xFF9CA3AF),
-                    ),
-                    filled: true,
-                    fillColor: const Color(0xFFF9FAFB),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(
-                        color: Color(0xFF1FBF9A),
-                        width: 2,
-                      ),
-                    ),
-                  ),
+                  dosageController: _medicationDosageControllers.last,
+                  hintText: 'Medicine name (e.g., Aspirin)',
+                  onSelected: (r) {
+                    final idx = _medicationNameControllers.length - 1;
+                    if (idx >= 0 && idx < _medicationIds.length) {
+                      _medicationIds[idx] = r.id;
+                    }
+                    setState(() {});
+                  },
+                  onChanged: (_) {
+                    final idx = _medicationNameControllers.length - 1;
+                    if (idx >= 0 && idx < _medicationIds.length) {
+                      _medicationIds[idx] = null;
+                    }
+                  },
                 ),
                 const SizedBox(height: 12),
                 TextField(

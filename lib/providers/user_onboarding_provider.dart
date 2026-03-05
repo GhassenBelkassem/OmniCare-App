@@ -1,17 +1,20 @@
 import 'package:flutter/foundation.dart';
 
 class MedicationEntry {
+  String? medicationId;
   String name;
   String dosage;
   String frequency;
 
   MedicationEntry({
+    this.medicationId,
     required this.name,
     required this.dosage,
     required this.frequency,
   });
 
   Map<String, dynamic> toJson() => {
+        'medicationId': medicationId,
         'name': name,
         'dosage': dosage,
         'frequency': frequency,

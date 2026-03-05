@@ -11,7 +11,7 @@ import '../../core/utils/logger.dart';
 class OtpVerificationScreen extends StatefulWidget {
   final String verificationType;
   final String contactInfo;
-  final VoidCallback onVerified;
+  final Future<void> Function() onVerified;
 
   const OtpVerificationScreen({
     super.key,
@@ -35,6 +35,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   );
 
   bool _isLoading = false;
+  bool _verificationSucceeded = false;
   int _resendCountdown = 60;
   Timer? _timer;
   String? _errorMessage;
@@ -70,6 +71,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   }
 
   Future<void> _verifyOtp() async {
+    if (_isLoading || _verificationSucceeded) return;
     final otp = _controllers.map((c) => c.text).join();
     if (otp.length != 6) {
       setState(() => _errorMessage = 'Please enter all 6 digits');
@@ -83,15 +85,28 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
     try {
       if (widget.verificationType == 'email') {
+        AppLogger.api(
+          'verifyEmailOtp enteredCode=$otp email=${widget.contactInfo}',
+        );
         await AuthApi().verifyEmailOtp(
           email: widget.contactInfo,
           code: otp,
+        );
+      } else if (widget.verificationType == 'phone') {
+        AppLogger.api(
+          'verifyPhoneOtp enteredCode=$otp phoneNumber=${widget.contactInfo}',
+        );
+        await AuthApi().verifyPhoneOtp(
+          phoneNumber: widget.contactInfo,
+          otp: otp,
         );
       } else {
         await Future.delayed(const Duration(seconds: 2));
       }
 
       if (!mounted) return;
+
+      _verificationSucceeded = true;
 
       final provider = Provider.of<UserOnboardingProvider>(context, listen: false);
 
@@ -101,8 +116,11 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         provider.setPhoneVerified(true);
       }
 
-      setState(() => _isLoading = false);
-      widget.onVerified();
+      await widget.onVerified();
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     } catch (e, st) {
       AppLogger.error('OTP verification failed', e, st);
       if (!mounted) return;
@@ -117,9 +135,15 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     if (_resendCountdown > 0) return;
 
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(seconds: 1));
-    
-    if (mounted) {
+
+    try {
+      if (widget.verificationType == 'phone') {
+        await AuthApi().requestPhoneOtp(phoneNumber: widget.contactInfo);
+      } else {
+        await Future.delayed(const Duration(seconds: 1));
+      }
+
+      if (!mounted) return;
       setState(() => _isLoading = false);
       _startResendTimer();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -128,6 +152,13 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
           backgroundColor: Color(0xFF1FBF9A),
         ),
       );
+    } catch (e, st) {
+      AppLogger.error('Resend OTP failed', e, st);
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = apiErrorMessage(e);
+      });
     }
   }
 
@@ -253,9 +284,6 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                           }
                           if (value.isEmpty && index > 0) {
                             _focusNodes[index - 1].requestFocus();
-                          }
-                          if (index == 5 && value.isNotEmpty) {
-                            _verifyOtp();
                           }
                           setState(() => _errorMessage = null);
                         },

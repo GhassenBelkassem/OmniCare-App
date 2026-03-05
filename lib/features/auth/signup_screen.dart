@@ -7,9 +7,11 @@ import '../../l10n/app_localizations.dart';
 import 'login_screen.dart';
 import 'phone_input_screen.dart';
 import 'otp_verification_screen.dart';
+import 'medical_data_welcome_screen.dart';
 import '../../core/api/auth_api.dart';
 import '../../core/utils/logger.dart';
 import '../../core/api/api_error_utils.dart';
+import '../../providers/user_provider.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart';
 import '../../core/auth/google_web_sign_in_button.dart';
@@ -31,6 +33,34 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
   late Animation<double> _scaleAnimation;
+
+  void _navigateAfterAuth(BuildContext navContext, AuthLoginResult result) {
+    final onboarding = navContext.read<UserOnboardingProvider>();
+    onboarding.setEmail(result.email);
+    if (result.phoneNumber != null && result.phoneNumber!.isNotEmpty) {
+      onboarding.setPhoneNumber(result.phoneNumber!);
+    }
+    onboarding.setEmailVerified(result.emailVerified);
+    onboarding.setPhoneVerified(result.phoneVerified);
+
+    if (!result.phoneVerified) {
+      Navigator.pushReplacement(
+        navContext,
+        MaterialPageRoute(builder: (context) => const PhoneInputScreen()),
+      );
+      return;
+    }
+
+    if (!result.onboardingComplete) {
+      Navigator.pushReplacement(
+        navContext,
+        MaterialPageRoute(builder: (context) => const MedicalDataWelcomeScreen()),
+      );
+      return;
+    }
+
+    Navigator.pushReplacementNamed(navContext, '/home');
+  }
 
   @override
   void initState() {
@@ -104,9 +134,9 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
         throw StateError('Google idToken is null');
       }
 
-      await AuthApi().googleLogin(idToken: idToken);
+      final result = await AuthApi().googleLoginWithStatus(idToken: idToken);
       if (!mounted) return;
-      Navigator.pushReplacementNamed(context, '/home');
+      _navigateAfterAuth(context, result);
     } catch (e, st) {
       AppLogger.error('Google sign-up failed', e, st);
       if (!mounted) return;
@@ -144,14 +174,17 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => OtpVerificationScreen(
+          builder: (otpContext) => OtpVerificationScreen(
             verificationType: 'email',
             contactInfo: email,
-            onVerified: () {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const LoginScreen()),
+            onVerified: () async {
+              final result = await AuthApi().loginWithStatus(
+                email: email,
+                password: password,
               );
+
+              await otpContext.read<UserProvider>().refresh();
+              _navigateAfterAuth(otpContext, result);
             },
           ),
         ),
@@ -426,9 +459,9 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
         onIdToken: (idToken) async {
           setState(() => _isLoading = true);
           try {
-            await AuthApi().googleLogin(idToken: idToken);
+            final result = await AuthApi().googleLoginWithStatus(idToken: idToken);
             if (!mounted) return;
-            Navigator.pushReplacementNamed(context, '/home');
+            _navigateAfterAuth(context, result);
           } catch (e, st) {
             AppLogger.error('Google web sign-up failed', e, st);
             if (!mounted) return;

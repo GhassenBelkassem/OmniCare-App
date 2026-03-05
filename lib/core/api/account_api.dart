@@ -49,7 +49,7 @@ class AccountApi {
 String? _bloodGroupToBackend(String? ui) {
   if (ui == null) return null;
   final v = ui.trim();
-  if (v.isEmpty || v == '-') return null;
+  if (v.isEmpty || v == '-' || v == 'IDK') return null;
   return switch (v) {
     'A+' => 'A_POS',
     'A-' => 'A_NEG',
