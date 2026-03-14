@@ -11,6 +11,7 @@ import 'features/profile/medical_documents_screen.dart';
 import 'features/onboarding/conversational_onboarding_screen.dart';
 import 'features/home/home_screen.dart';
 import 'features/home/new_home_screen.dart';
+import 'features/emergency/emergency_request_step0.dart';
 import 'features/emergency/emergency_request_step1.dart';
 import 'features/emergency/emergency_request_step2.dart';
 import 'features/emergency/emergency_request_step3.dart';
@@ -21,6 +22,13 @@ import 'features/emergency/doctor_calling_screen.dart';
 import 'features/emergency/doctor_arriving_screen.dart';
 import 'features/emergency/consultation_qr_screen.dart';
 import 'features/emergency/consultation_complete_screen.dart';
+import 'features/doctor/doctor_dashboard_screen.dart';
+import 'features/request/provider_selection_screen.dart';
+import 'features/request/consultation_type_screen.dart';
+import 'features/request/provider_list_screen.dart';
+import 'features/notifications/notifications_screen.dart';
+import 'features/notifications/appointment_confirmation_screen.dart';
+import 'features/notifications/booking_confirmed_screen.dart';
 import 'providers/user_onboarding_provider.dart';
 import 'providers/user_provider.dart';
 import 'services/notification_service.dart';
@@ -83,7 +91,11 @@ class OmniCareApp extends StatelessWidget {
               '/medical-documents': (context) => const MedicalDocumentsScreen(),
               '/conversational-onboarding': (context) => const ConversationalOnboardingScreen(),
               '/home': (context) => const NewHomeScreen(),
+              '/doctor-dashboard': (context) => const DoctorDashboardScreen(),
+              '/emergency-step0': (context) => const EmergencyRequestStep0(),
               '/emergency-step1': (context) => const EmergencyRequestStep1(),
+              '/request-care': (context) => const ProviderSelectionScreen(),
+              '/notifications': (context) => const NotificationsScreen(),
             },
             onGenerateRoute: (settings) {
               if (settings.name == '/emergency-step2') {
@@ -128,6 +140,22 @@ class OmniCareApp extends StatelessWidget {
                   builder: (context) => DoctorArrivingScreen(requestData: args),
                 );
               }
+              if (settings.name == '/consultation-type') {
+                final args = settings.arguments as Map<String, dynamic>;
+                return MaterialPageRoute(
+                  builder: (context) => ConsultationTypeScreen(
+                    providerType: args['providerType'],
+                  ),
+                );
+              }
+              if (settings.name == '/provider-list') {
+                final args = settings.arguments as Map<String, dynamic>;
+                return MaterialPageRoute(
+                  builder: (context) => ProviderListScreen(
+                    providerType: args['providerType'],
+                  ),
+                );
+              }
               if (settings.name == '/consultation-qr') {
                 final args = settings.arguments as Map<String, dynamic>;
                 return MaterialPageRoute(
@@ -138,6 +166,18 @@ class OmniCareApp extends StatelessWidget {
                 final args = settings.arguments as Map<String, dynamic>;
                 return MaterialPageRoute(
                   builder: (context) => ConsultationCompleteScreen(requestData: args),
+                );
+              }
+              if (settings.name == '/appointment-confirmation') {
+                final args = settings.arguments as Map<String, dynamic>;
+                return MaterialPageRoute(
+                  builder: (context) => AppointmentConfirmationScreen(doctorData: args),
+                );
+              }
+              if (settings.name == '/booking-confirmed') {
+                final args = settings.arguments as Map<String, dynamic>;
+                return MaterialPageRoute(
+                  builder: (context) => BookingConfirmedScreen(bookingData: args),
                 );
               }
               return null;

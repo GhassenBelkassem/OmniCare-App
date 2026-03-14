@@ -569,6 +569,10 @@ class EmergencyReviewScreen extends StatelessWidget {
   }
 
   Widget _buildBottomBar(BuildContext context) {
+    final consultationType = requestData['consultationType'] as String? ?? 'home';
+    final isHomeConsultation = consultationType == 'home';
+    final providerType = requestData['providerType'] as String? ?? 'doctor';
+    
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -614,11 +618,21 @@ class EmergencyReviewScreen extends StatelessWidget {
               height: 56,
               child: ElevatedButton(
                 onPressed: () {
-                  Navigator.pushNamed(
-                    context,
-                    '/doctor-selection',
-                    arguments: requestData,
-                  );
+                  if (isHomeConsultation) {
+                    // Navigate to doctor selection for urgent home consultation
+                    Navigator.pushNamed(
+                      context,
+                      '/doctor-selection',
+                      arguments: requestData,
+                    );
+                  } else {
+                    // Navigate to provider list for book appointment
+                    Navigator.pushNamed(
+                      context,
+                      '/provider-list',
+                      arguments: {'providerType': providerType},
+                    );
+                  }
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF1FBF9A),
@@ -632,9 +646,17 @@ class EmergencyReviewScreen extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    Icon(
+                      isHomeConsultation ? Icons.search : Icons.calendar_today,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
                     Flexible(
                       child: Text(
-                        'Confirmer et Rechercher un Médecin',
+                        isHomeConsultation 
+                            ? 'Confirmer et Rechercher un Médecin'
+                            : 'Rechercher des Professionnels',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,

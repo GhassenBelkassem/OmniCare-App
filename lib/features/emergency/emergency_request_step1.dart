@@ -100,6 +100,10 @@ class _EmergencyRequestStep1State extends State<EmergencyRequestStep1> {
 
     final selectedOption = _patientOptions.firstWhere((opt) => opt.id == _selectedPatientId);
     
+    final routeArgs = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    final providerType = routeArgs?['providerType'] as String? ?? 'doctor';
+    final consultationType = routeArgs?['consultationType'] as String? ?? 'home';
+    
     final data = {
       'patientId': _selectedPatientId,
       'patientName': _selectedPatientId == 'other' ? _otherNameController.text : selectedOption.name,
@@ -108,6 +112,8 @@ class _EmergencyRequestStep1State extends State<EmergencyRequestStep1> {
           ? int.tryParse(_otherAgeController.text) 
           : selectedOption.age,
       if (selectedOption.relationship != null) 'relationship': selectedOption.relationship,
+      'providerType': providerType,
+      'consultationType': consultationType, // Pass consultation type through
     };
 
     Navigator.pushNamed(

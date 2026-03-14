@@ -72,6 +72,8 @@
 	<string>OmniCare a besoin d'accéder à votre position pour trouver les médecins à proximité et vous fournir des soins d'urgence.</string>
 	<key>NSUserNotificationsUsageDescription</key>
 	<string>OmniCare a besoin d'envoyer des notifications pour vous informer de l'état de votre demande d'urgence médicale.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>OmniCare a besoin d'accéder à la caméra pour scanner le code QR du patient et vérifier son identité.</string>
 	<key>io.flutter.embedded_views_preview</key>
 	<true/>
 </dict>

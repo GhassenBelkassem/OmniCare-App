@@ -122,6 +122,17 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
     }
   }
 
+  void _handleBookAppointment() {
+    // Get provider type from request data (default to 'doctor' if not set)
+    final providerType = widget.requestData['providerType'] as String? ?? 'doctor';
+    
+    Navigator.pushNamed(
+      context,
+      '/provider-list',
+      arguments: {'providerType': providerType},
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final doctor = widget.requestData['doctor'] as Doctor;
@@ -130,6 +141,7 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
     final painLevel = widget.requestData['painLevel'] as int;
     final description = widget.requestData['description'] as String;
     final location = widget.requestData['location'] as Map<String, dynamic>;
+    final consultationType = widget.requestData['consultationType'] as String? ?? 'home';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F5F7),
@@ -528,6 +540,9 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
   }
 
   Widget _buildBottomBar() {
+    final consultationType = widget.requestData['consultationType'] as String? ?? 'home';
+    final isHomeConsultation = consultationType == 'home';
+    
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -537,69 +552,49 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
         ),
       ),
       child: SafeArea(
-        child: Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: _isSubmitting ? null : () => Navigator.pop(context),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF1A202C),
-                  side: const BorderSide(color: Color(0xFFE2E8F0)),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.arrow_back, size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Retour',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
+        child: SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: _isSubmitting ? null : (isHomeConsultation ? _handleConfirm : _handleBookAppointment),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1FBF9A),
+              disabledBackgroundColor: const Color(0xFF1FBF9A).withOpacity(0.5),
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              flex: 2,
-              child: ElevatedButton(
-                onPressed: _isSubmitting ? null : _handleConfirm,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1FBF9A),
-                  disabledBackgroundColor: const Color(0xFF1FBF9A).withOpacity(0.5),
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: _isSubmitting
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
-                      )
-                    : Text(
-                        'CONFIRMER LA DEMANDE',
+            child: _isSubmitting
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        isHomeConsultation ? Icons.home : Icons.calendar_today,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        isHomeConsultation 
+                            ? 'CONFIRMER ET RECHERCHER UN MÉDECIN'
+                            : 'RECHERCHER DES PROFESSIONNELS',
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: 16,
+                          fontSize: 15,
                           fontWeight: FontWeight.w800,
                           color: Colors.white,
                         ),
                       ),
-              ),
-            ),
-          ],
+                    ],
+                  ),
+          ),
         ),
       ),
     );
