@@ -36,9 +36,9 @@ class FamilyMemberDetailScreen extends StatefulWidget {
   final FamilyMember member;
 
   const FamilyMemberDetailScreen({
-    Key? key,
+    super.key,
     required this.member,
-  }) : super(key: key);
+  });
 
   @override
   State<FamilyMemberDetailScreen> createState() => _FamilyMemberDetailScreenState();
@@ -46,7 +46,7 @@ class FamilyMemberDetailScreen extends StatefulWidget {
 
 class _FamilyMemberDetailScreenState extends State<FamilyMemberDetailScreen> {
   late FamilyMember _member;
-  bool _showQR = false;
+  final bool _showQR = false;
 
   @override
   void initState() {

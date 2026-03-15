@@ -1,6 +1,7 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
+import 'patient_picker_screen.dart';
 import 'patient_medical_passport_screen.dart';
 
 class QRScannerScreen extends StatefulWidget {
@@ -11,84 +12,172 @@ class QRScannerScreen extends StatefulWidget {
 }
 
 class _QRScannerScreenState extends State<QRScannerScreen> {
-  MobileScannerController cameraController = MobileScannerController();
   bool _isScanning = true;
+  final TextEditingController _manualCodeController = TextEditingController();
 
   @override
   void dispose() {
-    cameraController.dispose();
+    _manualCodeController.dispose();
     super.dispose();
   }
 
-  void _onDetect(BarcodeCapture capture) {
+  void _handleQRCode(String code) {
     if (!_isScanning) return;
-    
-    final List<Barcode> barcodes = capture.barcodes;
-    if (barcodes.isEmpty) return;
 
-    final String? code = barcodes.first.rawValue;
-    if (code == null) return;
+    if (code.isEmpty) return;
 
-    // Check if it's a valid OmniCare patient QR code
-    if (code.startsWith('OMNICARE-PATIENT-')) {
-      setState(() => _isScanning = false);
-      
-      // Extract patient ID
-      final patientId = code.replaceFirst('OMNICARE-PATIENT-', '');
-      
-      // Navigate to patient medical passport
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => PatientMedicalPassportScreen(
-            patientId: patientId,
-          ),
-        ),
-      );
-    } else {
-      // Invalid QR code
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.error_outline, color: Colors.white),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Invalid QR code. Please scan patient\'s medical QR code.',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
-    }
+    final patientId = code.startsWith('OMNICARE-PATIENT-')
+        ? code.replaceFirst('OMNICARE-PATIENT-', '')
+        : code;
+
+    setState(() => _isScanning = false);
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            PatientMedicalPassportScreen(patientId: patientId),
+      ),
+    );
+  }
+
+  Future<void> _pickPatient() async {
+    final selectedPatientId = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const PatientPickerScreen(forDoctor: true),
+      ),
+    );
+
+    if (!mounted) return;
+    if (selectedPatientId == null || selectedPatientId.trim().isEmpty) return;
+    _handleQRCode(selectedPatientId.trim());
   }
 
   @override
   Widget build(BuildContext context) {
+    // Web fallback: show manual input instead of camera scanner
+    if (kIsWeb) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF4F5F7),
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Color(0xFF1A202C)),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: Text(
+            'Patient QR Code',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF1A202C),
+            ),
+          ),
+        ),
+        body: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 500),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.qr_code_scanner,
+                    size: 100,
+                    color: const Color(0xFF1FBF9A),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'QR Scanner Not Available',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF1A202C),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Camera scanning is not available on web. Please enter the patient code manually.',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      color: const Color(0xFF667085),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _pickPatient,
+                      icon: const Icon(Icons.people),
+                      label: Text(
+                        'Pick from my patients',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _manualCodeController,
+                    decoration: InputDecoration(
+                      labelText: 'Patient Code',
+                      hintText: 'OMNICARE-PATIENT-...',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      prefixIcon: const Icon(Icons.qr_code),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        _handleQRCode(_manualCodeController.text.trim());
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1FBF9A),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        'Verify Patient',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Mobile: Camera scanner not available without mobile_scanner package
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Camera view
-          MobileScanner(
-            controller: cameraController,
-            onDetect: _onDetect,
-          ),
-
-          // Overlay with scanning frame
-          CustomPaint(
-            painter: ScannerOverlayPainter(),
-            child: Container(),
+          // Placeholder for camera view
+          Center(
+            child: Text(
+              'Camera scanner requires mobile_scanner package',
+              style: GoogleFonts.plusJakartaSans(color: Colors.white),
+              textAlign: TextAlign.center,
+            ),
           ),
 
           // Top bar
@@ -107,10 +196,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black.withOpacity(0.7),
-                    Colors.transparent,
-                  ],
+                  colors: [Colors.black.withOpacity(0.7), Colors.transparent],
                 ),
               ),
               child: Row(
@@ -166,10 +252,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                 gradient: LinearGradient(
                   begin: Alignment.bottomCenter,
                   end: Alignment.topCenter,
-                  colors: [
-                    Colors.black.withOpacity(0.8),
-                    Colors.transparent,
-                  ],
+                  colors: [Colors.black.withOpacity(0.8), Colors.transparent],
                 ),
               ),
               child: Column(
@@ -183,7 +266,11 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.qr_code_scanner, color: Colors.white, size: 24),
+                        const Icon(
+                          Icons.qr_code_scanner,
+                          color: Colors.white,
+                          size: 24,
+                        ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
@@ -199,28 +286,15 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // Simulate Scan Button (for testing)
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: () {
-                        if (!_isScanning) return;
-                        setState(() => _isScanning = false);
-                        
-                        // Simulate successful scan with mock patient ID
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const PatientMedicalPassportScreen(
-                              patientId: 'OMNI-2026-001',
-                            ),
-                          ),
-                        );
-                      },
+                      onPressed: _pickPatient,
                       icon: const Icon(Icons.touch_app, size: 20),
                       label: Text(
-                        'Tap to Simulate Scan (Testing)',
+                        'Pick Patient (Testing)',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
@@ -238,20 +312,22 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  
+
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Colors.white.withOpacity(0.3),
-                      ),
+                      border: Border.all(color: Colors.white.withOpacity(0.3)),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.verified_user, color: Colors.white, size: 16),
+                        const Icon(
+                          Icons.verified_user,
+                          color: Colors.white,
+                          size: 16,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           'Secure patient verification',
@@ -283,13 +359,23 @@ class ScannerOverlayPainter extends CustomPainter {
     final double top = (size.height - scanAreaSize) / 2;
 
     // Draw dark overlay
-    final Paint overlayPaint = Paint()
-      ..color = Colors.black.withOpacity(0.5);
-    
+    final Paint overlayPaint = Paint()..color = Colors.black.withOpacity(0.5);
+
     canvas.drawRect(Rect.fromLTWH(0, 0, size.width, top), overlayPaint);
     canvas.drawRect(Rect.fromLTWH(0, top, left, scanAreaSize), overlayPaint);
-    canvas.drawRect(Rect.fromLTWH(left + scanAreaSize, top, left, scanAreaSize), overlayPaint);
-    canvas.drawRect(Rect.fromLTWH(0, top + scanAreaSize, size.width, size.height - top - scanAreaSize), overlayPaint);
+    canvas.drawRect(
+      Rect.fromLTWH(left + scanAreaSize, top, left, scanAreaSize),
+      overlayPaint,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(
+        0,
+        top + scanAreaSize,
+        size.width,
+        size.height - top - scanAreaSize,
+      ),
+      overlayPaint,
+    );
 
     // Draw scanning frame corners
     final Paint framePaint = Paint()
@@ -300,20 +386,52 @@ class ScannerOverlayPainter extends CustomPainter {
     final double cornerLength = 30;
 
     // Top-left corner
-    canvas.drawLine(Offset(left, top), Offset(left + cornerLength, top), framePaint);
-    canvas.drawLine(Offset(left, top), Offset(left, top + cornerLength), framePaint);
+    canvas.drawLine(
+      Offset(left, top),
+      Offset(left + cornerLength, top),
+      framePaint,
+    );
+    canvas.drawLine(
+      Offset(left, top),
+      Offset(left, top + cornerLength),
+      framePaint,
+    );
 
     // Top-right corner
-    canvas.drawLine(Offset(left + scanAreaSize - cornerLength, top), Offset(left + scanAreaSize, top), framePaint);
-    canvas.drawLine(Offset(left + scanAreaSize, top), Offset(left + scanAreaSize, top + cornerLength), framePaint);
+    canvas.drawLine(
+      Offset(left + scanAreaSize - cornerLength, top),
+      Offset(left + scanAreaSize, top),
+      framePaint,
+    );
+    canvas.drawLine(
+      Offset(left + scanAreaSize, top),
+      Offset(left + scanAreaSize, top + cornerLength),
+      framePaint,
+    );
 
     // Bottom-left corner
-    canvas.drawLine(Offset(left, top + scanAreaSize - cornerLength), Offset(left, top + scanAreaSize), framePaint);
-    canvas.drawLine(Offset(left, top + scanAreaSize), Offset(left + cornerLength, top + scanAreaSize), framePaint);
+    canvas.drawLine(
+      Offset(left, top + scanAreaSize - cornerLength),
+      Offset(left, top + scanAreaSize),
+      framePaint,
+    );
+    canvas.drawLine(
+      Offset(left, top + scanAreaSize),
+      Offset(left + cornerLength, top + scanAreaSize),
+      framePaint,
+    );
 
     // Bottom-right corner
-    canvas.drawLine(Offset(left + scanAreaSize - cornerLength, top + scanAreaSize), Offset(left + scanAreaSize, top + scanAreaSize), framePaint);
-    canvas.drawLine(Offset(left + scanAreaSize, top + scanAreaSize - cornerLength), Offset(left + scanAreaSize, top + scanAreaSize), framePaint);
+    canvas.drawLine(
+      Offset(left + scanAreaSize - cornerLength, top + scanAreaSize),
+      Offset(left + scanAreaSize, top + scanAreaSize),
+      framePaint,
+    );
+    canvas.drawLine(
+      Offset(left + scanAreaSize, top + scanAreaSize - cornerLength),
+      Offset(left + scanAreaSize, top + scanAreaSize),
+      framePaint,
+    );
   }
 
   @override

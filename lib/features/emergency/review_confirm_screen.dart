@@ -10,10 +10,7 @@ import '../../core/models/consultation.dart';
 class ReviewConfirmScreen extends StatefulWidget {
   final Map<String, dynamic> requestData;
 
-  const ReviewConfirmScreen({
-    Key? key,
-    required this.requestData,
-  }) : super(key: key);
+  const ReviewConfirmScreen({super.key, required this.requestData});
 
   @override
   State<ReviewConfirmScreen> createState() => _ReviewConfirmScreenState();
@@ -30,8 +27,15 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
 
     try {
       final painLevel = widget.requestData['painLevel'] as int?;
-      final bodyParts = (widget.requestData['bodyParts'] as List?)?.map((e) => e.toString()).toList() ?? <String>[];
-      final symptoms = (widget.requestData['description'] ?? widget.requestData['symptoms'])?.toString() ?? '';
+      final bodyParts =
+          (widget.requestData['bodyParts'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          <String>[];
+      final symptoms =
+          (widget.requestData['description'] ?? widget.requestData['symptoms'])
+              ?.toString() ??
+          '';
 
       final location = widget.requestData['location'] as Map<String, dynamic>?;
       double? latitude;
@@ -74,9 +78,12 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
         throw StateError('Missing doctorId field in /api/doctors response');
       }
 
+      final backendPatientId =
+          widget.requestData['backendPatientId'] as String?;
+
       final created = await ConsultationsApi().createConsultation(
         doctorId: doctorId,
-        patientId: null,
+        patientId: backendPatientId,
         symptoms: symptoms.trim(),
         painLevel: painLevel,
         affectedAreas: bodyParts,
@@ -89,7 +96,9 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
 
       final createdId = created.id;
       if (createdId == null || createdId.isEmpty) {
-        throw StateError('Missing consultationId in createConsultation response');
+        throw StateError(
+          'Missing consultationId in createConsultation response',
+        );
       }
 
       final Consultation fetched = await ConsultationsApi().getConsultation(
@@ -124,8 +133,9 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
 
   void _handleBookAppointment() {
     // Get provider type from request data (default to 'doctor' if not set)
-    final providerType = widget.requestData['providerType'] as String? ?? 'doctor';
-    
+    final providerType =
+        widget.requestData['providerType'] as String? ?? 'doctor';
+
     Navigator.pushNamed(
       context,
       '/provider-list',
@@ -141,7 +151,8 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
     final painLevel = widget.requestData['painLevel'] as int;
     final description = widget.requestData['description'] as String;
     final location = widget.requestData['location'] as Map<String, dynamic>;
-    final consultationType = widget.requestData['consultationType'] as String? ?? 'home';
+    final consultationType =
+        widget.requestData['consultationType'] as String? ?? 'home';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F5F7),
@@ -192,9 +203,15 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
                     icon: Icons.person,
                     title: 'Informations Patient',
                     children: [
-                      _buildInfoRow('Type de patient', _getPatientTypeLabel(patientType)),
+                      _buildInfoRow(
+                        'Type de patient',
+                        _getPatientTypeLabel(patientType),
+                      ),
                       if (widget.requestData['age'] != null)
-                        _buildInfoRow('Âge', '${widget.requestData['age']} ans'),
+                        _buildInfoRow(
+                          'Âge',
+                          '${widget.requestData['age']} ans',
+                        ),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -202,7 +219,10 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
                     icon: Icons.medical_services,
                     title: 'Symptômes',
                     children: [
-                      _buildInfoRow('Zones affectées', '${bodyParts.length} zone(s)'),
+                      _buildInfoRow(
+                        'Zones affectées',
+                        '${bodyParts.length} zone(s)',
+                      ),
                       _buildInfoRow('Niveau de douleur', '$painLevel/10'),
                       const SizedBox(height: 8),
                       Text(
@@ -292,7 +312,10 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
             const Color(0xFF6BE3B2).withOpacity(0.05),
           ],
         ),
-        border: Border.all(color: const Color(0xFF1FBF9A).withOpacity(0.2), width: 2),
+        border: Border.all(
+          color: const Color(0xFF1FBF9A).withOpacity(0.2),
+          width: 2,
+        ),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -324,7 +347,11 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
                         ),
                       ),
                     ),
-                    const Icon(Icons.verified, color: Color(0xFF1FBF9A), size: 18),
+                    const Icon(
+                      Icons.verified,
+                      color: Color(0xFF1FBF9A),
+                      size: 18,
+                    ),
                   ],
                 ),
                 Text(
@@ -473,7 +500,11 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
                   color: const Color(0xFF1FBF9A).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.payment, color: Color(0xFF1FBF9A), size: 20),
+                child: const Icon(
+                  Icons.payment,
+                  color: Color(0xFF1FBF9A),
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 12),
               Text(
@@ -510,9 +541,13 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF1FBF9A).withOpacity(0.05) : Colors.white,
+          color: isSelected
+              ? const Color(0xFF1FBF9A).withOpacity(0.05)
+              : Colors.white,
           border: Border.all(
-            color: isSelected ? const Color(0xFF1FBF9A) : const Color(0xFFE2E8F0),
+            color: isSelected
+                ? const Color(0xFF1FBF9A)
+                : const Color(0xFFE2E8F0),
             width: 2,
           ),
           borderRadius: BorderRadius.circular(12),
@@ -521,7 +556,9 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
           children: [
             Icon(
               icon,
-              color: isSelected ? const Color(0xFF1FBF9A) : const Color(0xFF667085),
+              color: isSelected
+                  ? const Color(0xFF1FBF9A)
+                  : const Color(0xFF667085),
               size: 24,
             ),
             const SizedBox(height: 8),
@@ -530,7 +567,9 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 13,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                color: isSelected ? const Color(0xFF1FBF9A) : const Color(0xFF667085),
+                color: isSelected
+                    ? const Color(0xFF1FBF9A)
+                    : const Color(0xFF667085),
               ),
             ),
           ],
@@ -540,22 +579,25 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
   }
 
   Widget _buildBottomBar() {
-    final consultationType = widget.requestData['consultationType'] as String? ?? 'home';
+    final consultationType =
+        widget.requestData['consultationType'] as String? ?? 'home';
     final isHomeConsultation = consultationType == 'home';
-    
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border(
-          top: BorderSide(color: const Color(0xFFE2E8F0)),
-        ),
+        border: Border(top: BorderSide(color: const Color(0xFFE2E8F0))),
       ),
       child: SafeArea(
         child: SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: _isSubmitting ? null : (isHomeConsultation ? _handleConfirm : _handleBookAppointment),
+            onPressed: _isSubmitting
+                ? null
+                : (isHomeConsultation
+                      ? _handleConfirm
+                      : _handleBookAppointment),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF1FBF9A),
               disabledBackgroundColor: const Color(0xFF1FBF9A).withOpacity(0.5),
@@ -583,7 +625,7 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        isHomeConsultation 
+                        isHomeConsultation
                             ? 'CONFIRMER ET RECHERCHER UN MÉDECIN'
                             : 'RECHERCHER DES PROFESSIONNELS',
                         style: GoogleFonts.plusJakartaSans(

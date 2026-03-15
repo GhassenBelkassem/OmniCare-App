@@ -158,7 +158,7 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                     ),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
-                      value: frequencyItems.any((i) => i.value == frequency)
+                      initialValue: frequencyItems.any((i) => i.value == frequency)
                           ? frequency
                           : frequencyItems.first.value,
                       onChanged: (value) {

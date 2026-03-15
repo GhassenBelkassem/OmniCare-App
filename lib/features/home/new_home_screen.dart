@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../core/api/account_api.dart';
 import '../../providers/user_onboarding_provider.dart';
 import '../../providers/user_provider.dart';
+import '../../providers/family_provider.dart';
 import 'edit_medical_data_screen.dart';
 import 'add_family_member_screen.dart';
 import 'family_member_detail_screen.dart';
@@ -31,6 +32,13 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
       if (userProvider.profile == null && !userProvider.isLoading) {
         userProvider.loadIfLoggedIn();
       }
+      final familyProvider = Provider.of<FamilyProvider>(
+        context,
+        listen: false,
+      );
+      if (familyProvider.members.isEmpty && !familyProvider.isLoading) {
+        familyProvider.loadFamilyMembers();
+      }
     });
   }
 
@@ -50,7 +58,10 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     if (userProvider.isLoading && userProvider.user == null) {
       healthCardPatientName = 'Loading...';
     } else if (firstName.isNotEmpty || lastName.isNotEmpty) {
-      healthCardPatientName = [firstName, lastName].where((e) => e.trim().isNotEmpty).join(' ');
+      healthCardPatientName = [
+        firstName,
+        lastName,
+      ].where((e) => e.trim().isNotEmpty).join(' ');
     } else if ((onboarding.email ?? '').isNotEmpty) {
       healthCardPatientName = onboarding.email!.split('@')[0];
     } else {
@@ -64,9 +75,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
         child: Column(
           children: [
             _buildStickyHeader(userName),
-            Expanded(
-              child: _getSelectedTabContent(),
-            ),
+            Expanded(child: _getSelectedTabContent()),
           ],
         ),
       ),
@@ -116,10 +125,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
           gradient: const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF1FBF9A),
-              Color(0xFF0F9D7E),
-            ],
+            colors: [Color(0xFF1FBF9A), Color(0xFF0F9D7E)],
           ),
           borderRadius: BorderRadius.circular(32),
           boxShadow: [
@@ -184,8 +190,17 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
               width: double.infinity,
               height: 56,
               child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pushNamed(context, '/emergency-step1');
+                onPressed: () async {
+                  final familyProvider = Provider.of<FamilyProvider>(
+                    context,
+                    listen: false,
+                  );
+                  if (familyProvider.members.isEmpty &&
+                      !familyProvider.isLoading) {
+                    await familyProvider.loadFamilyMembers();
+                  }
+                  if (!mounted) return;
+                  Navigator.pushNamed(context, '/emergency-step0');
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white,
@@ -281,10 +296,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                 gradient: const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFFEF4444),
-                    Color(0xFFDC2626),
-                  ],
+                  colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
                 ),
                 borderRadius: BorderRadius.circular(24),
                 boxShadow: [
@@ -502,13 +514,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
               color: color.withOpacity(0.1),
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Center(
-              child: Icon(
-                icon,
-                color: color,
-                size: 28,
-              ),
-            ),
+            child: Center(child: Icon(icon, color: color, size: 28)),
           ),
           const SizedBox(width: 20),
           Expanded(
@@ -644,7 +650,10 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Color(0xFF1FBF9A), width: 2),
+                  borderSide: const BorderSide(
+                    color: Color(0xFF1FBF9A),
+                    width: 2,
+                  ),
                 ),
               ),
             ),
@@ -696,10 +705,12 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          ...doctors.map((doctor) => Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: _buildDoctorCard(doctor),
-          )),
+          ...doctors.map(
+            (doctor) => Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: _buildDoctorCard(doctor),
+            ),
+          ),
         ],
       ),
     );
@@ -730,7 +741,11 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                   height: 160,
                   width: double.infinity,
                   color: const Color(0xFFF4F5F7),
-                  child: const Icon(Icons.person, size: 60, color: Color(0xFF667085)),
+                  child: const Icon(
+                    Icons.person,
+                    size: 60,
+                    color: Color(0xFF667085),
+                  ),
                 ),
                 if (doctor['verified'] == true)
                   Positioned(
@@ -742,7 +757,11 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                         color: Color(0xFF10B981),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.check, color: Colors.white, size: 14),
+                      child: const Icon(
+                        Icons.check,
+                        color: Colors.white,
+                        size: 14,
+                      ),
                     ),
                   ),
               ],
@@ -772,7 +791,11 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    const Icon(Icons.location_on, size: 14, color: Color(0xFF667085)),
+                    const Icon(
+                      Icons.location_on,
+                      size: 14,
+                      color: Color(0xFF667085),
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       '${doctor['distance']} km',
@@ -840,7 +863,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     final userName = resolvedDisplayName.isNotEmpty
         ? resolvedDisplayName
         : (onboarding.email?.split('@')[0] ?? 'User');
-    
+
     return SingleChildScrollView(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -848,20 +871,20 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 16),
-            
+
             // Section 1: Personal Medical Passport
             _buildMedicalPassportSection(userName),
-            
+
             const SizedBox(height: 32),
-            
+
             // Section 2: Medical Documents
             _buildMedicalDocumentsSection(),
-            
+
             const SizedBox(height: 32),
-            
+
             // Section 3: Family Circle
             _buildFamilyCircleSection(),
-            
+
             const SizedBox(height: 100),
           ],
         ),
@@ -873,15 +896,21 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     final onboarding = Provider.of<UserOnboardingProvider>(context);
     final userProvider = Provider.of<UserProvider>(context);
 
-    final Map<String, dynamic> medicalInfo = userProvider.user?.medicalInfo ?? const <String, dynamic>{};
-    final List<String> chronicConditions = (medicalInfo['chronicConditions'] is List)
-        ? (medicalInfo['chronicConditions'] as List).map((e) => e.toString()).where((e) => e.trim().isNotEmpty).toList()
+    final Map<String, dynamic> medicalInfo =
+        userProvider.user?.medicalInfo ?? const <String, dynamic>{};
+    final List<String> chronicConditions =
+        (medicalInfo['chronicConditions'] is List)
+        ? (medicalInfo['chronicConditions'] as List)
+              .map((e) => e.toString())
+              .where((e) => e.trim().isNotEmpty)
+              .toList()
         : const <String>[];
-    final List<Map<String, dynamic>> currentMedications = (medicalInfo['currentMedications'] is List)
+    final List<Map<String, dynamic>> currentMedications =
+        (medicalInfo['currentMedications'] is List)
         ? (medicalInfo['currentMedications'] as List)
-            .whereType<Map>()
-            .map((e) => e.cast<String, dynamic>())
-            .toList()
+              .whereType<Map>()
+              .map((e) => e.cast<String, dynamic>())
+              .toList()
         : const <Map<String, dynamic>>[];
     final String bloodGroup = (userProvider.user?.bloodGroup ?? '').trim();
 
@@ -921,7 +950,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
           ),
         ),
         const SizedBox(height: 20),
-        
+
         // Digital ID Card
         Container(
           decoration: BoxDecoration(
@@ -1151,7 +1180,8 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                       (() {
                         final m = currentMedications[i];
                         final name = (m['name'] ?? '').toString().trim();
-                        final fallback = (m['medicationId'] ?? 'Medication').toString();
+                        final fallback = (m['medicationId'] ?? 'Medication')
+                            .toString();
                         final form = (m['form'] ?? '').toString().trim();
                         final soluble = m['soluble'] == true;
                         final base = name.isNotEmpty ? name : fallback;
@@ -1161,99 +1191,113 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                         if (extras.isEmpty) return base;
                         return '$base (${extras.join(' • ')})';
                       })(),
-                      (currentMedications[i]['dosage'] ?? currentMedications[i]['catalogDosage'] ?? '-').toString(),
+                      (currentMedications[i]['dosage'] ??
+                              currentMedications[i]['catalogDosage'] ??
+                              '-')
+                          .toString(),
                       (currentMedications[i]['frequency'] ?? '-').toString(),
                     ),
-                    if (i != currentMedications.length - 1) const SizedBox(height: 8),
+                    if (i != currentMedications.length - 1)
+                      const SizedBox(height: 8),
                   ],
                 ],
               ),
           ],
         ),
-              
-              // Edit Button
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  border: Border(
-                    top: BorderSide(color: const Color(0xFFE2E8F0)),
-                  ),
-                ),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      final editMedications = currentMedications.map((m) {
-                        return Medication(
-                          medicationId: m['medicationId']?.toString(),
-                          name: (m['name'] ?? m['medicationId'] ?? 'Medication').toString(),
-                          dosage: (m['dosage'] ?? '-').toString(),
-                          frequency: (m['frequency'] ?? '-').toString(),
-                        );
-                      }).toList();
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => EditMedicalDataScreen(
-                            bloodType: bloodGroup.isNotEmpty ? bloodGroup : '-',
-                            chronicConditions: chronicConditions,
-                            medications: editMedications,
-                            documents: [],
-                            onSave: (bloodType, conditions, medications, documents) async {
-                              final medsJson = medications
-                                  .map((m) => {
-                                        'medicationId': m.medicationId,
-                                        'name': m.name,
-                                        'dosage': m.dosage,
-                                        'frequency': m.frequency,
-                                      })
-                                  .toList();
 
-                              await AccountApi().patchMedicalPassport(
-                                bloodGroup: bloodType,
-                                medicalInfo: {
-                                  'chronicConditions': conditions,
-                                  'currentMedications': medsJson,
-                                },
-                              );
+        // Edit Button
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: const Color(0xFFE2E8F0))),
+          ),
+          child: SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton(
+              onPressed: () {
+                final editMedications = currentMedications.map((m) {
+                  return Medication(
+                    medicationId: m['medicationId']?.toString(),
+                    name: (m['name'] ?? m['medicationId'] ?? 'Medication')
+                        .toString(),
+                    dosage: (m['dosage'] ?? '-').toString(),
+                    frequency: (m['frequency'] ?? '-').toString(),
+                  );
+                }).toList();
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => EditMedicalDataScreen(
+                      bloodType: bloodGroup.isNotEmpty ? bloodGroup : '-',
+                      chronicConditions: chronicConditions,
+                      medications: editMedications,
+                      documents: [],
+                      onSave:
+                          (
+                            bloodType,
+                            conditions,
+                            medications,
+                            documents,
+                          ) async {
+                            final medsJson = medications
+                                .map(
+                                  (m) => {
+                                    'medicationId': m.medicationId,
+                                    'name': m.name,
+                                    'dosage': m.dosage,
+                                    'frequency': m.frequency,
+                                  },
+                                )
+                                .toList();
 
-                              if (!context.mounted) return;
-                              await Provider.of<UserProvider>(context, listen: false).refresh();
-                            },
-                          ),
-                        ),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1FBF9A),
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.edit, size: 20),
-                        const SizedBox(width: 8),
-                        Flexible(
-                          child: Text(
-                            'Modifier Mes Données',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
+                            await AccountApi().patchMedicalPassport(
+                              bloodGroup: bloodType,
+                              medicalInfo: {
+                                'chronicConditions': conditions,
+                                'currentMedications': medsJson,
+                              },
+                            );
+
+                            if (!context.mounted) return;
+                            await Provider.of<UserProvider>(
+                              context,
+                              listen: false,
+                            ).refresh();
+                          },
                     ),
                   ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1FBF9A),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.edit, size: 20),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      'Modifier Mes Données',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -1381,26 +1425,47 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                       bloodType: 'A+',
                       chronicConditions: ['Diabète Type 2', 'Hypertension'],
                       medications: [
-                        Medication(name: 'Metformine', dosage: '500mg', frequency: '2x par jour'),
-                        Medication(name: 'Lisinopril', dosage: '10mg', frequency: '1x par jour'),
-                        Medication(name: 'Aspirine', dosage: '81mg', frequency: '1x par jour'),
+                        Medication(
+                          name: 'Metformine',
+                          dosage: '500mg',
+                          frequency: '2x par jour',
+                        ),
+                        Medication(
+                          name: 'Lisinopril',
+                          dosage: '10mg',
+                          frequency: '1x par jour',
+                        ),
+                        Medication(
+                          name: 'Aspirine',
+                          dosage: '81mg',
+                          frequency: '1x par jour',
+                        ),
                       ],
                       documents: [],
-                      onSave: (bloodType, conditions, medications, documents) async {
-                        setState(() {
-                          // Update profile data here
-                        });
-                      },
+                      onSave:
+                          (
+                            bloodType,
+                            conditions,
+                            medications,
+                            documents,
+                          ) async {
+                            setState(() {
+                              // Update profile data here
+                            });
+                          },
                     ),
                   ),
                 );
               },
-              icon: Icon(Icons.add_circle_outline, color: const Color(0xFF1FBF9A)),
+              icon: Icon(
+                Icons.add_circle_outline,
+                color: const Color(0xFF1FBF9A),
+              ),
             ),
           ],
         ),
         const SizedBox(height: 16),
-        
+
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -1417,11 +1482,26 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
           ),
           child: Column(
             children: [
-              _buildDocumentItem('Analyse de Sang Complète', '10 Fév 2026', Icons.bloodtype, const Color(0xFFDC2626)),
+              _buildDocumentItem(
+                'Analyse de Sang Complète',
+                '10 Fév 2026',
+                Icons.bloodtype,
+                const Color(0xFFDC2626),
+              ),
               const SizedBox(height: 12),
-              _buildDocumentItem('Radio Thorax - Contrôle', '28 Jan 2026', Icons.medical_services, const Color(0xFF8B5CF6)),
+              _buildDocumentItem(
+                'Radio Thorax - Contrôle',
+                '28 Jan 2026',
+                Icons.medical_services,
+                const Color(0xFF8B5CF6),
+              ),
               const SizedBox(height: 12),
-              _buildDocumentItem('Ordonnance Janvier 2026', '15 Jan 2026', Icons.description, const Color(0xFF1FBF9A)),
+              _buildDocumentItem(
+                'Ordonnance Janvier 2026',
+                '15 Jan 2026',
+                Icons.description,
+                const Color(0xFF1FBF9A),
+              ),
               const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.all(16),
@@ -1464,7 +1544,12 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     );
   }
 
-  Widget _buildDocumentItem(String name, String date, IconData icon, Color color) {
+  Widget _buildDocumentItem(
+    String name,
+    String date,
+    IconData icon,
+    Color color,
+  ) {
     String docType = 'other';
     if (icon == Icons.bloodtype) {
       docType = 'blood-test';
@@ -1473,7 +1558,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     } else if (icon == Icons.description) {
       docType = 'prescription';
     }
-    
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -1521,25 +1606,25 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                   const SizedBox(height: 2),
                   Text(
                     date,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: const Color(0xFF667085),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: const Color(0xFF667085),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          Icon(Icons.chevron_right, color: const Color(0xFF667085), size: 20),
-        ],
+            Icon(Icons.chevron_right, color: const Color(0xFF667085), size: 20),
+          ],
         ),
       ),
     );
   }
 
   Widget _buildFamilyCircleSection() {
-    final userProvider = Provider.of<UserProvider>(context);
-    final family = userProvider.familyMembers;
+    final familyProvider = Provider.of<FamilyProvider>(context);
+    final family = familyProvider.members;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1561,7 +1646,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        
+
         if (family.isEmpty) ...[
           Container(
             width: double.infinity,
@@ -1609,14 +1694,20 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
             ...family.map((m) {
               final age = m.ageYears == null ? '' : '${m.ageYears} ans';
               final alert = null;
-              return _buildFamilyMemberCard(m.fullName, m.relationship, age, alert, memberId: m.id);
+              return _buildFamilyMemberCard(
+                m.fullName,
+                m.relationship,
+                age,
+                alert,
+                memberId: m.id,
+              );
             }),
             _buildAddFamilyMemberCard(),
           ],
         ),
-        
+
         const SizedBox(height: 20),
-        
+
         // Info Banner
         Container(
           padding: const EdgeInsets.all(20),
@@ -1679,12 +1770,18 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     );
   }
 
-  Widget _buildFamilyMemberCard(String name, String relationship, String age, String? alert, {String? memberId}) {
+  Widget _buildFamilyMemberCard(
+    String name,
+    String relationship,
+    String age,
+    String? alert, {
+    String? memberId,
+  }) {
     return GestureDetector(
       onTap: () {
         // Parse age to int
         final ageInt = int.tryParse(age.replaceAll(' ans', '')) ?? 0;
-        
+
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -1721,102 +1818,102 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
           ],
         ),
         child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              color: const Color(0xFF1FBF9A).withOpacity(0.1),
-              shape: BoxShape.circle,
-              border: Border.all(color: const Color(0xFF1FBF9A), width: 2),
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1FBF9A).withOpacity(0.1),
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFF1FBF9A), width: 2),
+              ),
+              child: Icon(
+                Icons.person,
+                color: const Color(0xFF1FBF9A),
+                size: 26,
+              ),
             ),
-            child: Icon(
-              Icons.person,
-              color: const Color(0xFF1FBF9A),
-              size: 26,
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F6F73),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                relationship,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: const Color(0xFF0F6F73),
-              borderRadius: BorderRadius.circular(10),
+            const SizedBox(height: 6),
+            Text(
+              name,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF1A202C),
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            child: Text(
-              relationship,
+            const SizedBox(height: 2),
+            Text(
+              age,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: const Color(0xFF667085),
+              ),
+            ),
+            if (alert != null) ...[
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF2F2),
+                  border: Border.all(color: const Color(0xFFFECACA)),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.warning_amber_rounded,
+                      color: const Color(0xFFDC2626),
+                      size: 12,
+                    ),
+                    const SizedBox(width: 3),
+                    Flexible(
+                      child: Text(
+                        alert,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFFDC2626),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 6),
+            Text(
+              'Voir le carnet',
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 10,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-              ),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            name,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: const Color(0xFF1A202C),
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 2),
-          Text(
-            age,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: const Color(0xFF667085),
-            ),
-          ),
-          if (alert != null) ...[
-            const SizedBox(height: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFEF2F2),
-                border: Border.all(color: const Color(0xFFFECACA)),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.warning_amber_rounded,
-                    color: const Color(0xFFDC2626),
-                    size: 12,
-                  ),
-                  const SizedBox(width: 3),
-                  Flexible(
-                    child: Text(
-                      alert,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFFDC2626),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
+                fontWeight: FontWeight.w500,
+                color: const Color(0xFF667085),
               ),
             ),
           ],
-          const SizedBox(height: 6),
-          Text(
-            'Voir le carnet',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 10,
-              fontWeight: FontWeight.w500,
-              color: const Color(0xFF667085),
-            ),
-          ),
-        ],
         ),
       ),
     );
@@ -1925,7 +2022,8 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
               icon: Icons.calendar_today,
               iconColor: const Color(0xFF1FBF9A),
               title: 'Rendez-vous confirmé',
-              message: 'Votre rendez-vous avec Dr. Ahmed Ben Salem est confirmé pour demain à 10h',
+              message:
+                  'Votre rendez-vous avec Dr. Ahmed Ben Salem est confirmé pour demain à 10h',
               time: 'Il y a 2h',
               isUnread: true,
             ),
@@ -1941,7 +2039,8 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
               icon: Icons.description,
               iconColor: const Color(0xFF8B5CF6),
               title: 'Résultats disponibles',
-              message: 'Vos résultats d\'analyse de sang sont maintenant disponibles',
+              message:
+                  'Vos résultats d\'analyse de sang sont maintenant disponibles',
               time: 'Hier',
               isUnread: false,
             ),
@@ -1972,10 +2071,14 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isUnread ? const Color(0xFF1FBF9A).withOpacity(0.05) : Colors.white,
+        color: isUnread
+            ? const Color(0xFF1FBF9A).withOpacity(0.05)
+            : Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isUnread ? const Color(0xFF1FBF9A).withOpacity(0.2) : const Color(0xFFE2E8F0),
+          color: isUnread
+              ? const Color(0xFF1FBF9A).withOpacity(0.2)
+              : const Color(0xFFE2E8F0),
         ),
         boxShadow: [
           BoxShadow(
@@ -2082,10 +2185,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                   gradient: const LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [
-                      Color(0xFF1FBF9A),
-                      Color(0xFF0F6F73),
-                    ],
+                    colors: [Color(0xFF1FBF9A), Color(0xFF0F6F73)],
                   ),
                   shape: BoxShape.circle,
                   boxShadow: [
@@ -2232,7 +2332,9 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
         color: isUnread ? const Color(0xFFF0FDF9) : Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isUnread ? const Color(0xFF1FBF9A).withOpacity(0.3) : const Color(0xFFE2E8F0),
+          color: isUnread
+              ? const Color(0xFF1FBF9A).withOpacity(0.3)
+              : const Color(0xFFE2E8F0),
         ),
         boxShadow: [
           BoxShadow(
@@ -2251,11 +2353,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
               color: const Color(0xFF1FBF9A).withOpacity(0.1),
               shape: BoxShape.circle,
             ),
-            child: const Icon(
-              Icons.person,
-              color: Color(0xFF1FBF9A),
-              size: 24,
-            ),
+            child: const Icon(Icons.person, color: Color(0xFF1FBF9A), size: 24),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -2289,7 +2387,9 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 14,
                     fontWeight: isUnread ? FontWeight.w600 : FontWeight.w400,
-                    color: isUnread ? const Color(0xFF1A202C) : const Color(0xFF667085),
+                    color: isUnread
+                        ? const Color(0xFF1A202C)
+                        : const Color(0xFF667085),
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -2309,7 +2409,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
   Widget _buildStickyHeader(String userName) {
     final provider = Provider.of<UserOnboardingProvider>(context);
     final currentLanguage = provider.language ?? 'en';
-    
+
     return ClipRect(
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
@@ -2318,7 +2418,10 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.7),
             border: Border(
-              bottom: BorderSide(color: Colors.black.withOpacity(0.08), width: 0.5),
+              bottom: BorderSide(
+                color: Colors.black.withOpacity(0.08),
+                width: 0.5,
+              ),
             ),
           ),
           child: Row(
@@ -2335,10 +2438,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                       gradient: const LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
-                        colors: [
-                          Color(0xFF1FBF9A),
-                          Color(0xFF6BE3B2),
-                        ],
+                        colors: [Color(0xFF1FBF9A), Color(0xFF6BE3B2)],
                       ),
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -2432,7 +2532,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     String flag,
   ) {
     final isSelected = (provider.language ?? 'en') == languageCode;
-    
+
     return GestureDetector(
       onTap: () {
         provider.setLanguage(languageCode);
@@ -2441,7 +2541,9 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
       child: Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF1FBF9A).withOpacity(0.08) : const Color(0xFFF4F5F7),
+          color: isSelected
+              ? const Color(0xFF1FBF9A).withOpacity(0.08)
+              : const Color(0xFFF4F5F7),
           border: Border.all(
             color: isSelected ? const Color(0xFF1FBF9A) : Colors.transparent,
             width: 2,
@@ -2492,13 +2594,9 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         children: [
-          Expanded(
-            child: _buildUrgentRequestCard(),
-          ),
+          Expanded(child: _buildUrgentRequestCard()),
           const SizedBox(width: 16),
-          Expanded(
-            child: _buildBrowseDoctorsCard(),
-          ),
+          Expanded(child: _buildBrowseDoctorsCard()),
         ],
       ),
     );
@@ -2629,7 +2727,11 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.calendar_today, color: Color(0xFF1FBF9A), size: 20),
+              const Icon(
+                Icons.calendar_today,
+                color: Color(0xFF1FBF9A),
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Text(
                 'Rendez-vous à venir',
@@ -2697,7 +2799,10 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                           ),
                           const SizedBox(height: 4),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: const Color(0xFF1FBF9A).withOpacity(0.1),
                               borderRadius: BorderRadius.circular(6),
@@ -2719,7 +2824,11 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                 const SizedBox(height: 16),
                 Row(
                   children: [
-                    const Icon(Icons.calendar_today, color: Color(0xFF667085), size: 16),
+                    const Icon(
+                      Icons.calendar_today,
+                      color: Color(0xFF667085),
+                      size: 16,
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       'Lundi, 15 Mars 2024 • 10:00 AM',
@@ -2734,7 +2843,11 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    const Icon(Icons.location_on, color: Color(0xFF667085), size: 16),
+                    const Icon(
+                      Icons.location_on,
+                      color: Color(0xFF667085),
+                      size: 16,
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       'Clinique Centrale, Tunis',
@@ -2912,11 +3025,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
               color: color.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              icon,
-              color: color,
-              size: 24,
-            ),
+            child: Icon(icon, color: color, size: 24),
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -3017,8 +3126,16 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
 
   Widget _buildCenterNavItem() {
     return GestureDetector(
-      onTap: () {
-        Navigator.pushNamed(context, '/emergency-step1');
+      onTap: () async {
+        final familyProvider = Provider.of<FamilyProvider>(
+          context,
+          listen: false,
+        );
+        if (familyProvider.members.isEmpty && !familyProvider.isLoading) {
+          await familyProvider.loadFamilyMembers();
+        }
+        if (!mounted) return;
+        Navigator.pushNamed(context, '/emergency-step0');
       },
       child: Container(
         width: 56,
@@ -3027,10 +3144,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
           gradient: const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF1FBF9A),
-              Color(0xFF0F6F73),
-            ],
+            colors: [Color(0xFF1FBF9A), Color(0xFF0F6F73)],
           ),
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
@@ -3075,7 +3189,9 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                 children: [
                   Icon(
                     icon,
-                    color: isSelected ? const Color(0xFF1FBF9A) : const Color(0xFF9CA3AF),
+                    color: isSelected
+                        ? const Color(0xFF1FBF9A)
+                        : const Color(0xFF9CA3AF),
                     size: 26,
                   ),
                   if (hasNotification)
@@ -3100,7 +3216,9 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 10,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                  color: isSelected ? const Color(0xFF1FBF9A) : const Color(0xFF9CA3AF),
+                  color: isSelected
+                      ? const Color(0xFF1FBF9A)
+                      : const Color(0xFF9CA3AF),
                   letterSpacing: 0.1,
                 ),
                 maxLines: 1,

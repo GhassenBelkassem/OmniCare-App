@@ -195,7 +195,7 @@ class _MedicationSearchFieldState extends State<MedicationSearchField> {
                     padding: const EdgeInsets.symmetric(vertical: 6),
                     shrinkWrap: true,
                     itemCount: _results.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    separatorBuilder: (_, _) => const Divider(height: 1),
                     itemBuilder: (context, index) {
                       final r = _results[index];
                       final subtitleParts = <String>[];

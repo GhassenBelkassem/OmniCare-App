@@ -10,9 +10,9 @@ class DoctorCallingScreen extends StatefulWidget {
   final Map<String, dynamic> requestData;
 
   const DoctorCallingScreen({
-    Key? key,
+    super.key,
     required this.requestData,
-  }) : super(key: key);
+  });
 
   @override
   State<DoctorCallingScreen> createState() => _DoctorCallingScreenState();

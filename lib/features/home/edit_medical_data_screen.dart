@@ -41,13 +41,13 @@ class EditMedicalDataScreen extends StatefulWidget {
   final Future<void> Function(String, List<String>, List<Medication>, List<MedicalDocument>) onSave;
 
   const EditMedicalDataScreen({
-    Key? key,
+    super.key,
     required this.bloodType,
     required this.chronicConditions,
     required this.medications,
     required this.documents,
     required this.onSave,
-  }) : super(key: key);
+  });
 
   @override
   State<EditMedicalDataScreen> createState() => _EditMedicalDataScreenState();
@@ -280,7 +280,7 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
             border: Border.all(color: const Color(0xFFE2E8F0)),
           ),
           child: DropdownButtonFormField<String>(
-            value: _bloodTypes.contains(_bloodType) ? _bloodType : '-',
+            initialValue: _bloodTypes.contains(_bloodType) ? _bloodType : '-',
             decoration: const InputDecoration(
               contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               border: InputBorder.none,
@@ -708,7 +708,7 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
                       
                       
                       child: DropdownButtonFormField<String>(
-                        value: _documentTypes.any((t) => t['value'] == doc.type)
+                        initialValue: _documentTypes.any((t) => t['value'] == doc.type)
                             ? doc.type
                             : (_documentTypes.first['value'] as String),
                         decoration: const InputDecoration(

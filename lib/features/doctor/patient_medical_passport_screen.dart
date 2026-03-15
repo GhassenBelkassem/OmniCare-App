@@ -6,15 +6,20 @@ import 'e_prescription_screen.dart';
 
 class PatientMedicalPassportScreen extends StatelessWidget {
   final String patientId;
+  final String? patientName;
 
   const PatientMedicalPassportScreen({
     super.key,
     required this.patientId,
+    this.patientName,
   });
 
   // Mock patient data - in real app, fetch from backend using patientId
   Map<String, dynamic> get _patientData => {
-    'name': 'Amina Chaari',
+    'patientId': patientId,
+    'name': (patientName != null && patientName!.trim().isNotEmpty)
+        ? patientName!.trim()
+        : 'Patient',
     'age': 32,
     'gender': 'Female',
     'bloodType': 'A+',
@@ -46,7 +51,8 @@ class PatientMedicalPassportScreen extends StatelessWidget {
         'diagnosis': 'Contrôle tension artérielle',
         'medications': ['Paracétamol 500mg'],
         'symptoms': 'Légère tension, fatigue',
-        'notes': 'Patient en bonne santé générale. Tension artérielle légèrement élevée. Recommandation de surveiller et de réduire la consommation de sel. Suivi dans 3 mois.',
+        'notes':
+            'Patient en bonne santé générale. Tension artérielle légèrement élevée. Recommandation de surveiller et de réduire la consommation de sel. Suivi dans 3 mois.',
         'duration': '25 min',
         'payment': '80 TND',
         'type': 'Home Visit',
@@ -58,7 +64,8 @@ class PatientMedicalPassportScreen extends StatelessWidget {
         'diagnosis': 'Migraine chronique - Traitement préventif',
         'medications': ['Propranolol 40mg'],
         'symptoms': 'Maux de tête fréquents, sensibilité à la lumière',
-        'notes': 'Migraines récurrentes depuis 6 mois. Prescription de Propranolol comme traitement préventif. Éviter les déclencheurs connus. Suivi dans 2 mois.',
+        'notes':
+            'Migraines récurrentes depuis 6 mois. Prescription de Propranolol comme traitement préventif. Éviter les déclencheurs connus. Suivi dans 2 mois.',
         'duration': '40 min',
         'payment': '120 TND',
         'type': 'Clinic Visit',
@@ -70,7 +77,8 @@ class PatientMedicalPassportScreen extends StatelessWidget {
         'diagnosis': 'Hypertension légère',
         'medications': [],
         'symptoms': 'Aucun symptôme spécifique, contrôle de routine',
-        'notes': 'ECG normal. Tension artérielle légèrement élevée. Recommandation de modifications du mode de vie: exercice régulier, alimentation équilibrée, réduction du stress.',
+        'notes':
+            'ECG normal. Tension artérielle légèrement élevée. Recommandation de modifications du mode de vie: exercice régulier, alimentation équilibrée, réduction du stress.',
         'duration': '30 min',
         'payment': '100 TND',
         'type': 'Clinic Visit',
@@ -123,9 +131,8 @@ class PatientMedicalPassportScreen extends StatelessWidget {
                   Navigator.pushReplacement(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => EPrescriptionScreen(
-                        patientData: _patientData,
-                      ),
+                      builder: (context) =>
+                          EPrescriptionScreen(patientData: _patientData),
                     ),
                   );
                 },
@@ -155,7 +162,10 @@ class PatientMedicalPassportScreen extends StatelessWidget {
                               decoration: BoxDecoration(
                                 color: Colors.white,
                                 shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 3),
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 3,
+                                ),
                               ),
                               child: const Icon(
                                 Icons.person,
@@ -187,7 +197,10 @@ class PatientMedicalPassportScreen extends StatelessWidget {
                               ),
                             ),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
                               decoration: BoxDecoration(
                                 color: Colors.white.withOpacity(0.2),
                                 borderRadius: BorderRadius.circular(8),
@@ -284,21 +297,28 @@ class PatientMedicalPassportScreen extends StatelessWidget {
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: allergies.map((allergy) => Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.red,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                allergy,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
-              ),
-            )).toList(),
+            children: allergies
+                .map(
+                  (allergy) => Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      allergy,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                )
+                .toList(),
           ),
         ],
       ),
@@ -331,43 +351,45 @@ class PatientMedicalPassportScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          ...medications.map((med) => Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF4F5F7),
-              borderRadius: BorderRadius.circular(12),
+          ...medications.map(
+            (med) => Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF4F5F7),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    med['name'],
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF1D2939),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${med['dosage']} - ${med['frequency']}',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      color: const Color(0xFF667085),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Prescribed by ${med['prescribedBy']} on ${med['startDate']}',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      color: const Color(0xFF667085),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  med['name'],
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF1D2939),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${med['dosage']} - ${med['frequency']}',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
-                    color: const Color(0xFF667085),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Prescribed by ${med['prescribedBy']} on ${med['startDate']}',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12,
-                    color: const Color(0xFF667085),
-                  ),
-                ),
-              ],
-            ),
-          )).toList(),
+          ),
         ],
       ),
     );
@@ -399,22 +421,24 @@ class PatientMedicalPassportScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          ...conditions.map((condition) => Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Row(
-              children: [
-                const Icon(Icons.circle, size: 8, color: Color(0xFF1FBF9A)),
-                const SizedBox(width: 12),
-                Text(
-                  condition,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
-                    color: const Color(0xFF1D2939),
+          ...conditions.map(
+            (condition) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.circle, size: 8, color: Color(0xFF1FBF9A)),
+                  const SizedBox(width: 12),
+                  Text(
+                    condition,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      color: const Color(0xFF1D2939),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          )).toList(),
+          ),
         ],
       ),
     );
@@ -446,73 +470,78 @@ class PatientMedicalPassportScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          ...consultations.map((consultation) => GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ConsultationDetailScreen(
-                    consultation: consultation,
+          ...consultations.map(
+            (consultation) => GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        ConsultationDetailScreen(consultation: consultation),
                   ),
+                );
+              },
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF4F5F7),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              );
-            },
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF4F5F7),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        consultation['doctor'],
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFF1D2939),
-                        ),
-                      ),
-                      Row(
-                        children: [
-                          Text(
-                            consultation['date'],
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12,
-                              color: const Color(0xFF667085),
-                            ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          consultation['doctor'],
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF1D2939),
                           ),
-                          const SizedBox(width: 8),
-                          const Icon(Icons.chevron_right, color: Color(0xFF667085), size: 20),
-                        ],
+                        ),
+                        Row(
+                          children: [
+                            Text(
+                              consultation['date'],
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                color: const Color(0xFF667085),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Icon(
+                              Icons.chevron_right,
+                              color: Color(0xFF667085),
+                              size: 20,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      consultation['specialty'],
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        color: const Color(0xFF667085),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    consultation['specialty'],
-                    style: GoogleFonts.plusJakartaSans(
-                    fontSize: 13,
-                    color: const Color(0xFF667085),
-                  ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      consultation['diagnosis'],
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14,
+                        color: const Color(0xFF1D2939),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  consultation['diagnosis'],
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
-                    color: const Color(0xFF1D2939),
-                  ),
-                ),
-              ],
+              ),
             ),
-            ),
-          )).toList(),
+          ),
         ],
       ),
     );
@@ -544,63 +573,68 @@ class PatientMedicalPassportScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          ...documents.map((doc) => GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => MedicalDocumentViewerScreen(
-                    document: doc,
+          ...documents.map(
+            (doc) => GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        MedicalDocumentViewerScreen(document: doc),
                   ),
+                );
+              },
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF4F5F7),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              );
-            },
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF4F5F7),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1FBF9A).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1FBF9A).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.description,
+                        color: Color(0xFF1FBF9A),
+                        size: 20,
+                      ),
                     ),
-                    child: const Icon(Icons.description, color: Color(0xFF1FBF9A), size: 20),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          doc['name'],
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF1D2939),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            doc['name'],
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF1D2939),
+                            ),
                           ),
-                        ),
-                        Text(
-                          '${doc['date']} • ${doc['uploadedBy']}',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12,
-                            color: const Color(0xFF667085),
+                          Text(
+                            '${doc['date']} • ${doc['uploadedBy']}',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              color: const Color(0xFF667085),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  const Icon(Icons.chevron_right, color: Color(0xFF667085)),
-                ],
+                    const Icon(Icons.chevron_right, color: Color(0xFF667085)),
+                  ],
+                ),
               ),
             ),
-          )).toList(),
+          ),
         ],
       ),
     );
@@ -684,7 +718,11 @@ class PatientMedicalPassportScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.contact_phone, color: Color(0xFF1FBF9A), size: 24),
+              const Icon(
+                Icons.contact_phone,
+                color: Color(0xFF1FBF9A),
+                size: 24,
+              ),
               const SizedBox(width: 12),
               Text(
                 'Contact Information',

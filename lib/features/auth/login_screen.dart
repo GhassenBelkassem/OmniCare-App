@@ -4,8 +4,6 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import '../../providers/user_onboarding_provider.dart';
 import '../../providers/user_provider.dart';
-import '../../l10n/app_localizations.dart';
-import 'otp_verification_screen.dart';
 import 'phone_input_screen.dart';
 import 'medical_data_welcome_screen.dart';
 import 'forgot_password_screen.dart';
@@ -24,7 +22,8 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
+class _LoginScreenState extends State<LoginScreen>
+    with SingleTickerProviderStateMixin {
   bool _isLoading = false;
   bool _showEmailForm = false;
   final TextEditingController _emailController = TextEditingController();
@@ -45,6 +44,12 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     onboarding.setEmailVerified(result.emailVerified);
     onboarding.setPhoneVerified(result.phoneVerified);
 
+    final role = context.read<UserProvider>().user?.role;
+    if (role == 'DOCTOR') {
+      Navigator.pushReplacementNamed(context, '/doctor-dashboard');
+      return;
+    }
+
     if (!result.phoneVerified) {
       Navigator.pushReplacement(
         context,
@@ -56,7 +61,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     if (!result.onboardingComplete) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const MedicalDataWelcomeScreen()),
+        MaterialPageRoute(
+          builder: (context) => const MedicalDataWelcomeScreen(),
+        ),
       );
       return;
     }
@@ -71,31 +78,29 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       vsync: this,
       duration: const Duration(milliseconds: 600),
     );
-    
+
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _animationController,
         curve: const Cubic(0.16, 1, 0.3, 1),
       ),
     );
-    
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 20),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: const Cubic(0.16, 1, 0.3, 1),
-      ),
-    );
-    
+
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 20), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _animationController,
+            curve: const Cubic(0.16, 1, 0.3, 1),
+          ),
+        );
+
     _scaleAnimation = Tween<double>(begin: 1.1, end: 1.0).animate(
       CurvedAnimation(
         parent: _animationController,
         curve: const Cubic(0.16, 1, 0.3, 1),
       ),
     );
-    
+
     Future.delayed(const Duration(milliseconds: 300), () {
       if (mounted) {
         _animationController.forward();
@@ -111,19 +116,18 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     super.dispose();
   }
 
-
   Future<void> _handleGoogleSignIn() async {
     if (kIsWeb) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please use the Google button to sign in on web.')),
+        const SnackBar(
+          content: Text('Please use the Google button to sign in on web.'),
+        ),
       );
       return;
     }
     setState(() => _isLoading = true);
     try {
-      final googleSignIn = GoogleSignIn(
-        scopes: <String>['email', 'profile'],
-      );
+      final googleSignIn = GoogleSignIn(scopes: <String>['email', 'profile']);
 
       final account = await googleSignIn.signIn();
       if (account == null) {
@@ -138,7 +142,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
       final result = await AuthApi().googleLoginWithStatus(idToken: idToken);
       if (!mounted) return;
-      print('[LoginScreen] JWT saved. Forcing UserProvider.refresh() before /home navigation...');
+      print(
+        '[LoginScreen] JWT saved. Forcing UserProvider.refresh() before /home navigation...',
+      );
       await context.read<UserProvider>().refresh();
       print('[LoginScreen] UserProvider.refresh() done. Navigating to /home');
       _navigateAfterLogin(result);
@@ -172,9 +178,14 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
       setState(() => _isLoading = true);
       try {
-        final result = await AuthApi().loginWithStatus(email: email, password: password);
+        final result = await AuthApi().loginWithStatus(
+          email: email,
+          password: password,
+        );
         if (!mounted) return;
-        print('[LoginScreen] JWT saved. Forcing UserProvider.refresh() before /home navigation...');
+        print(
+          '[LoginScreen] JWT saved. Forcing UserProvider.refresh() before /home navigation...',
+        );
         await context.read<UserProvider>().refresh();
         print('[LoginScreen] UserProvider.refresh() done. Navigating to /home');
         _navigateAfterLogin(result);
@@ -195,7 +206,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   @override
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
-    
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: Stack(
@@ -220,9 +231,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                           'https://images.unsplash.com/photo-1659353888357-75e5858a5bc5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBoZWFsdGhjYXJlJTIwbWVkaWNhbCUyMHByb2Zlc3Npb25hbCUyMGNsZWFufGVufDF8fHx8MTc3MjI0MTMzNXww&ixlib=rb-4.1.0&q=80&w=1080',
                           fit: BoxFit.cover,
                           errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              color: const Color(0xFF1FBF9A),
-                            );
+                            return Container(color: const Color(0xFF1FBF9A));
                           },
                         ),
                         Container(
@@ -246,7 +255,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
               },
             ),
           ),
-          
+
           // Content Section
           Positioned.fill(
             child: GestureDetector(
@@ -266,8 +275,12 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                               child: FadeTransition(
                                 opacity: _fadeAnimation,
                                 child: Container(
-                                  constraints: const BoxConstraints(maxWidth: 384),
-                                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 384,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                  ),
                                   child: Column(
                                     children: [
                                       // Title Section
@@ -332,7 +345,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       ),
     );
   }
-  
+
   Widget _buildGoogleButton() {
     if (kIsWeb) {
       return GoogleWebSignInButton(
@@ -341,15 +354,21 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           try {
             await AuthApi().googleLogin(idToken: idToken);
             if (!mounted) return;
-            print('[LoginScreen] (Web) JWT saved. Forcing UserProvider.refresh() before /home navigation...');
+            print(
+              '[LoginScreen] (Web) JWT saved. Forcing UserProvider.refresh() before /home navigation...',
+            );
             await context.read<UserProvider>().refresh();
-            print('[LoginScreen] (Web) UserProvider.refresh() done. Navigating to /home');
+            print(
+              '[LoginScreen] (Web) UserProvider.refresh() done. Navigating to /home',
+            );
             Navigator.pushReplacementNamed(context, '/home');
           } catch (e, st) {
             AppLogger.error('Google web sign-in failed', e, st);
             if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Google sign-in failed: ${apiErrorMessage(e)}')),
+              SnackBar(
+                content: Text('Google sign-in failed: ${apiErrorMessage(e)}'),
+              ),
             );
           } finally {
             if (mounted) setState(() => _isLoading = false);
@@ -409,16 +428,11 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       ),
     );
   }
-  
+
   Widget _buildDivider() {
     return Row(
       children: [
-        const Expanded(
-          child: Divider(
-            color: Color(0xFFEAECF0),
-            thickness: 1,
-          ),
-        ),
+        const Expanded(child: Divider(color: Color(0xFFEAECF0), thickness: 1)),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Text(
@@ -430,16 +444,11 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             ),
           ),
         ),
-        const Expanded(
-          child: Divider(
-            color: Color(0xFFEAECF0),
-            thickness: 1,
-          ),
-        ),
+        const Expanded(child: Divider(color: Color(0xFFEAECF0), thickness: 1)),
       ],
     );
   }
-  
+
   Widget _buildEmailButton() {
     return SizedBox(
       width: double.infinity,
@@ -486,7 +495,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       ),
     );
   }
-  
+
   Widget _buildEmailPasswordForm() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -514,11 +523,14 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: Color(0xFF1FBF9A), width: 2),
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
           ),
         ),
         const SizedBox(height: 14),
-        
+
         // Password Input
         TextField(
           controller: _passwordController,
@@ -542,11 +554,14 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: Color(0xFF1FBF9A), width: 2),
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
           ),
         ),
         const SizedBox(height: 12),
-        
+
         // Forgot Password Link
         Align(
           alignment: Alignment.centerRight,
@@ -554,9 +569,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => ForgotPasswordScreen(),
-                ),
+                MaterialPageRoute(builder: (context) => ForgotPasswordScreen()),
               );
             },
             child: Text(
@@ -572,15 +585,13 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       ],
     );
   }
-  
+
   Widget _buildFooter() {
     return GestureDetector(
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (context) => const SignupScreen(),
-          ),
+          MaterialPageRoute(builder: (context) => const SignupScreen()),
         );
       },
       child: RichText(

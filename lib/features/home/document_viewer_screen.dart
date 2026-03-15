@@ -7,11 +7,11 @@ class DocumentViewerScreen extends StatelessWidget {
   final String documentType;
 
   const DocumentViewerScreen({
-    Key? key,
+    super.key,
     required this.documentName,
     required this.documentDate,
     required this.documentType,
-  }) : super(key: key);
+  });
 
   Color _getDocumentColor() {
     switch (documentType) {

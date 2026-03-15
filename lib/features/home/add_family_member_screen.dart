@@ -25,9 +25,9 @@ class AddFamilyMemberScreen extends StatefulWidget {
   final Function(FamilyMemberData) onSave;
 
   const AddFamilyMemberScreen({
-    Key? key,
+    super.key,
     required this.onSave,
-  }) : super(key: key);
+  });
 
   @override
   State<AddFamilyMemberScreen> createState() => _AddFamilyMemberScreenState();
@@ -46,7 +46,7 @@ class _AddFamilyMemberScreenState extends State<AddFamilyMemberScreen> {
   
   // Step 3: Medical Info
   String _selectedBloodType = '';
-  List<String> _selectedConditions = [];
+  final List<String> _selectedConditions = [];
   final _criticalAlertController = TextEditingController();
 
   final List<String> _bloodTypes = ['-', 'A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
@@ -520,7 +520,7 @@ class _AddFamilyMemberScreenState extends State<AddFamilyMemberScreen> {
             border: Border.all(color: const Color(0xFFE2E8F0)),
           ),
           child: DropdownButtonFormField<String>(
-            value: _bloodTypes.contains(_selectedBloodType) ? _selectedBloodType : '-',
+            initialValue: _bloodTypes.contains(_selectedBloodType) ? _selectedBloodType : '-',
             decoration: const InputDecoration(
               contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               border: InputBorder.none,

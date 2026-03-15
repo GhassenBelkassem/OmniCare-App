@@ -5,9 +5,9 @@ class EmergencyReviewScreen extends StatelessWidget {
   final Map<String, dynamic> requestData;
 
   const EmergencyReviewScreen({
-    Key? key,
+    super.key,
     required this.requestData,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

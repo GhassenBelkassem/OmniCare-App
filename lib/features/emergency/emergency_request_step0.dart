@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class EmergencyRequestStep0 extends StatefulWidget {
-  const EmergencyRequestStep0({Key? key}) : super(key: key);
+  const EmergencyRequestStep0({super.key});
 
   @override
   State<EmergencyRequestStep0> createState() => _EmergencyRequestStep0State();

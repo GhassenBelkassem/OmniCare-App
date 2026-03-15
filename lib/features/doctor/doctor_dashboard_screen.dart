@@ -1,8 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:provider/provider.dart';
 import 'dart:async';
+import 'dart:math';
 import 'request_accepted_screen.dart';
+import '../../core/api/patients_api.dart';
+import '../../core/models/patient_models.dart';
+import '../../providers/user_provider.dart';
+import '../../core/api/consultations_api.dart';
+import '../../core/models/consultation.dart' as api;
+import 'consultation_detail_screen.dart';
+import 'patient_medical_passport_screen.dart';
 
 class DoctorDashboardScreen extends StatefulWidget {
   const DoctorDashboardScreen({super.key});
@@ -11,13 +21,142 @@ class DoctorDashboardScreen extends StatefulWidget {
   State<DoctorDashboardScreen> createState() => _DoctorDashboardScreenState();
 }
 
+// Patient list screen (opens passport)
+class PatientHistoryScreen extends StatelessWidget {
+  const PatientHistoryScreen({super.key});
+
+  Widget _buildPatientCard({required String name}) {
+    final initials = name
+        .split(RegExp(r'\s+'))
+        .where((p) => p.trim().isNotEmpty)
+        .take(2)
+        .map((p) => p.trim()[0].toUpperCase())
+        .join();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: const Color(0xFF1FBF9A).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Center(
+              child: Text(
+                initials,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF1FBF9A),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              name,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF1D2939),
+              ),
+            ),
+          ),
+          const Icon(Icons.chevron_right, color: Color(0xFF98A2B3)),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final api = PatientsApi();
+    return Scaffold(
+      backgroundColor: const Color(0xFFF4F5F7),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        title: Text(
+          'Patients',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            color: const Color(0xFF1D2939),
+          ),
+        ),
+      ),
+      body: SafeArea(
+        child: FutureBuilder<List<PatientSummary>>(
+          future: api.getPatientsForDoctor(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            if (snapshot.hasError) {
+              return Center(
+                child: Text(
+                  'Failed to load patients: ${snapshot.error}',
+                  style: GoogleFonts.plusJakartaSans(),
+                  textAlign: TextAlign.center,
+                ),
+              );
+            }
+
+            final patients = snapshot.data ?? const <PatientSummary>[];
+            if (patients.isEmpty) {
+              return Center(
+                child: Text(
+                  'No patients found',
+                  style: GoogleFonts.plusJakartaSans(),
+                ),
+              );
+            }
+
+            return ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: patients.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              itemBuilder: (context, index) {
+                final p = patients[index];
+                return GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => PatientMedicalPassportScreen(
+                          patientId: p.patientId,
+                          patientName: p.displayName,
+                        ),
+                      ),
+                    );
+                  },
+                  child: _buildPatientCard(name: p.displayName),
+                );
+              },
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
 class _DoctorDashboardScreenState extends State<DoctorDashboardScreen> {
   int _currentIndex = 0;
 
   final List<Widget> _screens = [
     const CommandCenterScreen(),
     const RevenueHubScreen(),
-    const PatientHistoryScreen(),
+    const DoctorHistoryScreen(),
     const DoctorProfileScreen(),
   ];
 
@@ -77,13 +216,15 @@ class _DoctorDashboardScreenState extends State<DoctorDashboardScreen> {
     required int index,
   }) {
     final isActive = _currentIndex == index;
-    
+
     return GestureDetector(
       onTap: () => setState(() => _currentIndex = index),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isActive ? const Color(0xFF1FBF9A).withOpacity(0.1) : Colors.transparent,
+          color: isActive
+              ? const Color(0xFF1FBF9A).withOpacity(0.1)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
@@ -91,7 +232,9 @@ class _DoctorDashboardScreenState extends State<DoctorDashboardScreen> {
           children: [
             Icon(
               icon,
-              color: isActive ? const Color(0xFF1FBF9A) : const Color(0xFF667085),
+              color: isActive
+                  ? const Color(0xFF1FBF9A)
+                  : const Color(0xFF667085),
               size: 24,
             ),
             const SizedBox(height: 4),
@@ -100,7 +243,9 @@ class _DoctorDashboardScreenState extends State<DoctorDashboardScreen> {
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 12,
                 fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
-                color: isActive ? const Color(0xFF1FBF9A) : const Color(0xFF667085),
+                color: isActive
+                    ? const Color(0xFF1FBF9A)
+                    : const Color(0xFF667085),
               ),
             ),
           ],
@@ -120,14 +265,55 @@ class CommandCenterScreen extends StatefulWidget {
 
 class _CommandCenterScreenState extends State<CommandCenterScreen> {
   bool _isLive = false;
-  bool _hasIncomingRequest = false;
-  int _countdown = 60;
-  bool _showRequestDetails = false;
   bool _showMapModal = false;
+  bool _hasIncomingRequest = false;
+  int _countdown = 26;
+  Timer? _timer;
+
+  PatientSummary? _requestPatient;
+
+  String get requestPatientName => _requestPatient?.displayName ?? 'Patient';
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  void _simulateIncomingRequest() {
+    if (!mounted || !_isLive) return;
+    setState(() {
+      _hasIncomingRequest = true;
+      _countdown = 60;
+    });
+    _loadRequestPatient();
+    _startCountdown();
+  }
+
+  Future<void> _loadRequestPatient() async {
+    try {
+      final list = await PatientsApi().getPatientsForDoctor();
+      if (!mounted) return;
+      if (list.isEmpty) return;
+
+      final randomPick = list[Random().nextInt(list.length)];
+      setState(() {
+        _requestPatient = randomPick;
+      });
+    } catch (_) {
+      // Leave request patient null; UI will fallback gracefully.
+    }
+  }
+
   GoogleMapController? _mapController;
-  
+
   // Patient location in Tunis (Avenue Habib Bourguiba)
   static const LatLng _patientLocation = LatLng(36.8065, 10.1815);
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -166,7 +352,10 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
                 },
               ),
               IconButton(
-                icon: const Icon(Icons.notifications_outlined, color: Color(0xFF667085)),
+                icon: const Icon(
+                  Icons.notifications_outlined,
+                  color: Color(0xFF667085),
+                ),
                 onPressed: () {},
               ),
             ],
@@ -180,19 +369,15 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
                   // Doctor Info Card
                   _buildDoctorInfoCard(),
                   const SizedBox(height: 20),
-                  
+
                   // Live Status Toggle
                   _buildLiveStatusCard(),
                   const SizedBox(height: 20),
-                  
+
                   // Incoming Request or Idle State
-                  if (_hasIncomingRequest)
-                    _buildIncomingRequestCard()
-                  else
-                    _buildIdleStateCard(),
-                  
+                  _buildIncomingRequestCard(),
                   const SizedBox(height: 20),
-                  
+
                   // Quick Stats
                   _buildQuickStats(),
                 ],
@@ -200,7 +385,7 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
             ),
           ),
         ),
-        
+
         // Map Modal Overlay
         if (_showMapModal) _buildMapModal(),
       ],
@@ -208,6 +393,17 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
   }
 
   Widget _buildDoctorInfoCard() {
+    final doctorName = context.watch<UserProvider>().user?.displayName;
+    final resolvedName = (doctorName != null && doctorName.trim().isNotEmpty)
+        ? doctorName.trim()
+        : 'Doctor';
+    final initials = resolvedName
+        .split(RegExp(r'\s+'))
+        .where((p) => p.trim().isNotEmpty)
+        .take(2)
+        .map((p) => p.trim()[0].toUpperCase())
+        .join();
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -236,7 +432,7 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
             ),
             child: Center(
               child: Text(
-                'AM',
+                initials,
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 24,
                   fontWeight: FontWeight.w700,
@@ -251,7 +447,7 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Dr. Ahmed Mansour',
+                  resolvedName,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
@@ -260,7 +456,7 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Cardiologist',
+                  'Doctor',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -326,7 +522,9 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  _isLive ? 'Accepting urgent requests' : 'Toggle to start receiving requests',
+                  _isLive
+                      ? 'Accepting urgent requests'
+                      : 'Toggle to start receiving requests',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 13,
                     color: const Color(0xFF667085),
@@ -340,21 +538,23 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
             onChanged: (value) {
               setState(() {
                 _isLive = value;
+                if (!value) {
+                  _hasIncomingRequest = false;
+                  _showMapModal = false;
+                  _timer?.cancel();
+                  _requestPatient = null;
+                }
                 if (value) {
                   // Simulate incoming request after 3 seconds
                   Future.delayed(const Duration(seconds: 3), () {
                     if (mounted && _isLive) {
-                      setState(() {
-                        _hasIncomingRequest = true;
-                        _countdown = 60;
-                      });
-                      _startCountdown();
+                      _simulateIncomingRequest();
                     }
                   });
                 }
               });
             },
-            activeColor: const Color(0xFF1FBF9A),
+            activeThumbColor: const Color(0xFF1FBF9A),
           ),
         ],
       ),
@@ -362,17 +562,19 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
   }
 
   void _startCountdown() {
-    Future.delayed(const Duration(seconds: 1), () {
-      if (mounted && _hasIncomingRequest && _countdown > 0) {
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted && _countdown > 0) {
         setState(() => _countdown--);
-        _startCountdown();
-      } else if (_countdown == 0) {
-        setState(() => _hasIncomingRequest = false);
+      } else {
+        timer.cancel();
       }
     });
   }
 
   Widget _buildIncomingRequestCard() {
+    if (!_isLive || !_hasIncomingRequest) {
+      return _buildIdleStateCard();
+    }
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -393,14 +595,21 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.red,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.local_fire_department, color: Colors.white, size: 16),
+                    const Icon(
+                      Icons.local_fire_department,
+                      color: Colors.white,
+                      size: 16,
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       'URGENT REQUEST',
@@ -436,7 +645,7 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            'Amina Chaari',
+            _requestPatient?.displayName ?? 'Unknown Patient',
             style: GoogleFonts.plusJakartaSans(
               fontSize: 18,
               fontWeight: FontWeight.w700,
@@ -446,7 +655,11 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
           const SizedBox(height: 8),
           Row(
             children: [
-              const Icon(Icons.person_outline, size: 16, color: Color(0xFF667085)),
+              const Icon(
+                Icons.person_outline,
+                size: 16,
+                color: Color(0xFF667085),
+              ),
               const SizedBox(width: 4),
               Text(
                 '32 years • Female',
@@ -460,7 +673,11 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
           const SizedBox(height: 8),
           Row(
             children: [
-              const Icon(Icons.location_on_outlined, size: 16, color: Color(0xFF667085)),
+              const Icon(
+                Icons.location_on_outlined,
+                size: 16,
+                color: Color(0xFF667085),
+              ),
               const SizedBox(width: 4),
               Text(
                 '1.8 km away • 6 mins ETA',
@@ -511,11 +728,85 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          
+
           // View Details Button
           GestureDetector(
             onTap: () {
-              setState(() => _showRequestDetails = !_showRequestDetails);
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (context) {
+                  return SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      'Request Details',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                        color: const Color(0xFF1D2939),
+                                      ),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    icon: const Icon(
+                                      Icons.close,
+                                      color: Color(0xFF667085),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              _buildDetailedRequestInfo(),
+                              const SizedBox(height: 8),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF1FBF9A),
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 14,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    'Close',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              );
             },
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 12),
@@ -528,13 +819,13 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
-                    _showRequestDetails ? Icons.visibility_off : Icons.visibility,
+                    Icons.visibility,
                     color: const Color(0xFF1FBF9A),
                     size: 20,
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    _showRequestDetails ? 'Hide Details' : 'View Details',
+                    'View Details',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
@@ -545,23 +836,14 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
               ),
             ),
           ),
-          
-          // Detailed Request Information
-          if (_showRequestDetails) ...[
-            const SizedBox(height: 16),
-            _buildDetailedRequestInfo(),
-          ],
-          
+
           const SizedBox(height: 16),
           Row(
             children: [
               Expanded(
                 child: ElevatedButton(
                   onPressed: () {
-                    setState(() {
-                      _hasIncomingRequest = false;
-                      _showRequestDetails = false;
-                    });
+                    // No-op: request details are shown in a modal bottom sheet.
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,
@@ -586,14 +868,11 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
               Expanded(
                 child: ElevatedButton(
                   onPressed: () {
-                    setState(() {
-                      _hasIncomingRequest = false;
-                      _showRequestDetails = false;
-                    });
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const RequestAcceptedScreen(),
+                        builder: (context) =>
+                            RequestAcceptedScreen(patient: _requestPatient),
                       ),
                     );
                   },
@@ -642,27 +921,23 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          
+
           // Patient Information
           _buildDetailRow(
             icon: Icons.person,
             label: 'Name',
-            value: 'Amina Chaari',
+            value: requestPatientName,
           ),
-          _buildDetailRow(
-            icon: Icons.cake,
-            label: 'Age',
-            value: '32 years',
-          ),
+          _buildDetailRow(icon: Icons.cake, label: 'Age', value: '32 years'),
           _buildDetailRow(
             icon: Icons.phone,
             label: 'Phone',
             value: '+216 98 765 432',
             isClickable: true,
           ),
-          
+
           const Divider(height: 24),
-          
+
           // Location Information
           GestureDetector(
             onTap: () {
@@ -678,7 +953,11 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.location_on, color: Color(0xFF1FBF9A), size: 20),
+                  const Icon(
+                    Icons.location_on,
+                    color: Color(0xFF1FBF9A),
+                    size: 20,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Column(
@@ -714,21 +993,25 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
             label: 'Distance',
             value: '1.8 km away',
           ),
-          
+
           const Divider(height: 24),
-          
+
           // Medical Information
           _buildDetailRow(
             icon: Icons.healing,
             label: 'Areas of Hurt',
             value: 'Head (Frontal & Temporal regions)',
           ),
-          
+
           // Pain Intensity
           const SizedBox(height: 12),
           Row(
             children: [
-              const Icon(Icons.warning_amber, color: Color(0xFF667085), size: 18),
+              const Icon(
+                Icons.warning_amber,
+                color: Color(0xFF667085),
+                size: 18,
+              ),
               const SizedBox(width: 8),
               Text(
                 'Pain Intensity',
@@ -745,7 +1028,10 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
             children: [
               Expanded(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 8,
+                    horizontal: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.red.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
@@ -754,7 +1040,11 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.local_fire_department, color: Colors.red, size: 20),
+                      const Icon(
+                        Icons.local_fire_department,
+                        color: Colors.red,
+                        size: 20,
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         'High (8/10)',
@@ -770,9 +1060,9 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
               ),
             ],
           ),
-          
+
           const Divider(height: 24),
-          
+
           // Brief Description - Text
           Row(
             children: [
@@ -805,9 +1095,9 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
               ),
             ),
           ),
-          
+
           const SizedBox(height: 12),
-          
+
           // Brief Description - Vocal
           Row(
             children: [
@@ -840,7 +1130,11 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
                     color: const Color(0xFF1FBF9A),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.play_arrow, color: Colors.white, size: 24),
+                  child: const Icon(
+                    Icons.play_arrow,
+                    color: Colors.white,
+                    size: 24,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -870,16 +1164,16 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
               ],
             ),
           ),
-          
+
           const Divider(height: 24),
-          
+
           // Date & Time
           _buildDetailRow(
             icon: Icons.calendar_today,
             label: 'Date & Time',
             value: 'Feb 14, 2026 • 2:45 PM',
           ),
-          
+
           // User Tenure
           const SizedBox(height: 12),
           Container(
@@ -887,11 +1181,17 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
             decoration: BoxDecoration(
               color: const Color(0xFFEFF8FF),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFF0F6F73).withOpacity(0.3)),
+              border: Border.all(
+                color: const Color(0xFF0F6F73).withOpacity(0.3),
+              ),
             ),
             child: Row(
               children: [
-                const Icon(Icons.verified_user, color: Color(0xFF0F6F73), size: 20),
+                const Icon(
+                  Icons.verified_user,
+                  color: Color(0xFF0F6F73),
+                  size: 20,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -942,7 +1242,9 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
-                    color: isClickable ? const Color(0xFF1FBF9A) : const Color(0xFF1D2939),
+                    color: isClickable
+                        ? const Color(0xFF1FBF9A)
+                        : const Color(0xFF1D2939),
                     decoration: isClickable ? TextDecoration.underline : null,
                   ),
                 ),
@@ -994,219 +1296,255 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
   }
 
   Widget _buildMapModal() {
-    return Container(
+    return Material(
       color: Colors.black.withOpacity(0.5),
-      child: Center(
-        child: Container(
-          margin: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Map Header
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: const BoxDecoration(
-                  color: Color(0xFF1FBF9A),
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(16),
-                    topRight: Radius.circular(16),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.location_on, color: Colors.white, size: 24),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Patient Location',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                          ),
-                          Text(
-                            '15 Avenue Habib Bourguiba, Tunis',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12,
-                              color: Colors.white.withOpacity(0.9),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white),
-                      onPressed: () {
-                        setState(() => _showMapModal = false);
-                      },
-                    ),
-                  ],
-                ),
+      child: GestureDetector(
+        onTap: () {
+          setState(() => _showMapModal = false);
+        },
+        child: Center(
+          child: GestureDetector(
+            onTap: () {},
+            child: Container(
+              margin: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
               ),
-              
-              // Google Map View
-              Container(
-                height: 400,
-                decoration: BoxDecoration(
-                  border: Border.all(color: const Color(0xFFD0D5DD)),
-                ),
-                child: Stack(
-                  children: [
-                    // Google Map
-                    GoogleMap(
-                      initialCameraPosition: CameraPosition(
-                        target: _patientLocation,
-                        zoom: 15.0,
-                      ),
-                      markers: {
-                        Marker(
-                          markerId: const MarkerId('patient_location'),
-                          position: _patientLocation,
-                          infoWindow: InfoWindow(
-                            title: 'Amina Chaari',
-                            snippet: '15 Avenue Habib Bourguiba, Tunis',
-                          ),
-                          icon: BitmapDescriptor.defaultMarkerWithHue(
-                            BitmapDescriptor.hueRed,
-                          ),
-                        ),
-                      },
-                      onMapCreated: (GoogleMapController controller) {
-                        _mapController = controller;
-                      },
-                      myLocationButtonEnabled: false,
-                      zoomControlsEnabled: false,
-                      mapToolbarEnabled: false,
-                    ),
-                    
-                    // Map Controls
-                    Positioned(
-                      right: 16,
-                      bottom: 16,
-                      child: Column(
-                        children: [
-                          _buildMapControlButton(
-                            Icons.add,
-                            'Zoom In',
-                            onPressed: () async {
-                              final controller = _mapController;
-                              if (controller != null) {
-                                final zoom = await controller.getZoomLevel();
-                                controller.animateCamera(
-                                  CameraUpdate.zoomTo(zoom + 1),
-                                );
-                              }
-                            },
-                          ),
-                          const SizedBox(height: 8),
-                          _buildMapControlButton(
-                            Icons.remove,
-                            'Zoom Out',
-                            onPressed: () async {
-                              final controller = _mapController;
-                              if (controller != null) {
-                                final zoom = await controller.getZoomLevel();
-                                controller.animateCamera(
-                                  CameraUpdate.zoomTo(zoom - 1),
-                                );
-                              }
-                            },
-                          ),
-                          const SizedBox(height: 8),
-                          _buildMapControlButton(
-                            Icons.my_location,
-                            'Center',
-                            onPressed: () {
-                              _mapController?.animateCamera(
-                                CameraUpdate.newLatLng(_patientLocation),
-                              );
-                            },
-                          ),
-                        ],
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Map Header
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF1FBF9A),
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(16),
+                        topRight: Radius.circular(16),
                       ),
                     ),
-                    
-                    // Distance Indicator
-                    Positioned(
-                      top: 16,
-                      left: 16,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.location_on,
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
+                          size: 24,
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.social_distance, color: Color(0xFF1FBF9A), size: 16),
-                            const SizedBox(width: 6),
-                            Text(
-                              '1.8 km away',
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Patient Location',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              Text(
+                                '15 Avenue Habib Bourguiba, Tunis',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  color: Colors.white.withOpacity(0.9),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.white),
+                          onPressed: () {
+                            setState(() => _showMapModal = false);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Google Map View
+                  Container(
+                    height: 400,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: const Color(0xFFD0D5DD)),
+                    ),
+                    child: Stack(
+                      children: [
+                        if (kIsWeb)
+                          Center(
+                            child: Text(
+                              'Map preview is not available on web',
                               style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13,
+                                fontSize: 14,
                                 fontWeight: FontWeight.w600,
-                                color: const Color(0xFF1D2939),
+                                color: const Color(0xFF667085),
                               ),
                             ),
-                          ],
+                          )
+                        else
+                          GoogleMap(
+                            initialCameraPosition: CameraPosition(
+                              target: _patientLocation,
+                              zoom: 15.0,
+                            ),
+                            markers: {
+                              Marker(
+                                markerId: const MarkerId('patient_location'),
+                                position: _patientLocation,
+                                infoWindow: InfoWindow(
+                                  title: requestPatientName,
+                                  snippet: '15 Avenue Habib Bourguiba, Tunis',
+                                ),
+                                icon: BitmapDescriptor.defaultMarkerWithHue(
+                                  BitmapDescriptor.hueRed,
+                                ),
+                              ),
+                            },
+                            onMapCreated: (GoogleMapController controller) {
+                              _mapController = controller;
+                            },
+                            myLocationButtonEnabled: false,
+                            zoomControlsEnabled: false,
+                            mapToolbarEnabled: false,
+                          ),
+
+                        // Map Controls
+                        Positioned(
+                          right: 16,
+                          bottom: 16,
+                          child: Column(
+                            children: [
+                              _buildMapControlButton(
+                                Icons.add,
+                                'Zoom In',
+                                onPressed: () async {
+                                  final controller = _mapController;
+                                  if (controller != null) {
+                                    final zoom = await controller
+                                        .getZoomLevel();
+                                    controller.animateCamera(
+                                      CameraUpdate.zoomTo(zoom + 1),
+                                    );
+                                  }
+                                },
+                              ),
+                              const SizedBox(height: 8),
+                              _buildMapControlButton(
+                                Icons.remove,
+                                'Zoom Out',
+                                onPressed: () async {
+                                  final controller = _mapController;
+                                  if (controller != null) {
+                                    final zoom = await controller
+                                        .getZoomLevel();
+                                    controller.animateCamera(
+                                      CameraUpdate.zoomTo(zoom - 1),
+                                    );
+                                  }
+                                },
+                              ),
+                              const SizedBox(height: 8),
+                              _buildMapControlButton(
+                                Icons.my_location,
+                                'Center',
+                                onPressed: () {
+                                  _mapController?.animateCamera(
+                                    CameraUpdate.newLatLng(_patientLocation),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Distance Indicator
+                        Positioned(
+                          top: 16,
+                          left: 16,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.social_distance,
+                                  color: Color(0xFF1FBF9A),
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '1.8 km away',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF1D2939),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Close Button
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          setState(() => _showMapModal = false);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1FBF9A),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Text(
+                          'Close',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ),
-                  ],
-                ),
-              ),
-              
-              // Close Button
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      setState(() => _showMapModal = false);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1FBF9A),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: Text(
-                      'Close',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
                   ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildMapControlButton(IconData icon, String tooltip, {VoidCallback? onPressed}) {
+  Widget _buildMapControlButton(
+    IconData icon,
+    String tooltip, {
+    VoidCallback? onPressed,
+  }) {
     return Container(
       width: 44,
       height: 44,
@@ -1374,7 +1712,7 @@ class RevenueHubScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 20),
-              
+
               // Recent Transactions
               Text(
                 'Recent Transactions',
@@ -1385,7 +1723,7 @@ class RevenueHubScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              
+
               _buildTransactionCard(
                 patient: 'Sarah Ben Ahmed',
                 date: '2026-02-08',
@@ -1451,7 +1789,7 @@ class RevenueHubScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: type == 'Cash' 
+                  color: type == 'Cash'
                       ? const Color(0xFFF0FDF9)
                       : const Color(0xFFEFF8FF),
                   borderRadius: BorderRadius.circular(6),
@@ -1554,9 +1892,9 @@ class RevenueHubScreen extends StatelessWidget {
   }
 }
 
-// Patient History Screen
-class PatientHistoryScreen extends StatelessWidget {
-  const PatientHistoryScreen({super.key});
+// Doctor History Screen
+class DoctorHistoryScreen extends StatelessWidget {
+  const DoctorHistoryScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -1566,7 +1904,7 @@ class PatientHistoryScreen extends StatelessWidget {
         backgroundColor: Colors.white,
         elevation: 0,
         title: Text(
-          'Patient History',
+          'Consultation History',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 20,
             fontWeight: FontWeight.w700,
@@ -1583,11 +1921,14 @@ class PatientHistoryScreen extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               child: TextField(
                 decoration: InputDecoration(
-                  hintText: 'Search patients...',
+                  hintText: 'Search consultations...',
                   hintStyle: GoogleFonts.plusJakartaSans(
                     color: const Color(0xFF98A2B3),
                   ),
-                  prefixIcon: const Icon(Icons.search, color: Color(0xFF667085)),
+                  prefixIcon: const Icon(
+                    Icons.search,
+                    color: Color(0xFF667085),
+                  ),
                   filled: true,
                   fillColor: const Color(0xFFF9FAFB),
                   border: OutlineInputBorder(
@@ -1600,45 +1941,106 @@ class PatientHistoryScreen extends StatelessWidget {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF1FBF9A), width: 2),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF1FBF9A),
+                      width: 2,
+                    ),
                   ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                 ),
               ),
             ),
-            
-            // Patient List
+
+            // Consultation List
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  _buildPatientCard(
-                    name: 'Sarah Ben Ahmed',
-                    date: '2026-02-14',
-                    time: '14:30',
-                    diagnosis: 'Viral Infection',
-                    treatment: 'Paracetamol 500mg',
-                    payment: '120 TND',
-                  ),
-                  const SizedBox(height: 12),
-                  _buildPatientCard(
-                    name: 'Mohamed Trabelsi',
-                    date: '2026-02-13',
-                    time: '10:15',
-                    diagnosis: 'Lumbar Strain',
-                    treatment: 'Physical therapy referral',
-                    payment: '100 TND',
-                  ),
-                  const SizedBox(height: 12),
-                  _buildPatientCard(
-                    name: 'Amira Mahjoub',
-                    date: '2026-02-13',
-                    time: '16:45',
-                    diagnosis: 'Migraine with Aura',
-                    treatment: 'Sumatriptan 50mg',
-                    payment: '80 TND',
-                  ),
-                ],
+              child: FutureBuilder<List<api.Consultation>>(
+                future: ConsultationsApi().listConsultations(
+                  status: 'COMPLETED',
+                ),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Text(
+                        'Failed to load consultations: ${snapshot.error}',
+                        style: GoogleFonts.plusJakartaSans(),
+                        textAlign: TextAlign.center,
+                      ),
+                    );
+                  }
+
+                  final items = snapshot.data ?? const <api.Consultation>[];
+                  if (items.isEmpty) {
+                    return Center(
+                      child: Text(
+                        'No consultations found',
+                        style: GoogleFonts.plusJakartaSans(),
+                      ),
+                    );
+                  }
+
+                  return ListView.separated(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: items.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      final c = items[index];
+                      final patientName = (c.patientName ?? '').trim().isEmpty
+                          ? 'Patient'
+                          : c.patientName!.trim();
+                      final ts = (c.timestamp ?? '').trim();
+                      final when = ts.isEmpty ? null : DateTime.tryParse(ts);
+                      final date = (when ?? DateTime.now())
+                          .toIso8601String()
+                          .split('T')
+                          .first;
+                      final time = (when == null)
+                          ? '--:--'
+                          : '${when.hour.toString().padLeft(2, '0')}:${when.minute.toString().padLeft(2, '0')}';
+
+                      return GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ConsultationDetailScreen(
+                                consultation: c.toCreateJson()
+                                  ..addAll({
+                                    'id': c.id,
+                                    'doctorName': c.doctorName,
+                                    'doctorSpecialty': c.doctorSpecialty,
+                                    'patientName': c.patientName,
+                                    'symptoms': c.symptoms,
+                                    'diagnosis': c.diagnosis,
+                                    'treatment': c.treatment,
+                                    'status': c.status,
+                                    'timestamp': c.timestamp,
+                                    'fee': c.fee,
+                                  }),
+                              ),
+                            ),
+                          );
+                        },
+                        child: _buildPatientCard(
+                          name: patientName,
+                          date: date,
+                          time: time,
+                          diagnosis: (c.diagnosis ?? '').toString(),
+                          treatment: (c.treatment ?? '').toString(),
+                          payment: (c.fee ?? '').toString().isEmpty
+                              ? ''
+                              : '${c.fee} TND',
+                        ),
+                      );
+                    },
+                  );
+                },
               ),
             ),
           ],
@@ -1729,7 +2131,11 @@ class PatientHistoryScreen extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.medical_services_outlined, size: 14, color: Color(0xFF667085)),
+                    const Icon(
+                      Icons.medical_services_outlined,
+                      size: 14,
+                      color: Color(0xFF667085),
+                    ),
                     const SizedBox(width: 6),
                     Text(
                       'Diagnosis:',
@@ -1754,7 +2160,11 @@ class PatientHistoryScreen extends StatelessWidget {
                 const SizedBox(height: 6),
                 Row(
                   children: [
-                    const Icon(Icons.medication_outlined, size: 14, color: Color(0xFF667085)),
+                    const Icon(
+                      Icons.medication_outlined,
+                      size: 14,
+                      color: Color(0xFF667085),
+                    ),
                     const SizedBox(width: 6),
                     Text(
                       'Treatment:',
@@ -1902,7 +2312,7 @@ class DoctorProfileScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 20),
-              
+
               // Menu Items
               _buildMenuItem(
                 icon: Icons.person_outline,
@@ -1934,7 +2344,7 @@ class DoctorProfileScreen extends StatelessWidget {
                 onTap: () {},
               ),
               const SizedBox(height: 20),
-              
+
               // Logout Button
               SizedBox(
                 width: double.infinity,

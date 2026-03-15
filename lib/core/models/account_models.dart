@@ -10,7 +10,9 @@ class AccountFullProfile {
   });
 
   factory AccountFullProfile.fromJson(Map<String, dynamic> json) {
-    final userJson = (json['user'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
+    final userJson =
+        (json['user'] as Map?)?.cast<String, dynamic>() ??
+        const <String, dynamic>{};
     final familyJson = (json['familyMembers'] as List?) ?? const [];
     final documentsJson = (json['documents'] as List?) ?? const [];
 
@@ -22,7 +24,9 @@ class AccountFullProfile {
           .toList(),
       documents: documentsJson
           .whereType<Map>()
-          .map((e) => AccountMedicalDocument.fromJson(e.cast<String, dynamic>()))
+          .map(
+            (e) => AccountMedicalDocument.fromJson(e.cast<String, dynamic>()),
+          )
           .toList(),
     );
   }
@@ -53,10 +57,10 @@ String? _bloodGroupFromBackend(String? raw) {
   };
 }
 
-
 class AccountUser {
   final String email;
   final String name;
+  final String? role;
   final String? firstName;
   final String? lastName;
   final String? bloodGroup;
@@ -65,6 +69,7 @@ class AccountUser {
   AccountUser({
     required this.email,
     required this.name,
+    this.role,
     this.firstName,
     this.lastName,
     this.bloodGroup,
@@ -84,13 +89,18 @@ class AccountUser {
     String resolvedName = (json['name'] ?? '').toString();
     final String resolvedFirst = (directFirst ?? profileFirst ?? '').toString();
     final String resolvedLast = (directLast ?? profileLast ?? '').toString();
-    if (resolvedName.trim().isEmpty && (resolvedFirst.trim().isNotEmpty || resolvedLast.trim().isNotEmpty)) {
-      resolvedName = [resolvedFirst, resolvedLast].where((e) => e.trim().isNotEmpty).join(' ');
+    if (resolvedName.trim().isEmpty &&
+        (resolvedFirst.trim().isNotEmpty || resolvedLast.trim().isNotEmpty)) {
+      resolvedName = [
+        resolvedFirst,
+        resolvedLast,
+      ].where((e) => e.trim().isNotEmpty).join(' ');
     }
 
     return AccountUser(
       email: (json['email'] ?? '').toString(),
       name: resolvedName,
+      role: json['role']?.toString(),
       firstName: resolvedFirst.trim().isEmpty ? null : resolvedFirst,
       lastName: resolvedLast.trim().isEmpty ? null : resolvedLast,
       bloodGroup: _bloodGroupFromBackend(json['bloodGroup']?.toString()),
@@ -103,7 +113,10 @@ class AccountUser {
   String get displayName {
     final trimmed = name.trim();
     if (trimmed.isNotEmpty) return trimmed;
-    final derived = [firstName ?? '', lastName ?? ''].where((e) => e.trim().isNotEmpty).join(' ').trim();
+    final derived = [
+      firstName ?? '',
+      lastName ?? '',
+    ].where((e) => e.trim().isNotEmpty).join(' ').trim();
     if (derived.isNotEmpty) return derived;
     return '';
   }
@@ -125,6 +138,7 @@ class AccountUser {
     return {
       'email': email,
       'name': name,
+      'role': role,
       'firstName': firstName,
       'lastName': lastName,
       'bloodGroup': bloodGroup,
@@ -158,7 +172,9 @@ class AccountFamilyMember {
       fullName: (json['fullName'] ?? '').toString(),
       relationship: (json['relationship'] ?? '').toString(),
       gender: json['gender']?.toString(),
-      ageYears: (json['ageYears'] is num) ? (json['ageYears'] as num).toInt() : null,
+      ageYears: (json['ageYears'] is num)
+          ? (json['ageYears'] as num).toInt()
+          : null,
       bloodGroup: _bloodGroupFromBackend(json['bloodGroup']?.toString()),
       medicalInfo: (json['medicalInfo'] is Map)
           ? (json['medicalInfo'] as Map).cast<String, dynamic>()

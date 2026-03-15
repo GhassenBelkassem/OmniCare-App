@@ -1,5 +1,5 @@
 @JS()
-library google_web_sign_in_button_web;
+library;
 
 import 'dart:html' as html;
 import 'dart:ui_web' as ui;

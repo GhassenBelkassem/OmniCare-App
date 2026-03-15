@@ -181,7 +181,7 @@ class BookingConfirmedScreen extends StatelessWidget {
                     _buildDetailRow(
                       Icons.calendar_today,
                       'Date & Heure',
-                      _formatDate(date) + ' à $time',
+                      '${_formatDate(date)} à $time',
                     ),
                     const SizedBox(height: 16),
                     

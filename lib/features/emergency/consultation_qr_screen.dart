@@ -11,9 +11,9 @@ class ConsultationQRScreen extends StatefulWidget {
   final Map<String, dynamic> requestData;
 
   const ConsultationQRScreen({
-    Key? key,
+    super.key,
     required this.requestData,
-  }) : super(key: key);
+  });
 
   @override
   State<ConsultationQRScreen> createState() => _ConsultationQRScreenState();

@@ -35,7 +35,7 @@ class AuthApi {
     final payload = {
       'email': email,
       'password': password,
-      if (name != null) 'name': name,
+      'name': ?name,
     };
 
     AppLogger.api('register payload=$payload');

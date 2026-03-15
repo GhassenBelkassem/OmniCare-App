@@ -6,9 +6,9 @@ class EmergencyRequestStep2 extends StatefulWidget {
   final Map<String, dynamic> step1Data;
 
   const EmergencyRequestStep2({
-    Key? key,
+    super.key,
     required this.step1Data,
-  }) : super(key: key);
+  });
 
   @override
   State<EmergencyRequestStep2> createState() => _EmergencyRequestStep2State();

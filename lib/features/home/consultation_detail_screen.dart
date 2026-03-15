@@ -7,9 +7,9 @@ class ConsultationDetailScreen extends StatefulWidget {
   final Consultation consultation;
 
   const ConsultationDetailScreen({
-    Key? key,
+    super.key,
     required this.consultation,
-  }) : super(key: key);
+  });
 
   @override
   State<ConsultationDetailScreen> createState() => _ConsultationDetailScreenState();
@@ -43,7 +43,7 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
     });
 
     try {
-      final raw = await ConsultationsApi().getPrescription(consultationId: widget.consultation.id!);
+      final raw = await ConsultationsApi().getPrescription(consultationId: widget.consultation.id);
       final items = raw['items'];
 
       final meds = <String>[];

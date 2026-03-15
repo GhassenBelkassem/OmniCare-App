@@ -9,9 +9,9 @@ class EmergencyRequestStep3 extends StatefulWidget {
   final Map<String, dynamic> previousData;
 
   const EmergencyRequestStep3({
-    Key? key,
+    super.key,
     required this.previousData,
-  }) : super(key: key);
+  });
 
   @override
   State<EmergencyRequestStep3> createState() => _EmergencyRequestStep3State();

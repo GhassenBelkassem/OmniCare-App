@@ -1,7 +1,6 @@
 import 'package:dio/dio.dart';
 
 import '../api/dio_client.dart';
-import '../auth/token_storage.dart';
 import '../models/consultation.dart';
 
 class ConsultationsApi {

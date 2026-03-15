@@ -5,9 +5,9 @@ class ConsultationCompleteScreen extends StatefulWidget {
   final Map<String, dynamic> requestData;
 
   const ConsultationCompleteScreen({
-    Key? key,
+    super.key,
     required this.requestData,
-  }) : super(key: key);
+  });
 
   @override
   State<ConsultationCompleteScreen> createState() => _ConsultationCompleteScreenState();

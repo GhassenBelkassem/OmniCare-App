@@ -237,7 +237,7 @@ class ConsultationDetailScreen extends StatelessWidget {
                   ),
                 ],
               ),
-            )).toList(),
+            )),
         ],
       ),
     );
@@ -442,7 +442,7 @@ class ConsultationDetailScreen extends StatelessWidget {
                         ),
                       ],
                     ),
-                  )).toList(),
+                  )),
               ],
             ),
           ),

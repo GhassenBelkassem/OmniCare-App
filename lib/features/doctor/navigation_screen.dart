@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:async';
 import 'qr_scanner_screen.dart';
+import '../../core/models/patient_models.dart';
+import 'patient_medical_passport_screen.dart';
 
 class NavigationScreen extends StatefulWidget {
-  const NavigationScreen({super.key});
+  final PatientSummary? patient;
+
+  const NavigationScreen({super.key, this.patient});
 
   @override
   State<NavigationScreen> createState() => _NavigationScreenState();
@@ -14,10 +19,10 @@ class NavigationScreen extends StatefulWidget {
 
 class _NavigationScreenState extends State<NavigationScreen> {
   GoogleMapController? _mapController;
-  
+
   // Patient location in Tunis (Avenue Habib Bourguiba)
   static const LatLng _patientLocation = LatLng(36.8065, 10.1815);
-  
+
   // Doctor's starting position (simulated current location)
   static const LatLng _doctorLocation = LatLng(36.8265, 10.2015);
 
@@ -35,7 +40,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
 
   // Patient data
   final Map<String, String> _patientData = {
-    'name': 'Amina Chaari',
+    'name': 'Patient',
     'age': '32',
     'phone': '+216 98 765 432',
     'address': '15 Avenue Habib Bourguiba, Tunis',
@@ -43,6 +48,15 @@ class _NavigationScreenState extends State<NavigationScreen> {
     'eta': '6 mins',
     'symptoms': 'Severe headache, Sensitivity to light, Nausea',
   };
+
+  @override
+  void initState() {
+    super.initState();
+    final name = widget.patient?.displayName;
+    if (name != null && name.trim().isNotEmpty) {
+      _patientData['name'] = name.trim();
+    }
+  }
 
   Future<void> _callPatient() async {
     final Uri phoneUri = Uri(scheme: 'tel', path: _patientData['phone']);
@@ -57,78 +71,91 @@ class _NavigationScreenState extends State<NavigationScreen> {
       body: Stack(
         children: [
           // Google Map with route
-          GoogleMap(
-            initialCameraPosition: CameraPosition(
-              target: _patientLocation,
-              zoom: 13.0,
-            ),
-            markers: {
-              // Patient marker (destination - red)
-              Marker(
-                markerId: const MarkerId('patient'),
-                position: _patientLocation,
-                infoWindow: InfoWindow(
-                  title: _patientData['name'],
-                  snippet: _patientData['address'],
-                ),
-                icon: BitmapDescriptor.defaultMarkerWithHue(
-                  BitmapDescriptor.hueRed,
-                ),
-              ),
-              // Doctor marker (current location - green)
-              Marker(
-                markerId: const MarkerId('doctor'),
-                position: _doctorLocation,
-                infoWindow: const InfoWindow(
-                  title: 'Your Location',
-                ),
-                icon: BitmapDescriptor.defaultMarkerWithHue(
-                  BitmapDescriptor.hueGreen,
-                ),
-              ),
-            },
-            polylines: {
-              Polyline(
-                polylineId: const PolylineId('route'),
-                points: _routePoints,
-                color: const Color(0xFF1FBF9A),
-                width: 5,
-                geodesic: true,
-              ),
-            },
-            onMapCreated: (GoogleMapController controller) {
-              _mapController = controller;
-              // Fit bounds to show both markers
-              Future.delayed(const Duration(milliseconds: 500), () {
-                _mapController?.animateCamera(
-                  CameraUpdate.newLatLngBounds(
-                    LatLngBounds(
-                      southwest: LatLng(
-                        _patientLocation.latitude < _doctorLocation.latitude
-                            ? _patientLocation.latitude
-                            : _doctorLocation.latitude,
-                        _patientLocation.longitude < _doctorLocation.longitude
-                            ? _patientLocation.longitude
-                            : _doctorLocation.longitude,
-                      ),
-                      northeast: LatLng(
-                        _patientLocation.latitude > _doctorLocation.latitude
-                            ? _patientLocation.latitude
-                            : _doctorLocation.latitude,
-                        _patientLocation.longitude > _doctorLocation.longitude
-                            ? _patientLocation.longitude
-                            : _doctorLocation.longitude,
-                      ),
-                    ),
-                    80,
+          if (kIsWeb)
+            Container(
+              color: const Color(0xFFEFF8FF),
+              child: Center(
+                child: Text(
+                  'Map preview is not available on web',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF667085),
                   ),
-                );
-              });
-            },
-            myLocationButtonEnabled: false,
-            zoomControlsEnabled: false,
-            mapToolbarEnabled: false,
-          ),
+                ),
+              ),
+            )
+          else
+            GoogleMap(
+              initialCameraPosition: const CameraPosition(
+                target: _patientLocation,
+                zoom: 13.0,
+              ),
+              markers: {
+                // Patient marker (destination - red)
+                Marker(
+                  markerId: const MarkerId('patient'),
+                  position: _patientLocation,
+                  infoWindow: InfoWindow(
+                    title: _patientData['name'],
+                    snippet: _patientData['address'],
+                  ),
+                  icon: BitmapDescriptor.defaultMarkerWithHue(
+                    BitmapDescriptor.hueRed,
+                  ),
+                ),
+                // Doctor marker (current location - green)
+                Marker(
+                  markerId: const MarkerId('doctor'),
+                  position: _doctorLocation,
+                  infoWindow: const InfoWindow(title: 'Your Location'),
+                  icon: BitmapDescriptor.defaultMarkerWithHue(
+                    BitmapDescriptor.hueGreen,
+                  ),
+                ),
+              },
+              polylines: {
+                Polyline(
+                  polylineId: const PolylineId('route'),
+                  points: _routePoints,
+                  color: const Color(0xFF1FBF9A),
+                  width: 5,
+                  geodesic: true,
+                ),
+              },
+              onMapCreated: (GoogleMapController controller) {
+                _mapController = controller;
+                // Fit bounds to show both markers
+                Future.delayed(const Duration(milliseconds: 500), () {
+                  _mapController?.animateCamera(
+                    CameraUpdate.newLatLngBounds(
+                      LatLngBounds(
+                        southwest: LatLng(
+                          _patientLocation.latitude < _doctorLocation.latitude
+                              ? _patientLocation.latitude
+                              : _doctorLocation.latitude,
+                          _patientLocation.longitude < _doctorLocation.longitude
+                              ? _patientLocation.longitude
+                              : _doctorLocation.longitude,
+                        ),
+                        northeast: LatLng(
+                          _patientLocation.latitude > _doctorLocation.latitude
+                              ? _patientLocation.latitude
+                              : _doctorLocation.latitude,
+                          _patientLocation.longitude > _doctorLocation.longitude
+                              ? _patientLocation.longitude
+                              : _doctorLocation.longitude,
+                        ),
+                      ),
+                      80,
+                    ),
+                  );
+                });
+              },
+              myLocationButtonEnabled: false,
+              zoomControlsEnabled: false,
+              mapToolbarEnabled: false,
+            ),
 
           // Top overlay - ETA Card
           Positioned(
@@ -138,7 +165,10 @@ class _NavigationScreenState extends State<NavigationScreen> {
             child: Center(
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 16),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
@@ -156,7 +186,11 @@ class _NavigationScreenState extends State<NavigationScreen> {
                     // ETA
                     Row(
                       children: [
-                        const Icon(Icons.access_time, color: Color(0xFF1FBF9A), size: 20),
+                        const Icon(
+                          Icons.access_time,
+                          color: Color(0xFF1FBF9A),
+                          size: 20,
+                        ),
                         const SizedBox(width: 8),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -189,7 +223,11 @@ class _NavigationScreenState extends State<NavigationScreen> {
                     // Distance
                     Row(
                       children: [
-                        const Icon(Icons.navigation, color: Colors.red, size: 20),
+                        const Icon(
+                          Icons.navigation,
+                          color: Colors.red,
+                          size: 20,
+                        ),
                         const SizedBox(width: 8),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -245,7 +283,8 @@ class _NavigationScreenState extends State<NavigationScreen> {
           // Draggable Bottom sheet - Patient info
           DraggableScrollableSheet(
             initialChildSize: 0.5, // Start at 50% of screen
-            minChildSize: 0.15, // Can minimize to 15% (just show drag handle and name)
+            minChildSize:
+                0.15, // Can minimize to 15% (just show drag handle and name)
             maxChildSize: 0.85, // Can expand to 85% of screen
             builder: (BuildContext context, ScrollController scrollController) {
               return Container(
@@ -330,11 +369,16 @@ class _NavigationScreenState extends State<NavigationScreen> {
                                 ),
                               ),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
                                 decoration: BoxDecoration(
                                   color: Colors.red.withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: Colors.red.withOpacity(0.3)),
+                                  border: Border.all(
+                                    color: Colors.red.withOpacity(0.3),
+                                  ),
                                 ),
                                 child: Text(
                                   'HIGH PRIORITY',
@@ -352,7 +396,11 @@ class _NavigationScreenState extends State<NavigationScreen> {
                           // Address
                           Row(
                             children: [
-                              const Icon(Icons.location_on, size: 16, color: Color(0xFF667085)),
+                              const Icon(
+                                Icons.location_on,
+                                size: 16,
+                                color: Color(0xFF667085),
+                              ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
@@ -369,11 +417,16 @@ class _NavigationScreenState extends State<NavigationScreen> {
 
                           // Status badge
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
                             decoration: BoxDecoration(
                               color: const Color(0xFF1FBF9A).withOpacity(0.1),
                               borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: const Color(0xFF1FBF9A).withOpacity(0.3)),
+                              border: Border.all(
+                                color: const Color(0xFF1FBF9A).withOpacity(0.3),
+                              ),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -406,15 +459,22 @@ class _NavigationScreenState extends State<NavigationScreen> {
                             decoration: BoxDecoration(
                               color: Colors.amber.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.amber.withOpacity(0.3)),
+                              border: Border.all(
+                                color: Colors.amber.withOpacity(0.3),
+                              ),
                             ),
                             child: Row(
                               children: [
-                                const Icon(Icons.warning_amber, color: Colors.amber, size: 20),
+                                const Icon(
+                                  Icons.warning_amber,
+                                  color: Colors.amber,
+                                  size: 20,
+                                ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         'Reported Symptoms',
@@ -446,14 +506,20 @@ class _NavigationScreenState extends State<NavigationScreen> {
                             decoration: BoxDecoration(
                               color: Colors.red.withOpacity(0.05),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.red.withOpacity(0.2)),
+                              border: Border.all(
+                                color: Colors.red.withOpacity(0.2),
+                              ),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
                                   children: [
-                                    const Icon(Icons.shield, color: Colors.red, size: 20),
+                                    const Icon(
+                                      Icons.shield,
+                                      color: Colors.red,
+                                      size: 20,
+                                    ),
                                     const SizedBox(width: 8),
                                     Text(
                                       'Doctor Safety & Emergency',
@@ -484,23 +550,29 @@ class _NavigationScreenState extends State<NavigationScreen> {
                                             barrierDismissible: false,
                                             builder: (context) => Dialog(
                                               shape: RoundedRectangleBorder(
-                                                borderRadius: BorderRadius.circular(20),
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
                                               ),
                                               child: Container(
-                                                padding: const EdgeInsets.all(24),
+                                                padding: const EdgeInsets.all(
+                                                  24,
+                                                ),
                                                 decoration: BoxDecoration(
                                                   color: Colors.white,
-                                                  borderRadius: BorderRadius.circular(20),
+                                                  borderRadius:
+                                                      BorderRadius.circular(20),
                                                 ),
                                                 child: Column(
-                                                  mainAxisSize: MainAxisSize.min,
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
                                                   children: [
                                                     // Icon
                                                     Container(
                                                       width: 80,
                                                       height: 80,
                                                       decoration: BoxDecoration(
-                                                        color: Colors.red.withOpacity(0.1),
+                                                        color: Colors.red
+                                                            .withOpacity(0.1),
                                                         shape: BoxShape.circle,
                                                       ),
                                                       child: const Icon(
@@ -513,23 +585,32 @@ class _NavigationScreenState extends State<NavigationScreen> {
                                                     // Title
                                                     Text(
                                                       'Call Emergency Services',
-                                                      style: GoogleFonts.plusJakartaSans(
-                                                        fontSize: 20,
-                                                        fontWeight: FontWeight.w700,
-                                                        color: const Color(0xFF1D2939),
-                                                      ),
-                                                      textAlign: TextAlign.center,
+                                                      style:
+                                                          GoogleFonts.plusJakartaSans(
+                                                            fontSize: 20,
+                                                            fontWeight:
+                                                                FontWeight.w700,
+                                                            color: const Color(
+                                                              0xFF1D2939,
+                                                            ),
+                                                          ),
+                                                      textAlign:
+                                                          TextAlign.center,
                                                     ),
                                                     const SizedBox(height: 12),
                                                     // Description
                                                     Text(
                                                       'This will immediately call the local police/emergency services (197). Use only in case of emergency or safety threat.',
-                                                      style: GoogleFonts.plusJakartaSans(
-                                                        fontSize: 14,
-                                                        color: const Color(0xFF667085),
-                                                        height: 1.5,
-                                                      ),
-                                                      textAlign: TextAlign.center,
+                                                      style:
+                                                          GoogleFonts.plusJakartaSans(
+                                                            fontSize: 14,
+                                                            color: const Color(
+                                                              0xFF667085,
+                                                            ),
+                                                            height: 1.5,
+                                                          ),
+                                                      textAlign:
+                                                          TextAlign.center,
                                                     ),
                                                     const SizedBox(height: 24),
                                                     // Buttons
@@ -537,48 +618,92 @@ class _NavigationScreenState extends State<NavigationScreen> {
                                                       children: [
                                                         Expanded(
                                                           child: OutlinedButton(
-                                                            onPressed: () => Navigator.pop(context),
+                                                            onPressed: () =>
+                                                                Navigator.pop(
+                                                                  context,
+                                                                ),
                                                             style: OutlinedButton.styleFrom(
-                                                              padding: const EdgeInsets.symmetric(vertical: 14),
-                                                              side: const BorderSide(color: Color(0xFFD0D5DD)),
+                                                              padding:
+                                                                  const EdgeInsets.symmetric(
+                                                                    vertical:
+                                                                        14,
+                                                                  ),
+                                                              side: const BorderSide(
+                                                                color: Color(
+                                                                  0xFFD0D5DD,
+                                                                ),
+                                                              ),
                                                               shape: RoundedRectangleBorder(
-                                                                borderRadius: BorderRadius.circular(12),
+                                                                borderRadius:
+                                                                    BorderRadius.circular(
+                                                                      12,
+                                                                    ),
                                                               ),
                                                             ),
                                                             child: Text(
                                                               'Cancel',
                                                               style: GoogleFonts.plusJakartaSans(
                                                                 fontSize: 15,
-                                                                fontWeight: FontWeight.w600,
-                                                                color: const Color(0xFF667085),
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600,
+                                                                color:
+                                                                    const Color(
+                                                                      0xFF667085,
+                                                                    ),
                                                               ),
                                                             ),
                                                           ),
                                                         ),
-                                                        const SizedBox(width: 12),
+                                                        const SizedBox(
+                                                          width: 12,
+                                                        ),
                                                         Expanded(
                                                           child: ElevatedButton(
                                                             onPressed: () async {
-                                                              Navigator.pop(context);
-                                                              final Uri emergencyUri = Uri(scheme: 'tel', path: '197');
-                                                              if (await canLaunchUrl(emergencyUri)) {
-                                                                await launchUrl(emergencyUri);
+                                                              Navigator.pop(
+                                                                context,
+                                                              );
+                                                              final Uri
+                                                              emergencyUri =
+                                                                  Uri(
+                                                                    scheme:
+                                                                        'tel',
+                                                                    path: '197',
+                                                                  );
+                                                              if (await canLaunchUrl(
+                                                                emergencyUri,
+                                                              )) {
+                                                                await launchUrl(
+                                                                  emergencyUri,
+                                                                );
                                                               }
                                                             },
                                                             style: ElevatedButton.styleFrom(
-                                                              backgroundColor: Colors.red,
-                                                              foregroundColor: Colors.white,
-                                                              padding: const EdgeInsets.symmetric(vertical: 14),
+                                                              backgroundColor:
+                                                                  Colors.red,
+                                                              foregroundColor:
+                                                                  Colors.white,
+                                                              padding:
+                                                                  const EdgeInsets.symmetric(
+                                                                    vertical:
+                                                                        14,
+                                                                  ),
                                                               elevation: 0,
                                                               shape: RoundedRectangleBorder(
-                                                                borderRadius: BorderRadius.circular(12),
+                                                                borderRadius:
+                                                                    BorderRadius.circular(
+                                                                      12,
+                                                                    ),
                                                               ),
                                                             ),
                                                             child: Text(
                                                               'Call 197',
                                                               style: GoogleFonts.plusJakartaSans(
                                                                 fontSize: 15,
-                                                                fontWeight: FontWeight.w700,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w700,
                                                               ),
                                                             ),
                                                           ),
@@ -591,7 +716,10 @@ class _NavigationScreenState extends State<NavigationScreen> {
                                             ),
                                           );
                                         },
-                                        icon: const Icon(Icons.local_police, size: 16),
+                                        icon: const Icon(
+                                          Icons.local_police,
+                                          size: 16,
+                                        ),
                                         label: Text(
                                           'Call Police',
                                           style: GoogleFonts.plusJakartaSans(
@@ -601,8 +729,12 @@ class _NavigationScreenState extends State<NavigationScreen> {
                                         ),
                                         style: OutlinedButton.styleFrom(
                                           foregroundColor: Colors.red,
-                                          side: BorderSide(color: Colors.red.shade300),
-                                          padding: const EdgeInsets.symmetric(vertical: 10),
+                                          side: BorderSide(
+                                            color: Colors.red.shade300,
+                                          ),
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 10,
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -615,23 +747,29 @@ class _NavigationScreenState extends State<NavigationScreen> {
                                             barrierDismissible: false,
                                             builder: (context) => Dialog(
                                               shape: RoundedRectangleBorder(
-                                                borderRadius: BorderRadius.circular(20),
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
                                               ),
                                               child: Container(
-                                                padding: const EdgeInsets.all(24),
+                                                padding: const EdgeInsets.all(
+                                                  24,
+                                                ),
                                                 decoration: BoxDecoration(
                                                   color: Colors.white,
-                                                  borderRadius: BorderRadius.circular(20),
+                                                  borderRadius:
+                                                      BorderRadius.circular(20),
                                                 ),
                                                 child: Column(
-                                                  mainAxisSize: MainAxisSize.min,
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
                                                   children: [
                                                     // Icon
                                                     Container(
                                                       width: 80,
                                                       height: 80,
                                                       decoration: BoxDecoration(
-                                                        color: Colors.orange.withOpacity(0.1),
+                                                        color: Colors.orange
+                                                            .withOpacity(0.1),
                                                         shape: BoxShape.circle,
                                                       ),
                                                       child: const Icon(
@@ -644,23 +782,32 @@ class _NavigationScreenState extends State<NavigationScreen> {
                                                     // Title
                                                     Text(
                                                       'Report Patient Issue',
-                                                      style: GoogleFonts.plusJakartaSans(
-                                                        fontSize: 20,
-                                                        fontWeight: FontWeight.w700,
-                                                        color: const Color(0xFF1D2939),
-                                                      ),
-                                                      textAlign: TextAlign.center,
+                                                      style:
+                                                          GoogleFonts.plusJakartaSans(
+                                                            fontSize: 20,
+                                                            fontWeight:
+                                                                FontWeight.w700,
+                                                            color: const Color(
+                                                              0xFF1D2939,
+                                                            ),
+                                                          ),
+                                                      textAlign:
+                                                          TextAlign.center,
                                                     ),
                                                     const SizedBox(height: 12),
                                                     // Description
                                                     Text(
                                                       'This will notify OmniCare support that the patient is unresponsive or there is a safety concern. Our team will investigate and take appropriate action to protect you.',
-                                                      style: GoogleFonts.plusJakartaSans(
-                                                        fontSize: 14,
-                                                        color: const Color(0xFF667085),
-                                                        height: 1.5,
-                                                      ),
-                                                      textAlign: TextAlign.center,
+                                                      style:
+                                                          GoogleFonts.plusJakartaSans(
+                                                            fontSize: 14,
+                                                            color: const Color(
+                                                              0xFF667085,
+                                                            ),
+                                                            height: 1.5,
+                                                          ),
+                                                      textAlign:
+                                                          TextAlign.center,
                                                     ),
                                                     const SizedBox(height: 24),
                                                     // Buttons
@@ -668,68 +815,125 @@ class _NavigationScreenState extends State<NavigationScreen> {
                                                       children: [
                                                         Expanded(
                                                           child: OutlinedButton(
-                                                            onPressed: () => Navigator.pop(context),
+                                                            onPressed: () =>
+                                                                Navigator.pop(
+                                                                  context,
+                                                                ),
                                                             style: OutlinedButton.styleFrom(
-                                                              padding: const EdgeInsets.symmetric(vertical: 14),
-                                                              side: const BorderSide(color: Color(0xFFD0D5DD)),
+                                                              padding:
+                                                                  const EdgeInsets.symmetric(
+                                                                    vertical:
+                                                                        14,
+                                                                  ),
+                                                              side: const BorderSide(
+                                                                color: Color(
+                                                                  0xFFD0D5DD,
+                                                                ),
+                                                              ),
                                                               shape: RoundedRectangleBorder(
-                                                                borderRadius: BorderRadius.circular(12),
+                                                                borderRadius:
+                                                                    BorderRadius.circular(
+                                                                      12,
+                                                                    ),
                                                               ),
                                                             ),
                                                             child: Text(
                                                               'Cancel',
                                                               style: GoogleFonts.plusJakartaSans(
                                                                 fontSize: 15,
-                                                                fontWeight: FontWeight.w600,
-                                                                color: const Color(0xFF667085),
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600,
+                                                                color:
+                                                                    const Color(
+                                                                      0xFF667085,
+                                                                    ),
                                                               ),
                                                             ),
                                                           ),
                                                         ),
-                                                        const SizedBox(width: 12),
+                                                        const SizedBox(
+                                                          width: 12,
+                                                        ),
                                                         Expanded(
                                                           child: ElevatedButton(
                                                             onPressed: () {
-                                                              Navigator.pop(context);
-                                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                              Navigator.pop(
+                                                                context,
+                                                              );
+                                                              ScaffoldMessenger.of(
+                                                                context,
+                                                              ).showSnackBar(
                                                                 SnackBar(
                                                                   content: Row(
                                                                     children: [
-                                                                      const Icon(Icons.check_circle, color: Colors.white),
-                                                                      const SizedBox(width: 12),
+                                                                      const Icon(
+                                                                        Icons
+                                                                            .check_circle,
+                                                                        color: Colors
+                                                                            .white,
+                                                                      ),
+                                                                      const SizedBox(
+                                                                        width:
+                                                                            12,
+                                                                      ),
                                                                       Expanded(
                                                                         child: Text(
                                                                           'Report submitted. OmniCare support has been notified.',
                                                                           style: GoogleFonts.plusJakartaSans(
-                                                                            fontWeight: FontWeight.w600,
+                                                                            fontWeight:
+                                                                                FontWeight.w600,
                                                                           ),
                                                                         ),
                                                                       ),
                                                                     ],
                                                                   ),
-                                                                  backgroundColor: const Color(0xFF1FBF9A),
-                                                                  behavior: SnackBarBehavior.floating,
+                                                                  backgroundColor:
+                                                                      const Color(
+                                                                        0xFF1FBF9A,
+                                                                      ),
+                                                                  behavior:
+                                                                      SnackBarBehavior
+                                                                          .floating,
                                                                   shape: RoundedRectangleBorder(
-                                                                    borderRadius: BorderRadius.circular(12),
+                                                                    borderRadius:
+                                                                        BorderRadius.circular(
+                                                                          12,
+                                                                        ),
                                                                   ),
-                                                                  duration: const Duration(seconds: 4),
+                                                                  duration:
+                                                                      const Duration(
+                                                                        seconds:
+                                                                            4,
+                                                                      ),
                                                                 ),
                                                               );
                                                             },
                                                             style: ElevatedButton.styleFrom(
-                                                              backgroundColor: Colors.orange,
-                                                              foregroundColor: Colors.white,
-                                                              padding: const EdgeInsets.symmetric(vertical: 14),
+                                                              backgroundColor:
+                                                                  Colors.orange,
+                                                              foregroundColor:
+                                                                  Colors.white,
+                                                              padding:
+                                                                  const EdgeInsets.symmetric(
+                                                                    vertical:
+                                                                        14,
+                                                                  ),
                                                               elevation: 0,
                                                               shape: RoundedRectangleBorder(
-                                                                borderRadius: BorderRadius.circular(12),
+                                                                borderRadius:
+                                                                    BorderRadius.circular(
+                                                                      12,
+                                                                    ),
                                                               ),
                                                             ),
                                                             child: Text(
                                                               'Submit Report',
                                                               style: GoogleFonts.plusJakartaSans(
                                                                 fontSize: 15,
-                                                                fontWeight: FontWeight.w700,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w700,
                                                               ),
                                                             ),
                                                           ),
@@ -742,7 +946,10 @@ class _NavigationScreenState extends State<NavigationScreen> {
                                             ),
                                           );
                                         },
-                                        icon: const Icon(Icons.report_problem, size: 16),
+                                        icon: const Icon(
+                                          Icons.report_problem,
+                                          size: 16,
+                                        ),
                                         label: Text(
                                           'Report Issue',
                                           style: GoogleFonts.plusJakartaSans(
@@ -752,8 +959,12 @@ class _NavigationScreenState extends State<NavigationScreen> {
                                         ),
                                         style: OutlinedButton.styleFrom(
                                           foregroundColor: Colors.orange,
-                                          side: BorderSide(color: Colors.orange.shade300),
-                                          padding: const EdgeInsets.symmetric(vertical: 10),
+                                          side: BorderSide(
+                                            color: Colors.orange.shade300,
+                                          ),
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 10,
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -781,7 +992,9 @@ class _NavigationScreenState extends State<NavigationScreen> {
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: const Color(0xFF1FBF9A),
                                     foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 14,
+                                    ),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),
                                     ),
@@ -792,15 +1005,71 @@ class _NavigationScreenState extends State<NavigationScreen> {
                               Expanded(
                                 child: ElevatedButton.icon(
                                   onPressed: () {
-                                    // Navigate to QR scanner to verify patient
+                                    final p = widget.patient;
+                                    if (p != null &&
+                                        p.patientId.trim().isNotEmpty) {
+                                      Navigator.pushReplacement(
+                                        context,
+                                        PageRouteBuilder(
+                                          pageBuilder: (context, a1, a2) {
+                                            return PatientMedicalPassportScreen(
+                                              patientId: p.patientId,
+                                              patientName: p.displayName,
+                                            );
+                                          },
+                                          transitionsBuilder:
+                                              (
+                                                context,
+                                                animation,
+                                                secondaryAnimation,
+                                                child,
+                                              ) {
+                                                final slide =
+                                                    Tween<Offset>(
+                                                      begin: const Offset(
+                                                        0,
+                                                        0.06,
+                                                      ),
+                                                      end: Offset.zero,
+                                                    ).animate(
+                                                      CurvedAnimation(
+                                                        parent: animation,
+                                                        curve:
+                                                            Curves.easeOutCubic,
+                                                      ),
+                                                    );
+                                                final fade = CurvedAnimation(
+                                                  parent: animation,
+                                                  curve: Curves.easeOut,
+                                                );
+                                                return FadeTransition(
+                                                  opacity: fade,
+                                                  child: SlideTransition(
+                                                    position: slide,
+                                                    child: child,
+                                                  ),
+                                                );
+                                              },
+                                          transitionDuration: const Duration(
+                                            milliseconds: 260,
+                                          ),
+                                        ),
+                                      );
+                                      return;
+                                    }
+
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
-                                        builder: (context) => const QRScannerScreen(),
+                                        builder: (context) =>
+                                            const QRScannerScreen(),
                                       ),
                                     );
                                   },
-                                  icon: const Icon(Icons.check_circle, size: 20),
+                                  icon: const Icon(
+                                    Icons.check_circle,
+                                    size: 20,
+                                  ),
                                   label: Text(
                                     'Arrived',
                                     style: GoogleFonts.plusJakartaSans(
@@ -811,7 +1080,9 @@ class _NavigationScreenState extends State<NavigationScreen> {
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.blue,
                                     foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 14,
+                                    ),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),
                                     ),

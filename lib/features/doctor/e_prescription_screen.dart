@@ -2,14 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'dart:math';
+import '../../core/api/consultations_api.dart';
+import '../../core/api/doctors_api.dart';
 
 class EPrescriptionScreen extends StatefulWidget {
   final Map<String, dynamic> patientData;
 
-  const EPrescriptionScreen({
-    super.key,
-    required this.patientData,
-  });
+  const EPrescriptionScreen({super.key, required this.patientData});
 
   @override
   State<EPrescriptionScreen> createState() => _EPrescriptionScreenState();
@@ -25,7 +24,11 @@ class _EPrescriptionScreenState extends State<EPrescriptionScreen> {
   // Mock medication database
   final List<Map<String, dynamic>> _medicationDatabase = [
     {'name': 'Paracétamol', 'commonDosage': '500mg', 'type': 'Analgesic'},
-    {'name': 'Ibuprofène', 'commonDosage': '400mg', 'type': 'Anti-inflammatory'},
+    {
+      'name': 'Ibuprofène',
+      'commonDosage': '400mg',
+      'type': 'Anti-inflammatory',
+    },
     {'name': 'Amoxicilline', 'commonDosage': '500mg', 'type': 'Antibiotic'},
     {'name': 'Azithromycine', 'commonDosage': '250mg', 'type': 'Antibiotic'},
     {'name': 'Oméprazole', 'commonDosage': '20mg', 'type': 'Antacid'},
@@ -42,29 +45,54 @@ class _EPrescriptionScreenState extends State<EPrescriptionScreen> {
       'name': 'Rhume',
       'icon': Icons.ac_unit,
       'medications': [
-        {'name': 'Paracétamol', 'dosage': '500mg', 'frequency': '3x/jour', 'duration': '5 jours'},
-        {'name': 'Cétirizine', 'dosage': '10mg', 'frequency': '1x/jour', 'duration': '5 jours'},
+        {
+          'name': 'Paracétamol',
+          'dosage': '500mg',
+          'frequency': '3x/jour',
+          'duration': '5 jours',
+        },
+        {
+          'name': 'Cétirizine',
+          'dosage': '10mg',
+          'frequency': '1x/jour',
+          'duration': '5 jours',
+        },
       ],
     },
     {
       'name': 'Mal de tête',
       'icon': Icons.psychology,
       'medications': [
-        {'name': 'Ibuprofène', 'dosage': '400mg', 'frequency': '2x/jour', 'duration': '3 jours'},
+        {
+          'name': 'Ibuprofène',
+          'dosage': '400mg',
+          'frequency': '2x/jour',
+          'duration': '3 jours',
+        },
       ],
     },
     {
       'name': 'Fièvre',
       'icon': Icons.thermostat,
       'medications': [
-        {'name': 'Paracétamol', 'dosage': '1g', 'frequency': '3x/jour', 'duration': '3 jours'},
+        {
+          'name': 'Paracétamol',
+          'dosage': '1g',
+          'frequency': '3x/jour',
+          'duration': '3 jours',
+        },
       ],
     },
     {
       'name': 'Infection',
       'icon': Icons.coronavirus,
       'medications': [
-        {'name': 'Amoxicilline', 'dosage': '500mg', 'frequency': '3x/jour', 'duration': '7 jours'},
+        {
+          'name': 'Amoxicilline',
+          'dosage': '500mg',
+          'frequency': '3x/jour',
+          'duration': '7 jours',
+        },
       ],
     },
   ];
@@ -81,7 +109,9 @@ class _EPrescriptionScreenState extends State<EPrescriptionScreen> {
     setState(() {
       _showSuggestions = true;
       _filteredMedications = _medicationDatabase
-          .where((med) => med['name'].toLowerCase().contains(query.toLowerCase()))
+          .where(
+            (med) => med['name'].toLowerCase().contains(query.toLowerCase()),
+          )
           .toList();
     });
   }
@@ -102,7 +132,9 @@ class _EPrescriptionScreenState extends State<EPrescriptionScreen> {
   void _applyTemplate(Map<String, dynamic> template) {
     setState(() {
       _prescribedMedications.clear();
-      _prescribedMedications.addAll(List<Map<String, dynamic>>.from(template['medications']));
+      _prescribedMedications.addAll(
+        List<Map<String, dynamic>>.from(template['medications']),
+      );
     });
   }
 
@@ -133,8 +165,9 @@ class _EPrescriptionScreenState extends State<EPrescriptionScreen> {
     }
 
     // Generate unique QR code for this prescription (one-time use)
-    final prescriptionId = 'RX-${DateTime.now().millisecondsSinceEpoch}-${Random().nextInt(9999)}';
-    
+    final prescriptionId =
+        'RX-${DateTime.now().millisecondsSinceEpoch}-${Random().nextInt(9999)}';
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -152,15 +185,61 @@ class _EPrescriptionScreenState extends State<EPrescriptionScreen> {
     );
   }
 
-  void _completeConsultation() {
+  Future<void> _completeConsultation() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return const Center(child: CircularProgressIndicator());
+      },
+    );
+
+    try {
+      final profile = await DoctorsApi().getMyProfile();
+      final doctorId = profile['doctorId']?.toString();
+      final patientId = widget.patientData['patientId']?.toString();
+
+      if (doctorId == null || doctorId.trim().isEmpty) {
+        throw StateError('Missing doctorId from /doctor/profile');
+      }
+      if (patientId == null || patientId.trim().isEmpty) {
+        throw StateError('Missing patientId for consultation');
+      }
+
+      final symptoms = (widget.patientData['symptoms']?.toString() ?? '')
+          .trim();
+      final created = await ConsultationsApi().createConsultation(
+        doctorId: doctorId,
+        patientId: patientId,
+        symptoms: symptoms.isEmpty ? 'Prescription' : symptoms,
+        painLevel: 5,
+        affectedAreas: const <String>[],
+        latitude: 36.8065,
+        longitude: 10.1815,
+        streetAddress: widget.patientData['address']?.toString(),
+        city: 'Tunis',
+      );
+
+      final consultationId = (created.id ?? '').trim();
+      if (consultationId.isEmpty) {
+        throw StateError('Consultation created but missing id');
+      }
+
+      await ConsultationsApi().completeConsultation(
+        consultationId: consultationId,
+      );
+    } finally {
+      if (mounted) {
+        Navigator.pop(context);
+      }
+    }
+
     // Show success dialog
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Container(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -205,9 +284,11 @@ class _EPrescriptionScreenState extends State<EPrescriptionScreen> {
                 child: ElevatedButton(
                   onPressed: () {
                     Navigator.pop(context); // Close dialog
-                    Navigator.pop(context); // Close PDF screen
-                    Navigator.pop(context); // Close e-prescription screen
-                    Navigator.pop(context); // Close medical passport
+                    Navigator.pushNamedAndRemoveUntil(
+                      context,
+                      '/doctor-dashboard',
+                      (route) => false,
+                    );
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1FBF9A),
@@ -272,8 +353,11 @@ class _EPrescriptionScreenState extends State<EPrescriptionScreen> {
                   ElevatedButton(
                     onPressed: () {
                       Navigator.pop(context); // Close dialog
-                      Navigator.pop(context); // Close e-prescription screen
-                      Navigator.pop(context); // Close medical passport
+                      Navigator.pushNamedAndRemoveUntil(
+                        context,
+                        '/doctor-dashboard',
+                        (route) => false,
+                      );
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1FBF9A),
@@ -325,7 +409,11 @@ class _EPrescriptionScreenState extends State<EPrescriptionScreen> {
                             ),
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Icon(Icons.person, color: Colors.white, size: 28),
+                          child: const Icon(
+                            Icons.person,
+                            color: Colors.white,
+                            size: 28,
+                          ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -368,32 +456,45 @@ class _EPrescriptionScreenState extends State<EPrescriptionScreen> {
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: _templates.map((template) => GestureDetector(
-                      onTap: () => _applyTemplate(template),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: const Color(0xFF1FBF9A)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(template['icon'], size: 18, color: const Color(0xFF1FBF9A)),
-                            const SizedBox(width: 8),
-                            Text(
-                              template['name'],
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: const Color(0xFF1FBF9A),
+                    children: _templates
+                        .map(
+                          (template) => GestureDetector(
+                            onTap: () => _applyTemplate(template),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: const Color(0xFF1FBF9A),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    template['icon'],
+                                    size: 18,
+                                    color: const Color(0xFF1FBF9A),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    template['name'],
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: const Color(0xFF1FBF9A),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                          ],
-                        ),
-                      ),
-                    )).toList(),
+                          ),
+                        )
+                        .toList(),
                   ),
                   const SizedBox(height: 20),
 
@@ -415,7 +516,10 @@ class _EPrescriptionScreenState extends State<EPrescriptionScreen> {
                       hintStyle: GoogleFonts.plusJakartaSans(
                         color: const Color(0xFF667085),
                       ),
-                      prefixIcon: const Icon(Icons.search, color: Color(0xFF667085)),
+                      prefixIcon: const Icon(
+                        Icons.search,
+                        color: Color(0xFF667085),
+                      ),
                       filled: true,
                       fillColor: Colors.white,
                       border: OutlineInputBorder(
@@ -432,7 +536,7 @@ class _EPrescriptionScreenState extends State<EPrescriptionScreen> {
                       ),
                     ),
                   ),
-                  
+
                   // Suggestions
                   if (_showSuggestions && _filteredMedications.isNotEmpty)
                     Container(
@@ -452,7 +556,8 @@ class _EPrescriptionScreenState extends State<EPrescriptionScreen> {
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
                         itemCount: _filteredMedications.length,
-                        separatorBuilder: (context, index) => const Divider(height: 1),
+                        separatorBuilder: (context, index) =>
+                            const Divider(height: 1),
                         itemBuilder: (context, index) {
                           final med = _filteredMedications[index];
                           return ListTile(
@@ -469,7 +574,10 @@ class _EPrescriptionScreenState extends State<EPrescriptionScreen> {
                                 color: const Color(0xFF667085),
                               ),
                             ),
-                            onTap: () => _addMedication(med['name'], med['commonDosage']),
+                            onTap: () => _addMedication(
+                              med['name'],
+                              med['commonDosage'],
+                            ),
                           );
                         },
                       ),
@@ -512,7 +620,11 @@ class _EPrescriptionScreenState extends State<EPrescriptionScreen> {
                                   ),
                                 ),
                                 IconButton(
-                                  icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                                  icon: const Icon(
+                                    Icons.delete,
+                                    color: Colors.red,
+                                    size: 20,
+                                  ),
                                   onPressed: () => _removeMedication(index),
                                 ),
                               ],
@@ -525,7 +637,11 @@ class _EPrescriptionScreenState extends State<EPrescriptionScreen> {
                                     'Dosage',
                                     med['dosage'],
                                     ['250mg', '500mg', '1g'],
-                                    (value) => _updateMedication(index, 'dosage', value),
+                                    (value) => _updateMedication(
+                                      index,
+                                      'dosage',
+                                      value,
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(width: 12),
@@ -534,7 +650,11 @@ class _EPrescriptionScreenState extends State<EPrescriptionScreen> {
                                     'Fréquence',
                                     med['frequency'],
                                     ['1x/jour', '2x/jour', '3x/jour'],
-                                    (value) => _updateMedication(index, 'frequency', value),
+                                    (value) => _updateMedication(
+                                      index,
+                                      'frequency',
+                                      value,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -544,12 +664,13 @@ class _EPrescriptionScreenState extends State<EPrescriptionScreen> {
                               'Durée',
                               med['duration'],
                               ['3 jours', '5 jours', '7 jours', '14 jours'],
-                              (value) => _updateMedication(index, 'duration', value),
+                              (value) =>
+                                  _updateMedication(index, 'duration', value),
                             ),
                           ],
                         ),
                       );
-                    }).toList(),
+                    }),
                     const SizedBox(height: 20),
                   ],
 
@@ -658,33 +779,40 @@ class _EPrescriptionScreenState extends State<EPrescriptionScreen> {
         Wrap(
           spacing: 6,
           runSpacing: 6,
-          children: options.map((option) => GestureDetector(
-            onTap: () => onChanged(option),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: currentValue == option
-                    ? const Color(0xFF1FBF9A)
-                    : const Color(0xFFF4F5F7),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(
-                  color: currentValue == option
-                      ? const Color(0xFF1FBF9A)
-                      : const Color(0xFFD0D5DD),
+          children: options
+              .map(
+                (option) => GestureDetector(
+                  onTap: () => onChanged(option),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: currentValue == option
+                          ? const Color(0xFF1FBF9A)
+                          : const Color(0xFFF4F5F7),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: currentValue == option
+                            ? const Color(0xFF1FBF9A)
+                            : const Color(0xFFD0D5DD),
+                      ),
+                    ),
+                    child: Text(
+                      option,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: currentValue == option
+                            ? Colors.white
+                            : const Color(0xFF667085),
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-              child: Text(
-                option,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: currentValue == option
-                      ? Colors.white
-                      : const Color(0xFF667085),
-                ),
-              ),
-            ),
-          )).toList(),
+              )
+              .toList(),
         ),
       ],
     );
@@ -880,7 +1008,7 @@ class PrescriptionPDFScreen extends StatelessWidget {
                     ],
                   ),
                 );
-              }).toList(),
+              }),
 
               // Notes
               if (notes.isNotEmpty) ...[
@@ -953,7 +1081,10 @@ class PrescriptionPDFScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF1FBF9A).withOpacity(0.1),
                         borderRadius: BorderRadius.circular(6),
@@ -961,7 +1092,11 @@ class PrescriptionPDFScreen extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.verified, color: Color(0xFF1FBF9A), size: 14),
+                          const Icon(
+                            Icons.verified,
+                            color: Color(0xFF1FBF9A),
+                            size: 14,
+                          ),
                           const SizedBox(width: 6),
                           Text(
                             'Usage unique',

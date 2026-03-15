@@ -112,7 +112,7 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen> {
                     ),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
-                      value: documentTypeItems.any((i) => i.value == documentType)
+                      initialValue: documentTypeItems.any((i) => i.value == documentType)
                           ? documentType
                           : documentTypeItems.first.value,
                       onChanged: (value) {
@@ -290,7 +290,7 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen> {
     final provider = Provider.of<UserOnboardingProvider>(context, listen: false);
     final jsonData = provider.toFamilyMemberJson();
     
-    print('Medical Passport Data: ${jsonData}');
+    print('Medical Passport Data: $jsonData');
 
     await Future.delayed(const Duration(seconds: 2));
 

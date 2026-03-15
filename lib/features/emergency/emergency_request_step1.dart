@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import '../../providers/family_provider.dart';
+import '../../providers/user_provider.dart';
 
 class PatientOption {
   final String id;
@@ -20,7 +23,7 @@ class PatientOption {
 }
 
 class EmergencyRequestStep1 extends StatefulWidget {
-  const EmergencyRequestStep1({Key? key}) : super(key: key);
+  const EmergencyRequestStep1({super.key});
 
   @override
   State<EmergencyRequestStep1> createState() => _EmergencyRequestStep1State();
@@ -30,7 +33,7 @@ class _EmergencyRequestStep1State extends State<EmergencyRequestStep1> {
   String? _selectedPatientId;
   final TextEditingController _otherNameController = TextEditingController();
   final TextEditingController _otherAgeController = TextEditingController();
-  
+
   // Mock data - in production, this would come from provider/database
   List<PatientOption> _patientOptions = [];
 
@@ -41,42 +44,29 @@ class _EmergencyRequestStep1State extends State<EmergencyRequestStep1> {
   }
 
   void _initializePatientOptions() {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final familyProvider = Provider.of<FamilyProvider>(context, listen: false);
+
     _patientOptions = [
       // User profile (Moi)
       PatientOption(
         id: 'me',
-        name: 'Moi',
+        name: userProvider.user?.derivedFirstName ?? 'Moi',
         type: 'me',
-        age: 28,
+        age: null,
       ),
-      // Family members - these would come from the family members list
-      PatientOption(
-        id: 'family_1',
-        name: 'Baba',
-        type: 'family',
-        age: 65,
-        relationship: 'Père',
-      ),
-      PatientOption(
-        id: 'family_2',
-        name: 'Maman',
-        type: 'family',
-        age: 60,
-        relationship: 'Mère',
-      ),
-      PatientOption(
-        id: 'family_3',
-        name: 'Ahmed',
-        type: 'family',
-        age: 8,
-        relationship: 'Enfant',
+      // Family members from backend
+      ...familyProvider.members.map(
+        (member) => PatientOption(
+          id: member.id,
+          name: member.fullName,
+          type: 'family',
+          age: member.ageYears,
+          relationship: member.relationship,
+        ),
       ),
       // Other option
-      PatientOption(
-        id: 'other',
-        name: 'Autre Personne',
-        type: 'other',
-      ),
+      PatientOption(id: 'other', name: 'Autre Personne', type: 'other'),
     ];
   }
 
@@ -90,7 +80,8 @@ class _EmergencyRequestStep1State extends State<EmergencyRequestStep1> {
   bool _canProceed() {
     if (_selectedPatientId == null) return false;
     if (_selectedPatientId == 'other') {
-      return _otherNameController.text.isNotEmpty && _otherAgeController.text.isNotEmpty;
+      return _otherNameController.text.isNotEmpty &&
+          _otherAgeController.text.isNotEmpty;
     }
     return true;
   }
@@ -98,29 +89,46 @@ class _EmergencyRequestStep1State extends State<EmergencyRequestStep1> {
   void _handleNext() {
     if (!_canProceed()) return;
 
-    final selectedOption = _patientOptions.firstWhere((opt) => opt.id == _selectedPatientId);
-    
-    final routeArgs = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    final selectedOption = _patientOptions.firstWhere(
+      (opt) => opt.id == _selectedPatientId,
+    );
+
+    final routeArgs =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     final providerType = routeArgs?['providerType'] as String? ?? 'doctor';
-    final consultationType = routeArgs?['consultationType'] as String? ?? 'home';
-    
+    final consultationType =
+        routeArgs?['consultationType'] as String? ?? 'home';
+
+    String? backendPatientId;
+    if (selectedOption.type == 'family') {
+      final familyProvider = Provider.of<FamilyProvider>(
+        context,
+        listen: false,
+      );
+      final familyMember = familyProvider.members.firstWhere(
+        (m) => m.id == _selectedPatientId,
+        orElse: () => familyProvider.members.first,
+      );
+      backendPatientId = familyMember.patientId;
+    }
+
     final data = {
       'patientId': _selectedPatientId,
-      'patientName': _selectedPatientId == 'other' ? _otherNameController.text : selectedOption.name,
+      'backendPatientId': backendPatientId,
+      'patientName': _selectedPatientId == 'other'
+          ? _otherNameController.text
+          : selectedOption.name,
       'patientType': selectedOption.type,
-      'age': _selectedPatientId == 'other' 
-          ? int.tryParse(_otherAgeController.text) 
+      'age': _selectedPatientId == 'other'
+          ? int.tryParse(_otherAgeController.text)
           : selectedOption.age,
-      if (selectedOption.relationship != null) 'relationship': selectedOption.relationship,
+      if (selectedOption.relationship != null)
+        'relationship': selectedOption.relationship,
       'providerType': providerType,
-      'consultationType': consultationType, // Pass consultation type through
+      'consultationType': consultationType,
     };
 
-    Navigator.pushNamed(
-      context,
-      '/emergency-step2',
-      arguments: data,
-    );
+    Navigator.pushNamed(context, '/emergency-step2', arguments: data);
   }
 
   @override
@@ -184,10 +192,12 @@ class _EmergencyRequestStep1State extends State<EmergencyRequestStep1> {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 32),
-                    ..._patientOptions.map((option) => Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: _buildPatientOptionCard(option),
-                    )),
+                    ..._patientOptions.map(
+                      (option) => Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: _buildPatientOptionCard(option),
+                      ),
+                    ),
                     if (_selectedPatientId == 'other') ...[
                       const SizedBox(height: 8),
                       _buildOtherPersonForm(),
@@ -211,7 +221,9 @@ class _EmergencyRequestStep1State extends State<EmergencyRequestStep1> {
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
-                            color: _canProceed() ? Colors.white : const Color(0xFF9CA3AF),
+                            color: _canProceed()
+                                ? Colors.white
+                                : const Color(0xFF9CA3AF),
                           ),
                         ),
                       ),
@@ -267,10 +279,10 @@ class _EmergencyRequestStep1State extends State<EmergencyRequestStep1> {
 
   Widget _buildPatientOptionCard(PatientOption option) {
     final isSelected = _selectedPatientId == option.id;
-    
+
     IconData icon;
     Color iconColor;
-    
+
     switch (option.type) {
       case 'me':
         icon = Icons.person;
@@ -294,9 +306,9 @@ class _EmergencyRequestStep1State extends State<EmergencyRequestStep1> {
         setState(() {
           _selectedPatientId = option.id;
         });
-        
-        // Auto-advance for 'Moi' and 'Baba' (family_1)
-        if (option.id == 'me' || option.id == 'family_1') {
+
+        // Auto-advance for 'Moi' only
+        if (option.id == 'me') {
           Future.delayed(const Duration(milliseconds: 300), () {
             _handleNext();
           });
@@ -306,9 +318,13 @@ class _EmergencyRequestStep1State extends State<EmergencyRequestStep1> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF1FBF9A).withOpacity(0.05) : Colors.white,
+          color: isSelected
+              ? const Color(0xFF1FBF9A).withOpacity(0.05)
+              : Colors.white,
           border: Border.all(
-            color: isSelected ? const Color(0xFF1FBF9A) : const Color(0xFFE2E8F0),
+            color: isSelected
+                ? const Color(0xFF1FBF9A)
+                : const Color(0xFFE2E8F0),
             width: 2,
           ),
           borderRadius: BorderRadius.circular(16),
@@ -363,7 +379,10 @@ class _EmergencyRequestStep1State extends State<EmergencyRequestStep1> {
             ),
             if (option.age != null)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF4F5F7),
                   borderRadius: BorderRadius.circular(8),
@@ -402,9 +421,7 @@ class _EmergencyRequestStep1State extends State<EmergencyRequestStep1> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: const Color(0xFF1FBF9A).withOpacity(0.05),
-        border: Border.all(
-          color: const Color(0xFF1FBF9A).withOpacity(0.2),
-        ),
+        border: Border.all(color: const Color(0xFF1FBF9A).withOpacity(0.2)),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -491,7 +508,10 @@ class _EmergencyRequestStep1State extends State<EmergencyRequestStep1> {
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: Color(0xFF1FBF9A), width: 2),
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
           ),
           style: GoogleFonts.plusJakartaSans(
             fontSize: 16,

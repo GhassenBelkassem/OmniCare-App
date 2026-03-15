@@ -8,6 +8,15 @@ class DoctorsApi {
 
   DoctorsApi({Dio? dio}) : _dio = dio ?? DioClient.instance.dio;
 
+  Future<Map<String, dynamic>> getMyProfile() async {
+    final res = await _dio.get('/doctor/profile');
+    final data = res.data;
+    if (data is Map) {
+      return Map<String, dynamic>.from(data);
+    }
+    throw StateError('Unexpected GET /doctor/profile response: $data');
+  }
+
   Future<List<Map<String, dynamic>>> listDoctors() async {
     final jwt = await TokenStorage.readJwt();
     if (jwt == null || jwt.isEmpty) {

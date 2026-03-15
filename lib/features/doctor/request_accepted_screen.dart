@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:async';
 import 'navigation_screen.dart';
+import '../../core/models/patient_models.dart';
 
 class RequestAcceptedScreen extends StatefulWidget {
-  const RequestAcceptedScreen({super.key});
+  final PatientSummary? patient;
+
+  const RequestAcceptedScreen({super.key, this.patient});
 
   @override
   State<RequestAcceptedScreen> createState() => _RequestAcceptedScreenState();
@@ -15,22 +19,31 @@ class RequestAcceptedScreen extends StatefulWidget {
 class _RequestAcceptedScreenState extends State<RequestAcceptedScreen> {
   bool _showWaiting = true;
   GoogleMapController? _mapController;
-  
+
   // Patient location in Tunis (Avenue Habib Bourguiba)
   static const LatLng _patientLocation = LatLng(36.8065, 10.1815);
-  
+
   // Doctor's starting position (simulated current location)
   static const LatLng _doctorLocation = LatLng(36.8265, 10.2015);
 
   // Patient data
   final Map<String, String> _patientData = {
-    'name': 'Amina Chaari',
+    'name': 'Patient',
     'age': '32',
     'phone': '+216 98 765 432',
     'address': '15 Avenue Habib Bourguiba, Tunis',
     'distance': '1.8 km',
     'eta': '6 mins',
   };
+
+  @override
+  void initState() {
+    super.initState();
+    final name = widget.patient?.displayName;
+    if (name != null && name.trim().isNotEmpty) {
+      _patientData['name'] = name.trim();
+    }
+  }
 
   Future<void> _callPatient() async {
     final Uri phoneUri = Uri(scheme: 'tel', path: _patientData['phone']);
@@ -56,7 +69,7 @@ class _RequestAcceptedScreenState extends State<RequestAcceptedScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const NavigationScreen(),
+        builder: (context) => NavigationScreen(patient: widget.patient),
       ),
     );
   }
@@ -109,7 +122,7 @@ class _RequestAcceptedScreenState extends State<RequestAcceptedScreen> {
               ),
             ),
             const SizedBox(height: 32),
-            
+
             Text(
               'Waiting for Patient Selection',
               style: GoogleFonts.plusJakartaSans(
@@ -120,7 +133,7 @@ class _RequestAcceptedScreenState extends State<RequestAcceptedScreen> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
-            
+
             Text(
               'The patient is reviewing available doctors. You will be notified once they select you.',
               style: GoogleFonts.plusJakartaSans(
@@ -131,7 +144,7 @@ class _RequestAcceptedScreenState extends State<RequestAcceptedScreen> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 48),
-            
+
             // Next button (static simulation)
             SizedBox(
               width: double.infinity,
@@ -222,7 +235,7 @@ class _RequestAcceptedScreenState extends State<RequestAcceptedScreen> {
               ),
             ),
             const SizedBox(height: 20),
-            
+
             // Patient Information Card
             Container(
               padding: const EdgeInsets.all(20),
@@ -242,17 +255,29 @@ class _RequestAcceptedScreenState extends State<RequestAcceptedScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  
+
                   _buildInfoRow(Icons.person, 'Name', _patientData['name']!),
-                  _buildInfoRow(Icons.cake, 'Age', '${_patientData['age']} years'),
+                  _buildInfoRow(
+                    Icons.cake,
+                    'Age',
+                    '${_patientData['age']} years',
+                  ),
                   _buildInfoRow(Icons.phone, 'Phone', _patientData['phone']!),
-                  _buildInfoRow(Icons.location_on, 'Address', _patientData['address']!),
-                  _buildInfoRow(Icons.social_distance, 'Distance', '${_patientData['distance']} • ${_patientData['eta']} ETA'),
+                  _buildInfoRow(
+                    Icons.location_on,
+                    'Address',
+                    _patientData['address']!,
+                  ),
+                  _buildInfoRow(
+                    Icons.social_distance,
+                    'Distance',
+                    '${_patientData['distance']} • ${_patientData['eta']} ETA',
+                  ),
                 ],
               ),
             ),
             const SizedBox(height: 20),
-            
+
             // Action Buttons
             Row(
               children: [
@@ -302,7 +327,7 @@ class _RequestAcceptedScreenState extends State<RequestAcceptedScreen> {
               ],
             ),
             const SizedBox(height: 20),
-            
+
             // Map Preview
             Container(
               height: 300,
@@ -311,88 +336,107 @@ class _RequestAcceptedScreenState extends State<RequestAcceptedScreen> {
                 border: Border.all(color: const Color(0xFFD0D5DD)),
               ),
               clipBehavior: Clip.antiAlias,
-              child: GoogleMap(
-                initialCameraPosition: CameraPosition(
-                  target: _patientLocation,
-                  zoom: 13.0,
-                ),
-                markers: {
-                  Marker(
-                    markerId: const MarkerId('patient'),
-                    position: _patientLocation,
-                    infoWindow: InfoWindow(
-                      title: _patientData['name'],
-                      snippet: _patientData['address'],
-                    ),
-                    icon: BitmapDescriptor.defaultMarkerWithHue(
-                      BitmapDescriptor.hueRed,
-                    ),
-                  ),
-                  Marker(
-                    markerId: const MarkerId('doctor'),
-                    position: _doctorLocation,
-                    infoWindow: const InfoWindow(
-                      title: 'Your Location',
-                    ),
-                    icon: BitmapDescriptor.defaultMarkerWithHue(
-                      BitmapDescriptor.hueGreen,
-                    ),
-                  ),
-                },
-                polylines: {
-                  Polyline(
-                    polylineId: const PolylineId('route'),
-                    points: [_doctorLocation, _patientLocation],
-                    color: const Color(0xFF1FBF9A),
-                    width: 4,
-                  ),
-                },
-                onMapCreated: (GoogleMapController controller) {
-                  _mapController = controller;
-                  // Fit bounds to show both markers
-                  Future.delayed(const Duration(milliseconds: 500), () {
-                    _mapController?.animateCamera(
-                      CameraUpdate.newLatLngBounds(
-                        LatLngBounds(
-                          southwest: LatLng(
-                            _patientLocation.latitude < _doctorLocation.latitude
-                                ? _patientLocation.latitude
-                                : _doctorLocation.latitude,
-                            _patientLocation.longitude < _doctorLocation.longitude
-                                ? _patientLocation.longitude
-                                : _doctorLocation.longitude,
+              child: kIsWeb
+                  ? Center(
+                      child: Text(
+                        'Map preview is not available on web',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF667085),
+                        ),
+                      ),
+                    )
+                  : GoogleMap(
+                      initialCameraPosition: const CameraPosition(
+                        target: _patientLocation,
+                        zoom: 13.0,
+                      ),
+                      markers: {
+                        Marker(
+                          markerId: const MarkerId('patient'),
+                          position: _patientLocation,
+                          infoWindow: InfoWindow(
+                            title: _patientData['name'],
+                            snippet: _patientData['address'],
                           ),
-                          northeast: LatLng(
-                            _patientLocation.latitude > _doctorLocation.latitude
-                                ? _patientLocation.latitude
-                                : _doctorLocation.latitude,
-                            _patientLocation.longitude > _doctorLocation.longitude
-                                ? _patientLocation.longitude
-                                : _doctorLocation.longitude,
+                          icon: BitmapDescriptor.defaultMarkerWithHue(
+                            BitmapDescriptor.hueRed,
                           ),
                         ),
-                        50,
-                      ),
-                    );
-                  });
-                },
-                myLocationButtonEnabled: false,
-                zoomControlsEnabled: false,
-              ),
+                        Marker(
+                          markerId: const MarkerId('doctor'),
+                          position: _doctorLocation,
+                          infoWindow: const InfoWindow(title: 'Your Location'),
+                          icon: BitmapDescriptor.defaultMarkerWithHue(
+                            BitmapDescriptor.hueGreen,
+                          ),
+                        ),
+                      },
+                      polylines: {
+                        Polyline(
+                          polylineId: const PolylineId('route'),
+                          points: [_doctorLocation, _patientLocation],
+                          color: const Color(0xFF1FBF9A),
+                          width: 4,
+                        ),
+                      },
+                      onMapCreated: (GoogleMapController controller) {
+                        _mapController = controller;
+                        // Fit bounds to show both markers
+                        Future.delayed(const Duration(milliseconds: 500), () {
+                          _mapController?.animateCamera(
+                            CameraUpdate.newLatLngBounds(
+                              LatLngBounds(
+                                southwest: LatLng(
+                                  _patientLocation.latitude <
+                                          _doctorLocation.latitude
+                                      ? _patientLocation.latitude
+                                      : _doctorLocation.latitude,
+                                  _patientLocation.longitude <
+                                          _doctorLocation.longitude
+                                      ? _patientLocation.longitude
+                                      : _doctorLocation.longitude,
+                                ),
+                                northeast: LatLng(
+                                  _patientLocation.latitude >
+                                          _doctorLocation.latitude
+                                      ? _patientLocation.latitude
+                                      : _doctorLocation.latitude,
+                                  _patientLocation.longitude >
+                                          _doctorLocation.longitude
+                                      ? _patientLocation.longitude
+                                      : _doctorLocation.longitude,
+                                ),
+                              ),
+                              50,
+                            ),
+                          );
+                        });
+                      },
+                      myLocationButtonEnabled: false,
+                      zoomControlsEnabled: false,
+                    ),
             ),
             const SizedBox(height: 16),
-            
+
             // Map Info
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: const Color(0xFFEFF8FF),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF0F6F73).withOpacity(0.3)),
+                border: Border.all(
+                  color: const Color(0xFF0F6F73).withOpacity(0.3),
+                ),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.info_outline, color: Color(0xFF0F6F73), size: 20),
+                  const Icon(
+                    Icons.info_outline,
+                    color: Color(0xFF0F6F73),
+                    size: 20,
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(

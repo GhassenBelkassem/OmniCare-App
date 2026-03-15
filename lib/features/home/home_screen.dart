@@ -535,7 +535,6 @@ class _HomeScreenState extends State<HomeScreen> {
     required IconData icon,
     required String label,
     required Color color,
-    Color? textColor,
     bool outlined = false,
     required VoidCallback onTap,
   }) {

@@ -8,11 +8,11 @@ class QRCodeModal extends StatelessWidget {
   final bool isFamilyMember;
 
   const QRCodeModal({
-    Key? key,
+    super.key,
     required this.patientName,
     required this.patientId,
     this.isFamilyMember = false,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

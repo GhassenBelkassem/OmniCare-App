@@ -8,7 +8,9 @@ class DioClient {
   DioClient._internal() {
     final baseUrl = dotenv.env['API_BASE_URL']?.trim();
     if (baseUrl == null || baseUrl.isEmpty) {
-      throw StateError('API_BASE_URL is not set. Make sure .env is present and loaded.');
+      throw StateError(
+        'API_BASE_URL is not set. Make sure .env is present and loaded.',
+      );
     }
 
     _dio = Dio(
@@ -17,16 +19,17 @@ class DioClient {
         connectTimeout: const Duration(seconds: 15),
         receiveTimeout: const Duration(seconds: 30),
         sendTimeout: const Duration(seconds: 30),
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: {'Content-Type': 'application/json'},
       ),
     );
 
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
-          final isAuthEndpoint = options.path.startsWith('/api/auth') || options.path.startsWith('/v1/auth');
+          final isAuthEndpoint =
+              options.path.startsWith('/auth') ||
+              options.path.startsWith('/api/auth') ||
+              options.path.startsWith('/v1/auth');
           if (!isAuthEndpoint) {
             final token = await TokenStorage.readJwt();
             if (token != null && token.isNotEmpty) {
@@ -35,8 +38,12 @@ class DioClient {
           } else {
             options.headers.remove('Authorization');
           }
-          consoleLog('🚀 API authHeader=${options.headers.containsKey('Authorization')}');
-          consoleLog('🚀 API ${options.method} ${options.baseUrl}${options.path}');
+          consoleLog(
+            '🚀 API authHeader=${options.headers.containsKey('Authorization')}',
+          );
+          consoleLog(
+            '🚀 API ${options.method} ${options.baseUrl}${options.path}',
+          );
           if (options.queryParameters.isNotEmpty) {
             consoleLog('🚀 API query=${options.queryParameters}');
           }

@@ -9,7 +9,6 @@ import 'features/profile/vital_info_screen.dart';
 import 'features/profile/medications_screen.dart';
 import 'features/profile/medical_documents_screen.dart';
 import 'features/onboarding/conversational_onboarding_screen.dart';
-import 'features/home/home_screen.dart';
 import 'features/home/new_home_screen.dart';
 import 'features/emergency/emergency_request_step0.dart';
 import 'features/emergency/emergency_request_step1.dart';
@@ -31,6 +30,7 @@ import 'features/notifications/appointment_confirmation_screen.dart';
 import 'features/notifications/booking_confirmed_screen.dart';
 import 'providers/user_onboarding_provider.dart';
 import 'providers/user_provider.dart';
+import 'providers/family_provider.dart';
 import 'services/notification_service.dart';
 import 'l10n/app_localizations.dart';
 
@@ -50,6 +50,7 @@ class OmniCareApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => UserOnboardingProvider()),
         ChangeNotifierProvider(create: (_) => UserProvider()..loadIfLoggedIn()),
+        ChangeNotifierProvider(create: (_) => FamilyProvider()),
       ],
       child: Consumer<UserOnboardingProvider>(
         builder: (context, provider, child) {
@@ -62,11 +63,20 @@ class OmniCareApp extends StatelessWidget {
             title: 'OmniCare',
             debugShowCheckedModeBanner: false,
             locale: locale,
-            supportedLocales: const [
-              Locale('en'),
-              Locale('fr'),
-              Locale('ar'),
-            ],
+            builder: (context, child) {
+              final mq = MediaQuery.of(context);
+              final clampedInsets = EdgeInsets.fromLTRB(
+                mq.viewInsets.left < 0 ? 0 : mq.viewInsets.left,
+                mq.viewInsets.top < 0 ? 0 : mq.viewInsets.top,
+                mq.viewInsets.right < 0 ? 0 : mq.viewInsets.right,
+                mq.viewInsets.bottom < 0 ? 0 : mq.viewInsets.bottom,
+              );
+              return MediaQuery(
+                data: mq.copyWith(viewInsets: clampedInsets),
+                child: child ?? const SizedBox.shrink(),
+              );
+            },
+            supportedLocales: const [Locale('en'), Locale('fr'), Locale('ar')],
             localizationsDelegates: const [
               AppLocalizations.delegate,
               GlobalMaterialLocalizations.delegate,
@@ -89,7 +99,8 @@ class OmniCareApp extends StatelessWidget {
               '/medical-profile': (context) => const VitalInfoScreen(),
               '/medications': (context) => const MedicationsScreen(),
               '/medical-documents': (context) => const MedicalDocumentsScreen(),
-              '/conversational-onboarding': (context) => const ConversationalOnboardingScreen(),
+              '/conversational-onboarding': (context) =>
+                  const ConversationalOnboardingScreen(),
               '/home': (context) => const NewHomeScreen(),
               '/doctor-dashboard': (context) => const DoctorDashboardScreen(),
               '/emergency-step0': (context) => const EmergencyRequestStep0(),
@@ -107,19 +118,22 @@ class OmniCareApp extends StatelessWidget {
               if (settings.name == '/emergency-step3') {
                 final args = settings.arguments as Map<String, dynamic>;
                 return MaterialPageRoute(
-                  builder: (context) => EmergencyRequestStep3(previousData: args),
+                  builder: (context) =>
+                      EmergencyRequestStep3(previousData: args),
                 );
               }
               if (settings.name == '/emergency-review') {
                 final args = settings.arguments as Map<String, dynamic>;
                 return MaterialPageRoute(
-                  builder: (context) => EmergencyReviewScreen(requestData: args),
+                  builder: (context) =>
+                      EmergencyReviewScreen(requestData: args),
                 );
               }
               if (settings.name == '/doctor-selection') {
                 final args = settings.arguments as Map<String, dynamic>;
                 return MaterialPageRoute(
-                  builder: (context) => DoctorSelectionScreen(emergencyData: args),
+                  builder: (context) =>
+                      DoctorSelectionScreen(emergencyData: args),
                 );
               }
               if (settings.name == '/review-confirm') {
@@ -151,9 +165,8 @@ class OmniCareApp extends StatelessWidget {
               if (settings.name == '/provider-list') {
                 final args = settings.arguments as Map<String, dynamic>;
                 return MaterialPageRoute(
-                  builder: (context) => ProviderListScreen(
-                    providerType: args['providerType'],
-                  ),
+                  builder: (context) =>
+                      ProviderListScreen(providerType: args['providerType']),
                 );
               }
               if (settings.name == '/consultation-qr') {
@@ -165,19 +178,22 @@ class OmniCareApp extends StatelessWidget {
               if (settings.name == '/consultation-complete') {
                 final args = settings.arguments as Map<String, dynamic>;
                 return MaterialPageRoute(
-                  builder: (context) => ConsultationCompleteScreen(requestData: args),
+                  builder: (context) =>
+                      ConsultationCompleteScreen(requestData: args),
                 );
               }
               if (settings.name == '/appointment-confirmation') {
                 final args = settings.arguments as Map<String, dynamic>;
                 return MaterialPageRoute(
-                  builder: (context) => AppointmentConfirmationScreen(doctorData: args),
+                  builder: (context) =>
+                      AppointmentConfirmationScreen(doctorData: args),
                 );
               }
               if (settings.name == '/booking-confirmed') {
                 final args = settings.arguments as Map<String, dynamic>;
                 return MaterialPageRoute(
-                  builder: (context) => BookingConfirmedScreen(bookingData: args),
+                  builder: (context) =>
+                      BookingConfirmedScreen(bookingData: args),
                 );
               }
               return null;

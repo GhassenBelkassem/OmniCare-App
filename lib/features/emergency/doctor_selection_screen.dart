@@ -61,9 +61,9 @@ class DoctorSelectionScreen extends StatefulWidget {
   final Map<String, dynamic> emergencyData;
 
   const DoctorSelectionScreen({
-    Key? key,
+    super.key,
     required this.emergencyData,
-  }) : super(key: key);
+  });
 
   @override
   State<DoctorSelectionScreen> createState() => _DoctorSelectionScreenState();
