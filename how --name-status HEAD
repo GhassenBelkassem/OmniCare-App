@@ -1,9 +1,0 @@
-[33md6a28d9[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m update flow
-[33m3624119[m added consultation flow
-[33m9eadc0e[m Fix signup OTP flow, onboarding persistence, and medication search
-[33m1000e8f[m Wire signup -> email OTP verification; fix web bootstrap and update file_picker
-[33mddddac0[m Medication search + medical passport save fixes
-[33m2e8d9b0[m[33m ([m[1;31morigin/rania[m[33m)[m WIP: unwrap API responses + user provider refresh + web token persistence
-[33m0e35273[m user profil andflow
-[33m2aaebba[m major update on the app
-[33m5cd3cfc[m[33m ([m[1;31morigin/mohamed[m[33m)[m first commit
