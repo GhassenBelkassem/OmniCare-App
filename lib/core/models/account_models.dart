@@ -61,6 +61,8 @@ class AccountUser {
   final String email;
   final String name;
   final String? role;
+  final String? providerId;
+  final String? providerType;
   final String? firstName;
   final String? lastName;
   final String? bloodGroup;
@@ -70,6 +72,8 @@ class AccountUser {
     required this.email,
     required this.name,
     this.role,
+    this.providerId,
+    this.providerType,
     this.firstName,
     this.lastName,
     this.bloodGroup,
@@ -101,6 +105,8 @@ class AccountUser {
       email: (json['email'] ?? '').toString(),
       name: resolvedName,
       role: json['role']?.toString(),
+      providerId: json['providerId']?.toString(),
+      providerType: json['providerType']?.toString(),
       firstName: resolvedFirst.trim().isEmpty ? null : resolvedFirst,
       lastName: resolvedLast.trim().isEmpty ? null : resolvedLast,
       bloodGroup: _bloodGroupFromBackend(json['bloodGroup']?.toString()),
@@ -139,6 +145,8 @@ class AccountUser {
       'email': email,
       'name': name,
       'role': role,
+      'providerId': providerId,
+      'providerType': providerType,
       'firstName': firstName,
       'lastName': lastName,
       'bloodGroup': bloodGroup,

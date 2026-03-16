@@ -30,10 +30,7 @@ class _GoogleAccountsId {
 class GoogleWebSignInButton extends StatefulWidget {
   final void Function(String idToken) onIdToken;
 
-  const GoogleWebSignInButton({
-    super.key,
-    required this.onIdToken,
-  });
+  const GoogleWebSignInButton({super.key, required this.onIdToken});
 
   @override
   State<GoogleWebSignInButton> createState() => _GoogleWebSignInButtonState();
@@ -59,7 +56,9 @@ class _GoogleWebSignInButtonState extends State<GoogleWebSignInButton> {
   }
 
   String? _readClientIdFromMeta() {
-    final tag = html.document.querySelector('meta[name="google-signin-client_id"]');
+    final tag = html.document.querySelector(
+      'meta[name="google-signin-client_id"]',
+    );
     return tag?.getAttribute('content');
   }
 
@@ -77,27 +76,26 @@ class _GoogleWebSignInButtonState extends State<GoogleWebSignInButton> {
     _googleAccountsId.initialize(
       _IdConfiguration(
         client_id: clientId,
-        callback: allowInterop((dynamic response) {
-          final credential = (response is Object) ? (response as dynamic).credential : null;
+        callback: (dynamic response) {
+          final credential = (response is Object)
+              ? (response as dynamic).credential
+              : null;
           final token = credential?.toString();
           if (token != null && token.isNotEmpty) {
             widget.onIdToken(token);
           }
-        }),
+        },
       ),
     );
 
-    _googleAccountsId.renderButton(
-      container,
-      {
-        'type': 'standard',
-        'theme': 'outline',
-        'size': 'large',
-        'width': 384,
-        'text': 'continue_with',
-        'shape': 'pill',
-      },
-    );
+    _googleAccountsId.renderButton(container, {
+      'type': 'standard',
+      'theme': 'outline',
+      'size': 'large',
+      'width': 384,
+      'text': 'continue_with',
+      'shape': 'pill',
+    });
 
     _initialized = true;
   }

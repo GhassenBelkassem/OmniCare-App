@@ -21,7 +21,9 @@ class _PatientPickerScreenState extends State<PatientPickerScreen> {
   void initState() {
     super.initState();
     final api = PatientsApi();
-    _future = widget.forDoctor ? api.getPatientsForDoctor() : api.getPatients();
+    _future = widget.forDoctor
+        ? api.getPatientsForProfessional()
+        : api.getPatients();
   }
 
   @override

@@ -1,8 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
+import '../../core/api/documents_api.dart';
+import '../../core/api/storage_service.dart';
 import '../../providers/user_onboarding_provider.dart';
 
 class MedicalDocumentsScreen extends StatefulWidget {
@@ -14,10 +18,74 @@ class MedicalDocumentsScreen extends StatefulWidget {
 
 class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen> {
   bool _isLoading = false;
+  final IStorageService _storageService = CloudinaryStorageImpl();
+  final DocumentsApi _documentsApi = DocumentsApi();
+
+  String _toBackendDocumentType(String uiType) {
+    final v = uiType.trim().toLowerCase();
+    if (v == 'prescription') return 'PRESCRIPTION';
+    if (v == 'report') return 'REPORT';
+    if (v == 'lab results') return 'REPORT';
+    if (v == 'scan') return 'X_RAY';
+    return 'REPORT';
+  }
+
+  Future<void> _uploadAndLinkDocument({
+    required String documentName,
+    required String documentType,
+    required DateTime selectedDate,
+    required String filePath,
+  }) async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+
+    try {
+      final url = await _storageService.uploadDocument(
+        File(filePath),
+        'omnicare/medical-documents',
+      );
+
+      await _documentsApi.createDocument(
+        title: documentName,
+        type: _toBackendDocumentType(documentType),
+        issueDate: DateFormat('yyyy-MM-dd').format(selectedDate),
+        fileUrl: url,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Document uploaded successfully'),
+          backgroundColor: Color(0xFF1FBF9A),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Upload failed: $e'),
+          backgroundColor: const Color(0xFFDC2626),
+        ),
+      );
+      rethrow;
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
   void _showAddDocumentDialog({MedicalDocument? document, int? index}) {
-    final nameController = TextEditingController(text: document?.documentName ?? '');
-    final allowedTypes = ['Prescription', 'Report', 'Scan', 'Lab Results', 'Other'];
+    final nameController = TextEditingController(
+      text: document?.documentName ?? '',
+    );
+    final allowedTypes = [
+      'Prescription',
+      'Report',
+      'Scan',
+      'Lab Results',
+      'Other',
+    ];
     String documentType = document?.documentType ?? 'Prescription';
     if (!allowedTypes.contains(documentType)) {
       documentType = 'Other';
@@ -86,11 +154,15 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen> {
                         fillColor: const Color(0xFFF4F5F7),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE5E7EB),
+                          ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE5E7EB),
+                          ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -112,7 +184,8 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen> {
                     ),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
-                      initialValue: documentTypeItems.any((i) => i.value == documentType)
+                      initialValue:
+                          documentTypeItems.any((i) => i.value == documentType)
                           ? documentType
                           : documentTypeItems.first.value,
                       onChanged: (value) {
@@ -126,11 +199,15 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen> {
                         fillColor: const Color(0xFFF4F5F7),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE5E7EB),
+                          ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE5E7EB),
+                          ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -222,17 +299,38 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen> {
                     ),
                   ),
                 ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Coming soon / Testing mode: upload skipped',
+                        ),
+                        backgroundColor: Color(0xFF667085),
+                      ),
+                    );
+                  },
+                  child: Text(
+                    'Skip for Testing',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF667085),
+                    ),
+                  ),
+                ),
                 ElevatedButton(
                   onPressed: () async {
                     if (nameController.text.isNotEmpty) {
                       String? filePath;
-                      
+
                       if (document == null) {
                         final result = await FilePicker.platform.pickFiles(
                           type: FileType.custom,
                           allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
                         );
-                        
+
                         if (result != null) {
                           filePath = result.files.single.path;
                         }
@@ -240,24 +338,47 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen> {
                         filePath = document.filePath;
                       }
 
-                      final newDocument = MedicalDocument(
-                        documentName: nameController.text,
-                        documentType: documentType,
-                        date: selectedDate,
-                        filePath: filePath,
-                      );
-
-                      final provider = Provider.of<UserOnboardingProvider>(
-                        context,
-                        listen: false,
-                      );
-
-                      if (index != null) {
-                        provider.removeMedicalDocument(index);
+                      if (filePath == null || filePath.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Please select a file'),
+                            backgroundColor: Color(0xFFDC2626),
+                          ),
+                        );
+                        return;
                       }
-                      provider.addMedicalDocument(newDocument);
 
-                      Navigator.pop(context);
+                      try {
+                        await _uploadAndLinkDocument(
+                          documentName: nameController.text.trim(),
+                          documentType: documentType,
+                          selectedDate: selectedDate,
+                          filePath: filePath,
+                        );
+
+                        final newDocument = MedicalDocument(
+                          documentName: nameController.text,
+                          documentType: documentType,
+                          date: selectedDate,
+                          filePath: filePath,
+                        );
+
+                        final provider = Provider.of<UserOnboardingProvider>(
+                          context,
+                          listen: false,
+                        );
+
+                        if (index != null) {
+                          provider.removeMedicalDocument(index);
+                        }
+                        provider.addMedicalDocument(newDocument);
+
+                        if (mounted) {
+                          Navigator.pop(context);
+                        }
+                      } catch (_) {
+                        // error snackbar already shown
+                      }
                     }
                   },
                   style: ElevatedButton.styleFrom(
@@ -287,9 +408,12 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen> {
   Future<void> _completeProfile() async {
     setState(() => _isLoading = true);
 
-    final provider = Provider.of<UserOnboardingProvider>(context, listen: false);
+    final provider = Provider.of<UserOnboardingProvider>(
+      context,
+      listen: false,
+    );
     final jsonData = provider.toFamilyMemberJson();
-    
+
     print('Medical Passport Data: $jsonData');
 
     await Future.delayed(const Duration(seconds: 2));
@@ -430,7 +554,8 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen> {
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: provider.medicalDocuments.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 12),
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 12),
                   itemBuilder: (context, index) {
                     final document = provider.medicalDocuments[index];
                     return Container(
@@ -531,8 +656,9 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen> {
                     backgroundColor: const Color(0xFF1FBF9A),
                     foregroundColor: Colors.white,
                     elevation: 0,
-                    disabledBackgroundColor:
-                        const Color(0xFF1FBF9A).withOpacity(0.5),
+                    disabledBackgroundColor: const Color(
+                      0xFF1FBF9A,
+                    ).withOpacity(0.5),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -543,8 +669,9 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen> {
                           width: 24,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(Colors.white),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
                           ),
                         )
                       : Text(

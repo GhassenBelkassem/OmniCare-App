@@ -1,18 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import 'package:file_picker/file_picker.dart';
+import 'dart:io';
 import 'history_tab.dart';
 import '../../core/api/consultations_api.dart';
+import '../../core/api/medical_acts_api.dart';
+import '../../core/api/storage_service.dart';
+import '../../providers/user_provider.dart';
 
 class ConsultationDetailScreen extends StatefulWidget {
   final Consultation consultation;
 
-  const ConsultationDetailScreen({
-    super.key,
-    required this.consultation,
-  });
+  const ConsultationDetailScreen({super.key, required this.consultation});
 
   @override
-  State<ConsultationDetailScreen> createState() => _ConsultationDetailScreenState();
+  State<ConsultationDetailScreen> createState() =>
+      _ConsultationDetailScreenState();
 }
 
 class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
@@ -21,6 +25,9 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
   List<String>? _prescribedMedications;
   bool _isLoadingPrescription = false;
   String? _prescriptionError;
+  String? _prescriptionId;
+
+  bool _isSavingMedicalAct = false;
 
   @override
   void initState() {
@@ -32,10 +39,235 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
     });
   }
 
+  Widget _buildMedicalActActionsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.verified, color: Color(0xFF1FBF9A), size: 20),
+            const SizedBox(width: 8),
+            Text(
+              'Prescription',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: const Color(0xFF1A202C),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Column(
+            children: [
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _isSavingMedicalAct
+                      ? null
+                      : () => _showMarkAsAdministeredSheet(),
+                  icon: _isSavingMedicalAct
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.check, size: 16),
+                  label: Text(
+                    _isSavingMedicalAct ? 'Saving...' : 'Mark as Administered',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1FBF9A),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _showMarkAsAdministeredSheet() async {
+    if ((_prescriptionId ?? '').isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Prescription not loaded yet'),
+          backgroundColor: Color(0xFFDC2626),
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Record Medical Act',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF1A202C),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ElevatedButton(
+                  onPressed: () async {
+                    Navigator.pop(ctx);
+                    await _createMedicalAct(actType: 'ADMINISTERED');
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1FBF9A),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: Text(
+                    'Administered (no photo)',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                OutlinedButton(
+                  onPressed: () async {
+                    Navigator.pop(ctx);
+                    await _createInjectionMedicalAct();
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF1A202C),
+                    side: const BorderSide(color: Color(0xFFE2E8F0)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: Text(
+                    'Injection (requires photo)',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _createInjectionMedicalAct() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
+      );
+      final path = result?.files.single.path;
+      if (path == null || path.trim().isEmpty) {
+        return;
+      }
+
+      final storage = CloudinaryStorageImpl();
+      final url = await storage.uploadDocument(
+        File(path),
+        'omnicare/medical-acts',
+      );
+
+      await _createMedicalAct(actType: 'INJECTION', photoUrl: url);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+          backgroundColor: const Color(0xFFDC2626),
+        ),
+      );
+    }
+  }
+
+  Future<void> _createMedicalAct({
+    required String actType,
+    String? photoUrl,
+  }) async {
+    final pid = (_prescriptionId ?? '').trim();
+    if (pid.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _isSavingMedicalAct = true;
+    });
+
+    try {
+      await MedicalActsApi().createMedicalAct(
+        prescriptionId: pid,
+        actType: actType,
+        photoUrl: photoUrl,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Medical act recorded'),
+          backgroundColor: Color(0xFF10B981),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+          backgroundColor: const Color(0xFFDC2626),
+        ),
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isSavingMedicalAct = false;
+      });
+    }
+  }
+
   Future<void> _loadPrescriptionIfNeeded() async {
     final isCompleted = (widget.consultation.status == 'completed');
     if (!isCompleted) return;
-    if ((widget.consultation.id ?? '').trim().isEmpty) return;
+    if (widget.consultation.id.trim().isEmpty) return;
 
     setState(() {
       _isLoadingPrescription = true;
@@ -43,7 +275,10 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
     });
 
     try {
-      final raw = await ConsultationsApi().getPrescription(consultationId: widget.consultation.id);
+      final raw = await ConsultationsApi().getPrescription(
+        consultationId: widget.consultation.id,
+      );
+      final prescriptionId = raw['id']?.toString().trim();
       final items = raw['items'];
 
       final meds = <String>[];
@@ -59,6 +294,9 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
       if (!mounted) return;
       setState(() {
         _prescribedMedications = meds;
+        _prescriptionId = (prescriptionId != null && prescriptionId.isNotEmpty)
+            ? prescriptionId
+            : null;
       });
     } catch (e) {
       if (!mounted) return;
@@ -75,14 +313,35 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
 
   String _formatDate(String dateString) {
     final date = DateTime.parse(dateString);
-    final months = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
-    final days = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
-    
+    final months = [
+      'janvier',
+      'février',
+      'mars',
+      'avril',
+      'mai',
+      'juin',
+      'juillet',
+      'août',
+      'septembre',
+      'octobre',
+      'novembre',
+      'décembre',
+    ];
+    final days = [
+      'lundi',
+      'mardi',
+      'mercredi',
+      'jeudi',
+      'vendredi',
+      'samedi',
+      'dimanche',
+    ];
+
     final weekday = days[date.weekday - 1];
     final day = date.day;
     final month = months[date.month - 1];
     final year = date.year;
-    
+
     return '${weekday.substring(0, 1).toUpperCase()}${weekday.substring(1)} $day $month $year';
   }
 
@@ -91,7 +350,17 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
     final consultation = widget.consultation;
     final isCompleted = consultation.status == 'completed';
 
-    final List<String>? medications = (consultation.medications != null && consultation.medications!.isNotEmpty)
+    final userRole = context
+        .read<UserProvider>()
+        .user
+        ?.role
+        ?.trim()
+        .toUpperCase();
+    final canRecordMedicalAct = userRole == 'NURSE' || userRole == 'KINE';
+
+    final List<String>? medications =
+        (consultation.medications != null &&
+            consultation.medications!.isNotEmpty)
         ? consultation.medications
         : _prescribedMedications;
 
@@ -137,9 +406,17 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                       ),
                     ),
                   ],
-                  if (isCompleted && medications != null && medications.isNotEmpty) ...[
+                  if (isCompleted &&
+                      medications != null &&
+                      medications.isNotEmpty) ...[
                     const SizedBox(height: 20),
                     _buildMedicationsSection(),
+                  ],
+                  if (isCompleted &&
+                      canRecordMedicalAct &&
+                      (_prescriptionId ?? '').isNotEmpty) ...[
+                    const SizedBox(height: 20),
+                    _buildMedicalActActionsSection(),
                   ],
                   const SizedBox(height: 20),
                   _buildCostActionsSection(),
@@ -169,9 +446,7 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
             const Color(0xFF6BE3B2).withOpacity(0.1),
           ],
         ),
-        border: const Border(
-          bottom: BorderSide(color: Color(0xFFE2E8F0)),
-        ),
+        border: const Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
       ),
       child: SafeArea(
         child: Padding(
@@ -195,12 +470,16 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                         Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: isCompleted ? const Color(0xFF10B981).withOpacity(0.1) : const Color(0xFFFECACA),
+                            color: isCompleted
+                                ? const Color(0xFF10B981).withOpacity(0.1)
+                                : const Color(0xFFFECACA),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Icon(
                             Icons.description,
-                            color: isCompleted ? const Color(0xFF10B981) : const Color(0xFFDC2626),
+                            color: isCompleted
+                                ? const Color(0xFF10B981)
+                                : const Color(0xFFDC2626),
                             size: 20,
                           ),
                         ),
@@ -220,9 +499,13 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                               Row(
                                 children: [
                                   Icon(
-                                    isCompleted ? Icons.check_circle : Icons.cancel,
+                                    isCompleted
+                                        ? Icons.check_circle
+                                        : Icons.cancel,
                                     size: 14,
-                                    color: isCompleted ? const Color(0xFF10B981) : const Color(0xFFDC2626),
+                                    color: isCompleted
+                                        ? const Color(0xFF10B981)
+                                        : const Color(0xFFDC2626),
                                   ),
                                   const SizedBox(width: 4),
                                   Text(
@@ -230,7 +513,9 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                                     style: GoogleFonts.plusJakartaSans(
                                       fontSize: 13,
                                       fontWeight: FontWeight.w700,
-                                      color: isCompleted ? const Color(0xFF10B981) : const Color(0xFFDC2626),
+                                      color: isCompleted
+                                          ? const Color(0xFF10B981)
+                                          : const Color(0xFFDC2626),
                                     ),
                                   ),
                                 ],
@@ -361,7 +646,11 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
       children: [
         Row(
           children: [
-            const Icon(Icons.medical_services, color: Color(0xFF1FBF9A), size: 20),
+            const Icon(
+              Icons.medical_services,
+              color: Color(0xFF1FBF9A),
+              size: 20,
+            ),
             const SizedBox(width: 8),
             Text(
               'Informations du Médecin',
@@ -396,9 +685,16 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                 decoration: BoxDecoration(
                   color: const Color(0xFF1FBF9A).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFF1FBF9A).withOpacity(0.3), width: 2),
+                  border: Border.all(
+                    color: const Color(0xFF1FBF9A).withOpacity(0.3),
+                    width: 2,
+                  ),
                 ),
-                child: const Icon(Icons.person, color: Color(0xFF1FBF9A), size: 32),
+                child: const Icon(
+                  Icons.person,
+                  color: Color(0xFF1FBF9A),
+                  size: 32,
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -425,7 +721,11 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                     const SizedBox(height: 12),
                     Row(
                       children: [
-                        const Icon(Icons.phone, size: 14, color: Color(0xFF667085)),
+                        const Icon(
+                          Icons.phone,
+                          size: 14,
+                          color: Color(0xFF667085),
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           '+216 98 XXX XXX',
@@ -439,7 +739,11 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        const Icon(Icons.email, size: 14, color: Color(0xFF667085)),
+                        const Icon(
+                          Icons.email,
+                          size: 14,
+                          color: Color(0xFF667085),
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           'contact@doctor.tn',
@@ -482,7 +786,11 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                         color: const Color(0xFF0F6F73).withOpacity(0.2),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(Icons.person_outline, color: Color(0xFF0F6F73), size: 20),
+                      child: const Icon(
+                        Icons.person_outline,
+                        color: Color(0xFF0F6F73),
+                        size: 20,
+                      ),
                     ),
                     const SizedBox(width: 8),
                     Text(
@@ -529,7 +837,11 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                         color: const Color(0xFF1FBF9A).withOpacity(0.2),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(Icons.location_on, color: Color(0xFF1FBF9A), size: 20),
+                      child: const Icon(
+                        Icons.location_on,
+                        color: Color(0xFF1FBF9A),
+                        size: 20,
+                      ),
                     ),
                     const SizedBox(width: 8),
                     Text(
@@ -624,7 +936,10 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
           decoration: BoxDecoration(
             color: const Color(0xFF1FBF9A).withOpacity(0.05),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFF1FBF9A).withOpacity(0.2), width: 2),
+            border: Border.all(
+              color: const Color(0xFF1FBF9A).withOpacity(0.2),
+              width: 2,
+            ),
           ),
           child: Text(
             consultation.diagnosis!,
@@ -677,7 +992,9 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
               final index = entry.key;
               final med = entry.value;
               return Container(
-                margin: EdgeInsets.only(bottom: index < consultation.medications!.length - 1 ? 12 : 0),
+                margin: EdgeInsets.only(
+                  bottom: index < consultation.medications!.length - 1 ? 12 : 0,
+                ),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: const Color(0xFF0F6F73).withOpacity(0.05),
@@ -692,7 +1009,11 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                         color: const Color(0xFF0F6F73).withOpacity(0.2),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Icon(Icons.medication, color: Color(0xFF0F6F73), size: 16),
+                      child: const Icon(
+                        Icons.medication,
+                        color: Color(0xFF0F6F73),
+                        size: 16,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -877,7 +1198,8 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
               ),
             ),
             TextSpan(
-              text: 'Ce document est un résumé de votre consultation médicale. Pour toute question ou besoin de clarification, veuillez contacter directement votre médecin.',
+              text:
+                  'Ce document est un résumé de votre consultation médicale. Pour toute question ou besoin de clarification, veuillez contacter directement votre médecin.',
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 12,
                 color: const Color(0xFF667085),

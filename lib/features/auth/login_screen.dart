@@ -44,8 +44,15 @@ class _LoginScreenState extends State<LoginScreen>
     onboarding.setEmailVerified(result.emailVerified);
     onboarding.setPhoneVerified(result.phoneVerified);
 
-    final role = context.read<UserProvider>().user?.role;
-    if (role == 'DOCTOR') {
+    final role = (context.read<UserProvider>().user?.role ?? '')
+        .trim()
+        .toUpperCase();
+    final isProfessional =
+        role == 'DOCTOR' ||
+        role == 'NURSE' ||
+        role == 'KINE' ||
+        role == 'PSYCHIATRIST';
+    if (isProfessional) {
       Navigator.pushReplacementNamed(context, '/doctor-dashboard');
       return;
     }

@@ -3,6 +3,8 @@ class Consultation {
   final String? doctorId;
   final String? doctorName;
   final String? doctorSpecialty;
+  final String? providerId;
+  final String? providerType;
   final String? patientId;
   final String? patientName;
   final String? symptoms;
@@ -27,6 +29,8 @@ class Consultation {
     this.doctorId,
     this.doctorName,
     this.doctorSpecialty,
+    this.providerId,
+    this.providerType,
     this.patientId,
     this.patientName,
     this.symptoms,
@@ -48,24 +52,37 @@ class Consultation {
   });
 
   factory Consultation.fromJson(Map<String, dynamic> json) {
+    final rawProviderId = json['providerId']?.toString();
+    final rawProviderType = json['providerType']?.toString();
+
     return Consultation(
       id: json['id']?.toString(),
       doctorId: json['doctorId']?.toString(),
       doctorName: json['doctorName']?.toString(),
       doctorSpecialty: json['doctorSpecialty']?.toString(),
+      providerId: rawProviderId,
+      providerType: rawProviderType,
       patientId: json['patientId']?.toString(),
       patientName: json['patientName']?.toString(),
       symptoms: json['symptoms']?.toString(),
       diagnosis: json['diagnosis']?.toString(),
       treatment: json['treatment']?.toString(),
       status: json['status']?.toString(),
-      painLevel: json['painLevel'] is int ? json['painLevel'] as int : int.tryParse(json['painLevel']?.toString() ?? ''),
-      affectedAreas: (json['affectedAreas'] as List?)?.map((e) => e.toString()).toList(),
+      painLevel: json['painLevel'] is int
+          ? json['painLevel'] as int
+          : int.tryParse(json['painLevel']?.toString() ?? ''),
+      affectedAreas: (json['affectedAreas'] as List?)
+          ?.map((e) => e.toString())
+          .toList(),
       streetAddress: json['streetAddress']?.toString(),
       apartmentSuite: json['apartmentSuite']?.toString(),
       city: json['city']?.toString(),
-      latitude: json['latitude'] is num ? (json['latitude'] as num).toDouble() : double.tryParse(json['latitude']?.toString() ?? ''),
-      longitude: json['longitude'] is num ? (json['longitude'] as num).toDouble() : double.tryParse(json['longitude']?.toString() ?? ''),
+      latitude: json['latitude'] is num
+          ? (json['latitude'] as num).toDouble()
+          : double.tryParse(json['latitude']?.toString() ?? ''),
+      longitude: json['longitude'] is num
+          ? (json['longitude'] as num).toDouble()
+          : double.tryParse(json['longitude']?.toString() ?? ''),
       fee: json['fee']?.toString(),
       netAmount: json['netAmount']?.toString(),
       omnicareFee: json['omnicareFee']?.toString(),
@@ -77,6 +94,7 @@ class Consultation {
   Map<String, dynamic> toCreateJson() {
     return {
       'doctorId': doctorId,
+      'providerId': providerId,
       'patientId': patientId,
       'symptoms': symptoms,
       'painLevel': painLevel,

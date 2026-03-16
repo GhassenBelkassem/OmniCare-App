@@ -9,8 +9,8 @@ import 'request_accepted_screen.dart';
 import '../../core/api/patients_api.dart';
 import '../../core/models/patient_models.dart';
 import '../../providers/user_provider.dart';
-import '../../core/api/consultations_api.dart';
 import '../../core/models/consultation.dart' as api;
+import '../../core/api/provider_me_api.dart';
 import 'consultation_detail_screen.dart';
 import 'patient_medical_passport_screen.dart';
 
@@ -95,7 +95,7 @@ class PatientHistoryScreen extends StatelessWidget {
       ),
       body: SafeArea(
         child: FutureBuilder<List<PatientSummary>>(
-          future: api.getPatientsForDoctor(),
+          future: api.getPatientsForProfessional(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
@@ -279,19 +279,24 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
     super.initState();
   }
 
-  void _simulateIncomingRequest() {
+  Future<void> _simulateIncomingRequest() async {
     if (!mounted || !_isLive) return;
+    _timer?.cancel();
+
+    // Load the patient first so we don't flash an "Unknown Patient" placeholder.
+    await _loadRequestPatient();
+    if (!mounted || !_isLive) return;
+
     setState(() {
       _hasIncomingRequest = true;
       _countdown = 60;
     });
-    _loadRequestPatient();
     _startCountdown();
   }
 
   Future<void> _loadRequestPatient() async {
     try {
-      final list = await PatientsApi().getPatientsForDoctor();
+      final list = await PatientsApi().getPatientsForProfessional();
       if (!mounted) return;
       if (list.isEmpty) return;
 
@@ -394,6 +399,7 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
 
   Widget _buildDoctorInfoCard() {
     final doctorName = context.watch<UserProvider>().user?.displayName;
+    final providerType = context.watch<UserProvider>().user?.providerType;
     final resolvedName = (doctorName != null && doctorName.trim().isNotEmpty)
         ? doctorName.trim()
         : 'Doctor';
@@ -456,7 +462,9 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Doctor',
+                  (providerType == null || providerType.trim().isEmpty)
+                      ? 'Professional'
+                      : providerType.trim(),
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -1957,7 +1965,7 @@ class DoctorHistoryScreen extends StatelessWidget {
             // Consultation List
             Expanded(
               child: FutureBuilder<List<api.Consultation>>(
-                future: ConsultationsApi().listConsultations(
+                future: ProviderMeApi().listMyConsultations(
                   status: 'COMPLETED',
                 ),
                 builder: (context, snapshot) {

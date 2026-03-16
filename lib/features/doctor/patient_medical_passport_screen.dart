@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../core/api/patients_api.dart';
 import 'consultation_detail_screen.dart';
 import 'medical_document_viewer_screen.dart';
 import 'e_prescription_screen.dart';
+import 'package:provider/provider.dart';
+import '../../providers/user_provider.dart';
 
-class PatientMedicalPassportScreen extends StatelessWidget {
+class PatientMedicalPassportScreen extends StatefulWidget {
   final String patientId;
   final String? patientName;
 
@@ -14,261 +17,300 @@ class PatientMedicalPassportScreen extends StatelessWidget {
     this.patientName,
   });
 
-  // Mock patient data - in real app, fetch from backend using patientId
-  Map<String, dynamic> get _patientData => {
-    'patientId': patientId,
-    'name': (patientName != null && patientName!.trim().isNotEmpty)
-        ? patientName!.trim()
-        : 'Patient',
-    'age': 32,
-    'gender': 'Female',
-    'bloodType': 'A+',
-    'phone': '+216 98 765 432',
-    'address': '15 Avenue Habib Bourguiba, Tunis',
-    'allergies': ['Pénicilline', 'Arachides'],
-    'chronicConditions': ['Migraine chronique', 'Hypertension légère'],
-    'currentMedications': [
-      {
-        'name': 'Paracétamol',
-        'dosage': '500mg',
-        'frequency': '2x par jour',
-        'prescribedBy': 'Dr. Karim Mansour',
-        'startDate': '2026-01-15',
-      },
-      {
-        'name': 'Propranolol',
-        'dosage': '40mg',
-        'frequency': '1x par jour (préventif migraine)',
-        'prescribedBy': 'Dr. Leila Trabelsi',
-        'startDate': '2025-11-20',
-      },
-    ],
-    'recentConsultations': [
-      {
-        'date': '2026-01-15',
-        'doctor': 'Dr. Karim Mansour',
-        'specialty': 'Médecin Généraliste',
-        'diagnosis': 'Contrôle tension artérielle',
-        'medications': ['Paracétamol 500mg'],
-        'symptoms': 'Légère tension, fatigue',
-        'notes':
-            'Patient en bonne santé générale. Tension artérielle légèrement élevée. Recommandation de surveiller et de réduire la consommation de sel. Suivi dans 3 mois.',
-        'duration': '25 min',
-        'payment': '80 TND',
-        'type': 'Home Visit',
-      },
-      {
-        'date': '2025-11-20',
-        'doctor': 'Dr. Leila Trabelsi',
-        'specialty': 'Neurologue',
-        'diagnosis': 'Migraine chronique - Traitement préventif',
-        'medications': ['Propranolol 40mg'],
-        'symptoms': 'Maux de tête fréquents, sensibilité à la lumière',
-        'notes':
-            'Migraines récurrentes depuis 6 mois. Prescription de Propranolol comme traitement préventif. Éviter les déclencheurs connus. Suivi dans 2 mois.',
-        'duration': '40 min',
-        'payment': '120 TND',
-        'type': 'Clinic Visit',
-      },
-      {
-        'date': '2025-10-08',
-        'doctor': 'Dr. Ahmed Khelifi',
-        'specialty': 'Cardiologue',
-        'diagnosis': 'Hypertension légère',
-        'medications': [],
-        'symptoms': 'Aucun symptôme spécifique, contrôle de routine',
-        'notes':
-            'ECG normal. Tension artérielle légèrement élevée. Recommandation de modifications du mode de vie: exercice régulier, alimentation équilibrée, réduction du stress.',
-        'duration': '30 min',
-        'payment': '100 TND',
-        'type': 'Clinic Visit',
-      },
-    ],
-    'medicalDocuments': [
-      {
-        'name': 'Analyse Sang Complète',
-        'type': 'blood-test',
-        'date': '2026-01-10',
-        'uploadedBy': 'Dr. Karim Mansour',
-      },
-      {
-        'name': 'Scanner Cérébral',
-        'type': 'scan',
-        'date': '2025-11-15',
-        'uploadedBy': 'Dr. Leila Trabelsi',
-      },
-      {
-        'name': 'ECG',
-        'type': 'report',
-        'date': '2025-10-08',
-        'uploadedBy': 'Dr. Ahmed Khelifi',
-      },
-    ],
-    'emergencyContact': {
-      'name': 'Mohamed Chaari',
-      'relation': 'Spouse',
-      'phone': '+216 98 123 456',
-    },
-  };
+  @override
+  State<PatientMedicalPassportScreen> createState() =>
+      _PatientMedicalPassportScreenState();
+}
+
+class _PatientMedicalPassportScreenState
+    extends State<PatientMedicalPassportScreen> {
+  late Future<Map<String, dynamic>> _passportFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _passportFuture = PatientsApi().getPatientPassport(widget.patientId);
+  }
+
+  Map<String, dynamic> _toUiPatientData(Map<String, dynamic> passport) {
+    final name = (passport['displayName']?.toString() ?? '').trim();
+    final bloodGroup = passport['bloodGroup']?.toString();
+    final phone = passport['phoneNumber']?.toString();
+    final medicalInfo = passport['medicalInfo'] is Map
+        ? (passport['medicalInfo'] as Map).cast<String, dynamic>()
+        : <String, dynamic>{};
+
+    return <String, dynamic>{
+      'patientId': widget.patientId,
+      'name': name.isNotEmpty
+          ? name
+          : ((widget.patientName ?? '').trim().isNotEmpty
+                ? widget.patientName!.trim()
+                : 'Patient'),
+      'bloodType': (bloodGroup == null || bloodGroup.trim().isEmpty)
+          ? 'N/A'
+          : bloodGroup,
+      'phone': (phone == null || phone.trim().isEmpty) ? 'N/A' : phone,
+      'medicalInfo': medicalInfo,
+      'age': medicalInfo['age'] ?? 'N/A',
+      'gender': medicalInfo['gender'] ?? 'N/A',
+      'address': medicalInfo['address'] ?? 'N/A',
+      'allergies': (medicalInfo['allergies'] is List)
+          ? (medicalInfo['allergies'] as List)
+          : const <String>[],
+      'chronicConditions': (medicalInfo['chronicConditions'] is List)
+          ? (medicalInfo['chronicConditions'] as List)
+          : const <String>[],
+      'currentMedications': (medicalInfo['currentMedications'] is List)
+          ? (medicalInfo['currentMedications'] as List)
+          : const <dynamic>[],
+      'recentConsultations': const <dynamic>[],
+      'medicalDocuments': const <dynamic>[],
+      'emergencyContact': const <String, dynamic>{},
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF4F5F7),
-      body: CustomScrollView(
-        slivers: [
-          // App Bar
-          SliverAppBar(
-            expandedHeight: 200,
-            pinned: true,
-            backgroundColor: const Color(0xFF1FBF9A),
-            leading: const SizedBox.shrink(),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.close, color: Colors.white),
-                onPressed: () {
-                  // Navigate to e-prescription screen
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) =>
-                          EPrescriptionScreen(patientData: _patientData),
-                    ),
-                  );
-                },
+    return FutureBuilder<Map<String, dynamic>>(
+      future: _passportFuture,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Scaffold(
+            backgroundColor: const Color(0xFFF4F5F7),
+            appBar: AppBar(
+              backgroundColor: const Color(0xFF1FBF9A),
+              elevation: 0,
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                onPressed: () => Navigator.pop(context),
               ),
-            ],
-            flexibleSpace: FlexibleSpaceBar(
-              background: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFF1FBF9A), Color(0xFF0F6F73)],
-                  ),
+            ),
+            body: Center(
+              child: Text(
+                'Failed to load patient data',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF667085),
                 ),
-                child: SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
+              ),
+            ),
+          );
+        }
+
+        final passport = snapshot.data;
+        final patientData = passport == null
+            ? <String, dynamic>{
+                'patientId': widget.patientId,
+                'name': (widget.patientName ?? '').trim().isNotEmpty
+                    ? widget.patientName!.trim()
+                    : 'Patient',
+                'age': '...',
+                'gender': '...',
+                'bloodType': '...',
+                'phone': '...',
+                'address': '...',
+                'allergies': const <String>[],
+                'chronicConditions': const <String>[],
+                'currentMedications': const <dynamic>[],
+                'recentConsultations': const <dynamic>[],
+                'medicalDocuments': const <dynamic>[],
+                'emergencyContact': const <String, dynamic>{},
+              }
+            : _toUiPatientData(passport);
+
+        return Scaffold(
+          backgroundColor: const Color(0xFFF4F5F7),
+          floatingActionButtonLocation:
+              FloatingActionButtonLocation.centerFloat,
+          floatingActionButton: _buildBottomActionButton(context, patientData),
+          body: CustomScrollView(
+            slivers: [
+              // App Bar
+              SliverAppBar(
+                expandedHeight: 200,
+                pinned: true,
+                backgroundColor: const Color(0xFF1FBF9A),
+                leading: const SizedBox.shrink(),
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                  ),
+                ],
+                flexibleSpace: FlexibleSpaceBar(
+                  background: Container(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color(0xFF1FBF9A), Color(0xFF0F6F73)],
+                      ),
+                    ),
+                    child: SafeArea(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              width: 70,
-                              height: 70,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.white,
-                                  width: 3,
+                            Row(
+                              children: [
+                                Container(
+                                  width: 70,
+                                  height: 70,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 3,
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.person,
+                                    size: 40,
+                                    color: Color(0xFF1FBF9A),
+                                  ),
                                 ),
-                              ),
-                              child: const Icon(
-                                Icons.person,
-                                size: 40,
-                                color: Color(0xFF1FBF9A),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    _patientData['name'],
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        patientData['name'],
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 24,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      Text(
+                                        '${patientData['age']} years  ${patientData['gender']}',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 14,
+                                          color: Colors.white.withOpacity(0.9),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    patientData['bloodType'],
                                     style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 24,
+                                      fontSize: 16,
                                       fontWeight: FontWeight.w700,
                                       color: Colors.white,
                                     ),
                                   ),
-                                  Text(
-                                    '${_patientData['age']} years • ${_patientData['gender']}',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 14,
-                                      color: Colors.white.withOpacity(0.9),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                _patientData['bloodType'],
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white,
                                 ),
-                              ),
+                              ],
                             ),
                           ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ),
 
-          // Content
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Critical Alerts - Allergies
-                  _buildAllergiesCard(),
-                  const SizedBox(height: 16),
-
-                  // Current Medications
-                  _buildCurrentMedicationsCard(),
-                  const SizedBox(height: 16),
-
-                  // Chronic Conditions
-                  _buildChronicConditionsCard(),
-                  const SizedBox(height: 16),
-
-                  // Recent Consultations
-                  _buildRecentConsultationsCard(context),
-                  const SizedBox(height: 16),
-
-                  // Medical Documents
-                  _buildMedicalDocumentsCard(context),
-                  const SizedBox(height: 16),
-
-                  // Emergency Contact
-                  _buildEmergencyContactCard(),
-                  const SizedBox(height: 16),
-
-                  // Contact Info
-                  _buildContactInfoCard(),
-                  const SizedBox(height: 80),
-                ],
+              // Content
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildAllergiesCard(patientData),
+                      const SizedBox(height: 16),
+                      _buildCurrentMedicationsCard(patientData),
+                      const SizedBox(height: 16),
+                      _buildChronicConditionsCard(patientData),
+                      const SizedBox(height: 16),
+                      _buildRecentConsultationsCard(context, patientData),
+                      const SizedBox(height: 16),
+                      _buildMedicalDocumentsCard(context, patientData),
+                      const SizedBox(height: 16),
+                      _buildEmergencyContactCard(patientData),
+                      const SizedBox(height: 16),
+                      _buildContactInfoCard(patientData),
+                      const SizedBox(height: 120),
+                    ],
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
-        ],
+        );
+      },
+    );
+  }
+
+  Widget? _buildBottomActionButton(
+    BuildContext context,
+    Map<String, dynamic> patientData,
+  ) {
+    final role = (context.read<UserProvider>().user?.role ?? '')
+        .trim()
+        .toUpperCase();
+    final providerType = (context.read<UserProvider>().user?.providerType ?? '')
+        .trim()
+        .toUpperCase();
+    final isDoctor = providerType == 'DOCTOR' || role == 'DOCTOR';
+
+    if (!isDoctor) {
+      return null;
+    }
+
+    return SizedBox(
+      width: MediaQuery.of(context).size.width - 32,
+      child: ElevatedButton.icon(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) =>
+                  EPrescriptionScreen(patientData: patientData),
+            ),
+          );
+        },
+        icon: const Icon(Icons.description),
+        label: Text(
+          'Create Prescription',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF1FBF9A),
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildAllergiesCard() {
-    final allergies = _patientData['allergies'] as List;
+  Widget _buildAllergiesCard(Map<String, dynamic> patientData) {
+    final allergies = (patientData['allergies'] as List?) ?? const <String>[];
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -309,7 +351,7 @@ class PatientMedicalPassportScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      allergy,
+                      allergy.toString(),
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -325,8 +367,9 @@ class PatientMedicalPassportScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildCurrentMedicationsCard() {
-    final medications = _patientData['currentMedications'] as List;
+  Widget _buildCurrentMedicationsCard(Map<String, dynamic> patientData) {
+    final medications =
+        (patientData['currentMedications'] as List?) ?? const <dynamic>[];
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -351,8 +394,9 @@ class PatientMedicalPassportScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          ...medications.map(
-            (med) => Container(
+          ...medications.map((med) {
+            final m = med is Map ? med : <String, dynamic>{};
+            return Container(
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -363,7 +407,7 @@ class PatientMedicalPassportScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    med['name'],
+                    (m['name'] ?? 'Medication').toString(),
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
@@ -372,7 +416,7 @@ class PatientMedicalPassportScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${med['dosage']} - ${med['frequency']}',
+                    '${(m['dosage'] ?? '').toString()} - ${(m['frequency'] ?? '').toString()}',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 14,
                       color: const Color(0xFF667085),
@@ -380,7 +424,7 @@ class PatientMedicalPassportScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Prescribed by ${med['prescribedBy']} on ${med['startDate']}',
+                    'Prescribed by ${(m['prescribedBy'] ?? 'N/A').toString()} on ${(m['startDate'] ?? 'N/A').toString()}',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 12,
                       color: const Color(0xFF667085),
@@ -388,15 +432,16 @@ class PatientMedicalPassportScreen extends StatelessWidget {
                   ),
                 ],
               ),
-            ),
-          ),
+            );
+          }),
         ],
       ),
     );
   }
 
-  Widget _buildChronicConditionsCard() {
-    final conditions = _patientData['chronicConditions'] as List;
+  Widget _buildChronicConditionsCard(Map<String, dynamic> patientData) {
+    final conditions =
+        (patientData['chronicConditions'] as List?) ?? const <String>[];
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -429,7 +474,7 @@ class PatientMedicalPassportScreen extends StatelessWidget {
                   const Icon(Icons.circle, size: 8, color: Color(0xFF1FBF9A)),
                   const SizedBox(width: 12),
                   Text(
-                    condition,
+                    condition.toString(),
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 14,
                       color: const Color(0xFF1D2939),
@@ -444,8 +489,12 @@ class PatientMedicalPassportScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildRecentConsultationsCard(BuildContext context) {
-    final consultations = _patientData['recentConsultations'] as List;
+  Widget _buildRecentConsultationsCard(
+    BuildContext context,
+    Map<String, dynamic> patientData,
+  ) {
+    final consultations =
+        (patientData['recentConsultations'] as List?) ?? const <dynamic>[];
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -495,7 +544,10 @@ class PatientMedicalPassportScreen extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          consultation['doctor'],
+                          (consultation is Map
+                                  ? (consultation['doctor'] ?? '')
+                                  : '')
+                              .toString(),
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
@@ -505,7 +557,10 @@ class PatientMedicalPassportScreen extends StatelessWidget {
                         Row(
                           children: [
                             Text(
-                              consultation['date'],
+                              (consultation is Map
+                                      ? (consultation['date'] ?? '')
+                                      : '')
+                                  .toString(),
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 12,
                                 color: const Color(0xFF667085),
@@ -523,7 +578,10 @@ class PatientMedicalPassportScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      consultation['specialty'],
+                      (consultation is Map
+                              ? (consultation['specialty'] ?? '')
+                              : '')
+                          .toString(),
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 13,
                         color: const Color(0xFF667085),
@@ -531,7 +589,10 @@ class PatientMedicalPassportScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      consultation['diagnosis'],
+                      (consultation is Map
+                              ? (consultation['diagnosis'] ?? '')
+                              : '')
+                          .toString(),
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 14,
                         color: const Color(0xFF1D2939),
@@ -547,8 +608,12 @@ class PatientMedicalPassportScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildMedicalDocumentsCard(BuildContext context) {
-    final documents = _patientData['medicalDocuments'] as List;
+  Widget _buildMedicalDocumentsCard(
+    BuildContext context,
+    Map<String, dynamic> patientData,
+  ) {
+    final documents =
+        (patientData['medicalDocuments'] as List?) ?? const <dynamic>[];
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -612,7 +677,7 @@ class PatientMedicalPassportScreen extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            doc['name'],
+                            (doc is Map ? (doc['name'] ?? '') : '').toString(),
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
@@ -620,7 +685,7 @@ class PatientMedicalPassportScreen extends StatelessWidget {
                             ),
                           ),
                           Text(
-                            '${doc['date']} • ${doc['uploadedBy']}',
+                            '${(doc is Map ? (doc['date'] ?? '') : '').toString()} • ${(doc is Map ? (doc['uploadedBy'] ?? '') : '').toString()}',
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 12,
                               color: const Color(0xFF667085),
@@ -640,8 +705,10 @@ class PatientMedicalPassportScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildEmergencyContactCard() {
-    final emergency = _patientData['emergencyContact'] as Map;
+  Widget _buildEmergencyContactCard(Map<String, dynamic> patientData) {
+    final emergency = patientData['emergencyContact'] is Map
+        ? (patientData['emergencyContact'] as Map).cast<String, dynamic>()
+        : <String, dynamic>{};
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -674,7 +741,7 @@ class PatientMedicalPassportScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      emergency['name'],
+                      (emergency['name'] ?? 'N/A').toString(),
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -682,7 +749,7 @@ class PatientMedicalPassportScreen extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      emergency['relation'],
+                      (emergency['relation'] ?? 'N/A').toString(),
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 14,
                         color: const Color(0xFF667085),
@@ -692,7 +759,7 @@ class PatientMedicalPassportScreen extends StatelessWidget {
                 ),
               ),
               Text(
-                emergency['phone'],
+                (emergency['phone'] ?? 'N/A').toString(),
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -706,7 +773,7 @@ class PatientMedicalPassportScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildContactInfoCard() {
+  Widget _buildContactInfoCard(Map<String, dynamic> patientData) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -735,9 +802,17 @@ class PatientMedicalPassportScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          _buildInfoRow(Icons.phone, 'Phone', _patientData['phone']),
+          _buildInfoRow(
+            Icons.phone,
+            'Phone',
+            (patientData['phone'] ?? 'N/A').toString(),
+          ),
           const SizedBox(height: 12),
-          _buildInfoRow(Icons.location_on, 'Address', _patientData['address']),
+          _buildInfoRow(
+            Icons.location_on,
+            'Address',
+            (patientData['address'] ?? 'N/A').toString(),
+          ),
         ],
       ),
     );
