@@ -9,6 +9,12 @@
 - You have a valid Google Maps Web API key ready (for Flutter Web).
 - You have Google OAuth client configured and `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` set for the backend.
 
+### Database tooling (Postgres maintenance)
+
+- **Primary pgAdmin tool path (Windows)**
+  - `D:\pgAdmin 4\runtime`
+  - Use this as the canonical path when running pgAdmin-related maintenance to avoid future **Path Not Found** issues.
+
 ---
 
 ## 1) Backend sanity checks

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/api/patients_api.dart';
+import '../../core/models/patient_models.dart';
 import 'consultation_detail_screen.dart';
 import 'medical_document_viewer_screen.dart';
 import 'e_prescription_screen.dart';
@@ -10,11 +11,13 @@ import '../../providers/user_provider.dart';
 class PatientMedicalPassportScreen extends StatefulWidget {
   final String patientId;
   final String? patientName;
+  final String? consultationId;
 
   const PatientMedicalPassportScreen({
     super.key,
     required this.patientId,
     this.patientName,
+    this.consultationId,
   });
 
   @override
@@ -24,21 +27,21 @@ class PatientMedicalPassportScreen extends StatefulWidget {
 
 class _PatientMedicalPassportScreenState
     extends State<PatientMedicalPassportScreen> {
-  late Future<Map<String, dynamic>> _passportFuture;
+  late Future<PatientPassport> _passportFuture;
 
   @override
   void initState() {
     super.initState();
-    _passportFuture = PatientsApi().getPatientPassport(widget.patientId);
+    _passportFuture = PatientsApi().getPatientPassportTyped(widget.patientId);
   }
 
-  Map<String, dynamic> _toUiPatientData(Map<String, dynamic> passport) {
-    final name = (passport['displayName']?.toString() ?? '').trim();
-    final bloodGroup = passport['bloodGroup']?.toString();
-    final phone = passport['phoneNumber']?.toString();
-    final medicalInfo = passport['medicalInfo'] is Map
-        ? (passport['medicalInfo'] as Map).cast<String, dynamic>()
-        : <String, dynamic>{};
+  Map<String, dynamic> _toUiPatientData(PatientPassport passport) {
+    final name = passport.fullName.trim().isNotEmpty
+        ? passport.fullName.trim()
+        : passport.displayName.trim();
+    final bloodGroup = passport.bloodGroup;
+    final phone = passport.phoneNumber;
+    final medicalInfo = passport.medicalInfo ?? <String, dynamic>{};
 
     return <String, dynamic>{
       'patientId': widget.patientId,
@@ -52,27 +55,57 @@ class _PatientMedicalPassportScreenState
           : bloodGroup,
       'phone': (phone == null || phone.trim().isEmpty) ? 'N/A' : phone,
       'medicalInfo': medicalInfo,
-      'age': medicalInfo['age'] ?? 'N/A',
-      'gender': medicalInfo['gender'] ?? 'N/A',
+      'age': passport.age ?? 'N/A',
+      'gender': (passport.gender ?? '').trim().isEmpty
+          ? 'N/A'
+          : passport.gender,
+      'height': passport.height ?? medicalInfo['height'] ?? 'N/A',
+      'weight': passport.weight ?? medicalInfo['weight'] ?? 'N/A',
       'address': medicalInfo['address'] ?? 'N/A',
-      'allergies': (medicalInfo['allergies'] is List)
-          ? (medicalInfo['allergies'] as List)
-          : const <String>[],
-      'chronicConditions': (medicalInfo['chronicConditions'] is List)
-          ? (medicalInfo['chronicConditions'] as List)
-          : const <String>[],
-      'currentMedications': (medicalInfo['currentMedications'] is List)
-          ? (medicalInfo['currentMedications'] as List)
-          : const <dynamic>[],
-      'recentConsultations': const <dynamic>[],
-      'medicalDocuments': const <dynamic>[],
+      'allergies': passport.allergies,
+      'chronicConditions': passport.chronicDiseases,
+      'currentMedications': passport.currentMedicines
+          .map(
+            (m) => {
+              'id': m.id,
+              'medicationId': m.medicationId,
+              'name': m.name,
+              'dosage': m.dosage,
+              'frequency': m.frequency,
+              'notes': m.notes,
+            },
+          )
+          .toList(),
+      'recentConsultations': passport.pastConsultations
+          .map(
+            (c) => {
+              'id': c.id,
+              'status': c.status,
+              'timestamp': c.timestamp,
+              'diagnosis': c.diagnosis,
+              'treatment': c.treatment,
+              'fee': c.fee,
+            },
+          )
+          .toList(),
+      'medicalDocuments': passport.medicalDocuments
+          .map(
+            (d) => {
+              'id': d.id,
+              'title': d.title,
+              'type': d.type,
+              'issueDate': d.issueDate,
+              'fileUrl': d.fileUrl,
+            },
+          )
+          .toList(),
       'emergencyContact': const <String, dynamic>{},
     };
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<Map<String, dynamic>>(
+    return FutureBuilder<PatientPassport>(
       future: _passportFuture,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
@@ -110,6 +143,8 @@ class _PatientMedicalPassportScreenState
                 'gender': '...',
                 'bloodType': '...',
                 'phone': '...',
+                'height': '...',
+                'weight': '...',
                 'address': '...',
                 'allergies': const <String>[],
                 'chronicConditions': const <String>[],
@@ -283,8 +318,10 @@ class _PatientMedicalPassportScreenState
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) =>
-                  EPrescriptionScreen(patientData: patientData),
+              builder: (context) => EPrescriptionScreen(
+                patientData: patientData,
+                consultationId: widget.consultationId,
+              ),
             ),
           );
         },
@@ -525,8 +562,10 @@ class _PatientMedicalPassportScreenState
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) =>
-                        ConsultationDetailScreen(consultation: consultation),
+                    builder: (context) => ConsultationDetailScreen(
+                      consultation: consultation,
+                      consultationId: (consultation['id'] ?? '').toString(),
+                    ),
                   ),
                 );
               },

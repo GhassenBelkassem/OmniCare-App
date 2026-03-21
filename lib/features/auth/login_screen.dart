@@ -33,6 +33,14 @@ class _LoginScreenState extends State<LoginScreen>
   late Animation<Offset> _slideAnimation;
   late Animation<double> _scaleAnimation;
 
+  void _fillDevCredentials({required String email}) {
+    setState(() {
+      _showEmailForm = true;
+      _emailController.text = email;
+      _passwordController.text = 'Passw0rd!123';
+    });
+  }
+
   void _navigateAfterLogin(AuthLoginResult result) {
     if (!mounted) return;
 
@@ -321,6 +329,11 @@ class _LoginScreenState extends State<LoginScreen>
                                       _buildDivider(),
                                       const SizedBox(height: 20),
 
+                                      if (kDebugMode) ...[
+                                        _buildDevQuickFill(),
+                                        const SizedBox(height: 12),
+                                      ],
+
                                       // Email/Password Form (conditionally shown)
                                       if (_showEmailForm) ...[
                                         _buildEmailPasswordForm(),
@@ -350,6 +363,45 @@ class _LoginScreenState extends State<LoginScreen>
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildDevQuickFill() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Dev quick fill',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: const Color(0xFF98A2B3),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _isLoading
+                    ? null
+                    : () =>
+                          _fillDevCredentials(email: 'fake.patient@dev.local'),
+                child: const Text('Patient'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _isLoading
+                    ? null
+                    : () => _fillDevCredentials(email: 'fake.doctor@dev.local'),
+                child: const Text('Doctor'),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 

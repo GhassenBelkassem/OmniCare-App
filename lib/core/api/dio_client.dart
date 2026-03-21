@@ -6,7 +6,10 @@ import '../utils/console_log.dart';
 
 class DioClient {
   DioClient._internal() {
-    final baseUrl = dotenv.env['API_BASE_URL']?.trim();
+    final definedBaseUrl = const String.fromEnvironment('API_BASE_URL').trim();
+    final baseUrl = (definedBaseUrl.isNotEmpty
+        ? definedBaseUrl
+        : dotenv.env['API_BASE_URL']?.trim());
     if (baseUrl == null || baseUrl.isEmpty) {
       throw StateError(
         'API_BASE_URL is not set. Make sure .env is present and loaded.',

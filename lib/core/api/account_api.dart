@@ -4,6 +4,10 @@ import 'package:flutter/foundation.dart';
 import '../models/account_models.dart';
 import 'dio_client.dart';
 
+AccountFullProfile _parseAccountFullProfile(Map<String, dynamic> json) {
+  return AccountFullProfile.fromJson(json);
+}
+
 class AccountApi {
   final Dio _dio;
 
@@ -12,24 +16,33 @@ class AccountApi {
   Future<AccountFullProfile> getFullProfile() async {
     debugPrint('[AccountApi] getFullProfile() -> GET /account/full-profile');
     final response = await _dio.get('/account/full-profile');
-    print('DEBUG: Raw Backend Response: ${response.data}');
+    if (kDebugMode) {
+      debugPrint('[AccountApi] Response status: ${response.statusCode}');
+    }
     debugPrint('[AccountApi] Response status: ${response.statusCode}');
     final raw = response.data;
     debugPrint('[AccountApi] Response runtimeType: ${raw.runtimeType}');
-    debugPrint('[AccountApi] Response data (raw): $raw');
 
     if (raw is Map) {
       final map = raw.cast<String, dynamic>();
       final unwrapped = (map['data'] is Map)
           ? (map['data'] as Map).cast<String, dynamic>()
           : map;
-      return AccountFullProfile.fromJson(unwrapped);
+
+      return compute(_parseAccountFullProfile, unwrapped);
     }
-    throw StateError('Unexpected /account/full-profile response: ${response.data}');
+    throw StateError(
+      'Unexpected /account/full-profile response: ${response.data}',
+    );
   }
 
-  Future<void> patchMedicalPassport({String? bloodGroup, Map<String, dynamic>? medicalInfo}) async {
-    debugPrint('[AccountApi] patchMedicalPassport() -> PATCH /account/medical-passport');
+  Future<void> patchMedicalPassport({
+    String? bloodGroup,
+    Map<String, dynamic>? medicalInfo,
+  }) async {
+    debugPrint(
+      '[AccountApi] patchMedicalPassport() -> PATCH /account/medical-passport',
+    );
 
     final payload = <String, dynamic>{};
     final backendBlood = _bloodGroupToBackend(bloodGroup);

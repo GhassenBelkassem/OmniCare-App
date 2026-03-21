@@ -20,10 +20,10 @@ class ProviderMapScreen extends StatefulWidget {
 class _ProviderMapScreenState extends State<ProviderMapScreen> {
   GoogleMapController? _mapController;
   Map<String, dynamic>? _selectedProvider;
-  
+
   // User location (simulated - Tunis center)
   static const LatLng _userLocation = LatLng(36.8065, 10.1815);
-  
+
   // Generate provider locations around user
   final Map<String, LatLng> _providerLocations = {};
 
@@ -38,13 +38,14 @@ class _ProviderMapScreenState extends State<ProviderMapScreen> {
     for (var provider in widget.providers) {
       final distance = provider['distance'] as double;
       // Simple calculation: spread providers around user location
-      final angle = widget.providers.indexOf(provider) * (360 / widget.providers.length);
+      final angle =
+          widget.providers.indexOf(provider) * (360 / widget.providers.length);
       final radians = angle * math.pi / 180;
-      
+
       // Approximate: 1 km ≈ 0.009 degrees
       final latOffset = distance * 0.009 * math.cos(radians);
       final lngOffset = distance * 0.009 * math.sin(radians);
-      
+
       _providerLocations[provider['id']] = LatLng(
         _userLocation.latitude + latOffset,
         _userLocation.longitude + lngOffset,
@@ -54,19 +55,17 @@ class _ProviderMapScreenState extends State<ProviderMapScreen> {
 
   Set<Marker> _buildMarkers() {
     final markers = <Marker>{};
-    
+
     // User marker (blue)
     markers.add(
       Marker(
         markerId: const MarkerId('user'),
         position: _userLocation,
         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
-        infoWindow: const InfoWindow(
-          title: 'Votre position',
-        ),
+        infoWindow: const InfoWindow(title: 'Votre position'),
       ),
     );
-    
+
     // Provider markers (green)
     for (var provider in widget.providers) {
       final location = _providerLocations[provider['id']];
@@ -75,10 +74,12 @@ class _ProviderMapScreenState extends State<ProviderMapScreen> {
           Marker(
             markerId: MarkerId(provider['id']),
             position: location,
-            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+            icon: BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueGreen,
+            ),
             infoWindow: InfoWindow(
               title: provider['name'],
-              snippet: '${provider['distance']} km • ${provider['price']} DH',
+              snippet: '${provider['distance']} km • ${provider['price']} DT',
             ),
             onTap: () {
               setState(() {
@@ -89,13 +90,13 @@ class _ProviderMapScreenState extends State<ProviderMapScreen> {
         );
       }
     }
-    
+
     return markers;
   }
 
   Set<Circle> _buildCircles() {
     final circles = <Circle>{};
-    
+
     // Add circles around user location for distance reference
     for (var radius in [1.0, 2.0, 3.0]) {
       circles.add(
@@ -109,14 +110,16 @@ class _ProviderMapScreenState extends State<ProviderMapScreen> {
         ),
       );
     }
-    
+
     return circles;
   }
 
   @override
   Widget build(BuildContext context) {
-    final String title = widget.providerType == 'doctor' ? 'Carte des Docteurs' : 'Carte des Kinésithérapeutes';
-    
+    final String title = widget.providerType == 'doctor'
+        ? 'Carte des Docteurs'
+        : 'Carte des Kinésithérapeutes';
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.white,
@@ -155,7 +158,7 @@ class _ProviderMapScreenState extends State<ProviderMapScreen> {
               });
             },
           ),
-          
+
           // Legend
           Positioned(
             top: 16,
@@ -177,14 +180,13 @@ class _ProviderMapScreenState extends State<ProviderMapScreen> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _buildLegendItem(
-                    color: Colors.blue,
-                    label: 'Vous',
-                  ),
+                  _buildLegendItem(color: Colors.blue, label: 'Vous'),
                   const SizedBox(width: 16),
                   _buildLegendItem(
                     color: Colors.green,
-                    label: widget.providerType == 'doctor' ? 'Docteurs' : 'Kinés',
+                    label: widget.providerType == 'doctor'
+                        ? 'Docteurs'
+                        : 'Kinés',
                   ),
                   const Spacer(),
                   Text(
@@ -199,7 +201,7 @@ class _ProviderMapScreenState extends State<ProviderMapScreen> {
               ),
             ),
           ),
-          
+
           // Selected provider card
           if (_selectedProvider != null)
             Positioned(
@@ -208,7 +210,7 @@ class _ProviderMapScreenState extends State<ProviderMapScreen> {
               right: 16,
               child: _buildProviderCard(_selectedProvider!),
             ),
-          
+
           // My location button
           Positioned(
             bottom: _selectedProvider != null ? 180 : 100,
@@ -217,18 +219,12 @@ class _ProviderMapScreenState extends State<ProviderMapScreen> {
               onPressed: () {
                 _mapController?.animateCamera(
                   CameraUpdate.newCameraPosition(
-                    const CameraPosition(
-                      target: _userLocation,
-                      zoom: 13.0,
-                    ),
+                    const CameraPosition(target: _userLocation, zoom: 13.0),
                   ),
                 );
               },
               backgroundColor: Colors.white,
-              child: const Icon(
-                Icons.my_location,
-                color: Color(0xFF1FBF9A),
-              ),
+              child: const Icon(Icons.my_location, color: Color(0xFF1FBF9A)),
             ),
           ),
         ],
@@ -243,10 +239,7 @@ class _ProviderMapScreenState extends State<ProviderMapScreen> {
         Container(
           width: 12,
           height: 12,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 6),
         Text(
@@ -290,11 +283,7 @@ class _ProviderMapScreenState extends State<ProviderMapScreen> {
                   ),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
-                  Icons.person,
-                  color: Colors.white,
-                  size: 28,
-                ),
+                child: const Icon(Icons.person, color: Colors.white, size: 28),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -363,13 +352,16 @@ class _ProviderMapScreenState extends State<ProviderMapScreen> {
               ),
               const Spacer(),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFF1FBF9A).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  '${provider['price']} DH',
+                  '${provider['price']} DT',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -389,10 +381,7 @@ class _ProviderMapScreenState extends State<ProviderMapScreen> {
                 if (location != null) {
                   _mapController?.animateCamera(
                     CameraUpdate.newCameraPosition(
-                      CameraPosition(
-                        target: location,
-                        zoom: 15.0,
-                      ),
+                      CameraPosition(target: location, zoom: 15.0),
                     ),
                   );
                 }

@@ -7,10 +7,7 @@ import 'request_submitted_screen.dart';
 class ProviderListScreen extends StatefulWidget {
   final String providerType; // 'doctor' or 'kine'
 
-  const ProviderListScreen({
-    super.key,
-    required this.providerType,
-  });
+  const ProviderListScreen({super.key, required this.providerType});
 
   @override
   State<ProviderListScreen> createState() => _ProviderListScreenState();
@@ -247,7 +244,9 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final String title = widget.providerType == 'doctor' ? 'Docteurs' : 'Kinésithérapeutes';
+    final String title = widget.providerType == 'doctor'
+        ? 'Docteurs'
+        : 'Kinésithérapeutes';
     final providers = _filteredAndSortedProviders;
 
     return Scaffold(
@@ -267,127 +266,141 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
             color: const Color(0xFF1D2939),
           ),
         ),
-        actions: _isSearching ? [] : [
-          IconButton(
-            icon: const Icon(Icons.map, color: Color(0xFF1D2939)),
-            onPressed: () => _showMapView(),
-          ),
-          IconButton(
-            icon: const Icon(Icons.tune, color: Color(0xFF1D2939)),
-            onPressed: () => _showFilterSheet(),
-          ),
-        ],
-      ),
-      body: _isSearching ? _buildSearchingScreen() : Column(
-        children: [
-          // Sort bar
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                Text(
-                  'Trier par:',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF667085),
-                  ),
+        actions: _isSearching
+            ? []
+            : [
+                IconButton(
+                  icon: const Icon(Icons.map, color: Color(0xFF1D2939)),
+                  onPressed: () => _showMapView(),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        _buildSortChip('Distance', 'distance'),
-                        const SizedBox(width: 8),
-                        _buildSortChip('Note', 'rating'),
-                        const SizedBox(width: 8),
-                        _buildSortChip('Prix', 'price'),
-                      ],
-                    ),
-                  ),
+                IconButton(
+                  icon: const Icon(Icons.tune, color: Color(0xFF1D2939)),
+                  onPressed: () => _showFilterSheet(),
                 ),
               ],
-            ),
-          ),
-          const Divider(height: 1),
-
-          // Provider list
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: providers.length,
-              itemBuilder: (context, index) {
-                final provider = providers[index];
-                final isSelected = _selectedProviders.contains(provider['id']);
-                return _buildProviderCard(provider, isSelected);
-              },
-            ),
-          ),
-
-          // Bottom bar with selection count and send button
-          if (_selectedProviders.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, -4),
+      ),
+      body: _isSearching
+          ? _buildSearchingScreen()
+          : Column(
+              children: [
+                // Sort bar
+                Container(
+                  color: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
                   ),
-                ],
-              ),
-              child: SafeArea(
-                top: false,
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1FBF9A).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        '${_selectedProviders.length}/5 sélectionné(s)',
+                  child: Row(
+                    children: [
+                      Text(
+                        'Trier par:',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFF1FBF9A),
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF667085),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: _sendRequests,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF1FBF9A),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: Text(
-                          'Envoyer les demandes',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: [
+                              _buildSortChip('Distance', 'distance'),
+                              const SizedBox(width: 8),
+                              _buildSortChip('Note', 'rating'),
+                              const SizedBox(width: 8),
+                              _buildSortChip('Prix', 'price'),
+                            ],
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
+                const Divider(height: 1),
+
+                // Provider list
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: providers.length,
+                    itemBuilder: (context, index) {
+                      final provider = providers[index];
+                      final isSelected = _selectedProviders.contains(
+                        provider['id']?.toString() ?? '',
+                      );
+                      return _buildProviderCard(provider, isSelected);
+                    },
+                  ),
+                ),
+
+                // Bottom bar with selection count and send button
+                if (_selectedProviders.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, -4),
+                        ),
+                      ],
+                    ),
+                    child: SafeArea(
+                      top: false,
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1FBF9A).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '${_selectedProviders.length}/5 sélectionné(s)',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF1FBF9A),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: _sendRequests,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF1FBF9A),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: Text(
+                                'Envoyer les demandes',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
             ),
-        ],
-      ),
     );
   }
 
@@ -405,7 +418,9 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
           color: isSelected ? const Color(0xFF1FBF9A) : const Color(0xFFF4F5F7),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected ? const Color(0xFF1FBF9A) : const Color(0xFFE5E7EB),
+            color: isSelected
+                ? const Color(0xFF1FBF9A)
+                : const Color(0xFFE5E7EB),
           ),
         ),
         child: Text(
@@ -441,7 +456,7 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () => _toggleSelection(provider['id']),
+          onTap: () => _toggleSelection(provider['id']?.toString() ?? ''),
           borderRadius: BorderRadius.circular(16),
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -487,7 +502,7 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
                       ],
                     ),
                     const SizedBox(width: 16),
-                    
+
                     // Info
                     Expanded(
                       child: Column(
@@ -512,7 +527,11 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
                           const SizedBox(height: 8),
                           Row(
                             children: [
-                              const Icon(Icons.star, color: Color(0xFFFBBF24), size: 16),
+                              const Icon(
+                                Icons.star,
+                                color: Color(0xFFFBBF24),
+                                size: 16,
+                              ),
                               const SizedBox(width: 4),
                               Text(
                                 '${provider['rating']}',
@@ -530,7 +549,11 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
                                 ),
                               ),
                               const SizedBox(width: 12),
-                              const Icon(Icons.location_on, color: Color(0xFF667085), size: 14),
+                              const Icon(
+                                Icons.location_on,
+                                color: Color(0xFF667085),
+                                size: 14,
+                              ),
                               const SizedBox(width: 4),
                               Text(
                                 '${provider['distance']} km',
@@ -545,13 +568,18 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
                           Row(
                             children: [
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF1FBF9A).withOpacity(0.1),
+                                  color: const Color(
+                                    0xFF1FBF9A,
+                                  ).withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
-                                  '${provider['price']} DH',
+                                  '${provider['price']} DT',
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w700,
@@ -613,8 +641,10 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
   }
 
   Widget _buildSearchingScreen() {
-    final String providerLabel = widget.providerType == 'doctor' ? 'docteurs' : 'kinésithérapeutes';
-    
+    final String providerLabel = widget.providerType == 'doctor'
+        ? 'docteurs'
+        : 'kinésithérapeutes';
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -640,7 +670,9 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
                   ),
                 ),
                 Icon(
-                  widget.providerType == 'doctor' ? Icons.medical_services : Icons.accessibility_new,
+                  widget.providerType == 'doctor'
+                      ? Icons.medical_services
+                      : Icons.accessibility_new,
                   color: const Color(0xFF1FBF9A),
                   size: 40,
                 ),
@@ -746,7 +778,7 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
                       ],
                     ),
                     const SizedBox(height: 24),
-                    
+
                     // Stats Row
                     Row(
                       children: [
@@ -779,7 +811,7 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
                       ],
                     ),
                     const SizedBox(height: 24),
-                    
+
                     // Price
                     Container(
                       padding: const EdgeInsets.all(16),
@@ -802,7 +834,7 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
                             ),
                           ),
                           Text(
-                            '${provider['price']} DH',
+                            '${provider['price']} DT',
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 20,
                               fontWeight: FontWeight.w700,
@@ -813,7 +845,7 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    
+
                     // About Section
                     Text(
                       'À propos',
@@ -833,7 +865,7 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    
+
                     // Languages
                     Text(
                       'Langues parlées',
@@ -849,7 +881,10 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
                       runSpacing: 8,
                       children: ['Français', 'Arabe', 'Anglais'].map((lang) {
                         return Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xFFF4F5F7),
                             borderRadius: BorderRadius.circular(8),
@@ -875,7 +910,12 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
     );
   }
 
-  Widget _buildStatCard(IconData icon, String value, String label, Color color) {
+  Widget _buildStatCard(
+    IconData icon,
+    String value,
+    String label,
+    Color color,
+  ) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -970,8 +1010,8 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
                 divisions: 50,
                 activeColor: const Color(0xFF1FBF9A),
                 labels: RangeLabels(
-                  '${_minPrice.round()} DH',
-                  '${_maxPrice.round()} DH',
+                  '${_minPrice.round()} DT',
+                  '${_maxPrice.round()} DT',
                 ),
                 onChanged: (values) {
                   setModalState(() {
@@ -984,14 +1024,14 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    '${_minPrice.round()} DH',
+                    '${_minPrice.round()} DT',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 13,
                       color: const Color(0xFF667085),
                     ),
                   ),
                   Text(
-                    '${_maxPrice.round()} DH',
+                    '${_maxPrice.round()} DT',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 13,
                       color: const Color(0xFF667085),

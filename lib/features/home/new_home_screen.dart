@@ -28,10 +28,6 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final userProvider = Provider.of<UserProvider>(context, listen: false);
-      if (userProvider.profile == null && !userProvider.isLoading) {
-        userProvider.loadIfLoggedIn();
-      }
       final familyProvider = Provider.of<FamilyProvider>(
         context,
         listen: false,
@@ -46,6 +42,38 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
   Widget build(BuildContext context) {
     final onboarding = Provider.of<UserOnboardingProvider>(context);
     final userProvider = Provider.of<UserProvider>(context);
+
+    if (userProvider.profile == null) {
+      if (!userProvider.isLoading) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          context.read<UserProvider>().loadIfLoggedIn();
+        });
+      }
+
+      return Scaffold(
+        backgroundColor: const Color(0xFFF4F5F7),
+        body: SafeArea(
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 12),
+                Text(
+                  'Loading profile...',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF667085),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     final resolvedDisplayName = (userProvider.user?.displayName ?? '').trim();
     final userName = resolvedDisplayName.isNotEmpty
         ? resolvedDisplayName

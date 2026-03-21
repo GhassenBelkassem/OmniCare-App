@@ -44,8 +44,8 @@ class FamilyApi {
       'fullName': fullName,
       'relationship': relationship,
       'birthDate': birthDate,
-      'gender': ?gender,
-      'medicalInfo': ?medicalInfo,
+      if (gender != null) 'gender': gender,
+      if (medicalInfo != null) 'medicalInfo': medicalInfo,
     };
 
     final response = await _dio.post('/family', data: payload);

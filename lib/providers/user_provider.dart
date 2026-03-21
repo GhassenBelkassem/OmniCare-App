@@ -13,10 +13,12 @@ class UserProvider extends ChangeNotifier {
   AccountFullProfile? _profile;
   bool _loading = false;
   String? _error;
+  Future<void>? _refreshFuture;
 
   AccountFullProfile? get profile => _profile;
   AccountUser? get user => _profile?.user;
-  List<AccountFamilyMember> get familyMembers => _profile?.familyMembers ?? const [];
+  List<AccountFamilyMember> get familyMembers =>
+      _profile?.familyMembers ?? const [];
 
   bool get isLoading => _loading;
   String? get error => _error;
@@ -36,6 +38,20 @@ class UserProvider extends ChangeNotifier {
   }
 
   Future<void> refresh() async {
+    if (_refreshFuture != null) {
+      consoleLog('[UserProvider] refresh() dedup: awaiting in-flight refresh');
+      return _refreshFuture;
+    }
+
+    _refreshFuture = _refreshImpl();
+    try {
+      await _refreshFuture;
+    } finally {
+      _refreshFuture = null;
+    }
+  }
+
+  Future<void> _refreshImpl() async {
     consoleLog('[UserProvider] refresh() start');
     _loading = true;
     _error = null;
@@ -48,13 +64,21 @@ class UserProvider extends ChangeNotifier {
       consoleLog('[UserProvider] Full profile loaded successfully');
       consoleLog('[UserProvider] user == null: ${user == null}');
       if (user != null) {
-        consoleLog('Current User Data: ${user!.toJson()}');
+        consoleLog(
+          '[UserProvider] user.email="${user!.email}" providerType="${user!.providerType}" providerId="${user!.providerId}"',
+        );
         consoleLog('[UserProvider] user.displayName: "${user!.displayName}"');
-        consoleLog('[UserProvider] user.derivedFirstName: "${user!.derivedFirstName}"');
-        consoleLog('[UserProvider] user.derivedLastName: "${user!.derivedLastName}"');
+        consoleLog(
+          '[UserProvider] user.derivedFirstName: "${user!.derivedFirstName}"',
+        );
+        consoleLog(
+          '[UserProvider] user.derivedLastName: "${user!.derivedLastName}"',
+        );
       }
       consoleLog('[UserProvider] familyMembers count: ${familyMembers.length}');
-      consoleLog('[UserProvider] documents count: ${_profile?.documents.length ?? 0}');
+      consoleLog(
+        '[UserProvider] documents count: ${_profile?.documents.length ?? 0}',
+      );
     } catch (e, st) {
       _error = e.toString();
       consoleLog('[UserProvider] refresh() ERROR: $_error');
@@ -62,7 +86,9 @@ class UserProvider extends ChangeNotifier {
       rethrow;
     } finally {
       _loading = false;
-      consoleLog('[UserProvider] refresh() end. loading=$_loading error=$_error');
+      consoleLog(
+        '[UserProvider] refresh() end. loading=$_loading error=$_error',
+      );
       notifyListeners();
     }
   }

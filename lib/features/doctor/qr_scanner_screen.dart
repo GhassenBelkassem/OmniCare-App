@@ -31,11 +31,13 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
         : code;
 
     setState(() => _isScanning = false);
-    Navigator.pushReplacement(
+    Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) =>
-            PatientMedicalPassportScreen(patientId: patientId),
+        builder: (context) => PatientMedicalPassportScreen(
+          patientId: patientId,
+          consultationId: null,
+        ),
       ),
     );
   }

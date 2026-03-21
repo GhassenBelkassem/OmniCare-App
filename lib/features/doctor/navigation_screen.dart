@@ -5,13 +5,20 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:async';
 import 'qr_scanner_screen.dart';
+import '../../core/api/consultations_api.dart';
+import '../../core/models/consultation.dart';
 import '../../core/models/patient_models.dart';
 import 'patient_medical_passport_screen.dart';
 
 class NavigationScreen extends StatefulWidget {
   final PatientSummary? patient;
+  final String consultationId;
 
-  const NavigationScreen({super.key, this.patient});
+  const NavigationScreen({
+    super.key,
+    this.patient,
+    required this.consultationId,
+  });
 
   @override
   State<NavigationScreen> createState() => _NavigationScreenState();
@@ -20,49 +27,74 @@ class NavigationScreen extends StatefulWidget {
 class _NavigationScreenState extends State<NavigationScreen> {
   GoogleMapController? _mapController;
 
-  // Patient location in Tunis (Avenue Habib Bourguiba)
-  static const LatLng _patientLocation = LatLng(36.8065, 10.1815);
+  Consultation? _consultation;
+
+  // Patient location fallback (Tunis)
+  static const LatLng _fallbackPatientLocation = LatLng(36.8065, 10.1815);
 
   // Doctor's starting position (simulated current location)
   static const LatLng _doctorLocation = LatLng(36.8265, 10.2015);
 
-  // Route points for the polyline
-  final List<LatLng> _routePoints = const [
-    LatLng(36.8265, 10.2015), // Doctor location
-    LatLng(36.8235, 10.1985),
-    LatLng(36.8205, 10.1955),
-    LatLng(36.8175, 10.1925),
-    LatLng(36.8145, 10.1895),
-    LatLng(36.8115, 10.1865),
-    LatLng(36.8085, 10.1835),
-    LatLng(36.8065, 10.1815), // Patient location
-  ];
+  String get _patientName {
+    final name = widget.patient?.displayName;
+    if (name != null && name.trim().isNotEmpty) return name.trim();
+    final alt = _consultation?.patientName;
+    if (alt != null && alt.trim().isNotEmpty) return alt.trim();
+    return 'Patient';
+  }
 
-  // Patient data
-  final Map<String, String> _patientData = {
-    'name': 'Patient',
-    'age': '32',
-    'phone': '+216 98 765 432',
-    'address': '15 Avenue Habib Bourguiba, Tunis',
-    'distance': '1.8 km',
-    'eta': '6 mins',
-    'symptoms': 'Severe headache, Sensitivity to light, Nausea',
-  };
+  LatLng get _patientLocation {
+    final c = _consultation;
+    final lat = c?.latitude;
+    final lng = c?.longitude;
+    if (lat == null || lng == null) return _fallbackPatientLocation;
+    return LatLng(lat, lng);
+  }
+
+  String get _address {
+    final c = _consultation;
+    final street = (c?.streetAddress ?? '').trim();
+    final city = (c?.city ?? '').trim();
+    final combined = [street, city].where((e) => e.isNotEmpty).join(', ');
+    return combined.isEmpty ? 'Location unavailable' : combined;
+  }
+
+  String get _symptoms {
+    final s = (_consultation?.symptoms ?? '').trim();
+    return s.isEmpty ? 'Not provided' : s;
+  }
 
   @override
   void initState() {
     super.initState();
-    final name = widget.patient?.displayName;
-    if (name != null && name.trim().isNotEmpty) {
-      _patientData['name'] = name.trim();
+    _loadConsultation();
+  }
+
+  Future<void> _loadConsultation() async {
+    final id = widget.consultationId.trim();
+    if (id.isEmpty) {
+      throw StateError('consultationId is required');
+    }
+    try {
+      final c = await ConsultationsApi().getConsultation(consultationId: id);
+      if (!mounted) return;
+      setState(() {
+        _consultation = c;
+      });
+    } catch (_) {
+      // Non-fatal; screen can still render with fallbacks.
     }
   }
 
   Future<void> _callPatient() async {
-    final Uri phoneUri = Uri(scheme: 'tel', path: _patientData['phone']);
-    if (await canLaunchUrl(phoneUri)) {
-      await launchUrl(phoneUri);
-    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Patient phone number is not available',
+          style: GoogleFonts.plusJakartaSans(),
+        ),
+      ),
+    );
   }
 
   @override
@@ -88,7 +120,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
           else
             GoogleMap(
               initialCameraPosition: const CameraPosition(
-                target: _patientLocation,
+                target: _fallbackPatientLocation,
                 zoom: 13.0,
               ),
               markers: {
@@ -97,8 +129,8 @@ class _NavigationScreenState extends State<NavigationScreen> {
                   markerId: const MarkerId('patient'),
                   position: _patientLocation,
                   infoWindow: InfoWindow(
-                    title: _patientData['name'],
-                    snippet: _patientData['address'],
+                    title: _patientName,
+                    snippet: _address,
                   ),
                   icon: BitmapDescriptor.defaultMarkerWithHue(
                     BitmapDescriptor.hueRed,
@@ -117,7 +149,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
               polylines: {
                 Polyline(
                   polylineId: const PolylineId('route'),
-                  points: _routePoints,
+                  points: [_doctorLocation, _patientLocation],
                   color: const Color(0xFF1FBF9A),
                   width: 5,
                   geodesic: true,
@@ -196,7 +228,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              _patientData['eta']!,
+                              '--',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 20,
                                 fontWeight: FontWeight.w700,
@@ -233,7 +265,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              _patientData['distance']!,
+                              '--',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 20,
                                 fontWeight: FontWeight.w700,
@@ -351,7 +383,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      _patientData['name']!,
+                                      _patientName,
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: 20,
                                         fontWeight: FontWeight.w700,
@@ -359,7 +391,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
                                       ),
                                     ),
                                     Text(
-                                      '${_patientData['age']} years old',
+                                      '--',
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: 14,
                                         color: const Color(0xFF667085),
@@ -404,7 +436,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  _patientData['address']!,
+                                  _address,
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 13,
                                     color: const Color(0xFF667085),
@@ -486,7 +518,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
-                                        _patientData['symptoms']!,
+                                        _symptoms,
                                         style: GoogleFonts.plusJakartaSans(
                                           fontSize: 12,
                                           color: Colors.amber.shade800,
@@ -1015,15 +1047,12 @@ class _NavigationScreenState extends State<NavigationScreen> {
                                             return PatientMedicalPassportScreen(
                                               patientId: p.patientId,
                                               patientName: p.displayName,
+                                              consultationId:
+                                                  widget.consultationId,
                                             );
                                           },
                                           transitionsBuilder:
-                                              (
-                                                context,
-                                                animation,
-                                                secondaryAnimation,
-                                                child,
-                                              ) {
+                                              (context, animation, _, child) {
                                                 final slide =
                                                     Tween<Offset>(
                                                       begin: const Offset(

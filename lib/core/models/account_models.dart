@@ -101,12 +101,21 @@ class AccountUser {
       ].where((e) => e.trim().isNotEmpty).join(' ');
     }
 
+    final providerJson = (json['provider'] is Map)
+        ? (json['provider'] as Map).cast<String, dynamic>()
+        : null;
+    final resolvedProviderId =
+        json['providerId']?.toString() ?? providerJson?['id']?.toString();
+    final resolvedProviderType = json['providerType']?.toString() ??
+        providerJson?['providerType']?.toString() ??
+        providerJson?['type']?.toString();
+
     return AccountUser(
       email: (json['email'] ?? '').toString(),
       name: resolvedName,
       role: json['role']?.toString(),
-      providerId: json['providerId']?.toString(),
-      providerType: json['providerType']?.toString(),
+      providerId: resolvedProviderId,
+      providerType: resolvedProviderType,
       firstName: resolvedFirst.trim().isEmpty ? null : resolvedFirst,
       lastName: resolvedLast.trim().isEmpty ? null : resolvedLast,
       bloodGroup: _bloodGroupFromBackend(json['bloodGroup']?.toString()),

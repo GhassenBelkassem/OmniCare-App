@@ -119,9 +119,9 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/icons/app_icon.png"
+  image_path: "assets/images/app_logo.png"
   # For iOS, we'll add a white background since iOS doesn't support transparency
   adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/icons/app_icon.png"
+  adaptive_icon_foreground: "assets/images/app_logo.png"
   # Remove alpha channel for iOS
   remove_alpha_ios: true

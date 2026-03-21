@@ -89,4 +89,31 @@ class PatientsApi {
       'Unexpected /api/patients/$resolved/passport response: ${response.data}',
     );
   }
+
+  Future<PatientPassport> getPatientPassportTyped(String patientId) async {
+    final resolved = patientId.trim();
+    if (resolved.isEmpty) {
+      throw ArgumentError('patientId is required');
+    }
+
+    debugPrint(
+      '[PatientsApi] getPatientPassportTyped($resolved) -> GET /api/patients/$resolved/passport',
+    );
+    final response = await _dio.get('/patients/$resolved/passport');
+    debugPrint('[PatientsApi] Response status: ${response.statusCode}');
+
+    final raw = response.data;
+    if (raw is Map && raw['data'] is Map) {
+      return PatientPassport.fromJson(
+        (raw['data'] as Map).cast<String, dynamic>(),
+      );
+    }
+    if (raw is Map) {
+      return PatientPassport.fromJson(raw.cast<String, dynamic>());
+    }
+
+    throw StateError(
+      'Unexpected /api/patients/$resolved/passport response: ${response.data}',
+    );
+  }
 }

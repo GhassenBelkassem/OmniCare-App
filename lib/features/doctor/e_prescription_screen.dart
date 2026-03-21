@@ -4,11 +4,18 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'dart:math';
 import '../../core/api/consultations_api.dart';
 import '../../core/api/doctors_api.dart';
+import '../../core/widgets/medication_search_field.dart';
+import '../../core/api/medications_api.dart';
 
 class EPrescriptionScreen extends StatefulWidget {
   final Map<String, dynamic> patientData;
+  final String? consultationId;
 
-  const EPrescriptionScreen({super.key, required this.patientData});
+  const EPrescriptionScreen({
+    super.key,
+    required this.patientData,
+    this.consultationId,
+  });
 
   @override
   State<EPrescriptionScreen> createState() => _EPrescriptionScreenState();
@@ -17,27 +24,10 @@ class EPrescriptionScreen extends StatefulWidget {
 class _EPrescriptionScreenState extends State<EPrescriptionScreen> {
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
+  final TextEditingController _dosageController = TextEditingController();
   final List<Map<String, dynamic>> _prescribedMedications = [];
-  List<Map<String, dynamic>> _filteredMedications = [];
-  bool _showSuggestions = false;
-
-  // Mock medication database
-  final List<Map<String, dynamic>> _medicationDatabase = [
-    {'name': 'Paracétamol', 'commonDosage': '500mg', 'type': 'Analgesic'},
-    {
-      'name': 'Ibuprofène',
-      'commonDosage': '400mg',
-      'type': 'Anti-inflammatory',
-    },
-    {'name': 'Amoxicilline', 'commonDosage': '500mg', 'type': 'Antibiotic'},
-    {'name': 'Azithromycine', 'commonDosage': '250mg', 'type': 'Antibiotic'},
-    {'name': 'Oméprazole', 'commonDosage': '20mg', 'type': 'Antacid'},
-    {'name': 'Loratadine', 'commonDosage': '10mg', 'type': 'Antihistamine'},
-    {'name': 'Cétirizine', 'commonDosage': '10mg', 'type': 'Antihistamine'},
-    {'name': 'Metformine', 'commonDosage': '500mg', 'type': 'Antidiabetic'},
-    {'name': 'Aspirine', 'commonDosage': '100mg', 'type': 'Antiplatelet'},
-    {'name': 'Atorvastatine', 'commonDosage': '10mg', 'type': 'Statin'},
-  ];
+  MedicationSearchResult? _selectedMedication;
+  final MedicationsApi _medicationsApi = MedicationsApi();
 
   // Quick templates
   final List<Map<String, dynamic>> _templates = [
@@ -97,35 +87,21 @@ class _EPrescriptionScreenState extends State<EPrescriptionScreen> {
     },
   ];
 
-  void _searchMedications(String query) {
-    if (query.isEmpty) {
-      setState(() {
-        _showSuggestions = false;
-        _filteredMedications = [];
-      });
-      return;
-    }
-
-    setState(() {
-      _showSuggestions = true;
-      _filteredMedications = _medicationDatabase
-          .where(
-            (med) => med['name'].toLowerCase().contains(query.toLowerCase()),
-          )
-          .toList();
-    });
-  }
-
-  void _addMedication(String name, String dosage) {
+  void _addMedication({
+    required MedicationSearchResult med,
+    required String dosage,
+  }) {
     setState(() {
       _prescribedMedications.add({
-        'name': name,
+        'medicationId': med.id,
+        'name': med.name,
         'dosage': dosage,
         'frequency': '2x/jour',
         'duration': '5 jours',
       });
       _searchController.clear();
-      _showSuggestions = false;
+      _dosageController.clear();
+      _selectedMedication = null;
     });
   }
 
@@ -151,11 +127,15 @@ class _EPrescriptionScreenState extends State<EPrescriptionScreen> {
   }
 
   void _generatePrescription() {
-    if (_prescribedMedications.isEmpty) {
+    final missingCatalog = _prescribedMedications.any((m) {
+      final id = (m['medicationId'] ?? '').toString().trim();
+      return id.isEmpty;
+    });
+    if (missingCatalog) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Veuillez ajouter au moins un médicament',
+            'Veuillez sélectionner les médicaments depuis la recherche (catalogue) avant de générer l\'ordonnance',
             style: GoogleFonts.plusJakartaSans(),
           ),
           backgroundColor: Colors.red,
@@ -185,6 +165,62 @@ class _EPrescriptionScreenState extends State<EPrescriptionScreen> {
     );
   }
 
+  int? _parseIntLeading(String s) {
+    final trimmed = s.trim();
+    if (trimmed.isEmpty) return null;
+    final m = RegExp(r'^(\d+)').firstMatch(trimmed);
+    if (m == null) return null;
+    return int.tryParse(m.group(1) ?? '');
+  }
+
+  int? _parseFrequencyTimes(String s) {
+    final lower = s.toLowerCase();
+    final m = RegExp(r'(\d+)').firstMatch(lower);
+    final n = m == null ? null : int.tryParse(m.group(1) ?? '');
+    if (n != null && n > 0) return n;
+    return null;
+  }
+
+  int? _parseDurationDays(String s) {
+    final n = _parseIntLeading(s);
+    if (n != null && n > 0) return n;
+    return null;
+  }
+
+  Map<String, dynamic> _buildPrescriptionPayload({required String patientId}) {
+    final items = <Map<String, dynamic>>[];
+    for (final med in _prescribedMedications) {
+      final medicationId = (med['medicationId'] ?? '').toString().trim();
+      if (medicationId.isEmpty) {
+        throw StateError('Missing medicationId in prescription item');
+      }
+      final frequency = (med['frequency'] ?? '').toString();
+      final duration = (med['duration'] ?? '').toString();
+      final dosage = (med['dosage'] ?? '').toString();
+
+      final times = _parseFrequencyTimes(frequency) ?? 2;
+      final durationDays = _parseDurationDays(duration) ?? 5;
+
+      items.add({
+        'medicationId': medicationId,
+        'doseAmount': null,
+        'doseUnit': dosage.trim().isEmpty ? null : dosage.trim(),
+        'frequencyTimes': times,
+        'frequencyPeriodDays': 1,
+        'durationDays': durationDays,
+        'startDate': null,
+        'instructions': null,
+      });
+    }
+
+    return {
+      'patientId': patientId,
+      'issuedAt': null,
+      'notes': _notesController.text,
+      'items': items,
+    };
+  }
+
   Future<void> _completeConsultation() async {
     showDialog(
       context: context,
@@ -194,45 +230,106 @@ class _EPrescriptionScreenState extends State<EPrescriptionScreen> {
       },
     );
 
+    bool success = false;
     try {
-      final profile = await DoctorsApi().getMyProfile();
-      final doctorId = profile['doctorId']?.toString();
-      final patientId = widget.patientData['patientId']?.toString();
+      final existingId = (widget.consultationId ?? '').trim();
+      if (existingId.isNotEmpty) {
+        final patientId = widget.patientData['patientId']?.toString();
+        if (patientId == null || patientId.trim().isEmpty) {
+          throw StateError('Missing patientId for prescription');
+        }
+        final payload = _buildPrescriptionPayload(patientId: patientId.trim());
+        await ConsultationsApi().putPrescription(
+          consultationId: existingId,
+          payload: payload,
+        );
 
-      if (doctorId == null || doctorId.trim().isEmpty) {
-        throw StateError('Missing doctorId from /doctor/profile');
+        final c = await ConsultationsApi().getConsultation(
+          consultationId: existingId,
+        );
+        final diagnosis = (c.diagnosis ?? '').trim();
+        final treatment = (c.treatment ?? '').trim();
+        if (diagnosis.isEmpty) {
+          throw StateError(
+            'Diagnosis is required to complete the consultation',
+          );
+        }
+        await ConsultationsApi().completeConsultation(
+          consultationId: existingId,
+          diagnosis: diagnosis,
+          treatment: treatment.isEmpty ? null : treatment,
+        );
+      } else {
+        final profile = await DoctorsApi().getMyProfile();
+        final doctorId = profile['doctorId']?.toString();
+        final patientId = widget.patientData['patientId']?.toString();
+
+        if (doctorId == null || doctorId.trim().isEmpty) {
+          throw StateError('Missing doctorId from /doctor/profile');
+        }
+        if (patientId == null || patientId.trim().isEmpty) {
+          throw StateError('Missing patientId for consultation');
+        }
+
+        final symptoms = (widget.patientData['symptoms']?.toString() ?? '')
+            .trim();
+        final created = await ConsultationsApi().createConsultation(
+          doctorId: doctorId,
+          patientId: patientId,
+          symptoms: symptoms.isEmpty ? 'Prescription' : symptoms,
+          painLevel: 5,
+          affectedAreas: const <String>[],
+          latitude: 36.8065,
+          longitude: 10.1815,
+          streetAddress: widget.patientData['address']?.toString(),
+          city: 'Tunis',
+        );
+
+        final consultationId = (created.id ?? '').trim();
+        if (consultationId.isEmpty) {
+          throw StateError('Consultation created but missing id');
+        }
+
+        final payload = _buildPrescriptionPayload(patientId: patientId.trim());
+        await ConsultationsApi().putPrescription(
+          consultationId: consultationId,
+          payload: payload,
+        );
+
+        final c = await ConsultationsApi().getConsultation(
+          consultationId: consultationId,
+        );
+        final diagnosis = (c.diagnosis ?? '').trim();
+        final treatment = (c.treatment ?? '').trim();
+        if (diagnosis.isEmpty) {
+          throw StateError(
+            'Diagnosis is required to complete the consultation',
+          );
+        }
+        await ConsultationsApi().completeConsultation(
+          consultationId: consultationId,
+          diagnosis: diagnosis,
+          treatment: treatment.isEmpty ? null : treatment,
+        );
       }
-      if (patientId == null || patientId.trim().isEmpty) {
-        throw StateError('Missing patientId for consultation');
+
+      success = true;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString(), style: GoogleFonts.plusJakartaSans()),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
-
-      final symptoms = (widget.patientData['symptoms']?.toString() ?? '')
-          .trim();
-      final created = await ConsultationsApi().createConsultation(
-        doctorId: doctorId,
-        patientId: patientId,
-        symptoms: symptoms.isEmpty ? 'Prescription' : symptoms,
-        painLevel: 5,
-        affectedAreas: const <String>[],
-        latitude: 36.8065,
-        longitude: 10.1815,
-        streetAddress: widget.patientData['address']?.toString(),
-        city: 'Tunis',
-      );
-
-      final consultationId = (created.id ?? '').trim();
-      if (consultationId.isEmpty) {
-        throw StateError('Consultation created but missing id');
-      }
-
-      await ConsultationsApi().completeConsultation(
-        consultationId: consultationId,
-      );
     } finally {
       if (mounted) {
         Navigator.pop(context);
       }
     }
+
+    if (!success) return;
 
     // Show success dialog
     showDialog(
@@ -312,6 +409,14 @@ class _EPrescriptionScreenState extends State<EPrescriptionScreen> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _notesController.dispose();
+    _dosageController.dispose();
+    super.dispose();
   }
 
   @override
@@ -508,80 +613,82 @@ class _EPrescriptionScreenState extends State<EPrescriptionScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  TextField(
+                  MedicationSearchField(
                     controller: _searchController,
-                    onChanged: _searchMedications,
+                    hintText: 'Tapez le nom du médicament...',
+                    api: _medicationsApi,
+                    onSelected: (r) {
+                      setState(() {
+                        _selectedMedication = r;
+                        final d = (r.dosage ?? '').trim();
+                        _dosageController.text = d.isEmpty ? '500mg' : d;
+                      });
+                    },
+                    onChanged: (_) {
+                      setState(() {
+                        _selectedMedication = null;
+                        _dosageController.clear();
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _dosageController,
                     decoration: InputDecoration(
-                      hintText: 'Tapez le nom du médicament...',
-                      hintStyle: GoogleFonts.plusJakartaSans(
-                        color: const Color(0xFF667085),
-                      ),
-                      prefixIcon: const Icon(
-                        Icons.search,
-                        color: Color(0xFF667085),
-                      ),
-                      filled: true,
-                      fillColor: Colors.white,
+                      labelText: 'Dosage',
+                      hintText: 'e.g. 500mg',
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
                       ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
+                      prefixIcon: const Icon(
+                        Icons.medication_outlined,
+                        size: 20,
                       ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFF1FBF9A)),
+                    ),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF1D2939),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: (_selectedMedication == null)
+                          ? null
+                          : () {
+                              final med = _selectedMedication;
+                              if (med == null) return;
+                              final dosage = _dosageController.text.trim();
+                              _addMedication(
+                                med: med,
+                                dosage: dosage.isEmpty
+                                    ? ((med.dosage ?? '').trim().isEmpty
+                                          ? '500mg'
+                                          : (med.dosage ?? '').trim())
+                                    : dosage,
+                              );
+                            },
+                      icon: const Icon(Icons.add, size: 16),
+                      label: Text(
+                        'Ajouter',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1FBF9A),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                   ),
-
-                  // Suggestions
-                  if (_showSuggestions && _filteredMedications.isNotEmpty)
-                    Container(
-                      margin: const EdgeInsets.only(top: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: ListView.separated(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: _filteredMedications.length,
-                        separatorBuilder: (context, index) =>
-                            const Divider(height: 1),
-                        itemBuilder: (context, index) {
-                          final med = _filteredMedications[index];
-                          return ListTile(
-                            title: Text(
-                              med['name'],
-                              style: GoogleFonts.plusJakartaSans(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            subtitle: Text(
-                              '${med['type']} • ${med['commonDosage']}',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 12,
-                                color: const Color(0xFF667085),
-                              ),
-                            ),
-                            onTap: () => _addMedication(
-                              med['name'],
-                              med['commonDosage'],
-                            ),
-                          );
-                        },
-                      ),
-                    ),
                   const SizedBox(height: 20),
 
                   // Prescribed medications

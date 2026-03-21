@@ -115,7 +115,8 @@ class _HistoryTabState extends State<HistoryTab> {
     }
 
     final locationParts = <String>[];
-    if ((c.streetAddress ?? '').trim().isNotEmpty) locationParts.add(c.streetAddress!.trim());
+    if ((c.streetAddress ?? '').trim().isNotEmpty)
+      locationParts.add(c.streetAddress!.trim());
     if ((c.city ?? '').trim().isNotEmpty) locationParts.add(c.city!.trim());
     final location = locationParts.isEmpty ? '-' : locationParts.join(', ');
 
@@ -123,15 +124,25 @@ class _HistoryTabState extends State<HistoryTab> {
       id: c.id ?? '',
       date: date,
       time: time,
-      doctorName: (c.doctorName ?? '').trim().isEmpty ? 'Doctor' : c.doctorName!.trim(),
-      specialty: (c.doctorSpecialty ?? '').trim().isEmpty ? '-' : c.doctorSpecialty!.trim(),
-      patientName: (c.patientName ?? '').trim().isEmpty ? _currentUserPlaceholderName : c.patientName!.trim(),
+      doctorName: (c.doctorName ?? '').trim().isEmpty
+          ? 'Doctor'
+          : c.doctorName!.trim(),
+      specialty: (c.doctorSpecialty ?? '').trim().isEmpty
+          ? '-'
+          : c.doctorSpecialty!.trim(),
+      patientName: (c.patientName ?? '').trim().isEmpty
+          ? _currentUserPlaceholderName
+          : c.patientName!.trim(),
       reason: (c.symptoms ?? '').trim().isEmpty ? '-' : c.symptoms!.trim(),
       location: location,
       status: status,
       medications: null,
-      diagnosis: (c.diagnosis ?? '').trim().isEmpty ? null : c.diagnosis!.trim(),
-      cost: (c.fee ?? '').trim().isEmpty ? '-' : '${c.fee} TND',
+      diagnosis: (c.diagnosis ?? '').trim().isEmpty
+          ? null
+          : c.diagnosis!.trim(),
+      cost: (c.fee == null || c.fee! <= 0)
+          ? '-'
+          : '${c.fee!.toStringAsFixed(0)} DT',
     );
   }
 
@@ -144,26 +155,43 @@ class _HistoryTabState extends State<HistoryTab> {
 
   List<Consultation> get _filteredConsultations {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
-    final currentUserName = (userProvider.isLoading && userProvider.user == null)
+    final currentUserName =
+        (userProvider.isLoading && userProvider.user == null)
         ? 'Loading...'
-        : (((userProvider.user?.displayName ?? '').trim().isNotEmpty) ? userProvider.user!.displayName : 'User');
+        : (((userProvider.user?.displayName ?? '').trim().isNotEmpty)
+              ? userProvider.user!.displayName
+              : 'User');
 
     return _consultations.where((consultation) {
-      final patientName = _resolvePatientName(consultation.patientName, currentUserName);
-      final matchesSearch = consultation.doctorName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          consultation.specialty.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+      final patientName = _resolvePatientName(
+        consultation.patientName,
+        currentUserName,
+      );
+      final matchesSearch =
+          consultation.doctorName.toLowerCase().contains(
+            _searchQuery.toLowerCase(),
+          ) ||
+          consultation.specialty.toLowerCase().contains(
+            _searchQuery.toLowerCase(),
+          ) ||
           patientName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          consultation.reason.toLowerCase().contains(_searchQuery.toLowerCase());
+          consultation.reason.toLowerCase().contains(
+            _searchQuery.toLowerCase(),
+          );
 
       final consultationDate = DateTime.parse(consultation.date);
       final now = DateTime.now();
-      
+
       bool matchesMonth = true;
       if (_selectedMonth == 'current') {
-        matchesMonth = consultationDate.month == now.month && consultationDate.year == now.year;
+        matchesMonth =
+            consultationDate.month == now.month &&
+            consultationDate.year == now.year;
       } else if (_selectedMonth == 'last') {
         final lastMonth = DateTime(now.year, now.month - 1);
-        matchesMonth = consultationDate.month == lastMonth.month && consultationDate.year == lastMonth.year;
+        matchesMonth =
+            consultationDate.month == lastMonth.month &&
+            consultationDate.year == lastMonth.year;
       }
 
       return matchesSearch && matchesMonth;
@@ -172,23 +200,47 @@ class _HistoryTabState extends State<HistoryTab> {
 
   String _formatDate(String dateString) {
     final date = DateTime.parse(dateString);
-    final months = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
-    final days = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
-    
+    final months = [
+      'janvier',
+      'février',
+      'mars',
+      'avril',
+      'mai',
+      'juin',
+      'juillet',
+      'août',
+      'septembre',
+      'octobre',
+      'novembre',
+      'décembre',
+    ];
+    final days = [
+      'lundi',
+      'mardi',
+      'mercredi',
+      'jeudi',
+      'vendredi',
+      'samedi',
+      'dimanche',
+    ];
+
     final weekday = days[date.weekday - 1];
     final day = date.day;
     final month = months[date.month - 1];
     final year = date.year;
-    
+
     return '${weekday.substring(0, 1).toUpperCase()}${weekday.substring(1)} $day $month $year';
   }
 
   @override
   Widget build(BuildContext context) {
     final userProvider = context.watch<UserProvider>();
-    final currentUserName = (userProvider.isLoading && userProvider.user == null)
+    final currentUserName =
+        (userProvider.isLoading && userProvider.user == null)
         ? 'Loading...'
-        : (((userProvider.user?.displayName ?? '').trim().isNotEmpty) ? userProvider.user!.displayName : 'User');
+        : (((userProvider.user?.displayName ?? '').trim().isNotEmpty)
+              ? userProvider.user!.displayName
+              : 'User');
 
     return RefreshIndicator(
       onRefresh: _loadConsultations,
@@ -311,7 +363,10 @@ class _HistoryTabState extends State<HistoryTab> {
         prefixIcon: const Icon(Icons.search, color: Color(0xFF667085)),
         filled: true,
         fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
@@ -358,7 +413,9 @@ class _HistoryTabState extends State<HistoryTab> {
           color: isSelected ? const Color(0xFF1FBF9A) : Colors.white,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: isSelected ? const Color(0xFF1FBF9A) : const Color(0xFFE2E8F0),
+            color: isSelected
+                ? const Color(0xFF1FBF9A)
+                : const Color(0xFFE2E8F0),
           ),
           boxShadow: isSelected
               ? [
@@ -449,7 +506,10 @@ class _HistoryTabState extends State<HistoryTab> {
     );
   }
 
-  Widget _buildConsultationCard(Consultation consultation, String currentUserName) {
+  Widget _buildConsultationCard(
+    Consultation consultation,
+    String currentUserName,
+  ) {
     final isCompleted = consultation.status == 'completed';
     final resolvedConsultation = Consultation(
       id: consultation.id,
@@ -457,7 +517,10 @@ class _HistoryTabState extends State<HistoryTab> {
       time: consultation.time,
       doctorName: consultation.doctorName,
       specialty: consultation.specialty,
-      patientName: _resolvePatientName(consultation.patientName, currentUserName),
+      patientName: _resolvePatientName(
+        consultation.patientName,
+        currentUserName,
+      ),
       reason: consultation.reason,
       location: consultation.location,
       status: consultation.status,
@@ -465,16 +528,19 @@ class _HistoryTabState extends State<HistoryTab> {
       diagnosis: consultation.diagnosis,
       cost: consultation.cost,
     );
-    
+
     return GestureDetector(
-      onTap: () {
+      onTap: () async {
         // Navigate to consultation detail
-        Navigator.push(
+        await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => ConsultationDetailScreen(consultation: resolvedConsultation),
+            builder: (context) =>
+                ConsultationDetailScreen(consultation: resolvedConsultation),
           ),
         );
+        if (!mounted) return;
+        await _loadConsultations();
       },
       child: Container(
         padding: const EdgeInsets.all(20),
@@ -482,7 +548,9 @@ class _HistoryTabState extends State<HistoryTab> {
           color: isCompleted ? Colors.white : const Color(0xFFFEF2F2),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isCompleted ? const Color(0xFFE2E8F0) : const Color(0xFFFECACA),
+            color: isCompleted
+                ? const Color(0xFFE2E8F0)
+                : const Color(0xFFFECACA),
             width: 2,
           ),
           boxShadow: [
@@ -505,7 +573,9 @@ class _HistoryTabState extends State<HistoryTab> {
               const SizedBox(height: 16),
               _buildDiagnosis(resolvedConsultation.diagnosis!),
             ],
-            if (isCompleted && resolvedConsultation.medications != null && resolvedConsultation.medications!.isNotEmpty) ...[
+            if (isCompleted &&
+                resolvedConsultation.medications != null &&
+                resolvedConsultation.medications!.isNotEmpty) ...[
               const SizedBox(height: 16),
               _buildMedications(resolvedConsultation.medications!),
             ],
@@ -519,18 +589,22 @@ class _HistoryTabState extends State<HistoryTab> {
 
   Widget _buildConsultationHeader(Consultation consultation) {
     final isCompleted = consultation.status == 'completed';
-    
+
     return Row(
       children: [
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: isCompleted ? const Color(0xFF1FBF9A).withOpacity(0.1) : const Color(0xFFFECACA),
+            color: isCompleted
+                ? const Color(0xFF1FBF9A).withOpacity(0.1)
+                : const Color(0xFFFECACA),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Icon(
             Icons.calendar_today,
-            color: isCompleted ? const Color(0xFF1FBF9A) : const Color(0xFFDC2626),
+            color: isCompleted
+                ? const Color(0xFF1FBF9A)
+                : const Color(0xFFDC2626),
             size: 20,
           ),
         ),
@@ -550,7 +624,11 @@ class _HistoryTabState extends State<HistoryTab> {
               const SizedBox(height: 2),
               Row(
                 children: [
-                  const Icon(Icons.access_time, size: 14, color: Color(0xFF667085)),
+                  const Icon(
+                    Icons.access_time,
+                    size: 14,
+                    color: Color(0xFF667085),
+                  ),
                   const SizedBox(width: 4),
                   Text(
                     consultation.time,
@@ -567,7 +645,9 @@ class _HistoryTabState extends State<HistoryTab> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: isCompleted ? const Color(0xFF10B981).withOpacity(0.1) : const Color(0xFFFECACA),
+            color: isCompleted
+                ? const Color(0xFF10B981).withOpacity(0.1)
+                : const Color(0xFFFECACA),
             borderRadius: BorderRadius.circular(20),
           ),
           child: Row(
@@ -576,7 +656,9 @@ class _HistoryTabState extends State<HistoryTab> {
               Icon(
                 isCompleted ? Icons.check_circle : Icons.cancel,
                 size: 14,
-                color: isCompleted ? const Color(0xFF10B981) : const Color(0xFFDC2626),
+                color: isCompleted
+                    ? const Color(0xFF10B981)
+                    : const Color(0xFFDC2626),
               ),
               const SizedBox(width: 4),
               Text(
@@ -584,7 +666,9 @@ class _HistoryTabState extends State<HistoryTab> {
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
-                  color: isCompleted ? const Color(0xFF10B981) : const Color(0xFFDC2626),
+                  color: isCompleted
+                      ? const Color(0xFF10B981)
+                      : const Color(0xFFDC2626),
                 ),
               ),
             ],
@@ -606,9 +690,16 @@ class _HistoryTabState extends State<HistoryTab> {
                 decoration: BoxDecoration(
                   color: const Color(0xFF1FBF9A).withOpacity(0.1),
                   shape: BoxShape.circle,
-                  border: Border.all(color: const Color(0xFF1FBF9A).withOpacity(0.3), width: 2),
+                  border: Border.all(
+                    color: const Color(0xFF1FBF9A).withOpacity(0.3),
+                    width: 2,
+                  ),
                 ),
-                child: const Icon(Icons.person, color: Color(0xFF1FBF9A), size: 24),
+                child: const Icon(
+                  Icons.person,
+                  color: Color(0xFF1FBF9A),
+                  size: 24,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -649,7 +740,11 @@ class _HistoryTabState extends State<HistoryTab> {
                   color: const Color(0xFF0F6F73).withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.person_outline, color: Color(0xFF0F6F73), size: 20),
+                child: const Icon(
+                  Icons.person_outline,
+                  color: Color(0xFF0F6F73),
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -806,7 +901,9 @@ class _HistoryTabState extends State<HistoryTab> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
                 color: const Color(0xFF0F6F73).withOpacity(0.1),
-                border: Border.all(color: const Color(0xFF0F6F73).withOpacity(0.3)),
+                border: Border.all(
+                  color: const Color(0xFF0F6F73).withOpacity(0.3),
+                ),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
@@ -828,9 +925,7 @@ class _HistoryTabState extends State<HistoryTab> {
     return Container(
       padding: const EdgeInsets.only(top: 16),
       decoration: const BoxDecoration(
-        border: Border(
-          top: BorderSide(color: Color(0xFFE2E8F0)),
-        ),
+        border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -866,7 +961,11 @@ class _HistoryTabState extends State<HistoryTab> {
                 ),
               ),
               const SizedBox(width: 4),
-              const Icon(Icons.chevron_right, color: Color(0xFF1FBF9A), size: 20),
+              const Icon(
+                Icons.chevron_right,
+                color: Color(0xFF1FBF9A),
+                size: 20,
+              ),
             ],
           ),
         ],
