@@ -9,11 +9,13 @@ import 'medical_data_welcome_screen.dart';
 import 'forgot_password_screen.dart';
 import 'signup_screen.dart';
 import '../../core/api/auth_api.dart';
+import '../../core/api/dio_client.dart';
 import '../../core/utils/logger.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../../core/api/api_error_utils.dart';
 import 'package:flutter/foundation.dart';
 import '../../core/auth/google_web_sign_in_button.dart';
+import 'package:dio/dio.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -33,12 +35,151 @@ class _LoginScreenState extends State<LoginScreen>
   late Animation<Offset> _slideAnimation;
   late Animation<double> _scaleAnimation;
 
+  bool _devAccountsLoading = false;
+  List<_DevAccount> _devAccounts = const [];
+
   void _fillDevCredentials({required String email}) {
     setState(() {
       _showEmailForm = true;
       _emailController.text = email;
       _passwordController.text = 'Passw0rd!123';
     });
+  }
+
+  Future<void> _loadDevAccounts() async {
+    if (_devAccountsLoading) return;
+    setState(() => _devAccountsLoading = true);
+
+    try {
+      final Dio dio = DioClient.instance.dio;
+      final res = await dio.get('/auth/dev/accounts');
+      final data = res.data;
+      if (data is List) {
+        final items = data
+            .whereType<Map>()
+            .map(
+              (m) => _DevAccount(
+                role: m['role']?.toString() ?? '',
+                name: m['name']?.toString() ?? '',
+                email: m['email']?.toString() ?? '',
+              ),
+            )
+            .where((a) => a.email.trim().isNotEmpty)
+            .toList();
+
+        setState(() => _devAccounts = items);
+      } else {
+        setState(() => _devAccounts = const []);
+      }
+    } catch (e, st) {
+      AppLogger.error('Failed to load dev accounts', e, st);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load dev accounts: ${apiErrorMessage(e)}'),
+          ),
+        );
+      }
+      setState(() => _devAccounts = const []);
+    } finally {
+      if (mounted) setState(() => _devAccountsLoading = false);
+    }
+  }
+
+  Future<void> _pickDevAccount({required String role}) async {
+    await _loadDevAccounts();
+    if (!mounted) return;
+
+    final wantedRole = role.trim().toUpperCase();
+    final items = _devAccounts
+        .where((a) => a.role.trim().toUpperCase() == wantedRole)
+        .toList();
+
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                child: Text(
+                  'Choose $wantedRole account',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF101828),
+                  ),
+                ),
+              ),
+              if (_devAccountsLoading)
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (items.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    'No $wantedRole accounts found. Seed first, then retry.',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: const Color(0xFF667085),
+                    ),
+                  ),
+                )
+              else
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: items.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (context, i) {
+                      final a = items[i];
+                      return ListTile(
+                        title: Text(
+                          a.name.isNotEmpty ? a.name : a.email,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF101828),
+                          ),
+                        ),
+                        subtitle: Text(
+                          a.email,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: const Color(0xFF667085),
+                          ),
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          if (wantedRole == 'DOCTOR') {
+                            _setActiveSimDoctor(email: a.email);
+                          }
+                          _fillDevCredentials(email: a.email);
+                        },
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _setActiveSimDoctor({required String email}) async {
+    try {
+      final Dio dio = DioClient.instance.dio;
+      await dio.post('/auth/dev/active-doctor', data: {'email': email});
+    } catch (e, st) {
+      AppLogger.error('Failed to set active sim doctor', e, st);
+    }
   }
 
   void _navigateAfterLogin(AuthLoginResult result) {
@@ -385,9 +526,8 @@ class _LoginScreenState extends State<LoginScreen>
               child: OutlinedButton(
                 onPressed: _isLoading
                     ? null
-                    : () =>
-                          _fillDevCredentials(email: 'fake.patient@dev.local'),
-                child: const Text('Patient'),
+                    : () => _pickDevAccount(role: 'PATIENT'),
+                child: const Text('Pick Patient'),
               ),
             ),
             const SizedBox(width: 12),
@@ -395,8 +535,8 @@ class _LoginScreenState extends State<LoginScreen>
               child: OutlinedButton(
                 onPressed: _isLoading
                     ? null
-                    : () => _fillDevCredentials(email: 'fake.doctor@dev.local'),
-                child: const Text('Doctor'),
+                    : () => _pickDevAccount(role: 'DOCTOR'),
+                child: const Text('Pick Doctor'),
               ),
             ),
           ],
@@ -674,4 +814,16 @@ class _LoginScreenState extends State<LoginScreen>
       ),
     );
   }
+}
+
+class _DevAccount {
+  final String role;
+  final String name;
+  final String email;
+
+  const _DevAccount({
+    required this.role,
+    required this.name,
+    required this.email,
+  });
 }

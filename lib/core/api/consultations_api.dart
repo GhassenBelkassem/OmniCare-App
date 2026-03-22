@@ -16,6 +16,11 @@ class ConsultationsApi {
   static final Map<String, ({DateTime at, List<Consultation> data})> _cache =
       <String, ({DateTime at, List<Consultation> data})>{};
 
+  static void invalidateListCache() {
+    _cache.clear();
+    _inflightList.clear();
+  }
+
   ConsultationsApi({Dio? dio}) : _dio = dio ?? DioClient.instance.dio;
 
   Future<List<Consultation>> listConsultations({String? status}) async {
@@ -102,6 +107,8 @@ class ConsultationsApi {
       data: payload,
     );
 
+    invalidateListCache();
+
     if (res.data is Map) {
       return Map<String, dynamic>.from(res.data as Map);
     }
@@ -166,6 +173,8 @@ class ConsultationsApi {
 
     final res = await _dio.post('/consultations', data: payload);
 
+    invalidateListCache();
+
     if (res.data is Map<String, dynamic>) {
       return Consultation.fromJson(res.data as Map<String, dynamic>);
     }
@@ -189,6 +198,8 @@ class ConsultationsApi {
 
     final url = '/consultations/$consultationId';
     final res = await _dio.patch(url, data: payload);
+
+    invalidateListCache();
 
     if (res.data is Map<String, dynamic>) {
       return Consultation.fromJson(res.data as Map<String, dynamic>);
@@ -214,6 +225,8 @@ class ConsultationsApi {
       '/consultations/$consultationId/complete',
       data: payload,
     );
+
+    invalidateListCache();
 
     if (res.data is Map<String, dynamic>) {
       return Consultation.fromJson(res.data as Map<String, dynamic>);

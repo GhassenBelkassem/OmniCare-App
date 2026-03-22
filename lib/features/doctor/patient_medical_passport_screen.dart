@@ -139,6 +139,7 @@ class _PatientMedicalPassportScreenState
                 'name': (widget.patientName ?? '').trim().isNotEmpty
                     ? widget.patientName!.trim()
                     : 'Patient',
+                'relationship': null,
                 'age': '...',
                 'gender': '...',
                 'bloodType': '...',
@@ -154,6 +155,12 @@ class _PatientMedicalPassportScreenState
                 'emergencyContact': const <String, dynamic>{},
               }
             : _toUiPatientData(passport);
+
+        final relationshipRaw = (passport?.relationship ?? '').trim();
+        final relationshipText =
+            (relationshipRaw.isEmpty || relationshipRaw.toUpperCase() == 'SELF')
+            ? null
+            : relationshipRaw;
 
         return Scaffold(
           backgroundColor: const Color(0xFFF4F5F7),
@@ -225,6 +232,31 @@ class _PatientMedicalPassportScreenState
                                           color: Colors.white,
                                         ),
                                       ),
+                                      if (relationshipText != null) ...[
+                                        const SizedBox(height: 6),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 6,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white.withOpacity(
+                                              0.2,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            relationshipText,
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                       Text(
                                         '${patientData['age']} years  ${patientData['gender']}',
                                         style: GoogleFonts.plusJakartaSans(

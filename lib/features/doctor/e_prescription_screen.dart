@@ -4,8 +4,9 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'dart:math';
 import '../../core/api/consultations_api.dart';
 import '../../core/api/doctors_api.dart';
-import '../../core/widgets/medication_search_field.dart';
 import '../../core/api/medications_api.dart';
+import '../../core/api/provider_me_api.dart';
+import '../../core/widgets/medication_search_field.dart';
 
 class EPrescriptionScreen extends StatefulWidget {
   final Map<String, dynamic> patientData;
@@ -28,6 +29,96 @@ class _EPrescriptionScreenState extends State<EPrescriptionScreen> {
   final List<Map<String, dynamic>> _prescribedMedications = [];
   MedicationSearchResult? _selectedMedication;
   final MedicationsApi _medicationsApi = MedicationsApi();
+
+  Future<Map<String, String>?> _promptDiagnosis({
+    String? initialDiagnosis,
+    String? initialTreatment,
+  }) async {
+    final diagnosisController = TextEditingController(
+      text: (initialDiagnosis ?? '').trim(),
+    );
+    final treatmentController = TextEditingController(
+      text: (initialTreatment ?? '').trim(),
+    );
+
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Text(
+            'Diagnostic (optionnel)',
+            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Ajoutez un diagnostic et/ou un traitement pour terminer la consultation.',
+                style: GoogleFonts.plusJakartaSans(),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: diagnosisController,
+                decoration: InputDecoration(
+                  labelText: 'Diagnostic',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: treatmentController,
+                decoration: InputDecoration(
+                  labelText: 'Traitement (optionnel)',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context, {
+                  'diagnosis': '',
+                  'treatment': treatmentController.text.trim(),
+                });
+              },
+              child: Text(
+                'Ignorer',
+                style: GoogleFonts.plusJakartaSans(
+                  color: const Color(0xFF667085),
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final d = diagnosisController.text.trim();
+                Navigator.pop(context, {
+                  'diagnosis': d,
+                  'treatment': treatmentController.text.trim(),
+                });
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1FBF9A),
+              ),
+              child: Text(
+                'Continuer',
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    return result;
+  }
 
   // Quick templates
   final List<Map<String, dynamic>> _templates = [
@@ -222,10 +313,23 @@ class _EPrescriptionScreenState extends State<EPrescriptionScreen> {
   }
 
   Future<void> _completeConsultation() async {
+    BuildContext? loadingDialogContext;
+
+    void closeLoadingDialogIfOpen() {
+      final ctx = loadingDialogContext;
+      if (ctx == null) return;
+      final navigator = Navigator.of(ctx);
+      if (navigator.canPop()) {
+        navigator.pop();
+      }
+      loadingDialogContext = null;
+    }
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) {
+        loadingDialogContext = context;
         return const Center(child: CircularProgressIndicator());
       },
     );
@@ -238,21 +342,47 @@ class _EPrescriptionScreenState extends State<EPrescriptionScreen> {
         if (patientId == null || patientId.trim().isEmpty) {
           throw StateError('Missing patientId for prescription');
         }
-        final payload = _buildPrescriptionPayload(patientId: patientId.trim());
-        await ConsultationsApi().putPrescription(
-          consultationId: existingId,
-          payload: payload,
-        );
+        final hasNotes = _notesController.text.trim().isNotEmpty;
+        if (_prescribedMedications.isNotEmpty || hasNotes) {
+          final payload = _buildPrescriptionPayload(
+            patientId: patientId.trim(),
+          );
+          await ConsultationsApi().putPrescription(
+            consultationId: existingId,
+            payload: payload,
+          );
+        }
 
         final c = await ConsultationsApi().getConsultation(
           consultationId: existingId,
         );
-        final diagnosis = (c.diagnosis ?? '').trim();
-        final treatment = (c.treatment ?? '').trim();
+        var diagnosis = (c.diagnosis ?? '').trim();
+        var treatment = (c.treatment ?? '').trim();
         if (diagnosis.isEmpty) {
-          throw StateError(
-            'Diagnosis is required to complete the consultation',
+          // Close the loading dialog before showing another dialog.
+          closeLoadingDialogIfOpen();
+          final provided = await _promptDiagnosis(
+            initialDiagnosis: diagnosis,
+            initialTreatment: treatment,
           );
+          if (provided != null) {
+            diagnosis = (provided['diagnosis'] ?? '').trim();
+            treatment = (provided['treatment'] ?? '').trim();
+          }
+
+          // Re-open loading dialog for the remaining API call.
+          if (mounted) {
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) {
+                loadingDialogContext = context;
+                return const Center(
+                  child: CircularProgressIndicator(color: Color(0xFF1FBF9A)),
+                );
+              },
+            );
+          }
         }
         await ConsultationsApi().completeConsultation(
           consultationId: existingId,
@@ -290,21 +420,47 @@ class _EPrescriptionScreenState extends State<EPrescriptionScreen> {
           throw StateError('Consultation created but missing id');
         }
 
-        final payload = _buildPrescriptionPayload(patientId: patientId.trim());
-        await ConsultationsApi().putPrescription(
-          consultationId: consultationId,
-          payload: payload,
-        );
+        final hasNotes = _notesController.text.trim().isNotEmpty;
+        if (_prescribedMedications.isNotEmpty || hasNotes) {
+          final payload = _buildPrescriptionPayload(
+            patientId: patientId.trim(),
+          );
+          await ConsultationsApi().putPrescription(
+            consultationId: consultationId,
+            payload: payload,
+          );
+        }
 
         final c = await ConsultationsApi().getConsultation(
           consultationId: consultationId,
         );
-        final diagnosis = (c.diagnosis ?? '').trim();
-        final treatment = (c.treatment ?? '').trim();
+        var diagnosis = (c.diagnosis ?? '').trim();
+        var treatment = (c.treatment ?? '').trim();
         if (diagnosis.isEmpty) {
-          throw StateError(
-            'Diagnosis is required to complete the consultation',
+          // Close the loading dialog before showing another dialog.
+          closeLoadingDialogIfOpen();
+          final provided = await _promptDiagnosis(
+            initialDiagnosis: diagnosis,
+            initialTreatment: treatment,
           );
+          if (provided != null) {
+            diagnosis = (provided['diagnosis'] ?? '').trim();
+            treatment = (provided['treatment'] ?? '').trim();
+          }
+
+          // Re-open loading dialog for the remaining API call.
+          if (mounted) {
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) {
+                loadingDialogContext = context;
+                return const Center(
+                  child: CircularProgressIndicator(color: Color(0xFF1FBF9A)),
+                );
+              },
+            );
+          }
         }
         await ConsultationsApi().completeConsultation(
           consultationId: consultationId,
@@ -324,12 +480,13 @@ class _EPrescriptionScreenState extends State<EPrescriptionScreen> {
         );
       }
     } finally {
-      if (mounted) {
-        Navigator.pop(context);
-      }
+      closeLoadingDialogIfOpen();
     }
 
     if (!success) return;
+
+    ConsultationsApi.invalidateListCache();
+    ProviderMeApi.invalidateConsultationsCache();
 
     // Show success dialog
     showDialog(
@@ -458,11 +615,7 @@ class _EPrescriptionScreenState extends State<EPrescriptionScreen> {
                   ElevatedButton(
                     onPressed: () {
                       Navigator.pop(context); // Close dialog
-                      Navigator.pushNamedAndRemoveUntil(
-                        context,
-                        '/doctor-dashboard',
-                        (route) => false,
-                      );
+                      _completeConsultation();
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1FBF9A),
@@ -836,27 +989,55 @@ class _EPrescriptionScreenState extends State<EPrescriptionScreen> {
             ),
             child: SafeArea(
               top: false,
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _generatePrescription,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1FBF9A),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _completeConsultation,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1D2939),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        'Terminer sans ordonnance',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                   ),
-                  child: Text(
-                    'Générer l\'ordonnance',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _generatePrescription,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1FBF9A),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        'Générer l\'ordonnance',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
             ),
           ),

@@ -19,6 +19,11 @@ class ProviderMeApi {
   static final Map<String, ({DateTime at, List<Consultation> data})>
   _consultationsCache = <String, ({DateTime at, List<Consultation> data})>{};
 
+  static void invalidateConsultationsCache() {
+    _consultationsCache.clear();
+    _inflightConsultations.clear();
+  }
+
   ProviderMeApi({Dio? dio}) : _dio = dio ?? DioClient.instance.dio;
 
   Future<List<Consultation>> listMyConsultations({

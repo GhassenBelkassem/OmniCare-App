@@ -12,10 +12,10 @@ import '../../core/api/consultations_api.dart';
 import '../../core/api/api_error_utils.dart';
 import '../../core/api/family_api.dart';
 import '../../core/api/patients_api.dart';
+import '../../core/api/provider_me_api.dart';
 import '../../core/models/patient_models.dart';
 import '../../providers/user_provider.dart';
 import '../../core/models/consultation.dart' as api;
-import '../../core/api/provider_me_api.dart';
 import 'consultation_detail_screen.dart';
 import 'patient_medical_passport_screen.dart';
 
@@ -702,6 +702,52 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
     });
   }
 
+  void _clearIncomingRequestContext() {
+    _requestPatient = null;
+    _requestPassport = null;
+    _familyRelationship = null;
+    _passportError = null;
+    _isLoadingPassport = false;
+  }
+
+  Future<void> _rejectRequest() async {
+    final consultationId = (_incomingConsultation?.id ?? '').trim();
+    if (consultationId.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _hasIncomingRequest = false;
+        _incomingConsultation = null;
+        _clearIncomingRequestContext();
+        _countdown = 0;
+      });
+      _timer?.cancel();
+      return;
+    }
+
+    try {
+      await ConsultationsApi().patchConsultation(
+        consultationId: consultationId,
+        status: 'CANCELLED',
+      );
+    } catch (_) {
+      // Non-fatal: still clear local UI state.
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _hasIncomingRequest = false;
+      _incomingConsultation = null;
+      _clearIncomingRequestContext();
+      _countdown = 0;
+    });
+    _timer?.cancel();
+
+    ProviderMeApi.invalidateConsultationsCache();
+
+    // Immediately check if there's another pending request.
+    await _fetchIncomingRequestOnce();
+  }
+
   Future<void> _loadRequestPatient({String? patientId}) async {
     try {
       final list = await PatientsApi().getPatientsForProfessional();
@@ -717,6 +763,15 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
           await _loadFamilyRelationshipIfNeeded();
           return;
         }
+
+        // If we have a consultation patientId but couldn't resolve it in the
+        // professional patient list, do NOT randomly pick a different patient.
+        // That leads to conflicting UI (wrong name/passport fetched).
+        setState(() {
+          _requestPatient = null;
+          _familyRelationship = null;
+        });
+        return;
       }
 
       final randomPick = list[Random().nextInt(list.length)];
@@ -807,10 +862,16 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
           setState(() {
             _hasIncomingRequest = false;
             _incomingConsultation = null;
+            _clearIncomingRequestContext();
           });
         }
         return;
       }
+
+      // New incoming request: clear cached patient/passport so we don't show stale data while loading.
+      setState(() {
+        _clearIncomingRequestContext();
+      });
 
       setState(() {
         _incomingConsultation = pending.first;
@@ -828,6 +889,7 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
       setState(() {
         _hasIncomingRequest = false;
         _incomingConsultation = null;
+        _clearIncomingRequestContext();
       });
       return;
     }
@@ -1817,13 +1879,7 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
             children: [
               Expanded(
                 child: OutlinedButton(
-                  onPressed: () {
-                    setState(() {
-                      _hasIncomingRequest = false;
-                      _incomingConsultation = null;
-                    });
-                    _timer?.cancel();
-                  },
+                  onPressed: _rejectRequest,
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.red,
                     side: const BorderSide(color: Colors.red),
@@ -2459,10 +2515,7 @@ class RevenueHubScreen extends StatelessWidget {
               if (when.year == today.year &&
                   when.month == today.month &&
                   when.day == today.day) {
-                final net = double.tryParse((c.netAmount ?? '').toString());
-                if (net != null) {
-                  todayNet += net;
-                }
+                todayNet += (c.netAmount ?? 0);
               }
             }
 
