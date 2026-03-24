@@ -2,7 +2,11 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+
 import '../../core/api/account_api.dart';
+import '../../core/api/files_api.dart';
+import '../../core/services/file_picker_service.dart';
 import '../../core/models/family_models.dart' as core_models;
 import '../../providers/user_onboarding_provider.dart' hide MedicalDocument;
 import '../../providers/user_provider.dart';
@@ -23,6 +27,10 @@ class NewHomeScreen extends StatefulWidget {
 
 class _NewHomeScreenState extends State<NewHomeScreen> {
   int _selectedIndex = 0;
+
+  bool _isUploadingProfileAvatar = false;
+  final _filePickerService = FilePickerService();
+  final _filesApi = FilesApi();
 
   FamilyMember _toDetailMember(core_models.FamilyMember member) {
     final medicalInfo = member.medicalInfo ?? const <String, dynamic>{};
@@ -969,6 +977,9 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
               .toList()
         : const <Map<String, dynamic>>[];
     final String bloodGroup = (userProvider.user?.bloodGroup ?? '').trim();
+    final String? avatarUrl = (userProvider.user?.avatar ?? '').trim().isEmpty
+        ? null
+        : userProvider.user?.avatar;
 
     final String patientName;
     if (userProvider.isLoading && userProvider.user == null) {
@@ -1005,6 +1016,122 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
             color: const Color(0xFF667085),
           ),
         ),
+        const SizedBox(height: 20),
+
+        Align(
+          alignment: Alignment.center,
+          child: Stack(
+            children: [
+              Container(
+                width: 110,
+                height: 110,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: const Color(0xFF1FBF9A).withOpacity(0.25),
+                    width: 3,
+                  ),
+                ),
+                child: ClipOval(
+                  child: avatarUrl != null
+                      ? CachedNetworkImage(
+                          imageUrl: avatarUrl,
+                          fit: BoxFit.cover,
+                          placeholder: (context, _) => const Center(
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          errorWidget: (context, _, __) => const Center(
+                            child: Icon(
+                              Icons.person,
+                              size: 44,
+                              color: Color(0xFF1FBF9A),
+                            ),
+                          ),
+                        )
+                      : const Center(
+                          child: Icon(
+                            Icons.person,
+                            size: 44,
+                            color: Color(0xFF1FBF9A),
+                          ),
+                        ),
+                ),
+              ),
+              if (_isUploadingProfileAvatar)
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withOpacity(0.6),
+                    ),
+                    child: const Center(
+                      child: CircularProgressIndicator(strokeWidth: 3),
+                    ),
+                  ),
+                ),
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: Material(
+                  color: Colors.white,
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    onTap: _isUploadingProfileAvatar
+                        ? null
+                        : () async {
+                            setState(() => _isUploadingProfileAvatar = true);
+                            try {
+                              final picked = await _filePickerService
+                                  .pickAndCompressImage();
+                              if (picked == null) return;
+
+                              final upload = await _filesApi.uploadFile(
+                                file: picked,
+                                folder: 'omnicare/avatars',
+                              );
+
+                              await AccountApi().patchProfilePicture(
+                                profilePictureUrl: upload.url,
+                                profilePicturePublicId: upload.publicId,
+                              );
+
+                              if (!context.mounted) return;
+                              await Provider.of<UserProvider>(
+                                context,
+                                listen: false,
+                              ).refresh();
+                            } catch (e) {
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(e.toString()),
+                                  backgroundColor: const Color(0xFFDC2626),
+                                ),
+                              );
+                            } finally {
+                              if (mounted) {
+                                setState(
+                                  () => _isUploadingProfileAvatar = false,
+                                );
+                              }
+                            }
+                          },
+                    customBorder: const CircleBorder(),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Icon(
+                        Icons.edit,
+                        size: 18,
+                        color: const Color(0xFF1FBF9A),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
         const SizedBox(height: 20),
 
         // Digital ID Card

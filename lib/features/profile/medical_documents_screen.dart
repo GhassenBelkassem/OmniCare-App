@@ -1,12 +1,11 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../core/api/documents_api.dart';
-import '../../core/api/storage_service.dart';
+import '../../core/api/files_api.dart';
 import '../../providers/user_onboarding_provider.dart';
 
 class MedicalDocumentsScreen extends StatefulWidget {
@@ -18,7 +17,7 @@ class MedicalDocumentsScreen extends StatefulWidget {
 
 class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen> {
   bool _isLoading = false;
-  final IStorageService _storageService = CloudinaryStorageImpl();
+  final FilesApi _filesApi = FilesApi();
   final DocumentsApi _documentsApi = DocumentsApi();
 
   String _toBackendDocumentType(String uiType) {
@@ -40,16 +39,18 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final url = await _storageService.uploadDocument(
-        File(filePath),
-        'omnicare/medical-documents',
+      final upload = await _filesApi.uploadFile(
+        file: XFile(filePath),
+        folder: 'omnicare/documents',
       );
 
       await _documentsApi.createDocument(
         title: documentName,
         type: _toBackendDocumentType(documentType),
         issueDate: DateFormat('yyyy-MM-dd').format(selectedDate),
-        fileUrl: url,
+        fileUrl: upload.url,
+        filePublicId: upload.publicId,
+        fileProvider: upload.provider,
       );
 
       if (!mounted) return;

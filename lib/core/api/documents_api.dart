@@ -12,12 +12,20 @@ class DocumentsApi {
     required String type,
     String? issueDate,
     required String fileUrl,
+    String? filePublicId,
+    String? fileProvider,
   }) async {
     final payload = <String, dynamic>{
       'title': title,
       'type': type,
       'fileUrl': fileUrl,
     };
+    if (filePublicId != null && filePublicId.trim().isNotEmpty) {
+      payload['filePublicId'] = filePublicId;
+    }
+    if (fileProvider != null && fileProvider.trim().isNotEmpty) {
+      payload['fileProvider'] = fileProvider;
+    }
     if (issueDate != null && issueDate.trim().isNotEmpty) {
       payload['issueDate'] = issueDate;
     }

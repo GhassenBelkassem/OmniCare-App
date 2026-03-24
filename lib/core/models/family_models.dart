@@ -26,6 +26,8 @@ class FamilyMember {
   final String? birthDate;
   final int? ageYears;
   final String? gender;
+  final String? profilePictureUrl;
+  final String? profilePicturePublicId;
   final String? bloodGroup;
   final Map<String, dynamic>? medicalInfo;
   final String? patientId;
@@ -41,6 +43,8 @@ class FamilyMember {
     this.birthDate,
     this.ageYears,
     this.gender,
+    this.profilePictureUrl,
+    this.profilePicturePublicId,
     this.bloodGroup,
     this.medicalInfo,
     this.patientId,
@@ -60,6 +64,8 @@ class FamilyMember {
           ? (json['ageYears'] as num).toInt()
           : null,
       gender: json['gender']?.toString(),
+      profilePictureUrl: json['profilePictureUrl']?.toString(),
+      profilePicturePublicId: json['profilePicturePublicId']?.toString(),
       bloodGroup: _bloodGroupFromBackend(json['bloodGroup']?.toString()),
       medicalInfo: (json['medicalInfo'] is Map)
           ? (json['medicalInfo'] as Map).cast<String, dynamic>()
@@ -80,6 +86,8 @@ class FamilyMember {
       'birthDate': birthDate,
       'ageYears': ageYears,
       'gender': gender,
+      'profilePictureUrl': profilePictureUrl,
+      'profilePicturePublicId': profilePicturePublicId,
       'bloodGroup': bloodGroup,
       'medicalInfo': medicalInfo,
       'patientId': patientId,

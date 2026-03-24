@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
+import '../../core/api/files_api.dart';
+import '../../core/services/file_picker_service.dart';
 import '../../providers/family_provider.dart';
 import '../../providers/user_provider.dart';
 
@@ -85,7 +88,13 @@ class AddFamilyMemberScreen extends StatefulWidget {
 class _AddFamilyMemberScreenState extends State<AddFamilyMemberScreen> {
   int _currentStep = 0;
   String? _photoPath;
+  String? _profilePictureUrl;
+  String? _profilePicturePublicId;
   bool _isSaving = false;
+  bool _isUploadingAvatar = false;
+
+  final _filePickerService = FilePickerService();
+  final _filesApi = FilesApi();
 
   // Step 1: Identity
   final _firstNameController = TextEditingController();
@@ -187,6 +196,48 @@ class _AddFamilyMemberScreenState extends State<AddFamilyMemberScreen> {
     return '$yyyy-$mm-$dd';
   }
 
+  Future<void> _pickAndUploadAvatar() async {
+    if (_isUploadingAvatar || _isSaving) return;
+
+    setState(() => _isUploadingAvatar = true);
+
+    try {
+      final picked = await _filePickerService.pickAndCompressImage();
+      if (picked == null) return;
+
+      final upload = await _filesApi.uploadFile(
+        file: picked,
+        folder: 'omnicare/avatars',
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _photoPath = picked.path;
+        _profilePictureUrl = upload.url;
+        _profilePicturePublicId = upload.publicId;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Photo ajoutée'),
+          backgroundColor: Color(0xFF1FBF9A),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Upload photo échoué: $e'),
+          backgroundColor: const Color(0xFFDC2626),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isUploadingAvatar = false);
+      }
+    }
+  }
+
   Future<void> _handleSubmit() async {
     if (_isSaving) return;
 
@@ -248,6 +299,8 @@ class _AddFamilyMemberScreenState extends State<AddFamilyMemberScreen> {
         phoneNumber: resolvedPhone,
         birthDate: birthDateIso,
         gender: _selectedGender,
+        profilePictureUrl: _profilePictureUrl,
+        profilePicturePublicId: _profilePicturePublicId,
         bloodGroup: bloodGroup,
         medicalInfo: medicalInfo.isEmpty ? null : medicalInfo,
       );
@@ -734,33 +787,95 @@ class _AddFamilyMemberScreenState extends State<AddFamilyMemberScreen> {
         ),
         const SizedBox(height: 32),
 
-        // Photo Placeholder
-        Container(
-          width: 120,
-          height: 120,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: const Color(0xFF1FBF9A).withOpacity(0.3),
-              width: 3,
-              style: BorderStyle.solid,
+        // Photo
+        Stack(
+          alignment: Alignment.center,
+          children: [
+            Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: const Color(0xFF1FBF9A).withOpacity(0.3),
+                  width: 3,
+                  style: BorderStyle.solid,
+                ),
+                color: const Color(0xFF1FBF9A).withOpacity(0.05),
+              ),
+              child: ClipOval(
+                child:
+                    (_profilePictureUrl != null &&
+                        _profilePictureUrl!.trim().isNotEmpty)
+                    ? CachedNetworkImage(
+                        imageUrl: _profilePictureUrl!,
+                        fit: BoxFit.cover,
+                        placeholder: (context, _) => const Center(
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        errorWidget: (context, _, __) => Center(
+                          child: Icon(
+                            Icons.person,
+                            size: 48,
+                            color: const Color(0xFF1FBF9A),
+                          ),
+                        ),
+                      )
+                    : Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.person,
+                              size: 48,
+                              color: const Color(0xFF1FBF9A),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Photo',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11,
+                                color: const Color(0xFF667085),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+              ),
             ),
-            color: const Color(0xFF1FBF9A).withOpacity(0.05),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.person, size: 48, color: const Color(0xFF1FBF9A)),
-              const SizedBox(height: 8),
-              Text(
-                'Photo',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 11,
-                  color: const Color(0xFF667085),
+            if (_isUploadingAvatar)
+              Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.6),
+                ),
+                child: const Center(
+                  child: CircularProgressIndicator(strokeWidth: 3),
                 ),
               ),
-            ],
-          ),
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: Material(
+                color: Colors.white,
+                shape: const CircleBorder(),
+                child: InkWell(
+                  onTap: _isUploadingAvatar ? null : _pickAndUploadAvatar,
+                  customBorder: const CircleBorder(),
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Icon(
+                      Icons.edit,
+                      size: 18,
+                      color: const Color(0xFF1FBF9A),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 32),
 

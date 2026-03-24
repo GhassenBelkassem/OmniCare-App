@@ -68,6 +68,7 @@ class AccountUser {
   final String? phoneNumber;
   final String? bloodGroup;
   final Map<String, dynamic>? medicalInfo;
+  final String? avatar;
 
   AccountUser({
     required this.email,
@@ -80,6 +81,7 @@ class AccountUser {
     this.phoneNumber,
     this.bloodGroup,
     this.medicalInfo,
+    this.avatar,
   });
 
   factory AccountUser.fromJson(Map<String, dynamic> json) {
@@ -91,6 +93,7 @@ class AccountUser {
         : null;
     final profileFirst = profileJson?['firstName']?.toString();
     final profileLast = profileJson?['lastName']?.toString();
+    final profileAvatar = profileJson?['avatar']?.toString();
 
     String resolvedName = (json['name'] ?? '').toString();
     final String resolvedFirst = (directFirst ?? profileFirst ?? '').toString();
@@ -126,6 +129,7 @@ class AccountUser {
       medicalInfo: (json['medicalInfo'] is Map)
           ? (json['medicalInfo'] as Map).cast<String, dynamic>()
           : null,
+      avatar: profileAvatar,
     );
   }
 
@@ -165,6 +169,7 @@ class AccountUser {
       'phoneNumber': phoneNumber,
       'bloodGroup': bloodGroup,
       'medicalInfo': medicalInfo,
+      'avatar': avatar,
     };
   }
 }

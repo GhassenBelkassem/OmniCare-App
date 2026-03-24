@@ -40,6 +40,8 @@ class FamilyApi {
     String? phoneNumber,
     required String birthDate,
     String? gender,
+    String? profilePictureUrl,
+    String? profilePicturePublicId,
     String? bloodGroup,
     Map<String, dynamic>? medicalInfo,
   }) async {
@@ -55,6 +57,9 @@ class FamilyApi {
       if (phoneNumber != null) 'phoneNumber': phoneNumber,
       'birthDate': birthDate,
       if (gender != null) 'gender': gender,
+      if (profilePictureUrl != null) 'profilePictureUrl': profilePictureUrl,
+      if (profilePicturePublicId != null)
+        'profilePicturePublicId': profilePicturePublicId,
       if (medicalInfo != null) 'medicalInfo': medicalInfo,
     };
 
@@ -82,6 +87,8 @@ class FamilyApi {
     String? phoneNumber,
     String? birthDate,
     String? gender,
+    String? profilePictureUrl,
+    String? profilePicturePublicId,
     Map<String, dynamic>? medicalInfo,
   }) async {
     debugPrint('[FamilyApi] updateFamilyMember() -> PATCH /api/family/$id');
@@ -97,6 +104,12 @@ class FamilyApi {
     if (phoneNumber != null) payload['phoneNumber'] = phoneNumber;
     if (birthDate != null) payload['birthDate'] = birthDate;
     if (gender != null) payload['gender'] = gender;
+    if (profilePictureUrl != null) {
+      payload['profilePictureUrl'] = profilePictureUrl;
+    }
+    if (profilePicturePublicId != null) {
+      payload['profilePicturePublicId'] = profilePicturePublicId;
+    }
     if (medicalInfo != null) payload['medicalInfo'] = medicalInfo;
 
     final response = await _dio.patch('/family/$id', data: payload);

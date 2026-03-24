@@ -57,6 +57,23 @@ class AccountApi {
 
     await _dio.patch('/account/medical-passport', data: payload);
   }
+
+  Future<void> patchProfilePicture({
+    required String profilePictureUrl,
+    String? profilePicturePublicId,
+  }) async {
+    debugPrint(
+      '[AccountApi] patchProfilePicture() -> PATCH /account/profile-picture',
+    );
+
+    final payload = <String, dynamic>{'profilePictureUrl': profilePictureUrl};
+    if (profilePicturePublicId != null &&
+        profilePicturePublicId.trim().isNotEmpty) {
+      payload['profilePicturePublicId'] = profilePicturePublicId;
+    }
+
+    await _dio.patch('/account/profile-picture', data: payload);
+  }
 }
 
 String? _bloodGroupToBackend(String? ui) {

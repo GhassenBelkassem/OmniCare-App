@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
-import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 import 'history_tab.dart';
 import '../../core/api/consultations_api.dart';
 import '../../core/api/medical_acts_api.dart';
-import '../../core/api/storage_service.dart';
+import '../../core/api/files_api.dart';
 import '../../providers/user_provider.dart';
 
 class ConsultationDetailScreen extends StatefulWidget {
@@ -203,13 +203,12 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
         return;
       }
 
-      final storage = CloudinaryStorageImpl();
-      final url = await storage.uploadDocument(
-        File(path),
-        'omnicare/medical-acts',
+      final upload = await FilesApi().uploadFile(
+        file: XFile(path),
+        folder: 'omnicare/documents',
       );
 
-      await _createMedicalAct(actType: 'INJECTION', photoUrl: url);
+      await _createMedicalAct(actType: 'INJECTION', photoUrl: upload.url);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

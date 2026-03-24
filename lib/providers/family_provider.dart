@@ -101,6 +101,8 @@ class FamilyProvider extends ChangeNotifier {
               birthDate: m.birthDate,
               ageYears: m.ageYears,
               gender: m.gender,
+              profilePictureUrl: m.profilePictureUrl,
+              profilePicturePublicId: m.profilePicturePublicId,
               bloodGroup: m.bloodGroup,
               medicalInfo: m.medicalInfo,
               patientId: m.patientId,
@@ -133,6 +135,8 @@ class FamilyProvider extends ChangeNotifier {
             birthDate: member.birthDate,
             ageYears: member.ageYears,
             gender: member.gender,
+            profilePictureUrl: member.profilePictureUrl,
+            profilePicturePublicId: member.profilePicturePublicId,
             bloodGroup: member.bloodGroup,
             medicalInfo: member.medicalInfo,
             patientId: patientId,
@@ -169,6 +173,8 @@ class FamilyProvider extends ChangeNotifier {
     String? phoneNumber,
     required String birthDate,
     String? gender,
+    String? profilePictureUrl,
+    String? profilePicturePublicId,
     String? bloodGroup,
     Map<String, dynamic>? medicalInfo,
   }) async {
@@ -188,6 +194,8 @@ class FamilyProvider extends ChangeNotifier {
         phoneNumber: phoneNumber,
         birthDate: birthDate,
         gender: gender,
+        profilePictureUrl: profilePictureUrl,
+        profilePicturePublicId: profilePicturePublicId,
         medicalInfo: medicalInfo,
       );
 
