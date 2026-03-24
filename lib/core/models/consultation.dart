@@ -142,7 +142,10 @@ class Consultation {
       longitude: _parseDouble(_pick(json, 'longitude', 'longitude')),
       fee: _parseDouble(_pick(json, 'fee', 'fee')),
       netAmount: _parseDouble(_pick(json, 'netAmount', 'net_amount')),
-      omnicareFee: _parseDouble(_pick(json, 'omnicareFee', 'omnicare_fee')),
+      omnicareFee: _parseDouble(
+        _pick(json, 'omnicareFee', 'omnicare_fee') ??
+            _pick(json, 'platformFeeAmount', 'platform_fee_amount'),
+      ),
       timestamp: _pick(json, 'timestamp', 'timestamp')?.toString(),
       allergyWarning: _pick(
         json,

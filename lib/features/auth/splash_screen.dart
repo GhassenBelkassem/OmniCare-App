@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'language_selection_screen.dart';
+import '../../core/auth/token_storage.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -18,15 +19,43 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _navigateToLogin() async {
     await Future.delayed(const Duration(seconds: 3));
     if (mounted) {
+      final jwt = await TokenStorage.readJwt();
+      if (jwt != null && jwt.trim().isNotEmpty) {
+        final complete = await TokenStorage.readOnboardingComplete();
+        if (!mounted) return;
+        if (complete == true) {
+          Navigator.of(context).pushReplacementNamed('/home');
+          return;
+        }
+        if (complete == false) {
+          Navigator.of(
+            context,
+          ).pushReplacementNamed('/conversational-onboarding');
+          return;
+        }
+
+        // Unknown onboarding status (e.g. first launch after update or profile fetch failed).
+        // Do not route to onboarding by default.
+        Navigator.of(context).pushReplacement(
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                const LanguageSelectionScreen(),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+                  return FadeTransition(opacity: animation, child: child);
+                },
+            transitionDuration: const Duration(milliseconds: 600),
+          ),
+        );
+        return;
+      }
+
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
           pageBuilder: (context, animation, secondaryAnimation) =>
               const LanguageSelectionScreen(),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return FadeTransition(
-              opacity: animation,
-              child: child,
-            );
+            return FadeTransition(opacity: animation, child: child);
           },
           transitionDuration: const Duration(milliseconds: 600),
         ),
@@ -60,6 +89,28 @@ class _SplashScreenState extends State<SplashScreen> {
             const CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1FBF9A)),
               strokeWidth: 3,
+            ),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () async {
+                await TokenStorage.clearJwt();
+                if (!context.mounted) return;
+                Navigator.of(context).pushReplacement(
+                  PageRouteBuilder(
+                    pageBuilder: (context, animation, secondaryAnimation) =>
+                        const LanguageSelectionScreen(),
+                    transitionsBuilder:
+                        (context, animation, secondaryAnimation, child) {
+                          return FadeTransition(
+                            opacity: animation,
+                            child: child,
+                          );
+                        },
+                    transitionDuration: const Duration(milliseconds: 300),
+                  ),
+                );
+              },
+              child: const Text('Clear Storage'),
             ),
             const SizedBox(height: 48),
           ],

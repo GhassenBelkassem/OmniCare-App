@@ -31,11 +31,19 @@ class AuthApi {
     required String email,
     required String password,
     String? name,
+    String? firstName,
+    String? lastName,
+    String? gender,
+    String? dateOfBirth,
   }) async {
     final payload = {
       'email': email,
       'password': password,
-      'name': ?name,
+      if (name != null) 'name': name,
+      if (firstName != null) 'firstName': firstName,
+      if (lastName != null) 'lastName': lastName,
+      if (gender != null) 'gender': gender,
+      if (dateOfBirth != null) 'dateOfBirth': dateOfBirth,
     };
 
     AppLogger.api('register payload=$payload');
@@ -46,10 +54,7 @@ class AuthApi {
     required String email,
     required String code,
   }) async {
-    final payload = {
-      'email': email,
-      'code': code,
-    };
+    final payload = {'email': email, 'code': code};
 
     AppLogger.api('verifyEmailOtp payload=$payload');
     await _dio.post('/auth/verify-email-otp', data: payload);
@@ -59,21 +64,14 @@ class AuthApi {
     required String email,
     required String phoneNumber,
   }) async {
-    final payload = {
-      'email': email,
-      'phoneNumber': phoneNumber,
-    };
+    final payload = {'email': email, 'phoneNumber': phoneNumber};
 
     AppLogger.api('setPhone payload=$payload');
     await _dio.post('/auth/set-phone', data: payload);
   }
 
-  Future<String?> requestPhoneOtp({
-    required String phoneNumber,
-  }) async {
-    final payload = {
-      'phoneNumber': phoneNumber,
-    };
+  Future<String?> requestPhoneOtp({required String phoneNumber}) async {
+    final payload = {'phoneNumber': phoneNumber};
 
     AppLogger.api('requestPhoneOtp payload=$payload');
     final res = await _dio.post('/auth/request-phone-otp', data: payload);
@@ -92,10 +90,7 @@ class AuthApi {
     required String phoneNumber,
     required String otp,
   }) async {
-    final payload = {
-      'phoneNumber': phoneNumber,
-      'otp': otp,
-    };
+    final payload = {'phoneNumber': phoneNumber, 'otp': otp};
 
     AppLogger.api('verifyPhoneOtp payload=$payload');
     await _dio.post('/auth/verify-phone-otp', data: payload);
@@ -105,10 +100,7 @@ class AuthApi {
     required String email,
     required String password,
   }) async {
-    final payload = {
-      'email': email,
-      'password': password,
-    };
+    final payload = {'email': email, 'password': password};
 
     AppLogger.api('login payload=$payload');
     final res = await _dio.post('/auth/login', data: payload);
@@ -136,10 +128,7 @@ class AuthApi {
     required String email,
     required String password,
   }) async {
-    final payload = {
-      'email': email,
-      'password': password,
-    };
+    final payload = {'email': email, 'password': password};
 
     AppLogger.api('login payload=$payload');
     final res = await _dio.post('/auth/login', data: payload);
@@ -154,26 +143,27 @@ class AuthApi {
 
       await TokenStorage.saveJwt(accessToken);
 
-      final user = (wrapped['user'] is Map) ? (wrapped['user'] as Map) : const {};
+      final user = (wrapped['user'] is Map)
+          ? (wrapped['user'] as Map)
+          : const {};
+      final onboardingComplete = user['onboardingComplete'] == true;
+      await TokenStorage.saveOnboardingComplete(onboardingComplete);
+
       return AuthLoginResult(
         accessToken: accessToken,
         email: user['email']?.toString() ?? email,
         phoneNumber: user['phoneNumber']?.toString(),
         emailVerified: user['emailVerified'] == true,
         phoneVerified: user['phoneVerified'] == true,
-        onboardingComplete: user['onboardingComplete'] == true,
+        onboardingComplete: onboardingComplete,
       );
     }
 
     throw StateError('Unexpected /auth/login response: ${res.data}');
   }
 
-  Future<String> googleLogin({
-    required String idToken,
-  }) async {
-    final payload = {
-      'idToken': idToken,
-    };
+  Future<String> googleLogin({required String idToken}) async {
+    final payload = {'idToken': idToken};
 
     AppLogger.api('googleLogin payload=[idToken redacted]');
     final res = await _dio.post('/auth/google', data: payload);
@@ -200,9 +190,7 @@ class AuthApi {
   Future<AuthLoginResult> googleLoginWithStatus({
     required String idToken,
   }) async {
-    final payload = {
-      'idToken': idToken,
-    };
+    final payload = {'idToken': idToken};
 
     AppLogger.api('googleLogin payload=[idToken redacted]');
     final res = await _dio.post('/auth/google', data: payload);
@@ -217,14 +205,19 @@ class AuthApi {
 
       await TokenStorage.saveJwt(accessToken);
 
-      final user = (wrapped['user'] is Map) ? (wrapped['user'] as Map) : const {};
+      final user = (wrapped['user'] is Map)
+          ? (wrapped['user'] as Map)
+          : const {};
+      final onboardingComplete = user['onboardingComplete'] == true;
+      await TokenStorage.saveOnboardingComplete(onboardingComplete);
+
       return AuthLoginResult(
         accessToken: accessToken,
         email: user['email']?.toString() ?? '',
         phoneNumber: user['phoneNumber']?.toString(),
         emailVerified: user['emailVerified'] == true,
         phoneVerified: user['phoneVerified'] == true,
-        onboardingComplete: user['onboardingComplete'] == true,
+        onboardingComplete: onboardingComplete,
       );
     }
 

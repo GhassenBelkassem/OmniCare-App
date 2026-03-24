@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../core/api/account_api.dart';
-import '../../providers/user_onboarding_provider.dart';
+import '../../core/models/family_models.dart' as core_models;
+import '../../providers/user_onboarding_provider.dart' hide MedicalDocument;
 import '../../providers/user_provider.dart';
 import '../../providers/family_provider.dart';
 import 'edit_medical_data_screen.dart';
@@ -22,6 +23,49 @@ class NewHomeScreen extends StatefulWidget {
 
 class _NewHomeScreenState extends State<NewHomeScreen> {
   int _selectedIndex = 0;
+
+  FamilyMember _toDetailMember(core_models.FamilyMember member) {
+    final medicalInfo = member.medicalInfo ?? const <String, dynamic>{};
+    final chronic = (medicalInfo['chronicConditions'] is List)
+        ? (medicalInfo['chronicConditions'] as List)
+              .map((e) => e.toString())
+              .where((e) => e.trim().isNotEmpty)
+              .toList()
+        : const <String>[];
+
+    final meds = (medicalInfo['currentMedications'] is List)
+        ? (medicalInfo['currentMedications'] as List)
+              .whereType<Map>()
+              .map((e) => e.cast<String, dynamic>())
+              .map(
+                (m) => Medication(
+                  medicationId: m['medicationId']?.toString(),
+                  name: (m['name'] ?? m['medicationId'] ?? 'Medication')
+                      .toString(),
+                  dosage: (m['dosage'] ?? m['catalogDosage'] ?? '-').toString(),
+                  frequency: (m['frequency'] ?? '-').toString(),
+                ),
+              )
+              .toList()
+        : const <Medication>[];
+
+    final age = member.ageYears ?? 0;
+    final blood = (member.bloodGroup ?? '-').trim();
+
+    return FamilyMember(
+      id: member.id,
+      name: member.fullName,
+      age: age,
+      relationship: member.relationship,
+      avatar: '',
+      bloodType: blood.isEmpty ? '-' : blood,
+      chronicConditions: chronic,
+      currentMedications: meds,
+      documents: const <MedicalDocument>[],
+      criticalAlert: null,
+      phoneNumber: null,
+    );
+  }
 
   @override
   void initState() {
@@ -692,40 +736,13 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
   }
 
   Widget _buildDoctorsList() {
-    final doctors = [
-      {
-        'name': 'Dr. Ahmed Ben Salem',
-        'specialty': 'Cardiology',
-        'distance': 1.2,
-        'rating': 4.8,
-        'experience': 15,
-        'verified': true,
-      },
-      {
-        'name': 'Dr. Samira Mansour',
-        'specialty': 'Pediatrics',
-        'distance': 0.8,
-        'rating': 4.9,
-        'experience': 12,
-        'verified': true,
-      },
-      {
-        'name': 'Dr. Karim Trabelsi',
-        'specialty': 'General Medicine',
-        'distance': 2.5,
-        'rating': 4.7,
-        'experience': 10,
-        'verified': true,
-      },
-    ];
-
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Available Doctors (${doctors.length})',
+            'Available Doctors (0)',
             style: GoogleFonts.plusJakartaSans(
               fontSize: 20,
               fontWeight: FontWeight.bold,
@@ -733,10 +750,21 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          ...doctors.map(
-            (doctor) => Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: _buildDoctorCard(doctor),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Text(
+              'No doctors available yet.',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: const Color(0xFF667085),
+              ),
             ),
           ),
         ],
@@ -1807,27 +1835,27 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
   }) {
     return GestureDetector(
       onTap: () {
-        // Parse age to int
-        final ageInt = int.tryParse(age.replaceAll(' ans', '')) ?? 0;
+        final familyProvider = Provider.of<FamilyProvider>(
+          context,
+          listen: false,
+        );
+        final core = (memberId == null)
+            ? null
+            : familyProvider.members
+                  .cast<core_models.FamilyMember?>()
+                  .firstWhere(
+                    (m) => m != null && m.id == memberId,
+                    orElse: () => null,
+                  );
+        if (core == null) {
+          return;
+        }
 
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => FamilyMemberDetailScreen(
-              member: FamilyMember(
-                id: memberId ?? '1',
-                name: name,
-                age: ageInt,
-                relationship: relationship,
-                avatar: '',
-                bloodType: 'A+',
-                chronicConditions: alert != null ? [alert] : [],
-                currentMedications: [],
-                documents: [],
-                criticalAlert: alert,
-                phoneNumber: '+216 98 123 456',
-              ),
-            ),
+            builder: (context) =>
+                FamilyMemberDetailScreen(member: _toDetailMember(core)),
           ),
         );
       },

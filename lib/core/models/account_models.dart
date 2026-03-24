@@ -65,6 +65,7 @@ class AccountUser {
   final String? providerType;
   final String? firstName;
   final String? lastName;
+  final String? phoneNumber;
   final String? bloodGroup;
   final Map<String, dynamic>? medicalInfo;
 
@@ -76,6 +77,7 @@ class AccountUser {
     this.providerType,
     this.firstName,
     this.lastName,
+    this.phoneNumber,
     this.bloodGroup,
     this.medicalInfo,
   });
@@ -106,7 +108,8 @@ class AccountUser {
         : null;
     final resolvedProviderId =
         json['providerId']?.toString() ?? providerJson?['id']?.toString();
-    final resolvedProviderType = json['providerType']?.toString() ??
+    final resolvedProviderType =
+        json['providerType']?.toString() ??
         providerJson?['providerType']?.toString() ??
         providerJson?['type']?.toString();
 
@@ -118,6 +121,7 @@ class AccountUser {
       providerType: resolvedProviderType,
       firstName: resolvedFirst.trim().isEmpty ? null : resolvedFirst,
       lastName: resolvedLast.trim().isEmpty ? null : resolvedLast,
+      phoneNumber: json['phoneNumber']?.toString(),
       bloodGroup: _bloodGroupFromBackend(json['bloodGroup']?.toString()),
       medicalInfo: (json['medicalInfo'] is Map)
           ? (json['medicalInfo'] as Map).cast<String, dynamic>()
@@ -158,6 +162,7 @@ class AccountUser {
       'providerType': providerType,
       'firstName': firstName,
       'lastName': lastName,
+      'phoneNumber': phoneNumber,
       'bloodGroup': bloodGroup,
       'medicalInfo': medicalInfo,
     };

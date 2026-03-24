@@ -18,7 +18,11 @@ String? _bloodGroupFromBackend(String? raw) {
 class FamilyMember {
   final String id;
   final String fullName;
+  final String? firstName;
+  final String? lastName;
   final String relationship;
+  final String? relationshipDescription;
+  final String? phoneNumber;
   final String? birthDate;
   final int? ageYears;
   final String? gender;
@@ -29,7 +33,11 @@ class FamilyMember {
   FamilyMember({
     required this.id,
     required this.fullName,
+    this.firstName,
+    this.lastName,
     required this.relationship,
+    this.relationshipDescription,
+    this.phoneNumber,
     this.birthDate,
     this.ageYears,
     this.gender,
@@ -42,7 +50,11 @@ class FamilyMember {
     return FamilyMember(
       id: (json['id'] ?? '').toString(),
       fullName: (json['fullName'] ?? '').toString(),
+      firstName: json['firstName']?.toString(),
+      lastName: json['lastName']?.toString(),
       relationship: (json['relationship'] ?? '').toString(),
+      relationshipDescription: json['relationshipDescription']?.toString(),
+      phoneNumber: json['phoneNumber']?.toString(),
       birthDate: json['birthDate']?.toString(),
       ageYears: (json['ageYears'] is num)
           ? (json['ageYears'] as num).toInt()
@@ -60,7 +72,11 @@ class FamilyMember {
     return {
       'id': id,
       'fullName': fullName,
+      'firstName': firstName,
+      'lastName': lastName,
       'relationship': relationship,
+      'relationshipDescription': relationshipDescription,
+      'phoneNumber': phoneNumber,
       'birthDate': birthDate,
       'ageYears': ageYears,
       'gender': gender,

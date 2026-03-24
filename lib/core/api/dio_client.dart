@@ -6,15 +6,14 @@ import '../utils/console_log.dart';
 
 class DioClient {
   DioClient._internal() {
+    const fallbackBaseUrl = 'http://192.168.100.83:8080/api';
     final definedBaseUrl = const String.fromEnvironment('API_BASE_URL').trim();
-    final baseUrl = (definedBaseUrl.isNotEmpty
+    final envBaseUrl = dotenv.env['API_BASE_URL']?.trim();
+    final baseUrl = definedBaseUrl.isNotEmpty
         ? definedBaseUrl
-        : dotenv.env['API_BASE_URL']?.trim());
-    if (baseUrl == null || baseUrl.isEmpty) {
-      throw StateError(
-        'API_BASE_URL is not set. Make sure .env is present and loaded.',
-      );
-    }
+        : ((envBaseUrl == null || envBaseUrl.isEmpty)
+              ? fallbackBaseUrl
+              : envBaseUrl);
 
     _dio = Dio(
       BaseOptions(

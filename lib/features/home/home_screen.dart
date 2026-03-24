@@ -23,56 +23,8 @@ class _HomeScreenState extends State<HomeScreen> {
     AppLocalizations.of(context)?.orthopedics ?? 'Orthopedics',
   ];
 
-  final List<Map<String, dynamic>> mockDoctors = [
-    {
-      'id': 1,
-      'name': 'Dr. Ahmed Ben Salem',
-      'specialty': 'Cardiology',
-      'distance': 1.2,
-      'rating': 4.8,
-      'experience': 15,
-      'verified': true,
-      'reviews': 156,
-      'photo': 'https://images.unsplash.com/photo-1612523138351-4643808db8f3?w=200&h=200&fit=crop',
-    },
-    {
-      'id': 2,
-      'name': 'Dr. Samira Mansour',
-      'specialty': 'Pediatrics',
-      'distance': 0.8,
-      'rating': 4.9,
-      'experience': 12,
-      'verified': true,
-      'reviews': 203,
-      'photo': 'https://images.unsplash.com/photo-1576669801945-7a346954da5a?w=200&h=200&fit=crop',
-    },
-    {
-      'id': 3,
-      'name': 'Dr. Karim Trabelsi',
-      'specialty': 'General Medicine',
-      'distance': 2.5,
-      'rating': 4.7,
-      'experience': 10,
-      'verified': true,
-      'reviews': 98,
-      'photo': 'https://images.unsplash.com/photo-1755189118414-14c8dacdb082?w=200&h=200&fit=crop',
-    },
-  ];
-
   List<Map<String, dynamic>> get filteredDoctors {
-    final l10n = AppLocalizations.of(context);
-    if (selectedSpecialty == null || selectedSpecialty == l10n?.allSpecialties) {
-      return mockDoctors;
-    }
-    return mockDoctors.where((doc) {
-      final docSpecialty = doc['specialty'];
-      if (selectedSpecialty == l10n?.generalMedicine) return docSpecialty == 'General Medicine';
-      if (selectedSpecialty == l10n?.cardiology) return docSpecialty == 'Cardiology';
-      if (selectedSpecialty == l10n?.pediatrics) return docSpecialty == 'Pediatrics';
-      if (selectedSpecialty == l10n?.dermatology) return docSpecialty == 'Dermatology';
-      if (selectedSpecialty == l10n?.orthopedics) return docSpecialty == 'Orthopedics';
-      return false;
-    }).toList();
+    return const [];
   }
 
   @override
@@ -96,10 +48,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        flex: 2,
-                        child: _buildDoctorGrid(context, l10n),
-                      ),
+                      Expanded(flex: 2, child: _buildDoctorGrid(context, l10n)),
                     ],
                   ),
                 ),
@@ -119,7 +68,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildFloatingHeader(BuildContext context, AppLocalizations? l10n) {
     final provider = Provider.of<UserOnboardingProvider>(context);
     final currentLanguage = provider.language ?? 'en';
-    
+
     return Positioned(
       top: 0,
       left: 0,
@@ -140,7 +89,10 @@ class _HomeScreenState extends State<HomeScreen> {
             child: SafeArea(
               bottom: false,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -155,10 +107,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             gradient: const LinearGradient(
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
-                              colors: [
-                                Color(0xFF1FBF9A),
-                                Color(0xFF6BE3B2),
-                              ],
+                              colors: [Color(0xFF1FBF9A), Color(0xFF6BE3B2)],
                             ),
                             borderRadius: BorderRadius.circular(10),
                           ),
@@ -211,10 +160,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               gradient: const LinearGradient(
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
-                                colors: [
-                                  Color(0xFF1FBF9A),
-                                  Color(0xFF6BE3B2),
-                                ],
+                                colors: [Color(0xFF1FBF9A), Color(0xFF6BE3B2)],
                               ),
                               shape: BoxShape.circle,
                             ),
@@ -267,7 +213,10 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _showLanguageSelector(BuildContext context, UserOnboardingProvider provider) {
+  void _showLanguageSelector(
+    BuildContext context,
+    UserOnboardingProvider provider,
+  ) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -317,29 +266,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
               const SizedBox(height: 24),
-              _buildLanguageOption(
-                context,
-                provider,
-                'en',
-                'English',
-                '🇬🇧',
-              ),
+              _buildLanguageOption(context, provider, 'en', 'English', '🇬🇧'),
               const SizedBox(height: 12),
-              _buildLanguageOption(
-                context,
-                provider,
-                'fr',
-                'Français',
-                '🇫🇷',
-              ),
+              _buildLanguageOption(context, provider, 'fr', 'Français', '🇫🇷'),
               const SizedBox(height: 12),
-              _buildLanguageOption(
-                context,
-                provider,
-                'ar',
-                'العربية',
-                '🇸🇦',
-              ),
+              _buildLanguageOption(context, provider, 'ar', 'العربية', '🇸🇦'),
               SizedBox(height: MediaQuery.of(context).viewInsets.bottom + 24),
             ],
           ),
@@ -356,7 +287,7 @@ class _HomeScreenState extends State<HomeScreen> {
     String flag,
   ) {
     final isSelected = (provider.language ?? 'en') == languageCode;
-    
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -369,7 +300,9 @@ class _HomeScreenState extends State<HomeScreen> {
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFF1FBF9A).withOpacity(0.08) : const Color(0xFFF4F5F7),
+            color: isSelected
+                ? const Color(0xFF1FBF9A).withOpacity(0.08)
+                : const Color(0xFFF4F5F7),
             border: Border.all(
               color: isSelected ? const Color(0xFF1FBF9A) : Colors.transparent,
               width: 2,
@@ -402,10 +335,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
                 child: Center(
-                  child: Text(
-                    flag,
-                    style: const TextStyle(fontSize: 24),
-                  ),
+                  child: Text(flag, style: const TextStyle(fontSize: 24)),
                 ),
               ),
               const SizedBox(width: 16),
@@ -439,11 +369,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     color: Color(0xFF1FBF9A),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
-                    Icons.check,
-                    color: Colors.white,
-                    size: 16,
-                  ),
+                  child: const Icon(Icons.check, color: Colors.white, size: 16),
                 ),
             ],
           ),
@@ -454,7 +380,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildHeroSection(BuildContext context, AppLocalizations? l10n) {
     final screenHeight = MediaQuery.of(context).size.height;
-    
+
     return Container(
       width: double.infinity,
       height: screenHeight * 0.65,
@@ -488,7 +414,8 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 16),
               Text(
-                l10n?.heroSubtitle ?? 'Connect with verified doctors in Tunisia. Get urgent medical assistance anytime, anywhere.',
+                l10n?.heroSubtitle ??
+                    'Connect with verified doctors in Tunisia. Get urgent medical assistance anytime, anywhere.',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 16,
@@ -610,7 +537,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Color(0xFF1FBF9A), width: 2),
+                  borderSide: const BorderSide(
+                    color: Color(0xFF1FBF9A),
+                    width: 2,
+                  ),
                 ),
               ),
             ),
@@ -627,9 +557,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     });
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
-                      color: isSelected ? const Color(0xFF1FBF9A) : const Color(0xFFF4F5F7),
+                      color: isSelected
+                          ? const Color(0xFF1FBF9A)
+                          : const Color(0xFFF4F5F7),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
@@ -637,7 +572,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
-                        color: isSelected ? Colors.white : const Color(0xFF667085),
+                        color: isSelected
+                            ? Colors.white
+                            : const Color(0xFF667085),
                       ),
                     ),
                   ),
@@ -663,20 +600,22 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 1,
-            childAspectRatio: 1.2,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.black.withOpacity(0.1)),
           ),
-          itemCount: filteredDoctors.length,
-          itemBuilder: (context, index) {
-            final doctor = filteredDoctors[index];
-            return _buildDoctorCard(doctor);
-          },
+          child: Text(
+            'No doctors available yet.',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: const Color(0xFF667085),
+            ),
+          ),
         ),
       ],
     );
@@ -731,7 +670,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     return Container(
                       height: 160,
                       color: const Color(0xFFF4F5F7),
-                      child: const Icon(Icons.person, size: 60, color: Color(0xFF667085)),
+                      child: const Icon(
+                        Icons.person,
+                        size: 60,
+                        color: Color(0xFF667085),
+                      ),
                     );
                   },
                 ),
@@ -745,7 +688,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: Color(0xFF10B981),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.check, color: Colors.white, size: 14),
+                      child: const Icon(
+                        Icons.check,
+                        color: Colors.white,
+                        size: 14,
+                      ),
                     ),
                   ),
               ],
@@ -780,7 +727,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    const Icon(Icons.location_on, size: 14, color: Color(0xFF667085)),
+                    const Icon(
+                      Icons.location_on,
+                      size: 14,
+                      color: Color(0xFF667085),
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       '${doctor['distance']} km',
@@ -827,7 +778,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     child: Text(
-                      AppLocalizations.of(context)?.requestVisit ?? 'Request Visit',
+                      AppLocalizations.of(context)?.requestVisit ??
+                          'Request Visit',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -883,7 +835,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   color: const Color(0xFF1FBF9A).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.folder_outlined, color: Color(0xFF1FBF9A), size: 20),
+                child: const Icon(
+                  Icons.folder_outlined,
+                  color: Color(0xFF1FBF9A),
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 12),
               Text(
@@ -898,7 +854,8 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            l10n?.medicalPassportDesc ?? 'Your complete medical history in one place',
+            l10n?.medicalPassportDesc ??
+                'Your complete medical history in one place',
             style: GoogleFonts.plusJakartaSans(
               fontSize: 14,
               color: const Color(0xFF667085),
@@ -1004,7 +961,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   color: const Color(0xFF6BE3B2).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.local_pharmacy, color: Color(0xFF6BE3B2), size: 20),
+                child: const Icon(
+                  Icons.local_pharmacy,
+                  color: Color(0xFF6BE3B2),
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 12),
               Text(
@@ -1026,7 +987,11 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.access_time, size: 16, color: Color(0xFF6BE3B2)),
+                const Icon(
+                  Icons.access_time,
+                  size: 16,
+                  color: Color(0xFF6BE3B2),
+                ),
                 const SizedBox(width: 8),
                 Text(
                   l10n?.open247Today ?? 'Open 24/7 - Today',
@@ -1039,11 +1004,23 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          _buildPharmacyItem(l10n?.pharmacieCentrale ?? 'Pharmacie Centrale', l10n?.tunisCenter ?? 'Tunis Center', '0.8 ${l10n?.kmAway ?? 'km'}'),
+          _buildPharmacyItem(
+            l10n?.pharmacieCentrale ?? 'Pharmacie Centrale',
+            l10n?.tunisCenter ?? 'Tunis Center',
+            '0.8 ${l10n?.kmAway ?? 'km'}',
+          ),
           const Divider(height: 24),
-          _buildPharmacyItem(l10n?.pharmacieDuLac ?? 'Pharmacie du Lac', l10n?.lac2 ?? 'Lac 2', '2.1 ${l10n?.kmAway ?? 'km'}'),
+          _buildPharmacyItem(
+            l10n?.pharmacieDuLac ?? 'Pharmacie du Lac',
+            l10n?.lac2 ?? 'Lac 2',
+            '2.1 ${l10n?.kmAway ?? 'km'}',
+          ),
           const Divider(height: 24),
-          _buildPharmacyItem(l10n?.pharmacieBenArous ?? 'Pharmacie Ben Arous', l10n?.benArous ?? 'Ben Arous', '3.5 ${l10n?.kmAway ?? 'km'}'),
+          _buildPharmacyItem(
+            l10n?.pharmacieBenArous ?? 'Pharmacie Ben Arous',
+            l10n?.benArous ?? 'Ben Arous',
+            '3.5 ${l10n?.kmAway ?? 'km'}',
+          ),
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
@@ -1103,7 +1080,11 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             Row(
               children: [
-                const Icon(Icons.location_on, size: 12, color: Color(0xFF6BE3B2)),
+                const Icon(
+                  Icons.location_on,
+                  size: 12,
+                  color: Color(0xFF6BE3B2),
+                ),
                 const SizedBox(width: 4),
                 Text(
                   distance,

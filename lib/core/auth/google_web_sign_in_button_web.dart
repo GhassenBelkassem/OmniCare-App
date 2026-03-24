@@ -76,7 +76,7 @@ class _GoogleWebSignInButtonState extends State<GoogleWebSignInButton> {
     _googleAccountsId.initialize(
       _IdConfiguration(
         client_id: clientId,
-        callback: (dynamic response) {
+        callback: allowInterop((dynamic response) {
           final credential = (response is Object)
               ? (response as dynamic).credential
               : null;
@@ -84,7 +84,7 @@ class _GoogleWebSignInButtonState extends State<GoogleWebSignInButton> {
           if (token != null && token.isNotEmpty) {
             widget.onIdToken(token);
           }
-        },
+        }),
       ),
     );
 

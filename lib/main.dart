@@ -33,6 +33,7 @@ import 'providers/user_provider.dart';
 import 'providers/family_provider.dart';
 import 'services/notification_service.dart';
 import 'l10n/app_localizations.dart';
+import 'core/nav/app_nav.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -62,6 +63,7 @@ class OmniCareApp extends StatelessWidget {
           return MaterialApp(
             title: 'OmniCare',
             debugShowCheckedModeBanner: false,
+            navigatorKey: AppNav.navigatorKey,
             locale: locale,
             builder: (context, child) {
               final mq = MediaQuery.of(context);

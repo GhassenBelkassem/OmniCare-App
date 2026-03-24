@@ -116,4 +116,64 @@ class PatientsApi {
       'Unexpected /api/patients/$resolved/passport response: ${response.data}',
     );
   }
+
+  Future<void> addPatientCondition({
+    required String patientId,
+    required String name,
+    String? notes,
+  }) async {
+    final resolvedId = patientId.trim();
+    final resolvedName = name.trim();
+    if (resolvedId.isEmpty) {
+      throw ArgumentError('patientId is required');
+    }
+    if (resolvedName.isEmpty) {
+      throw ArgumentError('name is required');
+    }
+
+    final payload = <String, dynamic>{
+      'name': resolvedName,
+      if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+    };
+
+    debugPrint(
+      '[PatientsApi] addPatientCondition($resolvedId) -> POST /api/patients/$resolvedId/conditions',
+    );
+    await _dio.post('/patients/$resolvedId/conditions', data: payload);
+  }
+
+  Future<void> addPatientMedication({
+    required String patientId,
+    required String medicationId,
+    String? frequency,
+    String? notes,
+    int? timesPerDay,
+    int? durationDays,
+    String? startDate,
+  }) async {
+    final resolvedPatientId = patientId.trim();
+    final resolvedMedicationId = medicationId.trim();
+    if (resolvedPatientId.isEmpty) {
+      throw ArgumentError('patientId is required');
+    }
+    if (resolvedMedicationId.isEmpty) {
+      throw ArgumentError('medicationId is required');
+    }
+
+    final payload = <String, dynamic>{
+      'medicationId': resolvedMedicationId,
+      if (timesPerDay != null) 'timesPerDay': timesPerDay,
+      if (frequency != null && frequency.trim().isNotEmpty)
+        'frequency': frequency.trim(),
+      if (durationDays != null) 'durationDays': durationDays,
+      if (startDate != null && startDate.trim().isNotEmpty)
+        'startDate': startDate.trim(),
+      if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+    };
+
+    debugPrint(
+      '[PatientsApi] addPatientMedication($resolvedPatientId) -> POST /api/patients/$resolvedPatientId/medications',
+    );
+    await _dio.post('/patients/$resolvedPatientId/medications', data: payload);
+  }
 }

@@ -33,16 +33,26 @@ class FamilyApi {
 
   Future<FamilyMember> createFamilyMember({
     required String fullName,
+    String? firstName,
+    String? lastName,
     required String relationship,
+    String? relationshipDescription,
+    String? phoneNumber,
     required String birthDate,
     String? gender,
+    String? bloodGroup,
     Map<String, dynamic>? medicalInfo,
   }) async {
     debugPrint('[FamilyApi] createFamilyMember() -> POST /api/family');
 
     final payload = {
       'fullName': fullName,
+      if (firstName != null) 'firstName': firstName,
+      if (lastName != null) 'lastName': lastName,
       'relationship': relationship,
+      if (relationshipDescription != null)
+        'relationshipDescription': relationshipDescription,
+      if (phoneNumber != null) 'phoneNumber': phoneNumber,
       'birthDate': birthDate,
       if (gender != null) 'gender': gender,
       if (medicalInfo != null) 'medicalInfo': medicalInfo,
@@ -65,7 +75,11 @@ class FamilyApi {
   Future<FamilyMember> updateFamilyMember({
     required String id,
     String? fullName,
+    String? firstName,
+    String? lastName,
     String? relationship,
+    String? relationshipDescription,
+    String? phoneNumber,
     String? birthDate,
     String? gender,
     Map<String, dynamic>? medicalInfo,
@@ -74,7 +88,13 @@ class FamilyApi {
 
     final payload = <String, dynamic>{};
     if (fullName != null) payload['fullName'] = fullName;
+    if (firstName != null) payload['firstName'] = firstName;
+    if (lastName != null) payload['lastName'] = lastName;
     if (relationship != null) payload['relationship'] = relationship;
+    if (relationshipDescription != null) {
+      payload['relationshipDescription'] = relationshipDescription;
+    }
+    if (phoneNumber != null) payload['phoneNumber'] = phoneNumber;
     if (birthDate != null) payload['birthDate'] = birthDate;
     if (gender != null) payload['gender'] = gender;
     if (medicalInfo != null) payload['medicalInfo'] = medicalInfo;

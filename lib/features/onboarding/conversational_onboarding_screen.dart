@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
-import '../../providers/user_onboarding_provider.dart';
-import '../../providers/user_provider.dart';
+import '../../core/auth/token_storage.dart';
 import '../../core/api/account_api.dart';
 import '../../core/api/api_error_utils.dart';
+import '../../core/api/medications_api.dart' as med_api;
 import '../../core/utils/logger.dart';
-import '../../core/api/medications_api.dart';
+import '../../providers/user_onboarding_provider.dart';
+import '../../providers/user_provider.dart';
 import '../../core/widgets/medication_search_field.dart';
 import 'onboarding_complete_screen.dart';
 
@@ -59,7 +60,7 @@ class _ConversationalOnboardingScreenState
   final List<TextEditingController> _medicationNameControllers = [];
   final List<TextEditingController> _medicationDosageControllers = [];
   final List<String?> _medicationIds = [];
-  final List<MedicationSearchResult?> _medicationDetails = [];
+  final List<med_api.MedicationSearchResult?> _medicationDetails = [];
 
   @override
   void initState() {
@@ -107,8 +108,10 @@ class _ConversationalOnboardingScreenState
         _filteredConditions = availableConditions;
       } else {
         _filteredConditions = availableConditions
-            .where((condition) =>
-                condition.toLowerCase().contains(query.toLowerCase()))
+            .where(
+              (condition) =>
+                  condition.toLowerCase().contains(query.toLowerCase()),
+            )
             .toList();
       }
     });
@@ -127,7 +130,10 @@ class _ConversationalOnboardingScreenState
   }
 
   Future<void> _completeOnboarding() async {
-    final provider = Provider.of<UserOnboardingProvider>(context, listen: false);
+    final provider = Provider.of<UserOnboardingProvider>(
+      context,
+      listen: false,
+    );
 
     provider.medications.clear();
 
@@ -140,26 +146,30 @@ class _ConversationalOnboardingScreenState
 
       if (medId == null || medId.trim().isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please select a medication from the list.')),
+          const SnackBar(
+            content: Text('Please select a medication from the list.'),
+          ),
         );
         return;
       }
 
       if (dosage.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please enter a dosage for the selected medication.')),
+          const SnackBar(
+            content: Text('Please enter a dosage for the selected medication.'),
+          ),
         );
         return;
       }
 
-        provider.addMedication(
-          MedicationEntry(
-            medicationId: medId,
-            name: name,
-            dosage: dosage,
-            frequency: '1x daily',
-          ),
-        );
+      provider.addMedication(
+        MedicationEntry(
+          medicationId: medId,
+          name: name,
+          dosage: dosage,
+          frequency: '1x daily',
+        ),
+      );
     }
 
     setState(() => _saving = true);
@@ -168,11 +178,13 @@ class _ConversationalOnboardingScreenState
         'chronicConditions': provider.chronicConditions,
         'currentMedications': provider.medications
             .where((m) => (m.medicationId ?? '').trim().isNotEmpty)
-            .map((m) => {
-                  'medicationId': m.medicationId,
-                  'dosage': m.dosage,
-                  'frequency': m.frequency,
-                })
+            .map(
+              (m) => {
+                'medicationId': m.medicationId,
+                'dosage': m.dosage,
+                'frequency': m.frequency,
+              },
+            )
             .toList(),
       };
 
@@ -183,6 +195,7 @@ class _ConversationalOnboardingScreenState
 
       if (!mounted) return;
       await context.read<UserProvider>().refresh();
+      await TokenStorage.saveOnboardingComplete(true);
     } catch (e, st) {
       AppLogger.error('Failed to save medical passport', e, st);
       if (!mounted) return;
@@ -196,9 +209,7 @@ class _ConversationalOnboardingScreenState
 
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(
-        builder: (context) => const OnboardingCompleteScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const OnboardingCompleteScreen()),
     );
   }
 
@@ -219,7 +230,10 @@ class _ConversationalOnboardingScreenState
               elevation: 0,
               leading: _currentPage > 0
                   ? IconButton(
-                      icon: const Icon(Icons.arrow_back, color: Color(0xFF1D2939)),
+                      icon: const Icon(
+                        Icons.arrow_back,
+                        color: Color(0xFF1D2939),
+                      ),
                       onPressed: () {
                         _pageController.previousPage(
                           duration: const Duration(milliseconds: 400),
@@ -255,7 +269,9 @@ class _ConversationalOnboardingScreenState
                     children: [
                       _buildBloodTypePage(provider),
                       _buildConditionsPage(provider),
-                      ...List.generate(_medicationNameControllers.length, (index) {
+                      ...List.generate(_medicationNameControllers.length, (
+                        index,
+                      ) {
                         return _buildMedicationsPage(provider, index);
                       }),
                     ],
@@ -303,7 +319,10 @@ class _ConversationalOnboardingScreenState
                             ),
                           ),
                           child: Text(
-                            _currentPage == _medicationNameControllers.length + 1 ? 'Complete' : 'Continue',
+                            _currentPage ==
+                                    _medicationNameControllers.length + 1
+                                ? 'Complete'
+                                : 'Continue',
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
@@ -321,9 +340,7 @@ class _ConversationalOnboardingScreenState
             Positioned.fill(
               child: Container(
                 color: Colors.black.withOpacity(0.2),
-                child: const Center(
-                  child: CircularProgressIndicator(),
-                ),
+                child: const Center(child: CircularProgressIndicator()),
               ),
             ),
         ],
@@ -403,9 +420,7 @@ class _ConversationalOnboardingScreenState
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   decoration: BoxDecoration(
-                    color: isSelected
-                        ? const Color(0xFF1FBF9A)
-                        : Colors.white,
+                    color: isSelected ? const Color(0xFF1FBF9A) : Colors.white,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: isSelected
@@ -574,8 +589,9 @@ class _ConversationalOnboardingScreenState
               separatorBuilder: (context, index) => const Divider(height: 1),
               itemBuilder: (context, index) {
                 final condition = _filteredConditions[index];
-                final isSelected =
-                    provider.chronicConditions.contains(condition);
+                final isSelected = provider.chronicConditions.contains(
+                  condition,
+                );
 
                 return ListTile(
                   title: Text(
@@ -668,12 +684,15 @@ class _ConversationalOnboardingScreenState
           ),
           const SizedBox(height: 24),
           // Medication chips/pills
-          if (_medicationNameControllers.any((controller) => controller.text.isNotEmpty))
+          if (_medicationNameControllers.any(
+            (controller) => controller.text.isNotEmpty,
+          ))
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: List.generate(_medicationNameControllers.length, (i) {
-                if (_medicationNameControllers[i].text.isEmpty) return const SizedBox.shrink();
+                if (_medicationNameControllers[i].text.isEmpty)
+                  return const SizedBox.shrink();
                 return Container(
                   margin: const EdgeInsets.only(bottom: 16),
                   padding: const EdgeInsets.all(16),
@@ -688,15 +707,14 @@ class _ConversationalOnboardingScreenState
                     ],
                   ),
                   child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        '💊',
-                        style: const TextStyle(fontSize: 16),
-                      ),
+                      Text('💊', style: const TextStyle(fontSize: 16)),
                       const SizedBox(width: 6),
-                      Expanded(
+                      Flexible(
                         child: Text(
                           _medicationNameControllers[i].text,
+                          overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
@@ -706,36 +724,45 @@ class _ConversationalOnboardingScreenState
                       ),
                       if (_medicationDosageControllers[i].text.isNotEmpty) ...[
                         const SizedBox(width: 4),
-                        Text(
-                          '• ${_medicationDosageControllers[i].text}',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: const Color(0xFF667085),
+                        Flexible(
+                          child: Text(
+                            '• ${_medicationDosageControllers[i].text}',
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: const Color(0xFF667085),
+                            ),
                           ),
                         ),
                       ],
-                      if (_medicationDetails.length > i && _medicationDetails[i] != null) ...[
+                      if (_medicationDetails.length > i &&
+                          _medicationDetails[i] != null) ...[
                         const SizedBox(width: 4),
-                        Builder(builder: (context) {
-                          final d = _medicationDetails[i]!;
-                          final parts = <String>[];
-                          final form = (d.form ?? '').trim();
-                          final dci = (d.dci ?? '').trim();
-                          final type = (d.type ?? '').trim();
-                          if (form.isNotEmpty) parts.add(form);
-                          if (dci.isNotEmpty) parts.add(dci);
-                          if (type.isNotEmpty) parts.add(type);
-                          if (d.isSoluble) parts.add('Soluble');
-                          if (parts.isEmpty) return const SizedBox.shrink();
-                          return Text(
-                            parts.join(' • '),
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12,
-                              color: const Color(0xFF667085),
-                            ),
-                          );
-                        }),
+                        Builder(
+                          builder: (context) {
+                            final d = _medicationDetails[i]!;
+                            final parts = <String>[];
+                            final form = (d.form ?? '').trim();
+                            final dci = (d.dci ?? '').trim();
+                            final type = (d.type ?? '').trim();
+                            if (form.isNotEmpty) parts.add(form);
+                            if (dci.isNotEmpty) parts.add(dci);
+                            if (type.isNotEmpty) parts.add(type);
+                            if (d.isSoluble) parts.add('Soluble');
+                            if (parts.isEmpty) return const SizedBox.shrink();
+                            return Flexible(
+                              child: Text(
+                                parts.join(' • '),
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  color: const Color(0xFF667085),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
                       ],
                       const SizedBox(width: 8),
                       GestureDetector(
@@ -751,7 +778,9 @@ class _ConversationalOnboardingScreenState
                 );
               }).where((widget) => widget is! SizedBox).toList(),
             ),
-          if (_medicationNameControllers.any((controller) => controller.text.isNotEmpty))
+          if (_medicationNameControllers.any(
+            (controller) => controller.text.isNotEmpty,
+          ))
             const SizedBox(height: 20),
           // Simple input card
           Container(
@@ -819,27 +848,30 @@ class _ConversationalOnboardingScreenState
                     setState(() {});
                   },
                 ),
-                if (_medicationDetails.length > index && _medicationDetails[index] != null) ...[
+                if (_medicationDetails.length > index &&
+                    _medicationDetails[index] != null) ...[
                   const SizedBox(height: 10),
-                  Builder(builder: (context) {
-                    final d = _medicationDetails[index]!;
-                    final parts = <String>[];
-                    final form = (d.form ?? '').trim();
-                    final dci = (d.dci ?? '').trim();
-                    final type = (d.type ?? '').trim();
-                    if (form.isNotEmpty) parts.add(form);
-                    if (dci.isNotEmpty) parts.add(dci);
-                    if (type.isNotEmpty) parts.add(type);
-                    if (d.isSoluble) parts.add('Soluble');
-                    if (parts.isEmpty) return const SizedBox.shrink();
-                    return Text(
-                      parts.join(' • '),
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12,
-                        color: const Color(0xFF667085),
-                      ),
-                    );
-                  }),
+                  Builder(
+                    builder: (context) {
+                      final d = _medicationDetails[index]!;
+                      final parts = <String>[];
+                      final form = (d.form ?? '').trim();
+                      final dci = (d.dci ?? '').trim();
+                      final type = (d.type ?? '').trim();
+                      if (form.isNotEmpty) parts.add(form);
+                      if (dci.isNotEmpty) parts.add(dci);
+                      if (type.isNotEmpty) parts.add(type);
+                      if (d.isSoluble) parts.add('Soluble');
+                      if (parts.isEmpty) return const SizedBox.shrink();
+                      return Text(
+                        parts.join(' • '),
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          color: const Color(0xFF667085),
+                        ),
+                      );
+                    },
+                  ),
                 ],
                 const SizedBox(height: 12),
                 TextField(
@@ -856,7 +888,10 @@ class _ConversationalOnboardingScreenState
                     ),
                     filled: true,
                     fillColor: const Color(0xFFF9FAFB),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
@@ -905,11 +940,7 @@ class _ConversationalOnboardingScreenState
                       color: const Color(0xFF1FBF9A),
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: const Icon(
-                      Icons.add,
-                      size: 16,
-                      color: Colors.white,
-                    ),
+                    child: const Icon(Icons.add, size: 16, color: Colors.white),
                   ),
                   const SizedBox(width: 8),
                   Text(

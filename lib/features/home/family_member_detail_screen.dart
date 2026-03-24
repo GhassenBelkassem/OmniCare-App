@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import 'edit_medical_data_screen.dart';
 import 'document_viewer_screen.dart';
 import 'qr_code_modal.dart';
+
+import '../../providers/family_provider.dart';
 
 class FamilyMember {
   String id;
@@ -35,13 +38,11 @@ class FamilyMember {
 class FamilyMemberDetailScreen extends StatefulWidget {
   final FamilyMember member;
 
-  const FamilyMemberDetailScreen({
-    super.key,
-    required this.member,
-  });
+  const FamilyMemberDetailScreen({super.key, required this.member});
 
   @override
-  State<FamilyMemberDetailScreen> createState() => _FamilyMemberDetailScreenState();
+  State<FamilyMemberDetailScreen> createState() =>
+      _FamilyMemberDetailScreenState();
 }
 
 class _FamilyMemberDetailScreenState extends State<FamilyMemberDetailScreen> {
@@ -64,6 +65,28 @@ class _FamilyMemberDetailScreenState extends State<FamilyMemberDetailScreen> {
           medications: _member.currentMedications,
           documents: _member.documents,
           onSave: (bloodType, conditions, medications, documents) async {
+            final medsJson = medications
+                .where((m) => (m.medicationId ?? '').trim().isNotEmpty)
+                .map(
+                  (m) => {
+                    'medicationId': m.medicationId,
+                    'name': m.name,
+                    'dosage': m.dosage,
+                    'frequency': m.frequency,
+                  },
+                )
+                .toList();
+
+            await context.read<FamilyProvider>().updateMedicalPassport(
+              id: _member.id,
+              bloodGroup: bloodType,
+              medicalInfo: {
+                'chronicConditions': conditions,
+                'currentMedications': medsJson,
+              },
+            );
+
+            if (!mounted) return;
             setState(() {
               _member.bloodType = bloodType;
               _member.chronicConditions = conditions;
@@ -92,7 +115,11 @@ class _FamilyMemberDetailScreenState extends State<FamilyMemberDetailScreen> {
           children: [
             Row(
               children: [
-                const Icon(Icons.assignment, color: Color(0xFF1FBF9A), size: 20),
+                const Icon(
+                  Icons.assignment,
+                  color: Color(0xFF1FBF9A),
+                  size: 20,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   'Carnet de Santé',
@@ -130,7 +157,10 @@ class _FamilyMemberDetailScreenState extends State<FamilyMemberDetailScreen> {
                 backgroundColor: const Color(0xFF1FBF9A),
                 foregroundColor: Colors.white,
                 elevation: 0,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
@@ -204,7 +234,10 @@ class _FamilyMemberDetailScreenState extends State<FamilyMemberDetailScreen> {
                 right: 0,
                 child: Center(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFF0F6F73),
                       borderRadius: BorderRadius.circular(12),
@@ -230,7 +263,7 @@ class _FamilyMemberDetailScreenState extends State<FamilyMemberDetailScreen> {
             ],
           ),
           const SizedBox(height: 20),
-          
+
           // Name
           Text(
             _member.name,
@@ -242,7 +275,7 @@ class _FamilyMemberDetailScreenState extends State<FamilyMemberDetailScreen> {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 12),
-          
+
           // Info row
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -270,7 +303,7 @@ class _FamilyMemberDetailScreenState extends State<FamilyMemberDetailScreen> {
               ],
             ],
           ),
-          
+
           // Critical Alert
           if (_member.criticalAlert != null) ...[
             const SizedBox(height: 16),
@@ -284,7 +317,11 @@ class _FamilyMemberDetailScreenState extends State<FamilyMemberDetailScreen> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 20),
+                  const Icon(
+                    Icons.warning_amber_rounded,
+                    color: Color(0xFFDC2626),
+                    size: 20,
+                  ),
                   const SizedBox(width: 8),
                   Flexible(
                     child: Text(
@@ -399,7 +436,7 @@ class _FamilyMemberDetailScreenState extends State<FamilyMemberDetailScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          
+
           // Blood Type
           Container(
             padding: const EdgeInsets.all(16),
@@ -440,7 +477,7 @@ class _FamilyMemberDetailScreenState extends State<FamilyMemberDetailScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          
+
           // Chronic Conditions
           if (_member.chronicConditions.isNotEmpty) ...[
             Align(
@@ -461,10 +498,15 @@ class _FamilyMemberDetailScreenState extends State<FamilyMemberDetailScreen> {
               runSpacing: 8,
               children: _member.chronicConditions.map((condition) {
                 return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF6BE3B2).withOpacity(0.1),
-                    border: Border.all(color: const Color(0xFF6BE3B2).withOpacity(0.3)),
+                    border: Border.all(
+                      color: const Color(0xFF6BE3B2).withOpacity(0.3),
+                    ),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
@@ -491,7 +533,7 @@ class _FamilyMemberDetailScreenState extends State<FamilyMemberDetailScreen> {
             ),
             const SizedBox(height: 20),
           ],
-          
+
           // Current Medications
           if (_member.currentMedications.isNotEmpty) ...[
             Align(
@@ -589,7 +631,7 @@ class _FamilyMemberDetailScreenState extends State<FamilyMemberDetailScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        
+
         if (_member.documents.isEmpty)
           Container(
             padding: const EdgeInsets.all(32),
@@ -637,7 +679,7 @@ class _FamilyMemberDetailScreenState extends State<FamilyMemberDetailScreen> {
               children: _member.documents.map((doc) {
                 Color docColor;
                 IconData docIcon;
-                
+
                 switch (doc.type) {
                   case 'blood-test':
                     docColor = const Color(0xFFDC2626);
@@ -656,7 +698,7 @@ class _FamilyMemberDetailScreenState extends State<FamilyMemberDetailScreen> {
                     docColor = const Color(0xFF667085);
                     docIcon = Icons.insert_drive_file;
                 }
-                
+
                 return GestureDetector(
                   onTap: () {
                     Navigator.push(
@@ -694,28 +736,32 @@ class _FamilyMemberDetailScreenState extends State<FamilyMemberDetailScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                            Text(
-                              doc.name,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFF1A202C),
+                              Text(
+                                doc.name,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF1A202C),
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              doc.date,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                                color: const Color(0xFF667085),
+                              const SizedBox(height: 2),
+                              Text(
+                                doc.date,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: const Color(0xFF667085),
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                      const Icon(Icons.chevron_right, color: Color(0xFF667085), size: 20),
-                    ],
+                        const Icon(
+                          Icons.chevron_right,
+                          color: Color(0xFF667085),
+                          size: 20,
+                        ),
+                      ],
                     ),
                   ),
                 );

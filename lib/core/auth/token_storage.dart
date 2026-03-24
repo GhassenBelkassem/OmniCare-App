@@ -8,6 +8,7 @@ class TokenStorage {
   static const _storage = FlutterSecureStorage();
 
   static const _jwtKey = 'jwt_token';
+  static const _onboardingCompleteKey = 'onboarding_complete';
 
   static Future<void> saveJwt(String token) async {
     if (kIsWeb) {
@@ -16,6 +17,19 @@ class TokenStorage {
       return;
     }
     await _storage.write(key: _jwtKey, value: token);
+  }
+
+  static Future<void> saveOnboardingComplete(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_onboardingCompleteKey, value);
+  }
+
+  static Future<bool?> readOnboardingComplete() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!prefs.containsKey(_onboardingCompleteKey)) {
+      return null;
+    }
+    return prefs.getBool(_onboardingCompleteKey);
   }
 
   static Future<String?> readJwt() async {
@@ -30,8 +44,12 @@ class TokenStorage {
     if (kIsWeb) {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_jwtKey);
+      await prefs.remove(_onboardingCompleteKey);
       return;
     }
     await _storage.delete(key: _jwtKey);
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_onboardingCompleteKey);
   }
 }
