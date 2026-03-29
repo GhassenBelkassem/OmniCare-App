@@ -4,10 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 class EmergencyReviewScreen extends StatelessWidget {
   final Map<String, dynamic> requestData;
 
-  const EmergencyReviewScreen({
-    super.key,
-    required this.requestData,
-  });
+  const EmergencyReviewScreen({super.key, required this.requestData});
 
   @override
   Widget build(BuildContext context) {
@@ -120,9 +117,11 @@ class EmergencyReviewScreen extends StatelessWidget {
             requestData['phoneNumber'] ?? requestData['phone'] ?? 'Non fourni',
           ),
           const SizedBox(height: 12),
-          if (requestData['bodyParts'] != null && (requestData['bodyParts'] as List).isNotEmpty)
+          if (requestData['bodyParts'] != null &&
+              (requestData['bodyParts'] as List).isNotEmpty)
             _buildCompactSymptoms(requestData['bodyParts'] as List),
-          if (requestData['symptoms'] != null && requestData['symptoms'].toString().isNotEmpty) ...[
+          if (requestData['symptoms'] != null &&
+              requestData['symptoms'].toString().isNotEmpty) ...[
             const SizedBox(height: 12),
             _buildCompactRow(
               Icons.description,
@@ -143,7 +142,12 @@ class EmergencyReviewScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildCompactRow(IconData icon, Color color, String title, String? subtitle) {
+  Widget _buildCompactRow(
+    IconData icon,
+    Color color,
+    String title,
+    String? subtitle,
+  ) {
     return Row(
       children: [
         Container(
@@ -206,7 +210,10 @@ class EmergencyReviewScreen extends StatelessWidget {
             runSpacing: 6,
             children: bodyParts.map((part) {
               return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFF1FBF9A).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(6),
@@ -323,9 +330,11 @@ class EmergencyReviewScreen extends StatelessWidget {
                   Icons.healing,
                   const Color(0xFF3B82F6),
                   [
-                    if (requestData['bodyParts'] != null && (requestData['bodyParts'] as List).isNotEmpty)
+                    if (requestData['bodyParts'] != null &&
+                        (requestData['bodyParts'] as List).isNotEmpty)
                       _buildBodyPartsRow(requestData['bodyParts'] as List),
-                    if (requestData['symptoms'] != null && requestData['symptoms'].toString().isNotEmpty)
+                    if (requestData['symptoms'] != null &&
+                        requestData['symptoms'].toString().isNotEmpty)
                       _buildInfoRow('Description', requestData['symptoms']),
                     if (requestData['voiceMessage'] != null)
                       _buildVoiceMessageRow(),
@@ -345,7 +354,7 @@ class EmergencyReviewScreen extends StatelessWidget {
                       _buildInfoRow(
                         'Coordonnées GPS',
                         'Lat: ${requestData['location']['latitude'].toStringAsFixed(4)}, '
-                        'Lng: ${requestData['location']['longitude'].toStringAsFixed(4)}',
+                            'Lng: ${requestData['location']['longitude'].toStringAsFixed(4)}',
                       ),
                   ],
                 ),
@@ -357,7 +366,12 @@ class EmergencyReviewScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildInfoSection(String title, IconData icon, Color color, List<Widget> children) {
+  Widget _buildInfoSection(
+    String title,
+    IconData icon,
+    Color color,
+    List<Widget> children,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -440,7 +454,10 @@ class EmergencyReviewScreen extends StatelessWidget {
             runSpacing: 8,
             children: bodyParts.map((part) {
               return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFF1FBF9A).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
@@ -509,7 +526,11 @@ class EmergencyReviewScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.info_outline, color: Color(0xFF3B82F6), size: 20),
+              const Icon(
+                Icons.info_outline,
+                color: Color(0xFF3B82F6),
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Text(
                 'Ce qui se passe ensuite',
@@ -522,9 +543,9 @@ class EmergencyReviewScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          _buildNoticeItem('1', 'Recherche de médecins disponibles'),
-          _buildNoticeItem('2', 'Sélection du médecin'),
-          _buildNoticeItem('3', 'Le médecin se dirige vers vous'),
+          _buildNoticeItem('1', 'Recherche de professionnels disponibles'),
+          _buildNoticeItem('2', 'Sélection du professionnel'),
+          _buildNoticeItem('3', 'Le professionnel se dirige vers vous'),
         ],
       ),
     );
@@ -569,10 +590,11 @@ class EmergencyReviewScreen extends StatelessWidget {
   }
 
   Widget _buildBottomBar(BuildContext context) {
-    final consultationType = requestData['consultationType'] as String? ?? 'home';
+    final consultationType =
+        requestData['consultationType'] as String? ?? 'home';
     final isHomeConsultation = consultationType == 'home';
     final providerType = requestData['providerType'] as String? ?? 'doctor';
-    
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -597,7 +619,11 @@ class EmergencyReviewScreen extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 20),
+                  const Icon(
+                    Icons.check_circle,
+                    color: Color(0xFF10B981),
+                    size: 20,
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
@@ -654,8 +680,8 @@ class EmergencyReviewScreen extends StatelessWidget {
                     const SizedBox(width: 8),
                     Flexible(
                       child: Text(
-                        isHomeConsultation 
-                            ? 'Confirmer et Rechercher un Médecin'
+                        isHomeConsultation
+                            ? 'Confirmer et Rechercher un Professionnel'
                             : 'Rechercher des Professionnels',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 15,
@@ -666,7 +692,11 @@ class EmergencyReviewScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    const Icon(Icons.arrow_forward, color: Colors.white, size: 20),
+                    const Icon(
+                      Icons.arrow_forward,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                   ],
                 ),
               ),

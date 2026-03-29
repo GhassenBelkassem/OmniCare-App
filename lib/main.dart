@@ -28,9 +28,11 @@ import 'features/request/provider_list_screen.dart';
 import 'features/notifications/notifications_screen.dart';
 import 'features/notifications/appointment_confirmation_screen.dart';
 import 'features/notifications/booking_confirmed_screen.dart';
+import 'features/request/time_selection_screen.dart';
 import 'providers/user_onboarding_provider.dart';
 import 'providers/user_provider.dart';
 import 'providers/family_provider.dart';
+import 'providers/reservation_provider.dart';
 import 'services/notification_service.dart';
 import 'l10n/app_localizations.dart';
 import 'core/nav/app_nav.dart';
@@ -52,6 +54,7 @@ class OmniCareApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => UserOnboardingProvider()),
         ChangeNotifierProvider(create: (_) => UserProvider()..loadIfLoggedIn()),
         ChangeNotifierProvider(create: (_) => FamilyProvider()),
+        ChangeNotifierProvider(create: (_) => ReservationProvider()),
       ],
       child: Consumer<UserOnboardingProvider>(
         builder: (context, provider, child) {
@@ -108,6 +111,8 @@ class OmniCareApp extends StatelessWidget {
               '/emergency-step0': (context) => const EmergencyRequestStep0(),
               '/emergency-step1': (context) => const EmergencyRequestStep1(),
               '/request-care': (context) => const ProviderSelectionScreen(),
+              '/provider-selection': (context) =>
+                  const ProviderSelectionScreen(),
               '/notifications': (context) => const NotificationsScreen(),
             },
             onGenerateRoute: (settings) {
@@ -167,8 +172,11 @@ class OmniCareApp extends StatelessWidget {
               if (settings.name == '/provider-list') {
                 final args = settings.arguments as Map<String, dynamic>;
                 return MaterialPageRoute(
-                  builder: (context) =>
-                      ProviderListScreen(providerType: args['providerType']),
+                  builder: (context) => ProviderListScreen(
+                    providerType: args['providerType'],
+                    initialVisitType: args['visitType']?.toString(),
+                    initialIsEmergency: args['isEmergency'] == true,
+                  ),
                 );
               }
               if (settings.name == '/consultation-qr') {
@@ -196,6 +204,18 @@ class OmniCareApp extends StatelessWidget {
                 return MaterialPageRoute(
                   builder: (context) =>
                       BookingConfirmedScreen(bookingData: args),
+                );
+              }
+              if (settings.name == '/time-selection') {
+                final args = settings.arguments is Map<String, dynamic>
+                    ? (settings.arguments as Map<String, dynamic>)
+                    : <String, dynamic>{};
+                return MaterialPageRoute(
+                  builder: (context) => TimeSelectionScreen(
+                    providerId: args['providerId']?.toString() ?? '',
+                    visitType: args['visitType']?.toString(),
+                    isEmergency: args['isEmergency'] == true,
+                  ),
                 );
               }
               return null;

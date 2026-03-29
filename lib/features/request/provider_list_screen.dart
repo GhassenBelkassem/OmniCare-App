@@ -1,13 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import 'dart:async';
+import '../../core/api/doctors_api.dart';
+import '../../core/api/consultations_api.dart';
+import '../../providers/user_provider.dart';
 import 'provider_map_screen.dart';
-import 'request_submitted_screen.dart';
 
 class ProviderListScreen extends StatefulWidget {
   final String providerType; // 'doctor' or 'kine'
+  final String? initialVisitType;
+  final bool initialIsEmergency;
 
-  const ProviderListScreen({super.key, required this.providerType});
+  const ProviderListScreen({
+    super.key,
+    required this.providerType,
+    this.initialVisitType,
+    this.initialIsEmergency = false,
+  });
 
   @override
   State<ProviderListScreen> createState() => _ProviderListScreenState();
@@ -18,155 +28,30 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
   String _sortBy = 'distance'; // distance, rating, price
   double _minPrice = 0;
   double _maxPrice = 500;
-  final List<String> _selectedProviders = [];
-  Timer? _searchTimer;
 
-  // Mock data for doctors
-  final List<Map<String, dynamic>> _mockDoctors = [
-    {
-      'id': 'doc1',
-      'name': 'Dr. Ahmed Mansour',
-      'specialty': 'Cardiologue',
-      'rating': 4.9,
-      'reviews': 156,
-      'distance': 1.2,
-      'price': 250,
-      'experience': '15 ans',
-      'image': 'https://i.pravatar.cc/150?img=12',
-    },
-    {
-      'id': 'doc2',
-      'name': 'Dr. Fatima Zahra',
-      'specialty': 'Généraliste',
-      'rating': 4.8,
-      'reviews': 203,
-      'distance': 0.8,
-      'price': 200,
-      'experience': '10 ans',
-      'image': 'https://i.pravatar.cc/150?img=45',
-    },
-    {
-      'id': 'doc3',
-      'name': 'Dr. Youssef Benali',
-      'specialty': 'Neurologue',
-      'rating': 4.95,
-      'reviews': 89,
-      'distance': 2.5,
-      'price': 300,
-      'experience': '20 ans',
-      'image': 'https://i.pravatar.cc/150?img=33',
-    },
-    {
-      'id': 'doc4',
-      'name': 'Dr. Samira El Amrani',
-      'specialty': 'Pédiatre',
-      'rating': 4.7,
-      'reviews': 178,
-      'distance': 1.8,
-      'price': 220,
-      'experience': '12 ans',
-      'image': 'https://i.pravatar.cc/150?img=47',
-    },
-    {
-      'id': 'doc5',
-      'name': 'Dr. Karim Alaoui',
-      'specialty': 'Dermatologue',
-      'rating': 4.85,
-      'reviews': 134,
-      'distance': 3.2,
-      'price': 280,
-      'experience': '18 ans',
-      'image': 'https://i.pravatar.cc/150?img=51',
-    },
-    {
-      'id': 'doc6',
-      'name': 'Dr. Nadia Benjelloun',
-      'specialty': 'Généraliste',
-      'rating': 4.6,
-      'reviews': 92,
-      'distance': 0.5,
-      'price': 180,
-      'experience': '8 ans',
-      'image': 'https://i.pravatar.cc/150?img=44',
-    },
-  ];
-
-  // Mock data for physiotherapists
-  final List<Map<String, dynamic>> _mockKines = [
-    {
-      'id': 'kine1',
-      'name': 'Hassan Tazi',
-      'specialty': 'Kinésithérapeute du Sport',
-      'rating': 4.8,
-      'reviews': 112,
-      'distance': 1.5,
-      'price': 180,
-      'experience': '12 ans',
-      'image': 'https://i.pravatar.cc/150?img=60',
-    },
-    {
-      'id': 'kine2',
-      'name': 'Leila Moussaoui',
-      'specialty': 'Rééducation Orthopédique',
-      'rating': 4.9,
-      'reviews': 145,
-      'distance': 0.9,
-      'price': 200,
-      'experience': '15 ans',
-      'image': 'https://i.pravatar.cc/150?img=48',
-    },
-    {
-      'id': 'kine3',
-      'name': 'Omar Chakir',
-      'specialty': 'Kinésithérapie Respiratoire',
-      'rating': 4.7,
-      'reviews': 87,
-      'distance': 2.1,
-      'price': 160,
-      'experience': '10 ans',
-      'image': 'https://i.pravatar.cc/150?img=56',
-    },
-    {
-      'id': 'kine4',
-      'name': 'Amina Berrada',
-      'specialty': 'Rééducation Post-Opératoire',
-      'rating': 4.85,
-      'reviews': 156,
-      'distance': 1.2,
-      'price': 190,
-      'experience': '14 ans',
-      'image': 'https://i.pravatar.cc/150?img=43',
-    },
-    {
-      'id': 'kine5',
-      'name': 'Rachid Filali',
-      'specialty': 'Kinésithérapie Générale',
-      'rating': 4.65,
-      'reviews': 98,
-      'distance': 3.0,
-      'price': 150,
-      'experience': '9 ans',
-      'image': 'https://i.pravatar.cc/150?img=68',
-    },
-  ];
-
-  List<Map<String, dynamic>> get _providers {
-    return widget.providerType == 'doctor' ? _mockDoctors : _mockKines;
-  }
+  List<Map<String, dynamic>> _providers = const [];
+  String? _loadError;
 
   List<Map<String, dynamic>> get _filteredAndSortedProviders {
     var filtered = _providers.where((provider) {
-      return provider['price'] >= _minPrice && provider['price'] <= _maxPrice;
+      final price = (provider['price'] as num?)?.toDouble() ?? 0.0;
+      return price >= _minPrice && price <= _maxPrice;
     }).toList();
 
     filtered.sort((a, b) {
       switch (_sortBy) {
         case 'distance':
-          return a['distance'].compareTo(b['distance']);
+          final da = (a['distance'] as num?)?.toDouble() ?? 0.0;
+          final db = (b['distance'] as num?)?.toDouble() ?? 0.0;
+          return da.compareTo(db);
         case 'rating':
-          return b['rating'].compareTo(a['rating']);
+          final ra = (a['rating'] as num?)?.toDouble() ?? 0.0;
+          final rb = (b['rating'] as num?)?.toDouble() ?? 0.0;
+          return rb.compareTo(ra);
         case 'price':
-          return a['price'].compareTo(b['price']);
+          final pa = (a['price'] as num?)?.toDouble() ?? 0.0;
+          final pb = (b['price'] as num?)?.toDouble() ?? 0.0;
+          return pa.compareTo(pb);
         default:
           return 0;
       }
@@ -175,53 +60,329 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
     return filtered;
   }
 
-  void _toggleSelection(String providerId) {
-    setState(() {
-      if (_selectedProviders.contains(providerId)) {
-        _selectedProviders.remove(providerId);
-      } else {
-        if (_selectedProviders.length < 5) {
-          _selectedProviders.add(providerId);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Vous pouvez sélectionner maximum 5 professionnels',
-                style: GoogleFonts.plusJakartaSans(),
-              ),
-              backgroundColor: const Color(0xFFEF4444),
+  Future<bool> _hasHistoryWithProvider({required String providerId}) async {
+    try {
+      final items = await ConsultationsApi().listConsultations();
+      return items.any((c) => (c.providerId ?? '').toString() == providerId);
+    } catch (_) {
+      return true;
+    }
+  }
+
+  Future<bool> _promptImmediateIntervention() async {
+    final res = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          title: Text(
+            'Intervention Immédiate ?',
+            style: GoogleFonts.plusJakartaSans(
+              fontWeight: FontWeight.w800,
+              color: const Color(0xFF1D2939),
             ),
-          );
-        }
-      }
-    });
+          ),
+          content: Text(
+            "S'agit-il d'une urgence nécessitant un déplacement immédiat ?",
+            style: GoogleFonts.plusJakartaSans(color: const Color(0xFF475467)),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(
+                'Non, planifier',
+                style: GoogleFonts.plusJakartaSans(
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF667085),
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1FBF9A),
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              child: Text(
+                "Oui, c'est une urgence",
+                style: GoogleFonts.plusJakartaSans(
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    return res == true;
   }
 
-  @override
-  void initState() {
-    super.initState();
-    // Start searching animation
-    _searchTimer = Timer(const Duration(seconds: 2), () {
-      if (mounted) {
-        setState(() {
-          _isSearching = false;
-        });
-      }
-    });
+  Future<bool> _promptImmediateEmergencyConsent() async {
+    bool consent = false;
+    final res = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 44,
+                        height: 4,
+                        margin: const EdgeInsets.only(bottom: 14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE2E8F0),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                    Text(
+                      'Consentement requis',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF1D2939),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      "Je consens à une visite immédiate et je confirme qu'il s'agit d'une urgence nécessitant une intervention.",
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        color: const Color(0xFF475467),
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () {
+                        setModalState(() {
+                          consent = !consent;
+                        });
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: consent
+                                ? const Color(0xFF1FBF9A)
+                                : const Color(0xFFE2E8F0),
+                          ),
+                          color: consent
+                              ? const Color(0xFFECFDF5)
+                              : const Color(0xFFF9FAFB),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 22,
+                              height: 22,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: consent
+                                      ? const Color(0xFF1FBF9A)
+                                      : const Color(0xFFCBD5E1),
+                                  width: 2,
+                                ),
+                                color: consent
+                                    ? const Color(0xFF1FBF9A)
+                                    : Colors.transparent,
+                              ),
+                              child: consent
+                                  ? const Icon(
+                                      Icons.check,
+                                      size: 16,
+                                      color: Colors.white,
+                                    )
+                                  : null,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                "J'accepte et je confirme",
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF1D2939),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF667085),
+                              side: const BorderSide(color: Color(0xFFE2E8F0)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            child: Text(
+                              'Annuler',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: consent
+                                ? () => Navigator.pop(context, true)
+                                : null,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF1FBF9A),
+                              disabledBackgroundColor: const Color(0xFFE2E8F0),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            child: Text(
+                              'Continuer',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+    return res == true;
   }
 
-  @override
-  void dispose() {
-    _searchTimer?.cancel();
-    super.dispose();
+  Future<String?> _promptVisitType() async {
+    return showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: false,
+      builder: (context) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE2E8F0),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                Text(
+                  'Type de visite',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF1D2939),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Choisissez le type de consultation. La visite en clinique est recommandée.',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF667085),
+                    height: 1.3,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _VisitTypeTile(
+                  title: 'Clinique',
+                  subtitle: 'Recommandé',
+                  leadingIcon: Icons.local_hospital_outlined,
+                  badgeText: 'RECOMMENDED',
+                  badgeColor: const Color(0xFF1FBF9A),
+                  onTap: () => Navigator.pop(context, 'CLINIC'),
+                ),
+                const SizedBox(height: 10),
+                _VisitTypeTile(
+                  title: 'Visite à domicile',
+                  subtitle: 'Déplacement du professionnel',
+                  leadingIcon: Icons.home_outlined,
+                  badgeText: 'HOME',
+                  badgeColor: const Color(0xFFEF4444),
+                  onTap: () => Navigator.pop(context, 'HOME'),
+                ),
+                const SizedBox(height: 10),
+                _VisitTypeTile(
+                  title: 'Téléconsultation',
+                  subtitle: 'Appel vidéo / audio',
+                  leadingIcon: Icons.videocam_outlined,
+                  badgeText: 'VIDEO',
+                  badgeColor: const Color(0xFF8B5CF6),
+                  onTap: () => Navigator.pop(context, 'TELECONSULTATION'),
+                ),
+                const SizedBox(height: 14),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
-  void _sendRequests() {
-    if (_selectedProviders.isEmpty) {
+  Future<void> _openTimeSelection(String providerId) async {
+    final id = providerId.trim();
+    debugPrint('[ProviderListScreen] _openTimeSelection providerId="$id"');
+    if (id.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Veuillez sélectionner au moins un professionnel',
+            'Invalid providerId',
             style: GoogleFonts.plusJakartaSans(),
           ),
           backgroundColor: const Color(0xFFEF4444),
@@ -230,22 +391,138 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
       return;
     }
 
-    // Navigate to request submitted success screen
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => RequestSubmittedScreen(
-          providerCount: _selectedProviders.length,
-          providerType: widget.providerType,
-        ),
-      ),
+    final String? visitType =
+        widget.initialVisitType ?? await _promptVisitType();
+    if (!mounted) return;
+    if (visitType == null) return;
+
+    final hasHistory = await _hasHistoryWithProvider(providerId: id);
+    if (!mounted) return;
+    if (!hasHistory) {
+      final wantsImmediate = await _promptImmediateIntervention();
+      if (!mounted) return;
+      if (wantsImmediate) {
+        final ok = await _promptImmediateEmergencyConsent();
+        if (!mounted) return;
+        if (!ok) return;
+
+        final userProvider = context.read<UserProvider>();
+        final data = <String, dynamic>{
+          'providerType': widget.providerType,
+          'consultationType': 'home',
+          'visitType': 'HOME',
+          'isEmergency': true,
+          'patientName': userProvider.user?.displayName,
+        };
+
+        Navigator.pushNamed(context, '/emergency-step3', arguments: data);
+        return;
+      }
+    }
+
+    final uuidLike = RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
     );
+    if (!uuidLike.hasMatch(id)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Provider IDs are still mock ("$id"). UI will open, but submitting will fail until real backend IDs are wired.',
+            style: GoogleFonts.plusJakartaSans(),
+          ),
+          backgroundColor: const Color(0xFF0F6F73),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+
+    try {
+      Navigator.pushNamed(
+        context,
+        '/time-selection',
+        arguments: {
+          'providerId': id,
+          'visitType': visitType,
+          'isEmergency': widget.initialIsEmergency,
+        },
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Navigation error: $e',
+            style: GoogleFonts.plusJakartaSans(),
+          ),
+          backgroundColor: const Color(0xFFEF4444),
+        ),
+      );
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProviders();
+  }
+
+  Future<void> _loadProviders() async {
+    setState(() {
+      _isSearching = true;
+      _loadError = null;
+    });
+
+    try {
+      if (widget.providerType != 'doctor') {
+        setState(() {
+          _providers = const [];
+          _isSearching = false;
+          _loadError = 'Provider type not supported yet.';
+        });
+        return;
+      }
+
+      final doctors = await DoctorsApi().getDoctors();
+      setState(() {
+        _providers = doctors
+            .map((d) {
+              final years = (d['experienceYears'] as num?)?.toInt();
+              final rating = (d['rating'] as num?)?.toDouble() ?? 0.0;
+              final reviews = (d['totalReviews'] as num?)?.toInt() ?? 0;
+              final fee =
+                  (d['officeConsultationFee'] as num?)?.toDouble() ?? 0.0;
+              return <String, dynamic>{
+                'id': d['id']?.toString() ?? '',
+                'name': d['name']?.toString() ?? '',
+                'specialty': d['specialty']?.toString() ?? '',
+                'rating': rating,
+                'reviews': reviews,
+                'distance': 0.0,
+                'price': fee,
+                'experience': years == null ? '' : '$years ans',
+                'image': null,
+              };
+            })
+            .toList(growable: false);
+        _isSearching = false;
+      });
+    } catch (e) {
+      setState(() {
+        _providers = const [];
+        _isSearching = false;
+        _loadError = e.toString();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final String title = widget.providerType == 'doctor'
-        ? 'Docteurs'
+        ? 'Health Providers'
         : 'Kinésithérapeutes';
     final providers = _filteredAndSortedProviders;
 
@@ -281,6 +558,8 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
       ),
       body: _isSearching
           ? _buildSearchingScreen()
+          : (_loadError != null && providers.isEmpty)
+          ? _buildLoadError()
           : Column(
               children: [
                 // Sort bar
@@ -327,80 +606,49 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
                     itemCount: providers.length,
                     itemBuilder: (context, index) {
                       final provider = providers[index];
-                      final isSelected = _selectedProviders.contains(
-                        provider['id']?.toString() ?? '',
-                      );
-                      return _buildProviderCard(provider, isSelected);
+                      return _buildProviderCard(provider, false);
                     },
                   ),
                 ),
-
-                // Bottom bar with selection count and send button
-                if (_selectedProviders.isNotEmpty)
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 10,
-                          offset: const Offset(0, -4),
-                        ),
-                      ],
-                    ),
-                    child: SafeArea(
-                      top: false,
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF1FBF9A).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              '${_selectedProviders.length}/5 sélectionné(s)',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFF1FBF9A),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: _sendRequests,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF1FBF9A),
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 16,
-                                ),
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              child: Text(
-                                'Envoyer les demandes',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
               ],
             ),
+    );
+  }
+
+  Widget _buildLoadError() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, color: Colors.red.shade400, size: 48),
+            const SizedBox(height: 12),
+            Text(
+              _loadError ?? 'Failed to load providers',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF667085),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadProviders,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1FBF9A),
+                foregroundColor: Colors.white,
+                elevation: 0,
+              ),
+              child: Text(
+                'Réessayer',
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -436,6 +684,14 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
   }
 
   Widget _buildProviderCard(Map<String, dynamic> provider, bool isSelected) {
+    final providerId = provider['id']?.toString() ?? '';
+    final name = provider['name']?.toString() ?? '';
+    final specialty = provider['specialty']?.toString() ?? '';
+    final rating = (provider['rating'] as num?)?.toDouble() ?? 0.0;
+    final reviews = (provider['reviews'] as num?)?.toInt() ?? 0;
+    final distanceKm = (provider['distance'] as num?)?.toDouble() ?? 0.0;
+    final price = (provider['price'] as num?)?.toDouble() ?? 0.0;
+    final experience = provider['experience']?.toString() ?? '';
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -456,7 +712,7 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () => _toggleSelection(provider['id']?.toString() ?? ''),
+          onTap: () => _openTimeSelection(providerId),
           borderRadius: BorderRadius.circular(16),
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -509,7 +765,7 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            provider['name'],
+                            name,
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
@@ -518,7 +774,7 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            provider['specialty'],
+                            specialty,
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 13,
                               color: const Color(0xFF667085),
@@ -534,7 +790,7 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
                               ),
                               const SizedBox(width: 4),
                               Text(
-                                '${provider['rating']}',
+                                rating.toStringAsFixed(rating % 1 == 0 ? 0 : 1),
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
@@ -542,7 +798,7 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
                                 ),
                               ),
                               Text(
-                                ' (${provider['reviews']})',
+                                ' ($reviews)',
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 12,
                                   color: const Color(0xFF667085),
@@ -556,7 +812,7 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
                               ),
                               const SizedBox(width: 4),
                               Text(
-                                '${provider['distance']} km',
+                                '${distanceKm.toStringAsFixed(1)} km',
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 12,
                                   color: const Color(0xFF667085),
@@ -579,7 +835,7 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
-                                  '${provider['price']} DT',
+                                  '${price.toStringAsFixed(0)} DT',
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w700,
@@ -589,7 +845,9 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
                               ),
                               const SizedBox(width: 8),
                               Text(
-                                '${provider['experience']} d\'expérience',
+                                experience.isEmpty
+                                    ? '—'
+                                    : '$experience d\'expérience',
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 12,
                                   color: const Color(0xFF667085),
@@ -598,6 +856,32 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
                             ],
                           ),
                         ],
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () {},
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? const Color(0xFF1FBF9A).withOpacity(0.12)
+                              : const Color(0xFFF4F5F7),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isSelected
+                                ? const Color(0xFF1FBF9A)
+                                : const Color(0xFFE5E7EB),
+                          ),
+                        ),
+                        child: Icon(
+                          isSelected
+                              ? Icons.check_circle
+                              : Icons.add_circle_outline,
+                          color: isSelected
+                              ? const Color(0xFF1FBF9A)
+                              : const Color(0xFF667085),
+                        ),
                       ),
                     ),
                   ],
@@ -642,7 +926,7 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
 
   Widget _buildSearchingScreen() {
     final String providerLabel = widget.providerType == 'doctor'
-        ? 'docteurs'
+        ? 'health providers'
         : 'kinésithérapeutes';
 
     return Center(
@@ -669,32 +953,27 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
                     ),
                   ),
                 ),
-                Icon(
-                  widget.providerType == 'doctor'
-                      ? Icons.medical_services
-                      : Icons.accessibility_new,
-                  color: const Color(0xFF1FBF9A),
-                  size: 40,
-                ),
               ],
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 24),
           Text(
-            'Recherche en cours...',
+            'Searching for $providerLabel...',
             style: GoogleFonts.plusJakartaSans(
-              fontSize: 24,
+              fontSize: 18,
               fontWeight: FontWeight.w700,
               color: const Color(0xFF1D2939),
             ),
+            textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Text(
-            'Nous recherchons les meilleurs $providerLabel\ndisponibles près de vous',
+            'Please wait while we find the best match.',
             style: GoogleFonts.plusJakartaSans(
-              fontSize: 15,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
               color: const Color(0xFF667085),
-              height: 1.5,
+              height: 1.4,
             ),
             textAlign: TextAlign.center,
           ),
@@ -1066,6 +1345,108 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
                 ),
               ),
               SizedBox(height: MediaQuery.of(context).padding.bottom),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _VisitTypeTile extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData leadingIcon;
+  final String badgeText;
+  final Color badgeColor;
+  final VoidCallback onTap;
+
+  const _VisitTypeTile({
+    required this.title,
+    required this.subtitle,
+    required this.leadingIcon,
+    required this.badgeText,
+    required this.badgeColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF4F5F7),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: badgeColor.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(leadingIcon, color: badgeColor, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF1D2939),
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: badgeColor.withOpacity(0.10),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            badgeText,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              color: badgeColor,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF667085),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Icon(Icons.chevron_right, color: Color(0xFF98A2B3)),
             ],
           ),
         ),

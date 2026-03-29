@@ -35,4 +35,23 @@ class DoctorsApi {
 
     throw StateError('Unexpected /doctors response: $data');
   }
+
+  Future<List<Map<String, dynamic>>> getDoctors() async {
+    final raw = await listDoctors();
+    return raw
+        .map((d) {
+          final providerId = d['providerId']?.toString();
+          return <String, dynamic>{
+            'id': providerId ?? d['doctorId']?.toString() ?? '',
+            'name': d['name']?.toString() ?? '',
+            'specialty': d['specialty']?.toString() ?? '',
+            'rating': d['rating'],
+            'totalReviews': d['totalReviews'],
+            'officeConsultationFee': d['officeConsultationFee'],
+            'experienceYears': d['experienceYears'],
+            'isOnline': d['isOnline'],
+          };
+        })
+        .toList(growable: false);
+  }
 }

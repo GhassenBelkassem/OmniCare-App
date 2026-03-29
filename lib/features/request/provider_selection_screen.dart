@@ -15,14 +15,6 @@ class ProviderSelectionScreen extends StatelessWidget {
           icon: const Icon(Icons.arrow_back, color: Color(0xFF1D2939)),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(
-          'Choose Provider',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-            color: const Color(0xFF1D2939),
-          ),
-        ),
       ),
       body: SafeArea(
         child: Padding(
@@ -31,7 +23,7 @@ class ProviderSelectionScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'What type of care do you need?',
+                'Quel service avez-vous\nbesoin?',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 28,
                   fontWeight: FontWeight.w800,
@@ -41,7 +33,7 @@ class ProviderSelectionScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Text(
-                'Select the healthcare professional you need at home',
+                'Choisissez le type de professionnel de santé\ndont vous avez besoin',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 15,
                   color: const Color(0xFF667085),
@@ -49,12 +41,11 @@ class ProviderSelectionScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 32),
-              
-              // Doctor Card
+
               _buildProviderCard(
                 context: context,
-                title: 'Doctor',
-                subtitle: 'Medical consultation & diagnosis',
+                title: 'Médecin',
+                subtitle: 'Demander un médecin pour consultation',
                 icon: Icons.medical_services,
                 color: const Color(0xFF1FBF9A),
                 onTap: () {
@@ -66,36 +57,29 @@ class ProviderSelectionScreen extends StatelessWidget {
                 },
               ),
               const SizedBox(height: 16),
-              
-              // Nurse Card (Coming Soon)
+
               _buildProviderCard(
                 context: context,
-                title: 'Nurse',
-                subtitle: 'Injections, wound care & medical procedures',
-                icon: Icons.local_hospital,
+                title: 'Infirmier',
+                subtitle: 'Demander un infirmier pour consultation',
+                icon: Icons.vaccines,
                 color: const Color(0xFF8B5CF6),
                 onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Nurse services coming soon!',
-                        style: GoogleFonts.plusJakartaSans(),
-                      ),
-                      backgroundColor: const Color(0xFF8B5CF6),
-                    ),
+                  Navigator.pushNamed(
+                    context,
+                    '/emergency-step0',
+                    arguments: {'providerType': 'nurse'},
                   );
                 },
-                isComingSoon: true,
               ),
               const SizedBox(height: 16),
-              
-              // Kine Card
+
               _buildProviderCard(
                 context: context,
-                title: 'Physiotherapist',
-                subtitle: 'Physical therapy & rehabilitation',
+                title: 'Kinésithérapeute',
+                subtitle: 'Demander un kinésithérapeute pour\nconsultation',
                 icon: Icons.accessibility_new,
-                color: const Color(0xFFEF4444),
+                color: const Color(0xFFF59E0B),
                 onTap: () {
                   Navigator.pushNamed(
                     context,
@@ -103,6 +87,17 @@ class ProviderSelectionScreen extends StatelessWidget {
                     arguments: {'providerType': 'kine'},
                   );
                 },
+              ),
+
+              const Spacer(),
+
+              Text(
+                'Plus de professionnels arrivent bientôt',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF98A2B3),
+                ),
               ),
             ],
           ),
@@ -127,10 +122,7 @@ class ProviderSelectionScreen extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: const Color(0xFFE5E7EB),
-            width: 1,
-          ),
+          border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.04),
@@ -148,11 +140,7 @@ class ProviderSelectionScreen extends StatelessWidget {
                 color: color.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: Icon(
-                icon,
-                color: color,
-                size: 32,
-              ),
+              child: Icon(icon, color: color, size: 32),
             ),
             const SizedBox(width: 20),
             Expanded(
@@ -174,7 +162,10 @@ class ProviderSelectionScreen extends StatelessWidget {
                       if (isComingSoon) ...[
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xFFFEF3C7),
                             borderRadius: BorderRadius.circular(6),
@@ -211,11 +202,7 @@ class ProviderSelectionScreen extends StatelessWidget {
                 color: color.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
-              child: Icon(
-                Icons.arrow_forward,
-                color: color,
-                size: 20,
-              ),
+              child: Icon(Icons.arrow_forward, color: color, size: 20),
             ),
           ],
         ),

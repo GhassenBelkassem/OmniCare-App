@@ -18,6 +18,7 @@ import '../../providers/user_provider.dart';
 import '../../core/models/consultation.dart' as api;
 import 'consultation_detail_screen.dart';
 import 'patient_medical_passport_screen.dart';
+import 'provider_reservations_screen.dart';
 
 class DoctorDashboardScreen extends StatefulWidget {
   const DoctorDashboardScreen({super.key});
@@ -946,7 +947,14 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
                   Icons.notifications_outlined,
                   color: Color(0xFF667085),
                 ),
-                onPressed: () {},
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ProviderReservationsScreen(),
+                    ),
+                  );
+                },
               ),
             ],
           ),
@@ -3205,8 +3213,15 @@ class DoctorProfileScreen extends StatelessWidget {
               const SizedBox(height: 12),
               _buildMenuItem(
                 icon: Icons.notifications_outlined,
-                title: 'Notifications',
-                onTap: () {},
+                title: 'Reservations',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ProviderReservationsScreen(),
+                    ),
+                  );
+                },
               ),
               const SizedBox(height: 12),
               _buildMenuItem(
