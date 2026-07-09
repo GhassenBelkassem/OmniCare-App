@@ -1,0 +1,26 @@
+import '../core/api/medications_api.dart';
+
+List<MedicationSearchResult> createMockMedications() {
+  return [
+    MedicationSearchResult(id: 'med-001', name: 'DOLIPRANE', dosage: '500mg', form: 'Comprimé', dci: 'Paracétamol', type: 'Antalgique'),
+    MedicationSearchResult(id: 'med-002', name: 'DOLIPRANE', dosage: '1000mg', form: 'Comprimé', dci: 'Paracétamol', type: 'Antalgique'),
+    MedicationSearchResult(id: 'med-003', name: 'EFFERALGAN', dosage: '500mg', form: 'Comprimé effervescent', dci: 'Paracétamol', type: 'Antalgique'),
+    MedicationSearchResult(id: 'med-004', name: 'ADVIL', dosage: '400mg', form: 'Comprimé', dci: 'Ibuprofène', type: 'Anti-inflammatoire'),
+    MedicationSearchResult(id: 'med-005', name: 'ADVIL', dosage: '200mg', form: 'Comprimé', dci: 'Ibuprofène', type: 'Anti-inflammatoire'),
+    MedicationSearchResult(id: 'med-006', name: 'AMOXICILLINE', dosage: '500mg', form: 'Gélule', dci: 'Amoxicilline', type: 'Antibiotique'),
+    MedicationSearchResult(id: 'med-007', name: 'AMOXICILLINE', dosage: '1g', form: 'Comprimé', dci: 'Amoxicilline', type: 'Antibiotique'),
+    MedicationSearchResult(id: 'med-008', name: 'OMEPRAZOLE', dosage: '20mg', form: 'Gélule', dci: 'Oméprazole', type: 'Antiulcéreux'),
+    MedicationSearchResult(id: 'med-009', name: 'VENTOLINE', dosage: '100µg', form: 'Aérosol', dci: 'Salbutamol', type: 'Bronchodilatateur'),
+    MedicationSearchResult(id: 'med-010', name: 'DAFLON', dosage: '500mg', form: 'Comprimé', dci: 'Diosmine', type: 'Vasculoprotecteur'),
+    MedicationSearchResult(id: 'med-011', name: 'ASPIRINE', dosage: '100mg', form: 'Comprimé', dci: 'Acide acétylsalicylique', type: 'Anticoagulant'),
+    MedicationSearchResult(id: 'med-012', name: 'ASPIRINE', dosage: '500mg', form: 'Comprimé', dci: 'Acide acétylsalicylique', type: 'Antalgique'),
+    MedicationSearchResult(id: 'med-013', name: 'METFORMINE', dosage: '500mg', form: 'Comprimé', dci: 'Metformine', type: 'Antidiabétique'),
+    MedicationSearchResult(id: 'med-014', name: 'METFORMINE', dosage: '850mg', form: 'Comprimé', dci: 'Metformine', type: 'Antidiabétique'),
+    MedicationSearchResult(id: 'med-015', name: 'LASILIX', dosage: '40mg', form: 'Comprimé', dci: 'Furosémide', type: 'Diurétique'),
+    MedicationSearchResult(id: 'med-016', name: 'AUGMENTIN', dosage: '1g', form: 'Comprimé', dci: 'Amoxicilline + Acide clavulanique', type: 'Antibiotique'),
+    MedicationSearchResult(id: 'med-017', name: 'TAHOR', dosage: '20mg', form: 'Comprimé', dci: 'Atorvastatine', type: 'Hypolipémiant'),
+    MedicationSearchResult(id: 'med-018', name: 'PLAVIX', dosage: '75mg', form: 'Comprimé', dci: 'Clopidogrel', type: 'Anticoagulant'),
+    MedicationSearchResult(id: 'med-019', name: 'PARACETAMOL', dosage: '500mg', form: 'Comprimé', dci: 'Paracétamol', type: 'Antalgique'),
+    MedicationSearchResult(id: 'med-020', name: 'VOLTARENE', dosage: '50mg', form: 'Comprimé', dci: 'Diclofénac', type: 'Anti-inflammatoire'),
+  ];
+}
