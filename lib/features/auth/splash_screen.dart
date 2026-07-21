@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:provider/provider.dart';
 import 'language_selection_screen.dart';
-import '../../core/auth/token_storage.dart';
+import '../../providers/user_provider.dart';
+import 'application/auth_controller.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -10,43 +13,29 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  bool _navigationScheduled = false;
+
   @override
   void initState() {
     super.initState();
-    _navigateToLogin();
   }
 
-  Future<void> _navigateToLogin() async {
-    await Future.delayed(const Duration(seconds: 3));
-    if (mounted) {
-      final jwt = await TokenStorage.readJwt();
-      if (jwt != null && jwt.trim().isNotEmpty) {
-        final complete = await TokenStorage.readOnboardingComplete();
-        if (!mounted) return;
-        if (complete == true) {
-          Navigator.of(context).pushReplacementNamed('/home');
-          return;
-        }
-        if (complete == false) {
+  void _routeFor(AuthController auth) {
+    if (_navigationScheduled || !auth.initializationCompleted) return;
+
+    _navigationScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      if (auth.isAuthenticated) {
+        final profile = auth.patientProfile;
+        final nextRoute = auth.nextRoute;
+        if (profile != null && nextRoute != null) {
+          context.read<UserProvider>().setPatientProfile(profile);
           Navigator.of(
             context,
-          ).pushReplacementNamed('/conversational-onboarding');
-          return;
+          ).pushNamedAndRemoveUntil(nextRoute, (route) => false);
         }
-
-        // Unknown onboarding status (e.g. first launch after update or profile fetch failed).
-        // Do not route to onboarding by default.
-        Navigator.of(context).pushReplacement(
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) =>
-                const LanguageSelectionScreen(),
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) {
-                  return FadeTransition(opacity: animation, child: child);
-                },
-            transitionDuration: const Duration(milliseconds: 600),
-          ),
-        );
         return;
       }
 
@@ -60,11 +49,14 @@ class _SplashScreenState extends State<SplashScreen> {
           transitionDuration: const Duration(milliseconds: 600),
         ),
       );
-    }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthController>();
+    _routeFor(auth);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF4F5F7),
       body: Center(
@@ -91,27 +83,30 @@ class _SplashScreenState extends State<SplashScreen> {
               strokeWidth: 3,
             ),
             const SizedBox(height: 16),
-            TextButton(
-              onPressed: () async {
-                await TokenStorage.clearJwt();
-                if (!context.mounted) return;
-                Navigator.of(context).pushReplacement(
-                  PageRouteBuilder(
-                    pageBuilder: (context, animation, secondaryAnimation) =>
-                        const LanguageSelectionScreen(),
-                    transitionsBuilder:
-                        (context, animation, secondaryAnimation, child) {
-                          return FadeTransition(
-                            opacity: animation,
-                            child: child,
-                          );
-                        },
-                    transitionDuration: const Duration(milliseconds: 300),
-                  ),
-                );
-              },
-              child: const Text('Clear Storage'),
-            ),
+            if (kDebugMode)
+              TextButton(
+                onPressed: () async {
+                  await context.read<AuthController>().logout();
+                  if (!context.mounted) return;
+                  await context.read<UserProvider>().logout();
+                  if (!context.mounted) return;
+                  Navigator.of(context).pushReplacement(
+                    PageRouteBuilder(
+                      pageBuilder: (context, animation, secondaryAnimation) =>
+                          const LanguageSelectionScreen(),
+                      transitionsBuilder:
+                          (context, animation, secondaryAnimation, child) {
+                            return FadeTransition(
+                              opacity: animation,
+                              child: child,
+                            );
+                          },
+                      transitionDuration: const Duration(milliseconds: 300),
+                    ),
+                  );
+                },
+                child: const Text('Clear Local Session'),
+              ),
             const SizedBox(height: 48),
           ],
         ),

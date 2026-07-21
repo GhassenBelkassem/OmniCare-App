@@ -1,11 +1,12 @@
 import 'package:flutter/foundation.dart';
 
-import '../core/api/reservations_api.dart';
+import '../repositories/reservation_repository.dart';
 
 class ReservationProvider extends ChangeNotifier {
-  final ReservationsApi _api;
+  final ReservationRepository _repository;
 
-  ReservationProvider({ReservationsApi? api}) : _api = api ?? ReservationsApi();
+  ReservationProvider({ReservationRepository? repository})
+    : _repository = repository ?? ReservationRepository()..useMock();
 
   bool _loading = false;
   String? _error;
@@ -24,7 +25,7 @@ class ReservationProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _requests = await _api.listReservationRequests(status: status);
+      _requests = await _repository.listReservationRequests(status: status);
     } catch (e) {
       _error = e.toString();
       rethrow;
@@ -48,7 +49,7 @@ class ReservationProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final created = await _api.createReservationRequest(
+      final created = await _repository.createReservationRequest(
         providerId: providerId,
         visitType: visitType,
         isEmergency: isEmergency,

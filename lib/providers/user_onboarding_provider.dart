@@ -14,11 +14,29 @@ class MedicationEntry {
   });
 
   Map<String, dynamic> toJson() => {
-        'medicationId': medicationId,
-        'name': name,
-        'dosage': dosage,
-        'frequency': frequency,
-      };
+    'medicationId': medicationId,
+    'name': name,
+    'dosage': dosage,
+    'frequency': frequency,
+  };
+}
+
+class AllergyEntry {
+  String name;
+  String severity;
+  bool lifeSafety;
+
+  AllergyEntry({
+    required this.name,
+    required this.severity,
+    required this.lifeSafety,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'severity': severity,
+    'lifeSafety': lifeSafety,
+  };
 }
 
 class MedicalDocument {
@@ -35,11 +53,11 @@ class MedicalDocument {
   });
 
   Map<String, dynamic> toJson() => {
-        'documentName': documentName,
-        'documentType': documentType,
-        'date': date.toIso8601String(),
-        'filePath': filePath,
-      };
+    'documentName': documentName,
+    'documentType': documentType,
+    'date': date.toIso8601String(),
+    'filePath': filePath,
+  };
 }
 
 class UserOnboardingProvider extends ChangeNotifier {
@@ -48,8 +66,15 @@ class UserOnboardingProvider extends ChangeNotifier {
   bool emailVerified = false;
   bool phoneVerified = false;
   String? language;
+  String? firstName;
+  String? lastName;
+  DateTime? dateOfBirth;
+  String? gender;
 
   String? bloodGroup;
+  int? heightCm;
+  double? weightKg;
+  List<AllergyEntry> allergies = [];
   List<String> chronicConditions = [];
   List<MedicationEntry> medications = [];
   List<MedicalDocument> medicalDocuments = [];
@@ -79,8 +104,32 @@ class UserOnboardingProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setBasicProfile({
+    required String firstName,
+    required String lastName,
+    required DateTime dateOfBirth,
+    required String gender,
+  }) {
+    this.firstName = firstName;
+    this.lastName = lastName;
+    this.dateOfBirth = dateOfBirth;
+    this.gender = gender;
+    notifyListeners();
+  }
+
   void setBloodGroup(String? value) {
     bloodGroup = value;
+    notifyListeners();
+  }
+
+  void setBodyMeasurements({int? heightCm, double? weightKg}) {
+    this.heightCm = heightCm;
+    this.weightKg = weightKg;
+    notifyListeners();
+  }
+
+  void setAllergies(List<AllergyEntry> value) {
+    allergies = value;
     notifyListeners();
   }
 
@@ -130,6 +179,9 @@ class UserOnboardingProvider extends ChangeNotifier {
   Map<String, dynamic> toMedicalPassportJson() {
     return {
       'bloodGroup': bloodGroup,
+      'heightCm': heightCm,
+      'weightKg': weightKg,
+      'allergies': allergies.map((a) => a.toJson()).toList(),
       'chronicConditions': chronicConditions,
       'medications': medications.map((m) => m.toJson()).toList(),
       'medicalDocuments': medicalDocuments.map((d) => d.toJson()).toList(),
@@ -143,6 +195,10 @@ class UserOnboardingProvider extends ChangeNotifier {
       'emailVerified': emailVerified,
       'phoneVerified': phoneVerified,
       'language': language,
+      'firstName': firstName,
+      'lastName': lastName,
+      'dateOfBirth': dateOfBirth?.toIso8601String(),
+      'gender': gender,
       'medicalPassport': toMedicalPassportJson(),
     };
   }
@@ -153,7 +209,14 @@ class UserOnboardingProvider extends ChangeNotifier {
     emailVerified = false;
     phoneVerified = false;
     language = null;
+    firstName = null;
+    lastName = null;
+    dateOfBirth = null;
+    gender = null;
     bloodGroup = null;
+    heightCm = null;
+    weightKg = null;
+    allergies.clear();
     chronicConditions.clear();
     medications.clear();
     medicalDocuments.clear();

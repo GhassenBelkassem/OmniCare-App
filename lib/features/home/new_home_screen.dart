@@ -8,6 +8,7 @@ import '../../core/api/account_api.dart';
 import '../../core/api/files_api.dart';
 import '../../core/services/file_picker_service.dart';
 import '../../core/models/family_models.dart' as core_models;
+import '../auth/application/auth_controller.dart';
 import '../../providers/user_onboarding_provider.dart' hide MedicalDocument;
 import '../../providers/user_provider.dart';
 import '../../providers/family_provider.dart';
@@ -29,6 +30,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
   int _selectedIndex = 0;
 
   bool _isUploadingProfileAvatar = false;
+  bool _isLoggingOut = false;
   final _filePickerService = FilePickerService();
   final _filesApi = FilesApi();
 
@@ -90,19 +92,32 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     });
   }
 
+  Future<void> _handleLogout() async {
+    if (_isLoggingOut) return;
+    setState(() => _isLoggingOut = true);
+    try {
+      await context.read<AuthController>().logout();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+          backgroundColor: const Color(0xFFDC2626),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoggingOut = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final onboarding = Provider.of<UserOnboardingProvider>(context);
     final userProvider = Provider.of<UserProvider>(context);
 
     if (userProvider.profile == null) {
-      if (!userProvider.isLoading) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          context.read<UserProvider>().loadIfLoggedIn();
-        });
-      }
-
       return Scaffold(
         backgroundColor: const Color(0xFFF4F5F7),
         body: SafeArea(
@@ -110,13 +125,27 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const CircularProgressIndicator(),
+                const Icon(
+                  Icons.verified_user_outlined,
+                  size: 48,
+                  color: Color(0xFF1FBF9A),
+                ),
                 const SizedBox(height: 12),
                 Text(
-                  'Loading profile...',
+                  'Session restored locally',
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF101828),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Profile loading will be connected in the next phase.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
                     color: const Color(0xFF667085),
                   ),
                 ),
@@ -130,23 +159,6 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     final userName = resolvedDisplayName.isNotEmpty
         ? resolvedDisplayName
         : (onboarding.email?.split('@')[0] ?? 'User');
-
-    final String firstName = (userProvider.user?.derivedFirstName ?? '').trim();
-    final String lastName = (userProvider.user?.derivedLastName ?? '').trim();
-
-    final String healthCardPatientName;
-    if (userProvider.isLoading && userProvider.user == null) {
-      healthCardPatientName = 'Loading...';
-    } else if (firstName.isNotEmpty || lastName.isNotEmpty) {
-      healthCardPatientName = [
-        firstName,
-        lastName,
-      ].where((e) => e.trim().isNotEmpty).join(' ');
-    } else if ((onboarding.email ?? '').isNotEmpty) {
-      healthCardPatientName = onboarding.email!.split('@')[0];
-    } else {
-      healthCardPatientName = 'User';
-    }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F5F7),
@@ -999,22 +1011,36 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Mon Carnet de Santé Digital',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 24,
-            fontWeight: FontWeight.w800,
-            color: const Color(0xFF1A202C),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Votre passeport médical pour un accès rapide',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: const Color(0xFF667085),
-          ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Mon Carnet de Santé Digital',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF1A202C),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Votre passeport médical pour un accès rapide',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: const Color(0xFF667085),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            _buildLogoutButton(),
+          ],
         ),
         const SizedBox(height: 20),
 
@@ -1482,6 +1508,47 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildLogoutButton() {
+    return SizedBox(
+      height: 40,
+      child: OutlinedButton(
+        onPressed: _isLoggingOut ? null : _handleLogout,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: const Color(0xFFDC2626),
+          side: const BorderSide(color: Color(0xFFFECACA)),
+          backgroundColor: const Color(0xFFFEF2F2),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+        child: _isLoggingOut
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Color(0xFFDC2626),
+                ),
+              )
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.logout_rounded, size: 18),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Déconnexion',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+      ),
     );
   }
 

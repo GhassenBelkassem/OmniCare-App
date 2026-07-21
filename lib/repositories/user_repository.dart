@@ -26,11 +26,15 @@ class UserRepository {
 
   Future<void> patchMedicalPassport({
     String? bloodGroup,
+    int? heightCm,
+    double? weightKg,
     Map<String, dynamic>? medicalInfo,
   }) async {
     if (_api == null) return;
     await _api!.patchMedicalPassport(
       bloodGroup: bloodGroup,
+      heightCm: heightCm,
+      weightKg: weightKg,
       medicalInfo: medicalInfo,
     );
   }
@@ -44,5 +48,13 @@ class UserRepository {
       profilePictureUrl: profilePictureUrl,
       profilePicturePublicId: profilePicturePublicId,
     );
+  }
+
+  Future<OnboardingStepResponseDto?> saveOnboardingStep(
+    int step,
+    Map<String, dynamic> data,
+  ) async {
+    if (_api == null) return null;
+    return _api!.saveOnboardingStep(step, data);
   }
 }

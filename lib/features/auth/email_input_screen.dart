@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/user_onboarding_provider.dart';
-import 'otp_verification_screen.dart';
+import 'application/auth_flow_models.dart';
 import 'phone_input_screen.dart';
 
 class EmailInputScreen extends StatefulWidget {
@@ -37,8 +37,11 @@ class _EmailInputScreenState extends State<EmailInputScreen> {
   Future<void> _submitEmail() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
-      
-      final provider = Provider.of<UserOnboardingProvider>(context, listen: false);
+
+      final provider = Provider.of<UserOnboardingProvider>(
+        context,
+        listen: false,
+      );
       provider.setEmail(_emailController.text);
 
       await Future.delayed(const Duration(seconds: 1));
@@ -48,18 +51,8 @@ class _EmailInputScreenState extends State<EmailInputScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => OtpVerificationScreen(
-              verificationType: 'email',
-              contactInfo: _emailController.text,
-              onVerified: () async {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const PhoneInputScreen(),
-                  ),
-                );
-              },
-            ),
+            builder: (context) =>
+                const PhoneInputScreen(mode: AuthFlowMode.login),
           ),
         );
       }
@@ -191,8 +184,9 @@ class _EmailInputScreenState extends State<EmailInputScreen> {
                       backgroundColor: const Color(0xFF1FBF9A),
                       foregroundColor: Colors.white,
                       elevation: 0,
-                      disabledBackgroundColor:
-                          const Color(0xFF1FBF9A).withOpacity(0.5),
+                      disabledBackgroundColor: const Color(
+                        0xFF1FBF9A,
+                      ).withOpacity(0.5),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -203,8 +197,9 @@ class _EmailInputScreenState extends State<EmailInputScreen> {
                             width: 24,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(Colors.white),
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
                             ),
                           )
                         : Text(

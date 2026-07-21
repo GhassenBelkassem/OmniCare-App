@@ -1,6 +1,4 @@
-import 'package:dio/dio.dart';
-
-import 'dio_client.dart';
+import '../../mock_data/mock_medications.dart';
 
 class MedicationSearchResult {
   final String id;
@@ -32,50 +30,39 @@ class MedicationSearchResult {
 
   bool get isSoluble {
     final f = (form ?? '').toLowerCase();
-    return f.contains('soluble') || f.contains('efferves') || f.contains('orodispers') || f.contains('dispers');
+    return f.contains('soluble') ||
+        f.contains('efferves') ||
+        f.contains('orodispers') ||
+        f.contains('dispers');
   }
 }
 
 class MedicationsApi {
-  final Dio _dio;
-
-  MedicationsApi({Dio? dio}) : _dio = dio ?? DioClient.instance.dio;
+  MedicationsApi({Object? dio});
 
   Future<List<MedicationSearchResult>> searchTop10(String q) async {
     final trimmed = q.trim();
     if (trimmed.isEmpty) return const [];
-
-    final res = await _dio.get(
-      '/medications/search',
-      queryParameters: {'q': trimmed},
-    );
-
-    final data = res.data;
-    if (data is List) {
-      return data
-          .whereType<Map>()
-          .map((e) => MedicationSearchResult.fromJson(e.cast<String, dynamic>()))
-          .where((e) => e.id.isNotEmpty && e.name.trim().isNotEmpty)
-          .toList();
-    }
-
-    throw StateError('Unexpected /medications/search response: $data');
+    final all = createMockMedications();
+    final lower = trimmed.toLowerCase();
+    return all
+        .where((m) =>
+            m.name.toLowerCase().contains(lower) ||
+            (m.dci?.toLowerCase().contains(lower) ?? false))
+        .take(10)
+        .toList();
   }
 
   Future<List<String>> searchDistinctDciTop20(String q) async {
     final trimmed = q.trim();
     if (trimmed.isEmpty) return const [];
-
-    final res = await _dio.get(
-      '/medications/dci',
-      queryParameters: {'q': trimmed},
-    );
-
-    final data = res.data;
-    if (data is List) {
-      return data.map((e) => e.toString()).where((e) => e.trim().isNotEmpty).toList();
-    }
-
-    throw StateError('Unexpected /medications/dci response: $data');
+    final all = createMockMedications();
+    final lower = trimmed.toLowerCase();
+    return all
+        .map((m) => m.dci ?? '')
+        .where((dci) => dci.toLowerCase().contains(lower))
+        .toSet()
+        .take(20)
+        .toList();
   }
 }

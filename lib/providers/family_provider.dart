@@ -1,8 +1,7 @@
 import 'package:flutter/foundation.dart';
-import '../core/api/family_api.dart';
-import '../core/api/patients_api.dart';
 import '../core/models/family_models.dart';
 import '../core/utils/console_log.dart';
+import '../repositories/family_repository.dart';
 
 String _familyRelationshipUiToBackend(String ui) {
   final v = ui.trim();
@@ -62,12 +61,10 @@ String _familyRelationshipBackendToUi(String backend) {
 }
 
 class FamilyProvider extends ChangeNotifier {
-  final FamilyApi _api;
-  final PatientsApi _patientsApi;
+  final FamilyRepository _repository;
 
-  FamilyProvider({FamilyApi? api, PatientsApi? patientsApi})
-    : _api = api ?? FamilyApi(),
-      _patientsApi = patientsApi ?? PatientsApi();
+  FamilyProvider({FamilyRepository? repository})
+    : _repository = repository ?? FamilyRepository()..useMock();
 
   List<FamilyMember> _members = [];
   bool _loading = false;
@@ -85,71 +82,9 @@ class FamilyProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      consoleLog('[FamilyProvider] Fetching family members from backend...');
-      final familyMembers = await _api.getFamilyMembers();
-
-      _members = familyMembers
-          .map(
-            (m) => FamilyMember(
-              id: m.id,
-              fullName: m.fullName,
-              firstName: m.firstName,
-              lastName: m.lastName,
-              relationship: _familyRelationshipBackendToUi(m.relationship),
-              relationshipDescription: m.relationshipDescription,
-              phoneNumber: m.phoneNumber,
-              birthDate: m.birthDate,
-              ageYears: m.ageYears,
-              gender: m.gender,
-              profilePictureUrl: m.profilePictureUrl,
-              profilePicturePublicId: m.profilePicturePublicId,
-              bloodGroup: m.bloodGroup,
-              medicalInfo: m.medicalInfo,
-              patientId: m.patientId,
-            ),
-          )
-          .toList();
+      consoleLog('[FamilyProvider] Fetching family members from repository...');
+      _members = await _repository.getFamilyMembers();
       consoleLog('[FamilyProvider] Loaded ${_members.length} family members');
-
-      try {
-        consoleLog('[FamilyProvider] Fetching patient IDs from backend...');
-        final patients = await _patientsApi.getPatients();
-
-        final patientMap = <String, String>{};
-        for (final patient in patients) {
-          if (patient.familyMemberId != null) {
-            patientMap[patient.familyMemberId!] = patient.patientId;
-          }
-        }
-
-        _members = _members.map((member) {
-          final patientId = patientMap[member.id];
-          return FamilyMember(
-            id: member.id,
-            fullName: member.fullName,
-            firstName: member.firstName,
-            lastName: member.lastName,
-            relationship: member.relationship,
-            relationshipDescription: member.relationshipDescription,
-            phoneNumber: member.phoneNumber,
-            birthDate: member.birthDate,
-            ageYears: member.ageYears,
-            gender: member.gender,
-            profilePictureUrl: member.profilePictureUrl,
-            profilePicturePublicId: member.profilePicturePublicId,
-            bloodGroup: member.bloodGroup,
-            medicalInfo: member.medicalInfo,
-            patientId: patientId,
-          );
-        }).toList();
-
-        consoleLog(
-          '[FamilyProvider] Linked patient IDs for ${_members.length} family members',
-        );
-      } catch (e, st) {
-        consoleLog('[FamilyProvider] Patient ID lookup failed (non-fatal): $e');
-        consoleLog('[FamilyProvider] Patient ID lookup STACKTRACE: $st');
-      }
     } catch (e, st) {
       _error = e.toString();
       consoleLog('[FamilyProvider] loadFamilyMembers() ERROR: $_error');
@@ -185,7 +120,7 @@ class FamilyProvider extends ChangeNotifier {
 
     try {
       final backendRelationship = _familyRelationshipUiToBackend(relationship);
-      final newMember = await _api.createFamilyMember(
+      final newMember = await _repository.createFamilyMember(
         fullName: fullName,
         firstName: firstName,
         lastName: lastName,
@@ -196,12 +131,13 @@ class FamilyProvider extends ChangeNotifier {
         gender: gender,
         profilePictureUrl: profilePictureUrl,
         profilePicturePublicId: profilePicturePublicId,
+        bloodGroup: bloodGroup,
         medicalInfo: medicalInfo,
       );
 
       if (bloodGroup != null && bloodGroup.trim().isNotEmpty) {
         try {
-          await _api.patchMedicalPassport(
+          await _repository.patchMedicalPassport(
             id: newMember.id,
             bloodGroup: bloodGroup,
           );
@@ -214,70 +150,6 @@ class FamilyProvider extends ChangeNotifier {
       }
 
       await loadFamilyMembers();
-
-      final created = _members.where((m) => m.id == newMember.id).toList();
-      final resolvedPatientId = created.isNotEmpty
-          ? created.first.patientId
-          : null;
-      final chronicRaw = medicalInfo?['chronicConditions'];
-      final chronic = (chronicRaw is List)
-          ? chronicRaw
-                .map((e) => e.toString())
-                .where((e) => e.trim().isNotEmpty)
-                .toList()
-          : const <String>[];
-
-      final medsRaw = medicalInfo?['currentMedications'];
-      final meds = (medsRaw is List)
-          ? medsRaw
-                .whereType<Map>()
-                .map((e) => e.cast<String, dynamic>())
-                .toList()
-          : const <Map<String, dynamic>>[];
-
-      if (resolvedPatientId != null && resolvedPatientId.trim().isNotEmpty) {
-        for (final c in chronic) {
-          try {
-            await _patientsApi.addPatientCondition(
-              patientId: resolvedPatientId,
-              name: c,
-            );
-          } catch (e, st) {
-            consoleLog(
-              '[FamilyProvider] addPatientCondition failed (non-fatal): $e',
-            );
-            consoleLog('[FamilyProvider] addPatientCondition STACKTRACE: $st');
-          }
-        }
-
-        for (final m in meds) {
-          final medicationId =
-              (m['medicationId'] ??
-                      m['medication_id'] ??
-                      m['id'] ??
-                      m['medication']?['id'])
-                  ?.toString()
-                  .trim();
-          if (medicationId == null || medicationId.isEmpty) {
-            continue;
-          }
-
-          try {
-            final dosageOrNotes = (m['dosage'] ?? m['notes'])?.toString();
-            await _patientsApi.addPatientMedication(
-              patientId: resolvedPatientId,
-              medicationId: medicationId,
-              frequency: m['frequency']?.toString(),
-              notes: dosageOrNotes,
-            );
-          } catch (e, st) {
-            consoleLog(
-              '[FamilyProvider] addPatientMedication failed (non-fatal): $e',
-            );
-            consoleLog('[FamilyProvider] addPatientMedication STACKTRACE: $st');
-          }
-        }
-      }
 
       consoleLog(
         '[FamilyProvider] Family member added successfully: ${newMember.id}',
@@ -326,7 +198,7 @@ class FamilyProvider extends ChangeNotifier {
       final backendRelationship = relationship == null
           ? null
           : _familyRelationshipUiToBackend(relationship);
-      final updated = await _api.updateFamilyMember(
+      final updated = await _repository.updateFamilyMember(
         id: id,
         fullName: fullName,
         relationship: backendRelationship,
@@ -376,7 +248,7 @@ class FamilyProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _api.deleteFamilyMember(id);
+      await _repository.deleteFamilyMember(id);
       _members.removeWhere((m) => m.id == id);
       consoleLog('[FamilyProvider] Family member deleted successfully: $id');
     } catch (e, st) {
@@ -401,72 +273,11 @@ class FamilyProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final updated = await _api.patchMedicalPassport(
+      final updated = await _repository.patchMedicalPassport(
         id: id,
         bloodGroup: bloodGroup,
         medicalInfo: medicalInfo,
       );
-
-      final resolvedPatientId = updated.patientId;
-      if (resolvedPatientId != null && resolvedPatientId.trim().isNotEmpty) {
-        final chronicRaw = medicalInfo?['chronicConditions'];
-        final chronic = (chronicRaw is List)
-            ? chronicRaw
-                  .map((e) => e.toString())
-                  .where((e) => e.trim().isNotEmpty)
-                  .toList()
-            : const <String>[];
-
-        for (final c in chronic) {
-          try {
-            await _patientsApi.addPatientCondition(
-              patientId: resolvedPatientId,
-              name: c,
-            );
-          } catch (e, st) {
-            consoleLog(
-              '[FamilyProvider] addPatientCondition failed (non-fatal): $e',
-            );
-            consoleLog('[FamilyProvider] addPatientCondition STACKTRACE: $st');
-          }
-        }
-
-        final medsRaw = medicalInfo?['currentMedications'];
-        final meds = (medsRaw is List)
-            ? medsRaw
-                  .whereType<Map>()
-                  .map((e) => e.cast<String, dynamic>())
-                  .toList()
-            : const <Map<String, dynamic>>[];
-
-        for (final m in meds) {
-          final medicationId =
-              (m['medicationId'] ??
-                      m['medication_id'] ??
-                      m['id'] ??
-                      m['medication']?['id'])
-                  ?.toString()
-                  .trim();
-          if (medicationId == null || medicationId.isEmpty) {
-            continue;
-          }
-
-          try {
-            final dosageOrNotes = (m['dosage'] ?? m['notes'])?.toString();
-            await _patientsApi.addPatientMedication(
-              patientId: resolvedPatientId,
-              medicationId: medicationId,
-              frequency: m['frequency']?.toString(),
-              notes: dosageOrNotes,
-            );
-          } catch (e, st) {
-            consoleLog(
-              '[FamilyProvider] addPatientMedication failed (non-fatal): $e',
-            );
-            consoleLog('[FamilyProvider] addPatientMedication STACKTRACE: $st');
-          }
-        }
-      }
 
       final uiUpdated = FamilyMember(
         id: updated.id,

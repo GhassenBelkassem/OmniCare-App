@@ -2,14 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/user_onboarding_provider.dart';
+import 'application/auth_controller.dart';
+import 'application/auth_flow_models.dart';
+import 'application/tunisian_phone_number.dart';
 import 'otp_verification_screen.dart';
-import 'medical_data_welcome_screen.dart';
-import '../../core/api/auth_api.dart';
-import '../../core/api/api_error_utils.dart';
-import '../../core/utils/logger.dart';
 
 class PhoneInputScreen extends StatefulWidget {
-  const PhoneInputScreen({super.key});
+  const PhoneInputScreen({
+    super.key,
+    required this.mode,
+    this.signupDraft,
+    this.rememberDevice = false,
+  });
+
+  final AuthFlowMode mode;
+  final PhoneSignupDraft? signupDraft;
+  final bool rememberDevice;
 
   @override
   State<PhoneInputScreen> createState() => _PhoneInputScreenState();
@@ -27,64 +35,58 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
   }
 
   String? _validatePhone(String? value) {
-    if (value == null || value.isEmpty) {
+    if (value == null || value.trim().isEmpty) {
       return 'Phone number is required';
     }
-    if (value.length < 8) {
-      return 'Please enter a valid phone number';
+    try {
+      TunisianPhoneNumber.normalize(value);
+      return null;
+    } on PhoneNumberFormatException catch (e) {
+      return e.message;
     }
-    return null;
   }
 
   Future<void> _submitPhone() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
-      
-      final phoneNumber = '+216${_phoneController.text}';
-      final provider = Provider.of<UserOnboardingProvider>(context, listen: false);
-      provider.setPhoneNumber(phoneNumber);
 
-      final email = provider.email;
-      if (email == null || email.isEmpty) {
-        if (mounted) {
-          setState(() => _isLoading = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Missing email for phone verification. Please sign up again.')),
-          );
-        }
-        return;
-      }
+      final phoneNumber = TunisianPhoneNumber.normalize(_phoneController.text);
+      final onboardingProvider = Provider.of<UserOnboardingProvider>(
+        context,
+        listen: false,
+      );
+      onboardingProvider.setPhoneNumber(phoneNumber);
 
-      try {
-        await AuthApi().setPhone(email: email, phoneNumber: phoneNumber);
-        await AuthApi().requestPhoneOtp(phoneNumber: phoneNumber);
-
-        if (!mounted) return;
-
-        setState(() => _isLoading = false);
-        Navigator.push(
+      final auth = context.read<AuthController>();
+      final draft = widget.signupDraft;
+      final success = widget.mode == AuthFlowMode.login
+          ? await auth.startPhoneLogin(
+              phoneNumber,
+              rememberDevice: widget.rememberDevice,
+            )
+          : draft != null
+          ? await auth.startPhoneSignup(
+              draft,
+              phoneNumber,
+              rememberDevice: widget.rememberDevice,
+            )
+          : auth.hasPendingGoogleSignup &&
+                await auth.startGooglePhoneSignup(phoneNumber);
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      if (success) {
+        await Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => OtpVerificationScreen(
-              verificationType: 'phone',
+              mode: widget.mode,
               contactInfo: phoneNumber,
-              onVerified: () async {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const MedicalDataWelcomeScreen(),
-                  ),
-                );
-              },
             ),
           ),
         );
-      } catch (e, st) {
-        AppLogger.error('Phone verification setup failed', e, st);
-        if (!mounted) return;
-        setState(() => _isLoading = false);
+      } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to send phone code: ${apiErrorMessage(e)}')),
+          SnackBar(content: Text(auth.errorMessage ?? 'Unable to send code.')),
         );
       }
     }
@@ -136,7 +138,9 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Phone Verification',
+                  widget.mode == AuthFlowMode.login
+                      ? 'Phone Login'
+                      : 'Phone Verification',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 18,
@@ -146,7 +150,9 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'We need to register your phone number before getting started!',
+                  widget.mode == AuthFlowMode.login
+                      ? 'Enter your phone number to receive a login code.'
+                      : 'We need to register your phone number before getting started!',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 12,
@@ -168,10 +174,7 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
                       ),
                       child: Row(
                         children: [
-                          Text(
-                            '🇹🇳',
-                            style: const TextStyle(fontSize: 24),
-                          ),
+                          Text('🇹🇳', style: const TextStyle(fontSize: 24)),
                           const SizedBox(width: 8),
                           const Icon(
                             Icons.arrow_drop_down,
@@ -193,7 +196,9 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
                         child: Row(
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
                               child: Text(
                                 '+216',
                                 style: GoogleFonts.plusJakartaSans(
@@ -248,8 +253,9 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
                       backgroundColor: const Color(0xFF1FBF9A),
                       foregroundColor: Colors.white,
                       elevation: 0,
-                      disabledBackgroundColor:
-                          const Color(0xFF1FBF9A).withOpacity(0.5),
+                      disabledBackgroundColor: const Color(
+                        0xFF1FBF9A,
+                      ).withValues(alpha: 0.5),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -260,8 +266,9 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
                             width: 24,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(Colors.white),
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
                             ),
                           )
                         : Text(

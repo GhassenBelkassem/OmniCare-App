@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../l10n/app_localizations.dart';
-import 'otp_verification_screen.dart';
-import 'reset_password_screen.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -37,21 +35,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
       if (mounted) {
         setState(() => _isLoading = false);
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => OtpVerificationScreen(
-              verificationType: 'reset',
-              contactInfo: _contactController.text,
-              onVerified: () async {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const ResetPasswordScreen(),
-                  ),
-                );
-              },
-            ),
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Password reset backend integration pending'),
           ),
         );
       }
@@ -147,7 +133,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     color: const Color(0xFF1D2939),
                   ),
                   decoration: InputDecoration(
-                    hintText: l10n?.emailOrPhoneHint ??
+                    hintText:
+                        l10n?.emailOrPhoneHint ??
                         'Enter your email or phone number',
                     hintStyle: GoogleFonts.plusJakartaSans(
                       fontSize: 16,
@@ -198,8 +185,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       backgroundColor: const Color(0xFF1FBF9A),
                       foregroundColor: Colors.white,
                       elevation: 0,
-                      disabledBackgroundColor:
-                          const Color(0xFF1FBF9A).withOpacity(0.5),
+                      disabledBackgroundColor: const Color(
+                        0xFF1FBF9A,
+                      ).withOpacity(0.5),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -210,8 +198,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             width: 24,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(Colors.white),
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
                             ),
                           )
                         : Text(

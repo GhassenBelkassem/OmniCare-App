@@ -1,21 +1,16 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
-import '../../providers/user_onboarding_provider.dart';
-import '../../providers/user_provider.dart';
-import 'phone_input_screen.dart';
-import 'medical_data_welcome_screen.dart';
-import 'forgot_password_screen.dart';
-import 'signup_screen.dart';
-import '../../core/api/auth_api.dart';
-import '../../core/api/dio_client.dart';
-import '../../core/utils/logger.dart';
-import 'package:google_sign_in/google_sign_in.dart';
-import '../../core/api/api_error_utils.dart';
-import 'package:flutter/foundation.dart';
 import '../../core/auth/google_web_sign_in_button.dart';
-import 'package:dio/dio.dart';
+import '../../providers/user_provider.dart';
+import 'application/auth_controller.dart';
+import 'application/auth_flow_models.dart';
+import 'otp_verification_screen.dart';
+import 'phone_input_screen.dart';
+import 'signup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -27,205 +22,15 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen>
     with SingleTickerProviderStateMixin {
   bool _isLoading = false;
-  bool _showEmailForm = false;
+  final GlobalKey<FormState> _emailLoginFormKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  bool _obscurePassword = true;
+  bool _rememberDevice = false;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
   late Animation<double> _scaleAnimation;
-
-  bool _devAccountsLoading = false;
-  List<_DevAccount> _devAccounts = const [];
-
-  void _fillDevCredentials({required String email}) {
-    setState(() {
-      _showEmailForm = true;
-      _emailController.text = email;
-      _passwordController.text = 'Passw0rd!123';
-    });
-  }
-
-  Future<void> _loadDevAccounts() async {
-    if (_devAccountsLoading) return;
-    setState(() => _devAccountsLoading = true);
-
-    try {
-      final Dio dio = DioClient.instance.dio;
-      final res = await dio.get('/auth/dev/accounts');
-      final data = res.data;
-      if (data is List) {
-        final items = data
-            .whereType<Map>()
-            .map(
-              (m) => _DevAccount(
-                role: m['role']?.toString() ?? '',
-                name: m['name']?.toString() ?? '',
-                email: m['email']?.toString() ?? '',
-              ),
-            )
-            .where((a) => a.email.trim().isNotEmpty)
-            .toList();
-
-        setState(() => _devAccounts = items);
-      } else {
-        setState(() => _devAccounts = const []);
-      }
-    } catch (e, st) {
-      AppLogger.error('Failed to load dev accounts', e, st);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to load dev accounts: ${apiErrorMessage(e)}'),
-          ),
-        );
-      }
-      setState(() => _devAccounts = const []);
-    } finally {
-      if (mounted) setState(() => _devAccountsLoading = false);
-    }
-  }
-
-  Future<void> _pickDevAccount({required String role}) async {
-    await _loadDevAccounts();
-    if (!mounted) return;
-
-    final wantedRole = role.trim().toUpperCase();
-    final items = _devAccounts
-        .where((a) => a.role.trim().toUpperCase() == wantedRole)
-        .toList();
-
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                child: Text(
-                  'Choose $wantedRole account',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF101828),
-                  ),
-                ),
-              ),
-              if (_devAccountsLoading)
-                const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              else if (items.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text(
-                    'No $wantedRole accounts found. Seed first, then retry.',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: const Color(0xFF667085),
-                    ),
-                  ),
-                )
-              else
-                Expanded(
-                  child: ListView.separated(
-                    itemCount: items.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
-                    itemBuilder: (context, i) {
-                      final a = items[i];
-                      return ListTile(
-                        title: Text(
-                          a.name.isNotEmpty ? a.name : a.email,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF101828),
-                          ),
-                        ),
-                        subtitle: Text(
-                          a.email,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: const Color(0xFF667085),
-                          ),
-                        ),
-                        onTap: () {
-                          Navigator.pop(context);
-                          if (wantedRole == 'DOCTOR') {
-                            _setActiveSimDoctor(email: a.email);
-                          }
-                          _fillDevCredentials(email: a.email);
-                        },
-                      );
-                    },
-                  ),
-                ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _setActiveSimDoctor({required String email}) async {
-    try {
-      final Dio dio = DioClient.instance.dio;
-      await dio.post('/auth/dev/active-doctor', data: {'email': email});
-    } catch (e, st) {
-      AppLogger.error('Failed to set active sim doctor', e, st);
-    }
-  }
-
-  void _navigateAfterLogin(AuthLoginResult result) {
-    if (!mounted) return;
-
-    final onboarding = context.read<UserOnboardingProvider>();
-    onboarding.setEmail(result.email);
-    if (result.phoneNumber != null && result.phoneNumber!.isNotEmpty) {
-      onboarding.setPhoneNumber(result.phoneNumber!);
-    }
-    onboarding.setEmailVerified(result.emailVerified);
-    onboarding.setPhoneVerified(result.phoneVerified);
-
-    final role = (context.read<UserProvider>().user?.role ?? '')
-        .trim()
-        .toUpperCase();
-    final isProfessional =
-        role == 'DOCTOR' ||
-        role == 'NURSE' ||
-        role == 'KINE' ||
-        role == 'PSYCHIATRIST';
-    if (isProfessional) {
-      Navigator.pushReplacementNamed(context, '/doctor-dashboard');
-      return;
-    }
-
-    if (!result.phoneVerified) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const PhoneInputScreen()),
-      );
-      return;
-    }
-
-    if (!result.onboardingComplete) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const MedicalDataWelcomeScreen(),
-        ),
-      );
-      return;
-    }
-
-    Navigator.pushReplacementNamed(context, '/home');
-  }
 
   @override
   void initState() {
@@ -266,97 +71,120 @@ class _LoginScreenState extends State<LoginScreen>
 
   @override
   void dispose() {
+    _animationController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
-    _animationController.dispose();
     super.dispose();
   }
 
-  Future<void> _handleGoogleSignIn() async {
-    if (kIsWeb) {
+  Future<void> _handleGoogleIdToken(String idToken) async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+    final auth = context.read<AuthController>();
+    final success = await auth.startGoogleAuth(
+      idToken,
+      rememberDevice: _rememberDevice,
+    );
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    if (!success) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please use the Google button to sign in on web.'),
-        ),
+        SnackBar(content: Text(auth.errorMessage ?? 'Google sign-in failed.')),
       );
       return;
     }
-    setState(() => _isLoading = true);
-    try {
-      final googleSignIn = GoogleSignIn(scopes: <String>['email', 'profile']);
 
-      final account = await googleSignIn.signIn();
-      if (account == null) {
-        return;
-      }
+    if (auth.isAuthenticated) {
+      _routeAuthenticated(auth);
+      return;
+    }
 
-      final auth = await account.authentication;
-      final idToken = auth.idToken;
-      if (idToken == null || idToken.isEmpty) {
-        throw StateError('Google idToken is null');
-      }
-
-      final result = await AuthApi().googleLoginWithStatus(idToken: idToken);
-      if (!mounted) return;
-      print(
-        '[LoginScreen] JWT saved. Forcing UserProvider.refresh() before /home navigation...',
+    if (auth.hasPendingGoogleSignup) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) =>
+              const PhoneInputScreen(mode: AuthFlowMode.signup),
+        ),
       );
-      await context.read<UserProvider>().refresh();
-      print('[LoginScreen] UserProvider.refresh() done. Navigating to /home');
-      _navigateAfterLogin(result);
-    } catch (e, st) {
-      AppLogger.error('Google sign-in failed', e, st);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Google sign-in failed: ${apiErrorMessage(e)}')),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
     }
   }
 
-  Future<void> _handleEmailSignIn() async {
-    if (!_showEmailForm) {
-      // Toggle to show the form
-      setState(() => _showEmailForm = true);
-    } else {
-      // Handle actual sign in
-      final email = _emailController.text.trim();
-      final password = _passwordController.text;
-      if (email.isEmpty || password.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Email and password are required')),
-        );
-        return;
+  Future<void> _handleGoogleSignIn() async {
+    if (kIsWeb) return;
+    try {
+      final account = await GoogleSignIn(scopes: const ['email']).signIn();
+      final idToken = (await account?.authentication)?.idToken;
+      if (idToken == null || idToken.isEmpty) {
+        throw StateError('Google did not return an ID token.');
       }
-
-      setState(() => _isLoading = true);
-      try {
-        final result = await AuthApi().loginWithStatus(
-          email: email,
-          password: password,
-        );
-        if (!mounted) return;
-        print(
-          '[LoginScreen] JWT saved. Forcing UserProvider.refresh() before /home navigation...',
-        );
-        await context.read<UserProvider>().refresh();
-        print('[LoginScreen] UserProvider.refresh() done. Navigating to /home');
-        _navigateAfterLogin(result);
-      } catch (e, st) {
-        AppLogger.error('Login failed', e, st);
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Login failed: ${apiErrorMessage(e)}')),
-        );
-      } finally {
-        if (mounted) {
-          setState(() => _isLoading = false);
-        }
-      }
+      await _handleGoogleIdToken(idToken);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Google sign-in failed.')));
     }
+  }
+
+  Future<void> _handlePhoneSignIn() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PhoneInputScreen(
+          mode: AuthFlowMode.login,
+          rememberDevice: _rememberDevice,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleEmailPasswordSignIn() async {
+    final isValid = _emailLoginFormKey.currentState?.validate() ?? false;
+    if (!isValid || _isLoading) return;
+
+    setState(() => _isLoading = true);
+    final auth = context.read<AuthController>();
+    final success = await auth.loginWithEmailPassword(
+      _emailController.text,
+      _passwordController.text,
+      rememberDevice: _rememberDevice,
+    );
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    if (!success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(auth.errorMessage ?? 'Sign-in failed.')),
+      );
+      return;
+    }
+
+    if (auth.isAuthenticated) {
+      _routeAuthenticated(auth);
+      return;
+    }
+
+    if (auth.pendingFlow == AuthFlowMode.login && auth.pendingPhone != null) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => OtpVerificationScreen(
+            mode: AuthFlowMode.login,
+            contactInfo: auth.pendingPhone!,
+          ),
+        ),
+      );
+    }
+  }
+
+  void _routeAuthenticated(AuthController auth) {
+    final profile = auth.patientProfile;
+    final nextRoute = auth.nextRoute;
+    if (profile == null || nextRoute == null) return;
+    context.read<UserProvider>().setPatientProfile(profile);
+    Navigator.of(context).pushNamedAndRemoveUntil(nextRoute, (route) => false);
   }
 
   @override
@@ -470,19 +298,10 @@ class _LoginScreenState extends State<LoginScreen>
                                       _buildDivider(),
                                       const SizedBox(height: 20),
 
-                                      if (kDebugMode) ...[
-                                        _buildDevQuickFill(),
-                                        const SizedBox(height: 12),
-                                      ],
+                                      _buildEmailPasswordForm(),
+                                      const SizedBox(height: 16),
 
-                                      // Email/Password Form (conditionally shown)
-                                      if (_showEmailForm) ...[
-                                        _buildEmailPasswordForm(),
-                                        const SizedBox(height: 18),
-                                      ],
-
-                                      // Email Sign In Button
-                                      _buildEmailButton(),
+                                      _buildPhoneButton(),
                                       const SizedBox(height: 24),
 
                                       // Footer
@@ -507,73 +326,9 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  Widget _buildDevQuickFill() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          'Dev quick fill',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: const Color(0xFF98A2B3),
-          ),
-        ),
-        const SizedBox(height: 6),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: _isLoading
-                    ? null
-                    : () => _pickDevAccount(role: 'PATIENT'),
-                child: const Text('Pick Patient'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: OutlinedButton(
-                onPressed: _isLoading
-                    ? null
-                    : () => _pickDevAccount(role: 'DOCTOR'),
-                child: const Text('Pick Doctor'),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
   Widget _buildGoogleButton() {
     if (kIsWeb) {
-      return GoogleWebSignInButton(
-        onIdToken: (idToken) async {
-          setState(() => _isLoading = true);
-          try {
-            await AuthApi().googleLogin(idToken: idToken);
-            if (!mounted) return;
-            print(
-              '[LoginScreen] (Web) JWT saved. Forcing UserProvider.refresh() before /home navigation...',
-            );
-            await context.read<UserProvider>().refresh();
-            print(
-              '[LoginScreen] (Web) UserProvider.refresh() done. Navigating to /home',
-            );
-            Navigator.pushReplacementNamed(context, '/home');
-          } catch (e, st) {
-            AppLogger.error('Google web sign-in failed', e, st);
-            if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Google sign-in failed: ${apiErrorMessage(e)}'),
-              ),
-            );
-          } finally {
-            if (mounted) setState(() => _isLoading = false);
-          }
-        },
-      );
+      return GoogleWebSignInButton(onIdToken: _handleGoogleIdToken);
     }
 
     return SizedBox(
@@ -592,7 +347,7 @@ class _LoginScreenState extends State<LoginScreen>
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF101828).withOpacity(0.05),
+                  color: const Color(0xFF101828).withValues(alpha: 0.05),
                   blurRadius: 2,
                   offset: const Offset(0, 1),
                 ),
@@ -648,7 +403,7 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  Widget _buildEmailButton() {
+  Widget _buildPhoneButton() {
     return SizedBox(
       width: double.infinity,
       height: 50,
@@ -657,14 +412,14 @@ class _LoginScreenState extends State<LoginScreen>
         borderRadius: BorderRadius.circular(12),
         elevation: 0,
         child: InkWell(
-          onTap: _isLoading ? null : _handleEmailSignIn,
+          onTap: _isLoading ? null : _handlePhoneSignIn,
           borderRadius: BorderRadius.circular(12),
           child: Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF101828).withOpacity(0.05),
+                  color: const Color(0xFF101828).withValues(alpha: 0.05),
                   blurRadius: 2,
                   offset: const Offset(0, 1),
                 ),
@@ -681,7 +436,7 @@ class _LoginScreenState extends State<LoginScreen>
                       ),
                     )
                   : Text(
-                      _showEmailForm ? 'Sign In' : 'Sign in with Email',
+                      'Continue with phone',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
@@ -695,93 +450,146 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
+  InputDecoration _loginInputDecoration({
+    required String hintText,
+    required IconData prefixIcon,
+    Widget? suffixIcon,
+  }) {
+    return InputDecoration(
+      hintText: hintText,
+      hintStyle: GoogleFonts.plusJakartaSans(color: const Color(0xFF98A2B3)),
+      prefixIcon: Icon(prefixIcon, color: const Color(0xFF98A2B3)),
+      suffixIcon: suffixIcon,
+      filled: true,
+      fillColor: const Color(0xFFF9FAFB),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFF1FBF9A), width: 2),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    );
+  }
+
   Widget _buildEmailPasswordForm() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Email Input
-        TextField(
-          controller: _emailController,
-          keyboardType: TextInputType.emailAddress,
-          decoration: InputDecoration(
-            hintText: 'Email',
-            hintStyle: GoogleFonts.plusJakartaSans(
-              color: const Color(0xFF98A2B3),
+    return Form(
+      key: _emailLoginFormKey,
+      child: Column(
+        children: [
+          TextFormField(
+            controller: _emailController,
+            keyboardType: TextInputType.emailAddress,
+            autofillHints: const [AutofillHints.email],
+            textInputAction: TextInputAction.next,
+            decoration: _loginInputDecoration(
+              hintText: 'Email address',
+              prefixIcon: Icons.email_outlined,
             ),
-            filled: true,
-            fillColor: const Color(0xFFF9FAFB),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF1FBF9A), width: 2),
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 14,
-            ),
-          ),
-        ),
-        const SizedBox(height: 14),
-
-        // Password Input
-        TextField(
-          controller: _passwordController,
-          obscureText: true,
-          decoration: InputDecoration(
-            hintText: 'Password',
-            hintStyle: GoogleFonts.plusJakartaSans(
-              color: const Color(0xFF98A2B3),
-            ),
-            filled: true,
-            fillColor: const Color(0xFFF9FAFB),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF1FBF9A), width: 2),
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 14,
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-
-        // Forgot Password Link
-        Align(
-          alignment: Alignment.centerRight,
-          child: GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => ForgotPasswordScreen()),
-              );
+            validator: (v) {
+              final value = (v ?? '').trim();
+              if (value.isEmpty) return 'Required';
+              final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+              if (!emailRegex.hasMatch(value)) return 'Enter a valid email';
+              return null;
             },
-            child: Text(
-              'Forgot password?',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: const Color(0xFF1FBF9A),
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _passwordController,
+            obscureText: _obscurePassword,
+            autofillHints: const [AutofillHints.password],
+            textInputAction: TextInputAction.done,
+            onFieldSubmitted: (_) => _handleEmailPasswordSignIn(),
+            decoration: _loginInputDecoration(
+              hintText: 'Password',
+              prefixIcon: Icons.lock_outline,
+              suffixIcon: IconButton(
+                onPressed: () {
+                  setState(() => _obscurePassword = !_obscurePassword);
+                },
+                icon: Icon(
+                  _obscurePassword
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                ),
               ),
             ),
+            validator: (v) {
+              if ((v ?? '').isEmpty) return 'Required';
+              return null;
+            },
           ),
+          const SizedBox(height: 12),
+          _buildRememberDeviceControl(),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: FilledButton(
+              onPressed: _isLoading ? null : _handleEmailPasswordSignIn,
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF1FBF9A),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: _isLoading
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : Text(
+                      'Sign in',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRememberDeviceControl() {
+    return CheckboxListTile(
+      value: _rememberDevice,
+      onChanged: _isLoading
+          ? null
+          : (value) => setState(() => _rememberDevice = value ?? false),
+      controlAffinity: ListTileControlAffinity.leading,
+      contentPadding: EdgeInsets.zero,
+      dense: true,
+      visualDensity: VisualDensity.compact,
+      activeColor: const Color(0xFF1FBF9A),
+      title: Text(
+        'Trust this browser',
+        style: GoogleFonts.plusJakartaSans(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: const Color(0xFF101828),
         ),
-      ],
+      ),
+      subtitle: Text(
+        'Use only on a private device.',
+        style: GoogleFonts.plusJakartaSans(
+          fontSize: 12,
+          color: const Color(0xFF667085),
+        ),
+      ),
     );
   }
 
@@ -814,16 +622,4 @@ class _LoginScreenState extends State<LoginScreen>
       ),
     );
   }
-}
-
-class _DevAccount {
-  final String role;
-  final String name;
-  final String email;
-
-  const _DevAccount({
-    required this.role,
-    required this.name,
-    required this.email,
-  });
 }

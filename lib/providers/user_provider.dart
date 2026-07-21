@@ -1,17 +1,14 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
-import 'package:dio/dio.dart';
-import '../core/api/account_api.dart';
-import '../core/auth/token_storage.dart';
 import '../core/models/account_models.dart';
 import '../core/utils/console_log.dart';
-import '../core/nav/app_nav.dart';
-import '../features/auth/login_screen.dart';
+import '../features/auth/data/models/auth_dtos.dart';
+import '../repositories/user_repository.dart';
 
 class UserProvider extends ChangeNotifier {
-  final AccountApi _api;
+  final UserRepository _repository;
 
-  UserProvider({AccountApi? api}) : _api = api ?? AccountApi();
+  UserProvider({UserRepository? repository})
+    : _repository = repository ?? (UserRepository()..useMock());
 
   AccountFullProfile? _profile;
   bool _loading = false;
@@ -26,17 +23,38 @@ class UserProvider extends ChangeNotifier {
   bool get isLoading => _loading;
   String? get error => _error;
 
+  void setPatientProfile(PatientProfileDto profile) {
+    _profile = AccountFullProfile(
+      user: AccountUser(
+        email: '',
+        name: profile.displayName,
+        role: 'PATIENT',
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        bloodGroup: profile.bloodType,
+        medicalInfo: {
+          'dateOfBirth': profile.dateOfBirth?.toIso8601String(),
+          'gender': profile.gender,
+          'heightCm': profile.heightCm,
+          'weightKg': profile.weightKg,
+          'bmi': profile.bmi,
+          'passportCompletion': profile.passportCompletion,
+          'onboardingCompleted': profile.onboardingCompleted,
+          'onboardingStep': profile.onboardingStep,
+          'preferredLanguage': profile.preferredLanguage,
+        },
+        avatar: profile.photoUrl,
+      ),
+      familyMembers: const [],
+      documents: const [],
+    );
+    _error = null;
+    _loading = false;
+    notifyListeners();
+  }
+
   Future<void> loadIfLoggedIn() async {
     consoleLog('[UserProvider] loadIfLoggedIn() called');
-    final jwt = await TokenStorage.readJwt();
-    consoleLog('[UserProvider] JWT present: ${jwt != null && jwt.isNotEmpty}');
-    if (jwt == null || jwt.isEmpty) {
-      consoleLog('[UserProvider] No JWT found. Clearing profile.');
-      _profile = null;
-      notifyListeners();
-      return;
-    }
-    consoleLog('[UserProvider] JWT found. Calling refresh().');
     await refresh();
   }
 
@@ -61,8 +79,8 @@ class UserProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      consoleLog('[UserProvider] Fetching full profile from backend...');
-      _profile = await _api.getFullProfile();
+      consoleLog('[UserProvider] Fetching full profile from repository...');
+      _profile = await _repository.getFullProfile();
 
       consoleLog('[UserProvider] Full profile loaded successfully');
       consoleLog('[UserProvider] user == null: ${user == null}');
@@ -83,24 +101,6 @@ class UserProvider extends ChangeNotifier {
         '[UserProvider] documents count: ${_profile?.documents.length ?? 0}',
       );
     } catch (e, st) {
-      if (e is DioException && e.response?.statusCode == 401) {
-        _error = 'Unauthorized';
-        consoleLog(
-          '[UserProvider] refresh() 401 Unauthorized. Clearing token and redirecting to login.',
-        );
-        await TokenStorage.clearJwt();
-        _profile = null;
-
-        final nav = AppNav.navigatorKey.currentState;
-        if (nav != null) {
-          nav.pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const LoginScreen()),
-            (route) => false,
-          );
-        }
-        return;
-      }
-
       _error = e.toString();
       consoleLog('[UserProvider] refresh() ERROR: $_error');
       consoleLog('[UserProvider] refresh() STACKTRACE: $st');
@@ -116,7 +116,6 @@ class UserProvider extends ChangeNotifier {
 
   Future<void> logout() async {
     consoleLog('[UserProvider] logout() called');
-    await TokenStorage.clearJwt();
     _profile = null;
     _error = null;
     consoleLog('[UserProvider] logout() completed. Profile cleared.');

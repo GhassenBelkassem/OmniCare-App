@@ -1,94 +1,191 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
 
+import '../../features/auth/data/models/auth_dtos.dart';
+import '../network/api_exception.dart';
+import '../network/app_http_client.dart';
+import '../storage/secure_token_store.dart';
 import '../models/account_models.dart';
-import 'dio_client.dart';
-
-AccountFullProfile _parseAccountFullProfile(Map<String, dynamic> json) {
-  return AccountFullProfile.fromJson(json);
-}
 
 class AccountApi {
-  final Dio _dio;
+  AccountApi({AppHttpClient? httpClient, Object? dio})
+    : _httpClient = httpClient ?? AppHttpClient(tokenStore: SecureTokenStore());
 
-  AccountApi({Dio? dio}) : _dio = dio ?? DioClient.instance.dio;
+  final AppHttpClient _httpClient;
 
   Future<AccountFullProfile> getFullProfile() async {
-    debugPrint('[AccountApi] getFullProfile() -> GET /account/full-profile');
-    final response = await _dio.get('/account/full-profile');
-    if (kDebugMode) {
-      debugPrint('[AccountApi] Response status: ${response.statusCode}');
-    }
-    debugPrint('[AccountApi] Response status: ${response.statusCode}');
-    final raw = response.data;
-    debugPrint('[AccountApi] Response runtimeType: ${raw.runtimeType}');
+    final profile = await getPatientProfile();
+    return AccountFullProfile(
+      user: AccountUser(
+        email: '',
+        name: profile.displayName,
+        role: 'PATIENT',
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        bloodGroup: profile.bloodType,
+        medicalInfo: {
+          'dateOfBirth': profile.dateOfBirth?.toIso8601String(),
+          'gender': profile.gender,
+          'heightCm': profile.heightCm,
+          'weightKg': profile.weightKg,
+          'bmi': profile.bmi,
+          'passportCompletion': profile.passportCompletion,
+          'onboardingCompleted': profile.onboardingCompleted,
+          'onboardingStep': profile.onboardingStep,
+          'preferredLanguage': profile.preferredLanguage,
+        },
+        avatar: profile.photoUrl,
+      ),
+      familyMembers: const [],
+      documents: const [],
+    );
+  }
 
-    if (raw is Map) {
-      final map = raw.cast<String, dynamic>();
-      final unwrapped = (map['data'] is Map)
-          ? (map['data'] as Map).cast<String, dynamic>()
-          : map;
+  Future<PatientProfileDto> getPatientProfile() {
+    return _getJson('/profile', PatientProfileDto.fromJson);
+  }
 
-      return compute(_parseAccountFullProfile, unwrapped);
-    }
-    throw StateError(
-      'Unexpected /account/full-profile response: ${response.data}',
+  Future<OnboardingStepResponseDto> saveOnboardingStep(
+    int step,
+    Map<String, dynamic> data,
+  ) {
+    return _postJson(
+      '/profile/onboarding/step/$step',
+      data,
+      OnboardingStepResponseDto.fromJson,
     );
   }
 
   Future<void> patchMedicalPassport({
     String? bloodGroup,
+    int? heightCm,
+    double? weightKg,
     Map<String, dynamic>? medicalInfo,
   }) async {
-    debugPrint(
-      '[AccountApi] patchMedicalPassport() -> PATCH /account/medical-passport',
-    );
-
-    final payload = <String, dynamic>{};
-    final backendBlood = _bloodGroupToBackend(bloodGroup);
-    if (backendBlood != null) {
-      payload['bloodGroup'] = backendBlood;
-    }
-    if (medicalInfo != null) {
-      payload['medicalInfo'] = medicalInfo;
-    }
-
-    debugPrint('[AccountApi] patchMedicalPassport() payload: $payload');
-
-    await _dio.patch('/account/medical-passport', data: payload);
+    final data = <String, dynamic>{
+      'bloodType': bloodGroup,
+      'heightCm': heightCm,
+      'weightKg': weightKg,
+      'medicalInfo': medicalInfo,
+    }..removeWhere((_, value) => value == null);
+    await _patchJson('/profile/passport', data);
   }
 
   Future<void> patchProfilePicture({
     required String profilePictureUrl,
     String? profilePicturePublicId,
   }) async {
-    debugPrint(
-      '[AccountApi] patchProfilePicture() -> PATCH /account/profile-picture',
-    );
+    await _patchJson('/profile', {
+      'photoUrl': profilePictureUrl,
+      'profilePicturePublicId': profilePicturePublicId,
+    });
+  }
 
-    final payload = <String, dynamic>{'profilePictureUrl': profilePictureUrl};
-    if (profilePicturePublicId != null &&
-        profilePicturePublicId.trim().isNotEmpty) {
-      payload['profilePicturePublicId'] = profilePicturePublicId;
+  Future<T> _getJson<T>(
+    String path,
+    T Function(Map<String, dynamic>) fromJson,
+  ) async {
+    try {
+      final response = await _httpClient.dio.get<dynamic>(path);
+      return _parseJson(response.data, fromJson);
+    } on DioException catch (e) {
+      throw _mapDioException(e);
+    } on FormatException catch (e) {
+      throw ApiException(
+        'Malformed server response.',
+        code: 'MALFORMED_RESPONSE',
+        cause: e,
+      );
+    }
+  }
+
+  Future<T> _postJson<T>(
+    String path,
+    Map<String, dynamic> data,
+    T Function(Map<String, dynamic>) fromJson,
+  ) async {
+    try {
+      final response = await _httpClient.dio.post<dynamic>(path, data: data);
+      return _parseJson(response.data, fromJson);
+    } on DioException catch (e) {
+      throw _mapDioException(e);
+    } on FormatException catch (e) {
+      throw ApiException(
+        'Malformed server response.',
+        code: 'MALFORMED_RESPONSE',
+        cause: e,
+      );
+    }
+  }
+
+  Future<void> _patchJson(String path, Map<String, dynamic> data) async {
+    try {
+      await _httpClient.dio.patch<dynamic>(path, data: data);
+    } on DioException catch (e) {
+      throw _mapDioException(e);
+    }
+  }
+
+  T _parseJson<T>(Object? data, T Function(Map<String, dynamic>) fromJson) {
+    if (data is Map) {
+      return fromJson(data.cast<String, dynamic>());
+    }
+    throw const FormatException('Expected JSON object.');
+  }
+
+  ApiException _mapDioException(DioException error) {
+    final statusCode = error.response?.statusCode;
+    final data = error.response?.data;
+
+    if (data is Map) {
+      try {
+        final apiError = ApiErrorResponse.fromJson(
+          data.cast<String, dynamic>(),
+        );
+        return ApiException(
+          apiError.message,
+          code: apiError.code,
+          statusCode: statusCode,
+          fieldErrors: apiError.fieldErrors,
+          cause: error,
+        );
+      } catch (_) {
+        return ApiException(
+          'Unexpected server error response.',
+          code: 'MALFORMED_ERROR_RESPONSE',
+          statusCode: statusCode,
+          cause: error,
+        );
+      }
     }
 
-    await _dio.patch('/account/profile-picture', data: payload);
+    return ApiException(
+      'Network request failed.',
+      code: 'NETWORK_REQUEST_FAILED',
+      statusCode: statusCode,
+      cause: error,
+    );
   }
 }
 
-String? _bloodGroupToBackend(String? ui) {
-  if (ui == null) return null;
-  final v = ui.trim();
-  if (v.isEmpty || v == '-' || v == 'IDK') return null;
-  return switch (v) {
-    'A+' => 'A_POS',
-    'A-' => 'A_NEG',
-    'B+' => 'B_POS',
-    'B-' => 'B_NEG',
-    'AB+' => 'AB_POS',
-    'AB-' => 'AB_NEG',
-    'O+' => 'O_POS',
-    'O-' => 'O_NEG',
-    _ => v,
-  };
+class OnboardingStepResponseDto {
+  final int passportCompletion;
+  final int nextStep;
+  final bool onboardingCompleted;
+  final String? message;
+
+  const OnboardingStepResponseDto({
+    required this.passportCompletion,
+    required this.nextStep,
+    required this.onboardingCompleted,
+    required this.message,
+  });
+
+  factory OnboardingStepResponseDto.fromJson(Map<String, dynamic> json) {
+    return OnboardingStepResponseDto(
+      passportCompletion: (json['passportCompletion'] as num?)?.toInt() ?? 0,
+      nextStep: (json['nextStep'] as num?)?.toInt() ?? 0,
+      onboardingCompleted: json['onboardingCompleted'] == true,
+      message: json['message']?.toString(),
+    );
+  }
 }

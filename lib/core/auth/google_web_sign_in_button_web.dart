@@ -76,6 +76,7 @@ class _GoogleWebSignInButtonState extends State<GoogleWebSignInButton> {
     _googleAccountsId.initialize(
       _IdConfiguration(
         client_id: clientId,
+        // ignore: undefined_method
         callback: allowInterop((dynamic response) {
           final credential = (response is Object)
               ? (response as dynamic).credential

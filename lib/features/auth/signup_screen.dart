@@ -1,19 +1,15 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
-import '../../providers/user_onboarding_provider.dart';
+import '../../core/auth/google_web_sign_in_button.dart';
+import '../../providers/user_provider.dart';
+import 'application/auth_controller.dart';
+import 'application/auth_flow_models.dart';
 import 'login_screen.dart';
 import 'phone_input_screen.dart';
-import 'otp_verification_screen.dart';
-import 'medical_data_welcome_screen.dart';
-import '../../core/api/auth_api.dart';
-import '../../core/utils/logger.dart';
-import '../../core/api/api_error_utils.dart';
-import '../../providers/user_provider.dart';
-import 'package:google_sign_in/google_sign_in.dart';
-import 'package:flutter/foundation.dart';
-import '../../core/auth/google_web_sign_in_button.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -27,12 +23,17 @@ class _SignupScreenState extends State<SignupScreen> {
   bool _showEmailForm = false;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
   final TextEditingController _firstNameController = TextEditingController();
   final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _dateOfBirthController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
   String? _gender;
   DateTime? _selectedDateOfBirth;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
+  bool _rememberDevice = false;
 
   static const Color _primaryColor = Color(0xFF1FBF9A);
   static const Color _textColor = Color(0xFF101828);
@@ -45,13 +46,6 @@ class _SignupScreenState extends State<SignupScreen> {
     final mm = date.month.toString().padLeft(2, '0');
     final yyyy = date.year.toString().padLeft(4, '0');
     return '$dd/$mm/$yyyy';
-  }
-
-  static String _formatDobIso(DateTime date) {
-    final yyyy = date.year.toString().padLeft(4, '0');
-    final mm = date.month.toString().padLeft(2, '0');
-    final dd = date.day.toString().padLeft(2, '0');
-    return '$yyyy-$mm-$dd';
   }
 
   static bool _isAtLeast18(DateTime dateOfBirth) {
@@ -94,36 +88,6 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
-  void _navigateAfterAuth(BuildContext navContext, AuthLoginResult result) {
-    final onboarding = navContext.read<UserOnboardingProvider>();
-    onboarding.setEmail(result.email);
-    if (result.phoneNumber != null && result.phoneNumber!.isNotEmpty) {
-      onboarding.setPhoneNumber(result.phoneNumber!);
-    }
-    onboarding.setEmailVerified(result.emailVerified);
-    onboarding.setPhoneVerified(result.phoneVerified);
-
-    if (!result.phoneVerified) {
-      Navigator.pushReplacement(
-        navContext,
-        MaterialPageRoute(builder: (context) => const PhoneInputScreen()),
-      );
-      return;
-    }
-
-    if (!result.onboardingComplete) {
-      Navigator.pushReplacement(
-        navContext,
-        MaterialPageRoute(
-          builder: (context) => const MedicalDataWelcomeScreen(),
-        ),
-      );
-      return;
-    }
-
-    Navigator.pushReplacementNamed(navContext, '/home');
-  }
-
   @override
   void initState() {
     super.initState();
@@ -133,48 +97,73 @@ class _SignupScreenState extends State<SignupScreen> {
   @override
   void dispose() {
     _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
     _firstNameController.dispose();
     _lastNameController.dispose();
     _dateOfBirthController.dispose();
-    _passwordController.dispose();
     super.dispose();
   }
 
-  Future<void> _handleGoogleSignUp() async {
-    if (kIsWeb) {
+  Future<void> _handleGoogleIdToken(String idToken) async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+    final auth = context.read<AuthController>();
+    final success = await auth.startGoogleAuth(
+      idToken,
+      rememberDevice: _rememberDevice,
+    );
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    if (!success) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please use the Google button to sign up on web.'),
-        ),
+        SnackBar(content: Text(auth.errorMessage ?? 'Google sign-up failed.')),
       );
       return;
     }
-    setState(() => _isLoading = true);
-    try {
-      final googleSignIn = GoogleSignIn(scopes: <String>['email', 'profile']);
-      final account = await googleSignIn.signIn();
-      if (account == null) {
-        return;
-      }
 
-      final auth = await account.authentication;
-      final idToken = auth.idToken;
-      if (idToken == null || idToken.isEmpty) {
-        throw StateError('Google idToken is null');
-      }
-
-      final result = await AuthApi().googleLoginWithStatus(idToken: idToken);
-      if (!mounted) return;
-      _navigateAfterAuth(context, result);
-    } catch (e, st) {
-      AppLogger.error('Google sign-up failed', e, st);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Google sign-up failed: ${apiErrorMessage(e)}')),
-      );
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+    if (auth.isAuthenticated) {
+      _routeAuthenticated(auth);
+      return;
     }
+
+    if (auth.hasPendingGoogleSignup) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PhoneInputScreen(
+            mode: AuthFlowMode.signup,
+            rememberDevice: _rememberDevice,
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _handleGoogleSignUp() async {
+    if (kIsWeb) return;
+    try {
+      final account = await GoogleSignIn(scopes: const ['email']).signIn();
+      final idToken = (await account?.authentication)?.idToken;
+      if (idToken == null || idToken.isEmpty) {
+        throw StateError('Google did not return an ID token.');
+      }
+      await _handleGoogleIdToken(idToken);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Google sign-up failed.')));
+    }
+  }
+
+  void _routeAuthenticated(AuthController auth) {
+    final profile = auth.patientProfile;
+    final nextRoute = auth.nextRoute;
+    if (profile == null || nextRoute == null) return;
+    context.read<UserProvider>().setPatientProfile(profile);
+    Navigator.of(context).pushNamedAndRemoveUntil(nextRoute, (route) => false);
   }
 
   Future<void> _handleEmailSignUp() async {
@@ -208,61 +197,26 @@ class _SignupScreenState extends State<SignupScreen> {
       return;
     }
 
-    final email = _emailController.text.trim();
-    final password = _passwordController.text;
-    final firstName = _firstNameController.text.trim();
-    final lastName = _lastNameController.text.trim();
-    final dateOfBirthIso = _formatDobIso(_selectedDateOfBirth!);
+    final draft = PhoneSignupDraft(
+      email: _emailController.text.trim(),
+      password: _passwordController.text,
+      firstName: _firstNameController.text.trim(),
+      lastName: _lastNameController.text.trim(),
+      dateOfBirth: _selectedDateOfBirth!,
+      gender: _gender!,
+    );
 
-    final derivedName = [
-      firstName,
-      lastName,
-    ].where((e) => e.trim().isNotEmpty).join(' ').trim();
-
-    setState(() => _isLoading = true);
-    try {
-      await AuthApi().register(
-        email: email,
-        password: password,
-        name: derivedName.isEmpty ? null : derivedName,
-        firstName: firstName.isEmpty ? null : firstName,
-        lastName: lastName.isEmpty ? null : lastName,
-        gender: (_gender ?? '').trim().isEmpty ? null : _gender,
-        dateOfBirth: dateOfBirthIso,
-      );
-      if (!mounted) return;
-      Provider.of<UserOnboardingProvider>(
-        context,
-        listen: false,
-      ).setEmail(email);
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (otpContext) => OtpVerificationScreen(
-            verificationType: 'email',
-            contactInfo: email,
-            onVerified: () async {
-              final result = await AuthApi().loginWithStatus(
-                email: email,
-                password: password,
-              );
-
-              await otpContext.read<UserProvider>().refresh();
-              _navigateAfterAuth(otpContext, result);
-            },
-          ),
+    if (!mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PhoneInputScreen(
+          mode: AuthFlowMode.signup,
+          signupDraft: draft,
+          rememberDevice: _rememberDevice,
         ),
-      );
-    } catch (e, st) {
-      AppLogger.error('Register failed', e, st);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Register failed: ${apiErrorMessage(e)}')),
-      );
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
+      ),
+    );
   }
 
   @override
@@ -307,6 +261,8 @@ class _SignupScreenState extends State<SignupScreen> {
                     const SizedBox(height: 16),
                     if (_showEmailForm) ...[
                       _buildEmailPasswordForm(),
+                      const SizedBox(height: 8),
+                      _buildRememberDeviceControl(),
                       const SizedBox(height: 18),
                     ],
                     _buildEmailButton(),
@@ -347,7 +303,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     ),
                   )
                 : Text(
-                    'Create account',
+                    'Verify phone number',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
@@ -366,6 +322,83 @@ class _SignupScreenState extends State<SignupScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          TextFormField(
+            controller: _emailController,
+            keyboardType: TextInputType.emailAddress,
+            autofillHints: const [AutofillHints.email],
+            textInputAction: TextInputAction.next,
+            decoration: _inputDecoration(
+              hintText: 'Email address',
+              prefixIcon: Icons.email_outlined,
+            ),
+            validator: (v) {
+              final value = (v ?? '').trim();
+              if (value.isEmpty) return 'Required';
+              final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+              if (!emailRegex.hasMatch(value)) return 'Enter a valid email';
+              return null;
+            },
+          ),
+          const SizedBox(height: 14),
+          TextFormField(
+            controller: _passwordController,
+            obscureText: _obscurePassword,
+            autofillHints: const [AutofillHints.newPassword],
+            textInputAction: TextInputAction.next,
+            decoration: _inputDecoration(
+              hintText: 'Password',
+              prefixIcon: Icons.lock_outline,
+              suffixIcon: IconButton(
+                onPressed: () {
+                  setState(() => _obscurePassword = !_obscurePassword);
+                },
+                icon: Icon(
+                  _obscurePassword
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                ),
+              ),
+            ),
+            validator: (v) {
+              final value = v ?? '';
+              if (value.isEmpty) return 'Required';
+              if (value.length < 12) return 'Use at least 12 characters';
+              if (value.length > 128) return 'Use 128 characters or fewer';
+              return null;
+            },
+          ),
+          const SizedBox(height: 14),
+          TextFormField(
+            controller: _confirmPasswordController,
+            obscureText: _obscureConfirmPassword,
+            autofillHints: const [AutofillHints.newPassword],
+            textInputAction: TextInputAction.next,
+            decoration: _inputDecoration(
+              hintText: 'Confirm password',
+              prefixIcon: Icons.lock_outline,
+              suffixIcon: IconButton(
+                onPressed: () {
+                  setState(
+                    () => _obscureConfirmPassword = !_obscureConfirmPassword,
+                  );
+                },
+                icon: Icon(
+                  _obscureConfirmPassword
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                ),
+              ),
+            ),
+            validator: (v) {
+              final value = v ?? '';
+              if (value.isEmpty) return 'Required';
+              if (value != _passwordController.text) {
+                return 'Passwords do not match';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 14),
           Row(
             children: [
               Expanded(
@@ -473,44 +506,36 @@ class _SignupScreenState extends State<SignupScreen> {
             ],
           ),
           const SizedBox(height: 14),
-          TextFormField(
-            controller: _emailController,
-            keyboardType: TextInputType.emailAddress,
-            textInputAction: TextInputAction.next,
-            decoration: _inputDecoration(
-              hintText: 'Email',
-              prefixIcon: Icons.email_outlined,
-            ),
-            validator: (v) {
-              final value = (v ?? '').trim();
-              if (value.isEmpty) return 'Required';
-              if (!value.contains('@')) return 'Invalid email';
-              return null;
-            },
-          ),
-          const SizedBox(height: 14),
-          TextFormField(
-            controller: _passwordController,
-            obscureText: true,
-            textInputAction: TextInputAction.done,
-            decoration: _inputDecoration(
-              hintText: 'Password',
-              prefixIcon: Icons.lock_outline,
-            ),
-            validator: (v) {
-              final value = v ?? '';
-              if (value.isEmpty) return 'Required';
-              if (value.length < 6)
-                return 'Password must be at least 6 characters';
-              return null;
-            },
-            onFieldSubmitted: (_) {
-              if (!_isLoading) {
-                _handleEmailSignUp();
-              }
-            },
-          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildRememberDeviceControl() {
+    return CheckboxListTile(
+      value: _rememberDevice,
+      onChanged: _isLoading
+          ? null
+          : (value) => setState(() => _rememberDevice = value ?? false),
+      controlAffinity: ListTileControlAffinity.leading,
+      contentPadding: EdgeInsets.zero,
+      dense: true,
+      visualDensity: VisualDensity.compact,
+      activeColor: _primaryColor,
+      title: Text(
+        'Trust this browser',
+        style: GoogleFonts.plusJakartaSans(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: _textColor,
+        ),
+      ),
+      subtitle: Text(
+        'Use only on a private device.',
+        style: GoogleFonts.plusJakartaSans(
+          fontSize: 12,
+          color: _mutedTextColor,
+        ),
       ),
     );
   }
@@ -537,28 +562,7 @@ class _SignupScreenState extends State<SignupScreen> {
 
   Widget _buildGoogleButton() {
     if (kIsWeb) {
-      return GoogleWebSignInButton(
-        onIdToken: (idToken) async {
-          setState(() => _isLoading = true);
-          try {
-            final result = await AuthApi().googleLoginWithStatus(
-              idToken: idToken,
-            );
-            if (!mounted) return;
-            _navigateAfterAuth(context, result);
-          } catch (e, st) {
-            AppLogger.error('Google web sign-up failed', e, st);
-            if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Google sign-up failed: ${apiErrorMessage(e)}'),
-              ),
-            );
-          } finally {
-            if (mounted) setState(() => _isLoading = false);
-          }
-        },
-      );
+      return GoogleWebSignInButton(onIdToken: _handleGoogleIdToken);
     }
 
     return SizedBox(
@@ -577,7 +581,7 @@ class _SignupScreenState extends State<SignupScreen> {
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: _textColor.withOpacity(0.05),
+                  color: _textColor.withValues(alpha: 0.05),
                   blurRadius: 2,
                   offset: const Offset(0, 1),
                 ),
@@ -714,7 +718,7 @@ class _GenderCard extends StatelessWidget {
               color: selected ? primary : border,
               width: selected ? 2 : 1,
             ),
-            color: selected ? primary.withOpacity(0.08) : Colors.white,
+            color: selected ? primary.withValues(alpha: 0.08) : Colors.white,
           ),
           child: Row(
             children: [

@@ -3,21 +3,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import '../../providers/user_onboarding_provider.dart';
-import '../../core/api/auth_api.dart';
-import '../../core/api/api_error_utils.dart';
-import '../../core/utils/logger.dart';
+import '../../providers/user_provider.dart';
+import 'application/auth_controller.dart';
+import 'application/auth_flow_models.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
-  final String verificationType;
+  final AuthFlowMode mode;
   final String contactInfo;
-  final Future<void> Function() onVerified;
 
   const OtpVerificationScreen({
     super.key,
-    required this.verificationType,
+    required this.mode,
     required this.contactInfo,
-    required this.onVerified,
   });
 
   @override
@@ -29,16 +26,20 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     6,
     (index) => TextEditingController(),
   );
-  final List<FocusNode> _focusNodes = List.generate(
-    6,
-    (index) => FocusNode(),
-  );
+  final List<FocusNode> _focusNodes = List.generate(6, (index) => FocusNode());
 
   bool _isLoading = false;
-  bool _verificationSucceeded = false;
   int _resendCountdown = 60;
   Timer? _timer;
   String? _errorMessage;
+  late AuthController _authController;
+  bool _verificationCompleted = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _authController = context.read<AuthController>();
+  }
 
   @override
   void initState() {
@@ -49,7 +50,11 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    if (!_verificationCompleted) {
+      _authController.cancelPendingFlow();
+    }
     for (var controller in _controllers) {
+      controller.clear();
       controller.dispose();
     }
     for (var node in _focusNodes) {
@@ -71,7 +76,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   }
 
   Future<void> _verifyOtp() async {
-    if (_isLoading || _verificationSucceeded) return;
+    if (_isLoading) return;
     final otp = _controllers.map((c) => c.text).join();
     if (otp.length != 6) {
       setState(() => _errorMessage = 'Please enter all 6 digits');
@@ -83,89 +88,50 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       _errorMessage = null;
     });
 
-    try {
-      if (widget.verificationType == 'email') {
-        AppLogger.api(
-          'verifyEmailOtp enteredCode=$otp email=${widget.contactInfo}',
-        );
-        await AuthApi().verifyEmailOtp(
-          email: widget.contactInfo,
-          code: otp,
-        );
-      } else if (widget.verificationType == 'phone') {
-        AppLogger.api(
-          'verifyPhoneOtp enteredCode=$otp phoneNumber=${widget.contactInfo}',
-        );
-        await AuthApi().verifyPhoneOtp(
-          phoneNumber: widget.contactInfo,
-          otp: otp,
-        );
-      } else {
-        await Future.delayed(const Duration(seconds: 2));
+    final auth = context.read<AuthController>();
+    final success = widget.mode == AuthFlowMode.login
+        ? await auth.verifyPhoneLoginOtp(otp)
+        : await auth.verifyPhoneSignupOtp(otp);
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    if (success) {
+      _verificationCompleted = true;
+      final profile = auth.patientProfile;
+      final nextRoute = auth.nextRoute;
+      if (profile != null && nextRoute != null) {
+        context.read<UserProvider>().setPatientProfile(profile);
+        Navigator.of(
+          context,
+        ).pushNamedAndRemoveUntil(nextRoute, (route) => false);
       }
-
-      if (!mounted) return;
-
-      _verificationSucceeded = true;
-
-      final provider = Provider.of<UserOnboardingProvider>(context, listen: false);
-
-      if (widget.verificationType == 'email') {
-        provider.setEmailVerified(true);
-      } else {
-        provider.setPhoneVerified(true);
-      }
-
-      await widget.onVerified();
-
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    } catch (e, st) {
-      AppLogger.error('OTP verification failed', e, st);
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-        _errorMessage = apiErrorMessage(e);
-      });
+      return;
     }
+
+    setState(() {
+      _errorMessage = auth.errorMessage ?? 'Unable to verify code.';
+    });
   }
 
   Future<void> _resendCode() async {
-    if (_resendCountdown > 0) return;
+    if (_resendCountdown > 0 || _isLoading) return;
 
     setState(() => _isLoading = true);
 
-    try {
-      if (widget.verificationType == 'phone') {
-        await AuthApi().requestPhoneOtp(phoneNumber: widget.contactInfo);
-      } else {
-        await Future.delayed(const Duration(seconds: 1));
-      }
-
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-      _startResendTimer();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Verification code sent!'),
-          backgroundColor: Color(0xFF1FBF9A),
-        ),
-      );
-    } catch (e, st) {
-      AppLogger.error('Resend OTP failed', e, st);
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-        _errorMessage = apiErrorMessage(e);
-      });
-    }
+    final success = await context.read<AuthController>().resendOtp();
+    if (!mounted) return;
+    setState(() {
+      _isLoading = false;
+      _errorMessage = success
+          ? null
+          : context.read<AuthController>().errorMessage ??
+                'Unable to resend code.';
+    });
+    if (success) _startResendTimer();
   }
 
   @override
   Widget build(BuildContext context) {
-    final isEmail = widget.verificationType == 'email';
-
     return Scaffold(
       resizeToAvoidBottomInset: false,
       backgroundColor: Colors.white,
@@ -193,17 +159,15 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                 ),
                 child: Center(
                   child: Image.asset(
-                    isEmail 
-                      ? 'assets/images/email_verification.png'
-                      : 'assets/images/phone_otp.png',
+                    'assets/images/phone_otp.png',
                     width: 160,
                     height: 160,
                     fit: BoxFit.contain,
                     errorBuilder: (context, error, stackTrace) {
-                      return Icon(
-                        isEmail ? Icons.email_rounded : Icons.sms_rounded,
+                      return const Icon(
+                        Icons.sms_rounded,
                         size: 90,
-                        color: const Color(0xFF1FBF9A),
+                        color: Color(0xFF1FBF9A),
                       );
                     },
                   ),
@@ -211,7 +175,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                isEmail ? 'Email Verification' : 'Phone Verification',
+                'Phone Verification',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 18,
@@ -234,9 +198,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(6, (index) {
                   return Container(
-                    margin: EdgeInsets.only(
-                      right: index < 5 ? 8 : 0,
-                    ),
+                    margin: EdgeInsets.only(right: index < 5 ? 8 : 0),
                     child: SizedBox(
                       width: 45,
                       height: 48,
@@ -252,19 +214,27 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                           color: const Color(0xFF101828),
                           height: 1.2,
                         ),
-                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
                         decoration: InputDecoration(
                           counterText: '',
                           filled: true,
                           fillColor: Colors.white,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 10,
+                          ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFD0D5DD),
+                            ),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFD0D5DD),
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -275,7 +245,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                           ),
                           errorBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFDC2626)),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFDC2626),
+                            ),
                           ),
                         ),
                         onChanged: (value) {
@@ -346,8 +318,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                     backgroundColor: const Color(0xFF1FBF9A),
                     foregroundColor: Colors.white,
                     elevation: 0,
-                    disabledBackgroundColor:
-                        const Color(0xFF1FBF9A).withOpacity(0.5),
+                    disabledBackgroundColor: const Color(
+                      0xFF1FBF9A,
+                    ).withValues(alpha: 0.5),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -358,12 +331,13 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                           width: 24,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(Colors.white),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
                           ),
                         )
                       : Text(
-                          isEmail ? 'Verify Email' : 'Verify Phone Number',
+                          'Verify Phone Number',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,

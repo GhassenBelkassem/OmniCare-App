@@ -4,7 +4,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'features/auth/splash_screen.dart';
+import 'features/auth/login_screen.dart';
 import 'features/auth/phone_input_screen.dart';
+import 'features/auth/reset_password_screen.dart';
 import 'features/profile/vital_info_screen.dart';
 import 'features/profile/medications_screen.dart';
 import 'features/profile/medical_documents_screen.dart';
@@ -36,23 +38,54 @@ import 'providers/reservation_provider.dart';
 import 'services/notification_service.dart';
 import 'l10n/app_localizations.dart';
 import 'core/nav/app_nav.dart';
+import 'core/device/device_identity_service.dart';
+import 'core/network/app_http_client.dart';
+import 'core/storage/secure_token_store.dart';
+import 'features/auth/application/auth_controller.dart';
+import 'features/auth/application/auth_flow_models.dart';
+import 'core/api/account_api.dart';
+import 'features/auth/data/auth_api.dart';
+import 'features/auth/data/auth_repository.dart';
+import 'repositories/user_repository.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: '.env');
   await NotificationService().initialize();
-  runApp(const OmniCareApp());
+
+  final tokenStore = SecureTokenStore();
+  late AuthController authController;
+  final httpClient = AppHttpClient(tokenStore: tokenStore);
+  final authRepository = AuthRepository(
+    api: AuthApi(httpClient),
+    tokenStore: tokenStore,
+    deviceIdentityService: DeviceIdentityService(tokenStore: tokenStore),
+    refreshCoordinator: httpClient.refreshCoordinator,
+  );
+  authController = AuthController(repository: authRepository);
+  httpClient.onSessionInvalidated = authController.handleSessionInvalidated;
+
+  await authController.initialize();
+  runApp(OmniCareApp(authController: authController, httpClient: httpClient));
 }
 
 class OmniCareApp extends StatelessWidget {
-  const OmniCareApp({super.key});
+  const OmniCareApp({super.key, required this.authController, this.httpClient});
+
+  final AuthController authController;
+  final AppHttpClient? httpClient;
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider<AuthController>.value(value: authController),
         ChangeNotifierProvider(create: (_) => UserOnboardingProvider()),
-        ChangeNotifierProvider(create: (_) => UserProvider()..loadIfLoggedIn()),
+        ChangeNotifierProvider(
+          create: (_) => UserProvider(
+            repository: UserRepository(api: AccountApi(httpClient: httpClient)),
+          ),
+        ),
         ChangeNotifierProvider(create: (_) => FamilyProvider()),
         ChangeNotifierProvider(create: (_) => ReservationProvider()),
       ],
@@ -78,7 +111,9 @@ class OmniCareApp extends StatelessWidget {
               );
               return MediaQuery(
                 data: mq.copyWith(viewInsets: clampedInsets),
-                child: child ?? const SizedBox.shrink(),
+                child: _AuthStateListener(
+                  child: child ?? const SizedBox.shrink(),
+                ),
               );
             },
             supportedLocales: const [Locale('en'), Locale('fr'), Locale('ar')],
@@ -100,12 +135,16 @@ class OmniCareApp extends StatelessWidget {
             ),
             home: const SplashScreen(),
             routes: {
-              '/phone-input': (context) => const PhoneInputScreen(),
+              '/login': (context) => const LoginScreen(),
+              '/phone-input': (context) =>
+                  const PhoneInputScreen(mode: AuthFlowMode.login),
               '/medical-profile': (context) => const VitalInfoScreen(),
               '/medications': (context) => const MedicationsScreen(),
               '/medical-documents': (context) => const MedicalDocumentsScreen(),
               '/conversational-onboarding': (context) =>
                   const ConversationalOnboardingScreen(),
+              '/change-password-required': (context) =>
+                  const ResetPasswordScreen(),
               '/home': (context) => const NewHomeScreen(),
               '/doctor-dashboard': (context) => const DoctorDashboardScreen(),
               '/emergency-step0': (context) => const EmergencyRequestStep0(),
@@ -224,5 +263,43 @@ class OmniCareApp extends StatelessWidget {
         },
       ),
     );
+  }
+}
+
+class _AuthStateListener extends StatefulWidget {
+  const _AuthStateListener({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_AuthStateListener> createState() => _AuthStateListenerState();
+}
+
+class _AuthStateListenerState extends State<_AuthStateListener> {
+  bool _wasAuthenticated = false;
+  bool _handledUnauthenticatedTransition = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthController>();
+    if (auth.isAuthenticated) {
+      _wasAuthenticated = true;
+      _handledUnauthenticatedTransition = false;
+    } else if (auth.status == AuthStatus.unauthenticated &&
+        !_handledUnauthenticatedTransition &&
+        (_wasAuthenticated || auth.errorCode == 'AUTH_SESSION_INVALID')) {
+      _handledUnauthenticatedTransition = true;
+      _wasAuthenticated = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        await context.read<UserProvider>().logout();
+        AppNav.navigatorKey.currentState?.pushNamedAndRemoveUntil(
+          '/login',
+          (route) => false,
+        );
+      });
+    }
+
+    return widget.child;
   }
 }
