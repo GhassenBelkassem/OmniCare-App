@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/user_provider.dart';
+import '../../core/nav/keyboard_navigation.dart';
 import 'application/auth_controller.dart';
 import 'application/auth_flow_models.dart';
 
@@ -100,6 +101,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       final profile = auth.patientProfile;
       final nextRoute = auth.nextRoute;
       if (profile != null && nextRoute != null) {
+        await dismissKeyboardBeforeNavigation(context);
+        if (!mounted) return;
         context.read<UserProvider>().setPatientProfile(profile);
         Navigator.of(
           context,

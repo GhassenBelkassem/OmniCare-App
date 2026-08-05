@@ -1,27 +1,46 @@
+import 'package:image_picker/image_picker.dart';
+
 import '../core/api/account_api.dart';
-import '../core/models/account_models.dart';
+import '../core/api/files_api.dart';
+import '../core/models/patient_profile.dart';
 import '../mock_data/mock_users.dart';
 
 class UserRepository {
   AccountApi? _api;
+  FilesApi? _filesApi;
+  PatientProfile? _mockProfile;
 
-  UserRepository({AccountApi? api}) : _api = api;
+  UserRepository({AccountApi? api, FilesApi? filesApi})
+    : _api = api,
+      _filesApi = filesApi;
 
   void useMock() {
     _api = null;
+    _filesApi = null;
+    _mockProfile ??= createMockProfile();
   }
 
-  void useApi(AccountApi api) {
+  void useApi(AccountApi api, {FilesApi? filesApi}) {
     _api = api;
+    if (filesApi != null) _filesApi = filesApi;
   }
 
   bool get isMock => _api == null;
 
-  Future<AccountFullProfile> getFullProfile() async {
+  Future<PatientProfile> getProfile() async {
     if (_api == null) {
-      return createMockProfile();
+      return _mockProfile ??= createMockProfile();
     }
-    return _api!.getFullProfile();
+    return _api!.getPatientProfile();
+  }
+
+  Future<PatientProfile> updateProfile(PatientProfileUpdate update) async {
+    if (_api == null) {
+      final updated = update.applyTo(_mockProfile ??= createMockProfile());
+      _mockProfile = updated;
+      return updated;
+    }
+    return _api!.updateProfile(update);
   }
 
   Future<void> patchMedicalPassport({
@@ -39,15 +58,30 @@ class UserRepository {
     );
   }
 
-  Future<void> patchProfilePicture({
-    required String profilePictureUrl,
-    String? profilePicturePublicId,
+  Future<PatientProfile> uploadAvatar(
+    XFile file, {
+    UploadProgressCallback? onProgress,
   }) async {
-    if (_api == null) return;
-    await _api!.patchProfilePicture(
-      profilePictureUrl: profilePictureUrl,
-      profilePicturePublicId: profilePicturePublicId,
-    );
+    if (_filesApi == null) {
+      onProgress?.call(1, 1);
+      final updated = (_mockProfile ??= createMockProfile()).copyWith(
+        photoUrl: 'https://mock-storage.example.com/avatar.jpg',
+      );
+      _mockProfile = updated;
+      return updated;
+    }
+    return _filesApi!.uploadAvatar(file: file, onProgress: onProgress);
+  }
+
+  Future<PatientProfile> removeAvatar() async {
+    if (_filesApi == null) {
+      final updated = (_mockProfile ??= createMockProfile()).copyWith(
+        clearPhoto: true,
+      );
+      _mockProfile = updated;
+      return updated;
+    }
+    return _filesApi!.removeAvatar();
   }
 
   Future<OnboardingStepResponseDto?> saveOnboardingStep(

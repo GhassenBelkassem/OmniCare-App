@@ -65,25 +65,9 @@ class _FamilyMemberDetailScreenState extends State<FamilyMemberDetailScreen> {
           medications: _member.currentMedications,
           documents: _member.documents,
           onSave: (bloodType, conditions, medications, documents) async {
-            final medsJson = medications
-                .where((m) => (m.medicationId ?? '').trim().isNotEmpty)
-                .map(
-                  (m) => {
-                    'medicationId': m.medicationId,
-                    'name': m.name,
-                    'dosage': m.dosage,
-                    'frequency': m.frequency,
-                  },
-                )
-                .toList();
-
             await context.read<FamilyProvider>().updateMedicalPassport(
               id: _member.id,
               bloodGroup: bloodType,
-              medicalInfo: {
-                'chronicConditions': conditions,
-                'currentMedications': medsJson,
-              },
             );
 
             if (!mounted) return;

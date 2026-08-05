@@ -73,7 +73,11 @@
 	<key>NSUserNotificationsUsageDescription</key>
 	<string>OmniCare a besoin d'envoyer des notifications pour vous informer de l'état de votre demande d'urgence médicale.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>OmniCare a besoin d'accéder à la caméra pour scanner le code QR du patient et vérifier son identité.</string>
+	<string>OmniCare a besoin d'accéder à la caméra pour votre photo de profil et les fonctions de soins.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>OmniCare a besoin d'accéder à vos photos lorsque vous choisissez une photo de profil.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>OmniCare utilise Face ID pour protéger l'accès à votre compte.</string>
 	<key>io.flutter.embedded_views_preview</key>
 	<true/>
 </dict>

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../core/models/patient_profile.dart';
 import '../data/auth_repository.dart';
 import '../data/models/auth_dtos.dart';
 import 'auth_error_messages.dart';
@@ -23,7 +24,7 @@ class AuthController extends ChangeNotifier {
 
   AuthStatus _status = AuthStatus.initializing;
   CurrentUserDto? _currentUser;
-  PatientProfileDto? _patientProfile;
+  PatientProfile? _patientProfile;
   AuthRouteDecision? _routeDecision;
   AuthFlowMode? _pendingFlow;
   String? _pendingPhone;
@@ -40,7 +41,7 @@ class AuthController extends ChangeNotifier {
 
   AuthStatus get status => _status;
   CurrentUserDto? get currentUser => _currentUser;
-  PatientProfileDto? get patientProfile => _patientProfile;
+  PatientProfile? get patientProfile => _patientProfile;
   AuthRouteDecision? get routeDecision => _routeDecision;
   AuthFlowMode? get pendingFlow => _pendingFlow;
   String? get pendingPhone => _pendingPhone;
