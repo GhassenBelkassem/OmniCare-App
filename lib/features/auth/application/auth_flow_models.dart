@@ -1,3 +1,4 @@
+import '../../../core/models/patient_profile.dart';
 import '../data/models/auth_dtos.dart';
 
 enum AuthFlowMode { login, signup }
@@ -36,7 +37,7 @@ class PhoneSignupDraft {
 
 class AuthenticatedPatientSession {
   final CurrentUserDto user;
-  final PatientProfileDto profile;
+  final PatientProfile profile;
 
   const AuthenticatedPatientSession({
     required this.user,

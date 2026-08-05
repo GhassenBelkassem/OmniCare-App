@@ -30,6 +30,7 @@ import 'features/request/provider_list_screen.dart';
 import 'features/notifications/notifications_screen.dart';
 import 'features/notifications/appointment_confirmation_screen.dart';
 import 'features/notifications/booking_confirmed_screen.dart';
+import 'features/request/clinic_request_screen.dart';
 import 'features/request/time_selection_screen.dart';
 import 'providers/user_onboarding_provider.dart';
 import 'providers/user_provider.dart';
@@ -44,9 +45,17 @@ import 'core/storage/secure_token_store.dart';
 import 'features/auth/application/auth_controller.dart';
 import 'features/auth/application/auth_flow_models.dart';
 import 'core/api/account_api.dart';
+import 'core/api/files_api.dart';
+import 'core/api/family_api.dart';
 import 'features/auth/data/auth_api.dart';
 import 'features/auth/data/auth_repository.dart';
 import 'repositories/user_repository.dart';
+import 'repositories/family_repository.dart';
+import 'features/security/account_security_api.dart';
+import 'features/security/account_security_provider.dart';
+import 'features/security/app_lock_gate.dart';
+import 'features/security/app_lock_service.dart';
+import 'features/security/phone_change_reversal_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -66,34 +75,73 @@ void main() async {
   httpClient.onSessionInvalidated = authController.handleSessionInvalidated;
 
   await authController.initialize();
-  runApp(OmniCareApp(authController: authController, httpClient: httpClient));
+  final appLockService = AppLockService();
+  await appLockService.initialize();
+  runApp(
+    OmniCareApp(
+      authController: authController,
+      httpClient: httpClient,
+      appLockService: appLockService,
+    ),
+  );
 }
 
 class OmniCareApp extends StatelessWidget {
-  const OmniCareApp({super.key, required this.authController, this.httpClient});
+  const OmniCareApp({
+    super.key,
+    required this.authController,
+    this.httpClient,
+    this.appLockService,
+  });
 
   final AuthController authController;
   final AppHttpClient? httpClient;
+  final AppLockService? appLockService;
 
   @override
   Widget build(BuildContext context) {
+    final resolvedHttpClient =
+        httpClient ?? AppHttpClient(tokenStore: SecureTokenStore());
     return MultiProvider(
       providers: [
         ChangeNotifierProvider<AuthController>.value(value: authController),
         ChangeNotifierProvider(create: (_) => UserOnboardingProvider()),
         ChangeNotifierProvider(
           create: (_) => UserProvider(
-            repository: UserRepository(api: AccountApi(httpClient: httpClient)),
+            repository: UserRepository(
+              api: AccountApi(httpClient: resolvedHttpClient),
+              filesApi: FilesApi(httpClient: resolvedHttpClient),
+            ),
           ),
         ),
-        ChangeNotifierProvider(create: (_) => FamilyProvider()),
+        ChangeNotifierProvider(
+          create: (context) => FamilyProvider(
+            repository: FamilyRepository(
+              api: FamilyApi(httpClient: resolvedHttpClient),
+            ),
+            onFamilyChanged: context.read<UserProvider>().refresh,
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (context) => AccountSecurityProvider(
+            api: AccountSecurityApi(resolvedHttpClient),
+            forceLocalLogout: authController.logout,
+            onProfileChanged: context.read<UserProvider>().refresh,
+          ),
+        ),
+        ChangeNotifierProvider<AppLockService>.value(
+          value: appLockService ?? AppLockService(),
+        ),
         ChangeNotifierProvider(create: (_) => ReservationProvider()),
       ],
-      child: Consumer<UserOnboardingProvider>(
-        builder: (context, provider, child) {
+      child: Consumer2<UserOnboardingProvider, UserProvider>(
+        builder: (context, onboarding, userProvider, child) {
           Locale locale = const Locale('en');
-          if (provider.language != null) {
-            locale = Locale(provider.language!);
+          final profileLanguage = userProvider.profile?.preferredLanguage;
+          if (profileLanguage != null) {
+            locale = Locale(profileLanguage);
+          } else if (onboarding.language != null) {
+            locale = Locale(onboarding.language!);
           }
 
           return MaterialApp(
@@ -111,8 +159,10 @@ class OmniCareApp extends StatelessWidget {
               );
               return MediaQuery(
                 data: mq.copyWith(viewInsets: clampedInsets),
-                child: _AuthStateListener(
-                  child: child ?? const SizedBox.shrink(),
+                child: AppLockGate(
+                  child: _AuthStateListener(
+                    child: child ?? const SizedBox.shrink(),
+                  ),
                 ),
               );
             },
@@ -134,6 +184,7 @@ class OmniCareApp extends StatelessWidget {
               useMaterial3: true,
             ),
             home: const SplashScreen(),
+            navigatorObservers: [AppNav.routeObserver],
             routes: {
               '/login': (context) => const LoginScreen(),
               '/phone-input': (context) =>
@@ -152,9 +203,21 @@ class OmniCareApp extends StatelessWidget {
               '/request-care': (context) => const ProviderSelectionScreen(),
               '/provider-selection': (context) =>
                   const ProviderSelectionScreen(),
+              '/clinic-request': (context) => const ClinicRequestScreen(),
               '/notifications': (context) => const NotificationsScreen(),
             },
             onGenerateRoute: (settings) {
+              final routeUri = Uri.tryParse(settings.name ?? '');
+              if (routeUri?.path == AppNav.phoneChangeReversalRoute) {
+                return MaterialPageRoute(
+                  settings: const RouteSettings(
+                    name: AppNav.phoneChangeReversalRoute,
+                  ),
+                  builder: (context) => PhoneChangeReversalScreen(
+                    token: routeUri?.queryParameters['token'] ?? '',
+                  ),
+                );
+              }
               if (settings.name == '/emergency-step2') {
                 final args = settings.arguments as Map<String, dynamic>;
                 return MaterialPageRoute(
@@ -292,7 +355,11 @@ class _AuthStateListenerState extends State<_AuthStateListener> {
       _wasAuthenticated = false;
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted) return;
+        final stayOnPublicSecurityRoute = AppNav.isOnPublicSecurityRoute;
         await context.read<UserProvider>().logout();
+        if (!context.mounted) return;
+        context.read<FamilyProvider>().clear();
+        if (stayOnPublicSecurityRoute) return;
         AppNav.navigatorKey.currentState?.pushNamedAndRemoveUntil(
           '/login',
           (route) => false,

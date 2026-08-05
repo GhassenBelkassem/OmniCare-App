@@ -6,6 +6,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import '../../core/auth/google_web_sign_in_button.dart';
 import '../../providers/user_provider.dart';
+import '../../core/nav/keyboard_navigation.dart';
 import 'application/auth_controller.dart';
 import 'application/auth_flow_models.dart';
 import 'otp_verification_screen.dart';
@@ -96,7 +97,7 @@ class _LoginScreenState extends State<LoginScreen>
     }
 
     if (auth.isAuthenticated) {
-      _routeAuthenticated(auth);
+      await _routeAuthenticated(auth);
       return;
     }
 
@@ -162,7 +163,7 @@ class _LoginScreenState extends State<LoginScreen>
     }
 
     if (auth.isAuthenticated) {
-      _routeAuthenticated(auth);
+      await _routeAuthenticated(auth);
       return;
     }
 
@@ -179,10 +180,12 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-  void _routeAuthenticated(AuthController auth) {
+  Future<void> _routeAuthenticated(AuthController auth) async {
     final profile = auth.patientProfile;
     final nextRoute = auth.nextRoute;
     if (profile == null || nextRoute == null) return;
+    await dismissKeyboardBeforeNavigation(context);
+    if (!mounted) return;
     context.read<UserProvider>().setPatientProfile(profile);
     Navigator.of(context).pushNamedAndRemoveUntil(nextRoute, (route) => false);
   }

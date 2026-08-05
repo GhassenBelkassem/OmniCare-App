@@ -1,81 +1,183 @@
-import '../../mock_data/mock_family_members.dart';
+import 'package:dio/dio.dart';
+
+import '../../features/auth/data/models/auth_dtos.dart';
 import '../models/family_models.dart';
+import '../network/api_exception.dart';
+import '../network/app_http_client.dart';
+import '../storage/secure_token_store.dart';
 
 class FamilyApi {
-  FamilyApi({Object? dio});
+  FamilyApi({AppHttpClient? httpClient, Object? dio})
+    : _httpClient = httpClient ?? AppHttpClient(tokenStore: SecureTokenStore());
+
+  static const _path = '/profile/family-members';
+
+  final AppHttpClient _httpClient;
 
   Future<List<FamilyMember>> getFamilyMembers() async {
-    return createMockFamilyMembers();
+    try {
+      final response = await _httpClient.dio.get<dynamic>(_path);
+      final data = response.data;
+      if (data is! List) throw const FormatException('Expected JSON list.');
+      return List<FamilyMember>.unmodifiable(
+        data.map((item) {
+          if (item is! Map) {
+            throw const FormatException('Expected family member object.');
+          }
+          return FamilyMember.fromJson(item.cast<String, dynamic>());
+        }),
+      );
+    } on DioException catch (error) {
+      throw _mapDioException(error);
+    } on FormatException catch (error) {
+      throw ApiException(
+        'Malformed server response.',
+        code: 'MALFORMED_RESPONSE',
+        cause: error,
+      );
+    }
   }
 
   Future<FamilyMember> createFamilyMember({
-    required String fullName,
-    String? firstName,
-    String? lastName,
+    required String firstName,
+    required String lastName,
+    required DateTime dateOfBirth,
+    required String gender,
     required String relationship,
-    String? relationshipDescription,
-    String? phoneNumber,
-    required String birthDate,
-    String? gender,
-    String? profilePictureUrl,
-    String? profilePicturePublicId,
-    String? bloodGroup,
-    Map<String, dynamic>? medicalInfo,
-  }) async {
-    return FamilyMember(
-      id: 'new-${DateTime.now().millisecondsSinceEpoch}',
-      fullName: fullName,
-      firstName: firstName,
-      lastName: lastName,
-      relationship: relationship,
-      relationshipDescription: relationshipDescription,
-      phoneNumber: phoneNumber,
-      birthDate: birthDate,
-      gender: gender,
-      bloodGroup: bloodGroup,
-      medicalInfo: medicalInfo,
+    String? photoUrl,
+  }) {
+    return _sendMember(
+      () => _httpClient.dio.post<dynamic>(
+        _path,
+        data: _requestData(
+          firstName: firstName,
+          lastName: lastName,
+          dateOfBirth: dateOfBirth,
+          gender: gender,
+          relationship: relationship,
+          photoUrl: photoUrl,
+        ),
+      ),
     );
   }
 
   Future<FamilyMember> updateFamilyMember({
     required String id,
-    String? fullName,
-    String? firstName,
-    String? lastName,
-    String? relationship,
-    String? relationshipDescription,
-    String? phoneNumber,
-    String? birthDate,
-    String? gender,
-    String? profilePictureUrl,
-    String? profilePicturePublicId,
-    Map<String, dynamic>? medicalInfo,
-  }) async {
-    return FamilyMember(
-      id: id,
-      fullName: fullName ?? '',
-      relationship: relationship ?? '',
-      firstName: firstName,
-      lastName: lastName,
-      birthDate: birthDate,
-      gender: gender,
-      medicalInfo: medicalInfo,
+    required String firstName,
+    required String lastName,
+    required DateTime dateOfBirth,
+    required String gender,
+    required String relationship,
+    String? photoUrl,
+  }) {
+    return _sendMember(
+      () => _httpClient.dio.patch<dynamic>(
+        '$_path/${Uri.encodeComponent(id)}',
+        data: _requestData(
+          firstName: firstName,
+          lastName: lastName,
+          dateOfBirth: dateOfBirth,
+          gender: gender,
+          relationship: relationship,
+          photoUrl: photoUrl,
+        ),
+      ),
     );
   }
 
-  Future<void> deleteFamilyMember(String id) async {}
+  Future<void> deactivateFamilyMember(String id) async {
+    try {
+      await _httpClient.dio.delete<dynamic>(
+        '$_path/${Uri.encodeComponent(id)}',
+      );
+    } on DioException catch (error) {
+      throw _mapDioException(error);
+    }
+  }
 
-  Future<FamilyMember> patchMedicalPassport({
+  Future<void> patchMedicalPassport({
     required String id,
     String? bloodGroup,
-    Map<String, dynamic>? medicalInfo,
   }) async {
-    return FamilyMember(
-      id: id,
-      fullName: '',
-      relationship: '',
-      bloodGroup: bloodGroup,
-      medicalInfo: medicalInfo,
+    try {
+      await _httpClient.dio.patch<dynamic>(
+        '$_path/${Uri.encodeComponent(id)}/passport',
+        data: {'bloodType': bloodGroup},
+      );
+    } on DioException catch (error) {
+      throw _mapDioException(error);
+    }
+  }
+
+  Future<FamilyMember> _sendMember(
+    Future<Response<dynamic>> Function() request,
+  ) async {
+    try {
+      final response = await request();
+      final data = response.data;
+      if (data is! Map) throw const FormatException('Expected JSON object.');
+      return FamilyMember.fromJson(data.cast<String, dynamic>());
+    } on DioException catch (error) {
+      throw _mapDioException(error);
+    } on FormatException catch (error) {
+      throw ApiException(
+        'Malformed server response.',
+        code: 'MALFORMED_RESPONSE',
+        cause: error,
+      );
+    }
+  }
+
+  Map<String, dynamic> _requestData({
+    required String firstName,
+    required String lastName,
+    required DateTime dateOfBirth,
+    required String gender,
+    required String relationship,
+    String? photoUrl,
+  }) {
+    if (!FamilyRelationships.values.contains(relationship)) {
+      throw ArgumentError.value(relationship, 'relationship');
+    }
+    return {
+      'firstName': firstName.trim(),
+      'lastName': lastName.trim(),
+      'dateOfBirth': formatDateOnly(dateOfBirth),
+      'gender': gender,
+      'relationship': relationship,
+      'photoUrl': photoUrl,
+    };
+  }
+
+  ApiException _mapDioException(DioException error) {
+    final statusCode = error.response?.statusCode;
+    final data = error.response?.data;
+    if (data is Map) {
+      try {
+        final response = ApiErrorResponse.fromJson(
+          data.cast<String, dynamic>(),
+        );
+        return ApiException(
+          response.message,
+          code: response.code,
+          statusCode: statusCode,
+          fieldErrors: response.fieldErrors,
+          cause: error,
+        );
+      } catch (_) {
+        return ApiException(
+          'Unexpected server error response.',
+          code: 'MALFORMED_ERROR_RESPONSE',
+          statusCode: statusCode,
+          cause: error,
+        );
+      }
+    }
+    return ApiException(
+      'Network request failed.',
+      code: 'NETWORK_REQUEST_FAILED',
+      statusCode: statusCode,
+      cause: error,
     );
   }
 }

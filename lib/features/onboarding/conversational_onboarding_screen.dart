@@ -206,12 +206,6 @@ class _ConversationalOnboardingScreenState
             (profile.gender ?? '').trim().isNotEmpty) {
           _selectedGender = profile.gender;
         }
-        if (_heightController.text.trim().isEmpty && profile.heightCm != null) {
-          _heightController.text = profile.heightCm!.toString();
-        }
-        if (_weightController.text.trim().isEmpty && profile.weightKg != null) {
-          _weightController.text = profile.weightKg!.toStringAsFixed(1);
-        }
       });
     } catch (e, st) {
       AppLogger.error('Failed to prefill onboarding profile', e, st);
