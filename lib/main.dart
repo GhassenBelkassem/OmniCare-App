@@ -44,6 +44,10 @@ import 'core/network/app_http_client.dart';
 import 'core/storage/secure_token_store.dart';
 import 'features/auth/application/auth_controller.dart';
 import 'features/auth/application/auth_flow_models.dart';
+import 'features/clinic/application/clinic_context_controller.dart';
+import 'features/clinic/clinic_routes.dart';
+import 'features/clinic/data/clinic_api.dart';
+import 'features/clinic/data/clinic_repository.dart';
 import 'core/api/account_api.dart';
 import 'core/api/files_api.dart';
 import 'core/api/family_api.dart';
@@ -132,6 +136,11 @@ class OmniCareApp extends StatelessWidget {
         ChangeNotifierProvider<AppLockService>.value(
           value: appLockService ?? AppLockService(),
         ),
+        ChangeNotifierProvider(
+          create: (_) => ClinicContextController(
+            repository: ClinicRepository(ClinicApi(resolvedHttpClient)),
+          ),
+        ),
         ChangeNotifierProvider(create: (_) => ReservationProvider()),
       ],
       child: Consumer2<UserOnboardingProvider, UserProvider>(
@@ -205,6 +214,7 @@ class OmniCareApp extends StatelessWidget {
                   const ProviderSelectionScreen(),
               '/clinic-request': (context) => const ClinicRequestScreen(),
               '/notifications': (context) => const NotificationsScreen(),
+              ...ClinicRoutes.builders(),
             },
             onGenerateRoute: (settings) {
               final routeUri = Uri.tryParse(settings.name ?? '');
@@ -359,6 +369,9 @@ class _AuthStateListenerState extends State<_AuthStateListener> {
         await context.read<UserProvider>().logout();
         if (!context.mounted) return;
         context.read<FamilyProvider>().clear();
+        // Clinic context is scoped to the authenticated session.
+        await context.read<ClinicContextController>().clear();
+        if (!context.mounted) return;
         if (stayOnPublicSecurityRoute) return;
         AppNav.navigatorKey.currentState?.pushNamedAndRemoveUntil(
           '/login',

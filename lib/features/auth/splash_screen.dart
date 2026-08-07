@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'language_selection_screen.dart';
 import '../../providers/user_provider.dart';
 import 'application/auth_controller.dart';
+import 'application/post_auth_navigation.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -24,18 +25,15 @@ class _SplashScreenState extends State<SplashScreen> {
     if (_navigationScheduled || !auth.initializationCompleted) return;
 
     _navigationScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
 
       if (auth.isAuthenticated) {
-        final profile = auth.patientProfile;
-        final nextRoute = auth.nextRoute;
-        if (profile != null && nextRoute != null) {
-          context.read<UserProvider>().setPatientProfile(profile);
-          Navigator.of(
-            context,
-          ).pushNamedAndRemoveUntil(nextRoute, (route) => false);
-        }
+        await navigateAfterAuthentication(
+          context,
+          auth,
+          dismissKeyboard: false,
+        );
         return;
       }
 

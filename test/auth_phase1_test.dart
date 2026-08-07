@@ -1622,7 +1622,7 @@ void main() {
       final adapter = FakeHttpAdapter({
         'GET /api/v1/auth/me': (_, _) => _json({
           'id': 'user-1',
-          'role': 'DOCTOR',
+          'role': 'SUPPORT_AGENT',
           'sessionId': 'session-1',
         }, 200),
         'GET /api/v1/profile': (_, _) =>

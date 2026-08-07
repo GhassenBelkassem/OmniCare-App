@@ -3,10 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import '../../providers/user_provider.dart';
-import '../../core/nav/keyboard_navigation.dart';
 import 'application/auth_controller.dart';
 import 'application/auth_flow_models.dart';
+import 'application/post_auth_navigation.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
   final AuthFlowMode mode;
@@ -98,16 +97,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
     if (success) {
       _verificationCompleted = true;
-      final profile = auth.patientProfile;
-      final nextRoute = auth.nextRoute;
-      if (profile != null && nextRoute != null) {
-        await dismissKeyboardBeforeNavigation(context);
-        if (!mounted) return;
-        context.read<UserProvider>().setPatientProfile(profile);
-        Navigator.of(
-          context,
-        ).pushNamedAndRemoveUntil(nextRoute, (route) => false);
-      }
+      await navigateAfterAuthentication(context, auth);
       return;
     }
 

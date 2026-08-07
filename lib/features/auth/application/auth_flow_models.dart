@@ -1,9 +1,17 @@
 import '../../../core/models/patient_profile.dart';
 import '../data/models/auth_dtos.dart';
+import 'auth_role_family.dart';
 
 enum AuthFlowMode { login, signup }
 
-enum AuthRouteDecision { home, onboarding, passwordChangeRequired }
+enum AuthRouteDecision {
+  home,
+  onboarding,
+  passwordChangeRequired,
+  doctorWorkspace,
+  clinicWorkspace,
+  unsupportedRole,
+}
 
 class PhoneSignupDraft {
   final String email;
@@ -37,20 +45,37 @@ class PhoneSignupDraft {
 
 class AuthenticatedPatientSession {
   final CurrentUserDto user;
-  final PatientProfile profile;
+
+  /// Only populated for `PATIENT` accounts. Professional accounts (doctor and
+  /// clinic roles) never load a patient profile.
+  final PatientProfile? profile;
 
   const AuthenticatedPatientSession({
     required this.user,
     required this.profile,
   });
 
+  AuthRoleFamily get roleFamily => AuthRoles.familyOf(user.role);
+
   AuthRouteDecision get routeDecision {
     if (user.mustChangePassword) {
       return AuthRouteDecision.passwordChangeRequired;
     }
-    return profile.onboardingCompleted
-        ? AuthRouteDecision.home
-        : AuthRouteDecision.onboarding;
+
+    switch (roleFamily) {
+      case AuthRoleFamily.patient:
+        final patientProfile = profile;
+        if (patientProfile == null) return AuthRouteDecision.unsupportedRole;
+        return patientProfile.onboardingCompleted
+            ? AuthRouteDecision.home
+            : AuthRouteDecision.onboarding;
+      case AuthRoleFamily.doctor:
+        return AuthRouteDecision.doctorWorkspace;
+      case AuthRoleFamily.clinic:
+        return AuthRouteDecision.clinicWorkspace;
+      case AuthRoleFamily.unsupported:
+        return AuthRouteDecision.unsupportedRole;
+    }
   }
 }
 

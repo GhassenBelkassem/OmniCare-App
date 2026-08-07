@@ -3,6 +3,7 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/network/auth_refresh_coordinator.dart';
 import '../../../core/storage/secure_token_store.dart';
 import '../application/auth_flow_models.dart';
+import '../application/auth_role_family.dart';
 import '../application/tunisian_phone_number.dart';
 import 'auth_api.dart';
 import 'models/auth_dtos.dart';
@@ -307,7 +308,8 @@ class AuthRepository implements AuthRepositoryContract {
       );
     }
 
-    if (current.role != 'PATIENT') {
+    final roleFamily = AuthRoles.familyOf(current.role);
+    if (roleFamily == AuthRoleFamily.unsupported) {
       await _tokenStore.clearSession();
       throw const ApiException(
         'Unsupported account role.',
@@ -323,7 +325,11 @@ class AuthRepository implements AuthRepositoryContract {
       ),
     );
 
-    final profile = await _api.getPatientProfile();
+    // Only patient accounts own a patient profile. Professional accounts
+    // (doctor and clinic roles) resolve their workspace after authentication.
+    final profile = roleFamily == AuthRoleFamily.patient
+        ? await _api.getPatientProfile()
+        : null;
     return AuthenticatedPatientSession(user: current, profile: profile);
   }
 
