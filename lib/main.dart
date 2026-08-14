@@ -30,6 +30,7 @@ import 'features/request/provider_list_screen.dart';
 import 'features/notifications/notifications_screen.dart';
 import 'features/notifications/appointment_confirmation_screen.dart';
 import 'features/notifications/booking_confirmed_screen.dart';
+import 'features/request/clinic_request_screen.dart';
 import 'features/request/time_selection_screen.dart';
 import 'providers/user_onboarding_provider.dart';
 import 'providers/user_provider.dart';
@@ -43,10 +44,38 @@ import 'core/network/app_http_client.dart';
 import 'core/storage/secure_token_store.dart';
 import 'features/auth/application/auth_controller.dart';
 import 'features/auth/application/auth_flow_models.dart';
+import 'features/clinic/application/clinic_context_controller.dart';
+import 'features/clinic/application/clinic_operational_controller.dart';
+import 'features/clinic/clinic_routes.dart';
+import 'features/clinic/data/clinic_api.dart';
+import 'features/clinic/data/clinic_repository.dart';
+import 'features/request_core/application/request_submission_controller.dart';
+import 'features/request_core/data/request_api.dart';
+import 'features/request_core/data/request_repository.dart';
+import 'features/patient_clinic/application/patient_clinic_directory_controller.dart';
+import 'features/patient_clinic/data/patient_clinic_api.dart';
+import 'features/patient_clinic/data/patient_clinic_repository.dart';
+import 'features/patient_clinic/presentation/clinic_directory_screen.dart';
+import 'features/request_flow/screens/request_flow_entry_screen.dart';
+import 'features/request_flow/screens/who_needs_care_screen.dart';
+import 'features/request_flow/screens/situation_screen.dart';
+import 'features/request_flow/screens/pickup_screen.dart';
+import 'features/request_flow/screens/review_screen.dart';
+import 'features/request_flow/screens/request_received_screen.dart';
+import 'features/request_history/application/patient_requests_controller.dart';
+import 'features/request_history/presentation/my_requests_screen.dart';
 import 'core/api/account_api.dart';
+import 'core/api/files_api.dart';
+import 'core/api/family_api.dart';
 import 'features/auth/data/auth_api.dart';
 import 'features/auth/data/auth_repository.dart';
 import 'repositories/user_repository.dart';
+import 'repositories/family_repository.dart';
+import 'features/security/account_security_api.dart';
+import 'features/security/account_security_provider.dart';
+import 'features/security/app_lock_gate.dart';
+import 'features/security/app_lock_service.dart';
+import 'features/security/phone_change_reversal_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -66,34 +95,103 @@ void main() async {
   httpClient.onSessionInvalidated = authController.handleSessionInvalidated;
 
   await authController.initialize();
-  runApp(OmniCareApp(authController: authController, httpClient: httpClient));
+  final appLockService = AppLockService();
+  await appLockService.initialize();
+  runApp(
+    OmniCareApp(
+      authController: authController,
+      httpClient: httpClient,
+      appLockService: appLockService,
+    ),
+  );
 }
 
 class OmniCareApp extends StatelessWidget {
-  const OmniCareApp({super.key, required this.authController, this.httpClient});
+  const OmniCareApp({
+    super.key,
+    required this.authController,
+    this.httpClient,
+    this.appLockService,
+  });
 
   final AuthController authController;
   final AppHttpClient? httpClient;
+  final AppLockService? appLockService;
 
   @override
   Widget build(BuildContext context) {
+    final resolvedHttpClient =
+        httpClient ?? AppHttpClient(tokenStore: SecureTokenStore());
+    final clinicRepository = ClinicRepository(ClinicApi(resolvedHttpClient));
     return MultiProvider(
       providers: [
         ChangeNotifierProvider<AuthController>.value(value: authController),
         ChangeNotifierProvider(create: (_) => UserOnboardingProvider()),
         ChangeNotifierProvider(
           create: (_) => UserProvider(
-            repository: UserRepository(api: AccountApi(httpClient: httpClient)),
+            repository: UserRepository(
+              api: AccountApi(httpClient: resolvedHttpClient),
+              filesApi: FilesApi(httpClient: resolvedHttpClient),
+            ),
           ),
         ),
-        ChangeNotifierProvider(create: (_) => FamilyProvider()),
+        ChangeNotifierProvider(
+          create: (context) => FamilyProvider(
+            repository: FamilyRepository(
+              api: FamilyApi(httpClient: resolvedHttpClient),
+            ),
+            onFamilyChanged: context.read<UserProvider>().refresh,
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (context) => AccountSecurityProvider(
+            api: AccountSecurityApi(resolvedHttpClient),
+            forceLocalLogout: authController.logout,
+            onProfileChanged: context.read<UserProvider>().refresh,
+          ),
+        ),
+        ChangeNotifierProvider<AppLockService>.value(
+          value: appLockService ?? AppLockService(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => ClinicContextController(repository: clinicRepository),
+        ),
+        ChangeNotifierProvider(
+          create: (_) =>
+              ClinicOperationalController(repository: clinicRepository),
+        ),
+        // Module 05 request core. It receives the same shared AppHttpClient as
+        // every other provider here, so it joins the one auth interceptor and
+        // the one refresh coordinator instead of starting a second pipeline.
+        ChangeNotifierProvider(
+          create: (_) => RequestSubmissionController(
+            repository: RequestRepository(RequestApi(resolvedHttpClient)),
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => PatientRequestsController(
+            repository: RequestRepository(RequestApi(resolvedHttpClient)),
+          ),
+        ),
+        // Real patient clinic directory. Same shared client; the controller
+        // owns debounced, cancel-safe search and backend Slice pagination.
+        ChangeNotifierProvider(
+          create: (_) => PatientClinicDirectoryController(
+            repository: PatientClinicRepository(
+              PatientClinicApi(resolvedHttpClient),
+            ),
+          ),
+        ),
         ChangeNotifierProvider(create: (_) => ReservationProvider()),
       ],
-      child: Consumer<UserOnboardingProvider>(
-        builder: (context, provider, child) {
+      child: Consumer2<UserOnboardingProvider, UserProvider>(
+        builder: (context, onboarding, userProvider, child) {
           Locale locale = const Locale('en');
-          if (provider.language != null) {
-            locale = Locale(provider.language!);
+          final profileLanguage = userProvider.profile?.preferredLanguage;
+          if (profileLanguage != null) {
+            locale = Locale(profileLanguage);
+          } else if (onboarding.language != null) {
+            locale = Locale(onboarding.language!);
           }
 
           return MaterialApp(
@@ -111,8 +209,10 @@ class OmniCareApp extends StatelessWidget {
               );
               return MediaQuery(
                 data: mq.copyWith(viewInsets: clampedInsets),
-                child: _AuthStateListener(
-                  child: child ?? const SizedBox.shrink(),
+                child: AppLockGate(
+                  child: _AuthStateListener(
+                    child: child ?? const SizedBox.shrink(),
+                  ),
                 ),
               );
             },
@@ -134,6 +234,7 @@ class OmniCareApp extends StatelessWidget {
               useMaterial3: true,
             ),
             home: const SplashScreen(),
+            navigatorObservers: [AppNav.routeObserver],
             routes: {
               '/login': (context) => const LoginScreen(),
               '/phone-input': (context) =>
@@ -152,9 +253,31 @@ class OmniCareApp extends StatelessWidget {
               '/request-care': (context) => const ProviderSelectionScreen(),
               '/provider-selection': (context) =>
                   const ProviderSelectionScreen(),
+              '/clinic-request': (context) => const ClinicRequestScreen(),
               '/notifications': (context) => const NotificationsScreen(),
+              '/m05/request': (context) => const RequestFlowEntryScreen(),
+              '/m05/who-needs-care': (context) => const WhoNeedsCareScreen(),
+              '/m05/clinic-directory': (context) =>
+                  const ClinicDirectoryScreen(),
+              '/m05/situation': (context) => const SituationScreen(),
+              '/m05/pickup': (context) => const PickupScreen(),
+              '/m05/review': (context) => const ReviewScreen(),
+              '/m05/received': (context) => const RequestReceivedScreen(),
+              '/m05/requests': (context) => const MyRequestsScreen(),
+              ...ClinicRoutes.builders(),
             },
             onGenerateRoute: (settings) {
+              final routeUri = Uri.tryParse(settings.name ?? '');
+              if (routeUri?.path == AppNav.phoneChangeReversalRoute) {
+                return MaterialPageRoute(
+                  settings: const RouteSettings(
+                    name: AppNav.phoneChangeReversalRoute,
+                  ),
+                  builder: (context) => PhoneChangeReversalScreen(
+                    token: routeUri?.queryParameters['token'] ?? '',
+                  ),
+                );
+              }
               if (settings.name == '/emergency-step2') {
                 final args = settings.arguments as Map<String, dynamic>;
                 return MaterialPageRoute(
@@ -292,7 +415,20 @@ class _AuthStateListenerState extends State<_AuthStateListener> {
       _wasAuthenticated = false;
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted) return;
+        final stayOnPublicSecurityRoute = AppNav.isOnPublicSecurityRoute;
         await context.read<UserProvider>().logout();
+        if (!context.mounted) return;
+        context.read<FamilyProvider>().clear();
+        // Clinic context is scoped to the authenticated session.
+        await context.read<ClinicContextController>().clear();
+        if (!context.mounted) return;
+        context.read<ClinicOperationalController>().clear();
+        if (!context.mounted) return;
+        // A patient's in-flight care request, its operation id and its
+        // persisted retry record must not survive into the next session.
+        await context.read<RequestSubmissionController>().clear();
+        if (!context.mounted) return;
+        if (stayOnPublicSecurityRoute) return;
         AppNav.navigatorKey.currentState?.pushNamedAndRemoveUntil(
           '/login',
           (route) => false,

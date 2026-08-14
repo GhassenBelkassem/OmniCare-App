@@ -5,9 +5,9 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import '../../core/auth/google_web_sign_in_button.dart';
-import '../../providers/user_provider.dart';
 import 'application/auth_controller.dart';
 import 'application/auth_flow_models.dart';
+import 'application/post_auth_navigation.dart';
 import 'otp_verification_screen.dart';
 import 'phone_input_screen.dart';
 import 'signup_screen.dart';
@@ -96,7 +96,7 @@ class _LoginScreenState extends State<LoginScreen>
     }
 
     if (auth.isAuthenticated) {
-      _routeAuthenticated(auth);
+      await _routeAuthenticated(auth);
       return;
     }
 
@@ -162,7 +162,7 @@ class _LoginScreenState extends State<LoginScreen>
     }
 
     if (auth.isAuthenticated) {
-      _routeAuthenticated(auth);
+      await _routeAuthenticated(auth);
       return;
     }
 
@@ -179,12 +179,8 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-  void _routeAuthenticated(AuthController auth) {
-    final profile = auth.patientProfile;
-    final nextRoute = auth.nextRoute;
-    if (profile == null || nextRoute == null) return;
-    context.read<UserProvider>().setPatientProfile(profile);
-    Navigator.of(context).pushNamedAndRemoveUntil(nextRoute, (route) => false);
+  Future<void> _routeAuthenticated(AuthController auth) async {
+    await navigateAfterAuthentication(context, auth);
   }
 
   @override

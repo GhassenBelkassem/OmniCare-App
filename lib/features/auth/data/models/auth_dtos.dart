@@ -198,12 +198,14 @@ class CurrentUserDto {
   final String role;
   final String sessionId;
   final bool mustChangePassword;
+  final bool hasPassword;
 
   const CurrentUserDto({
     required this.id,
     required this.role,
     required this.sessionId,
     required this.mustChangePassword,
+    this.hasPassword = true,
   });
 
   factory CurrentUserDto.fromJson(Map<String, dynamic> json) {
@@ -212,74 +214,7 @@ class CurrentUserDto {
       role: _requiredString(json, 'role'),
       sessionId: _requiredString(json, 'sessionId'),
       mustChangePassword: json['mustChangePassword'] == true,
-    );
-  }
-}
-
-class PatientProfileDto {
-  final String userId;
-  final String firstName;
-  final String lastName;
-  final String displayName;
-  final DateTime? dateOfBirth;
-  final String? gender;
-  final String? photoUrl;
-  final String? bloodType;
-  final int? heightCm;
-  final double? weightKg;
-  final double? bmi;
-  final String patientId;
-  final int passportCompletion;
-  final bool onboardingCompleted;
-  final int onboardingStep;
-  final String? preferredLanguage;
-  final bool notificationMedications;
-  final bool notificationAppointments;
-  final bool notificationPassport;
-
-  const PatientProfileDto({
-    required this.userId,
-    required this.firstName,
-    required this.lastName,
-    required this.displayName,
-    required this.dateOfBirth,
-    required this.gender,
-    required this.photoUrl,
-    required this.bloodType,
-    required this.heightCm,
-    required this.weightKg,
-    required this.bmi,
-    required this.patientId,
-    required this.passportCompletion,
-    required this.onboardingCompleted,
-    required this.onboardingStep,
-    required this.preferredLanguage,
-    required this.notificationMedications,
-    required this.notificationAppointments,
-    required this.notificationPassport,
-  });
-
-  factory PatientProfileDto.fromJson(Map<String, dynamic> json) {
-    return PatientProfileDto(
-      userId: _requiredString(json, 'userId'),
-      firstName: _requiredString(json, 'firstName'),
-      lastName: _requiredString(json, 'lastName'),
-      displayName: _requiredString(json, 'displayName'),
-      dateOfBirth: _optionalDateOnly(json['dateOfBirth']),
-      gender: _optionalString(json['gender']),
-      photoUrl: _optionalString(json['photoUrl']),
-      bloodType: _optionalString(json['bloodType']),
-      heightCm: _optionalInt(json['heightCm']),
-      weightKg: _optionalDouble(json['weightKg']),
-      bmi: _optionalDouble(json['bmi']),
-      patientId: _requiredString(json, 'patientId'),
-      passportCompletion: _requiredInt(json, 'passportCompletion'),
-      onboardingCompleted: _requiredBool(json, 'onboardingCompleted'),
-      onboardingStep: _requiredInt(json, 'onboardingStep'),
-      preferredLanguage: _optionalString(json['preferredLanguage']),
-      notificationMedications: _requiredBool(json, 'notificationMedications'),
-      notificationAppointments: _requiredBool(json, 'notificationAppointments'),
-      notificationPassport: _requiredBool(json, 'notificationPassport'),
+      hasPassword: json['hasPassword'] == true,
     );
   }
 }
@@ -561,41 +496,6 @@ DateTime? _optionalDateTime(Object? value) {
   if (value == null) return null;
   final parsed = DateTime.tryParse(value.toString());
   return parsed?.toUtc();
-}
-
-DateTime? _optionalDateOnly(Object? value) {
-  if (value == null) return null;
-  final parts = value.toString().split('-');
-  if (parts.length != 3) return null;
-  final year = int.tryParse(parts[0]);
-  final month = int.tryParse(parts[1]);
-  final day = int.tryParse(parts[2]);
-  if (year == null || month == null || day == null) return null;
-  return DateTime.utc(year, month, day);
-}
-
-int _requiredInt(Map<String, dynamic> json, String key) {
-  final value = json[key];
-  if (value is num) return value.toInt();
-  throw FormatException('Missing required numeric field "$key".');
-}
-
-int? _optionalInt(Object? value) {
-  if (value == null) return null;
-  if (value is num) return value.toInt();
-  return int.tryParse(value.toString());
-}
-
-double? _optionalDouble(Object? value) {
-  if (value == null) return null;
-  if (value is num) return value.toDouble();
-  return double.tryParse(value.toString());
-}
-
-bool _requiredBool(Map<String, dynamic> json, String key) {
-  final value = json[key];
-  if (value is bool) return value;
-  throw FormatException('Missing required boolean field "$key".');
 }
 
 Map<String, String> _stringMap(Object? value) {

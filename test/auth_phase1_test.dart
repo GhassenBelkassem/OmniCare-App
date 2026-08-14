@@ -11,6 +11,7 @@ import 'package:omnicare_mobile/core/config/app_environment.dart';
 import 'package:omnicare_mobile/core/network/api_exception.dart';
 import 'package:omnicare_mobile/core/network/app_http_client.dart';
 import 'package:omnicare_mobile/core/network/auth_interceptor.dart';
+import 'package:omnicare_mobile/core/models/patient_profile.dart';
 import 'package:omnicare_mobile/core/storage/secure_token_store.dart';
 import 'package:omnicare_mobile/features/auth/application/auth_controller.dart';
 import 'package:omnicare_mobile/features/auth/application/auth_error_messages.dart';
@@ -300,18 +301,15 @@ Map<String, dynamic> _profileJson({required bool onboardingCompleted}) {
     'dateOfBirth': '1998-04-20',
     'gender': 'M',
     'photoUrl': null,
-    'bloodType': null,
-    'heightCm': null,
-    'weightKg': null,
-    'bmi': null,
-    'patientId': 'patient-1',
-    'passportCompletion': 0,
+    'primaryPhone': {'value': '+21698123456', 'verified': true},
+    'primaryEmail': {'value': 'ahmed@example.tn', 'verified': true},
     'onboardingCompleted': onboardingCompleted,
     'onboardingStep': 1,
     'preferredLanguage': 'fr',
     'notificationMedications': true,
     'notificationAppointments': true,
     'notificationPassport': true,
+    'updatedAt': '2026-08-04T10:15:30Z',
   };
 }
 
@@ -326,7 +324,7 @@ AuthenticatedPatientSession _authenticated({
       sessionId: 'session-1',
       mustChangePassword: mustChangePassword,
     ),
-    profile: PatientProfileDto.fromJson(
+    profile: PatientProfile.fromJson(
       _profileJson(onboardingCompleted: onboardingCompleted),
     ),
   );
@@ -375,7 +373,7 @@ void main() {
         'sessionId': 'session-1',
         'mustChangePassword': true,
       });
-      final profile = PatientProfileDto.fromJson(
+      final profile = PatientProfile.fromJson(
         _profileJson(onboardingCompleted: false),
       );
       final error = ApiErrorResponse.fromJson({
@@ -1624,7 +1622,7 @@ void main() {
       final adapter = FakeHttpAdapter({
         'GET /api/v1/auth/me': (_, _) => _json({
           'id': 'user-1',
-          'role': 'DOCTOR',
+          'role': 'SUPPORT_AGENT',
           'sessionId': 'session-1',
         }, 200),
         'GET /api/v1/profile': (_, _) =>

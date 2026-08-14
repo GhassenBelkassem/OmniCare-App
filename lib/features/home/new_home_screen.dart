@@ -1,11 +1,12 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/api/account_api.dart';
-import '../../core/api/files_api.dart';
 import '../../core/services/file_picker_service.dart';
 import '../../core/models/family_models.dart' as core_models;
 import '../auth/application/auth_controller.dart';
@@ -18,6 +19,20 @@ import 'family_member_detail_screen.dart';
 import 'document_viewer_screen.dart';
 import 'qr_code_modal.dart';
 import 'history_tab.dart';
+import 'patient_home_feed.dart';
+import '../profile/patient_profile_screen.dart';
+import '../security/account_security_screen.dart';
+import '../security/device_management_screen.dart';
+import '../security/login_history_screen.dart';
+import '../request/provider_selection_screen.dart';
+import '../request_flow/screens/request_flow_entry_screen.dart';
+import '../request_flow/screens/who_needs_care_screen.dart';
+import '../request_flow/screens/situation_screen.dart';
+import '../request_flow/screens/pickup_screen.dart';
+import '../request_flow/screens/review_screen.dart';
+import '../request_flow/screens/request_received_screen.dart';
+import '../patient_clinic/presentation/clinic_directory_screen.dart';
+import '../request_history/presentation/my_requests_screen.dart';
 
 class NewHomeScreen extends StatefulWidget {
   const NewHomeScreen({super.key});
@@ -28,53 +43,92 @@ class NewHomeScreen extends StatefulWidget {
 
 class _NewHomeScreenState extends State<NewHomeScreen> {
   int _selectedIndex = 0;
+  final GlobalKey<NavigatorState> _patientContentNavigatorKey =
+      GlobalKey<NavigatorState>();
 
-  bool _isUploadingProfileAvatar = false;
   bool _isLoggingOut = false;
   final _filePickerService = FilePickerService();
-  final _filesApi = FilesApi();
 
   FamilyMember _toDetailMember(core_models.FamilyMember member) {
-    final medicalInfo = member.medicalInfo ?? const <String, dynamic>{};
-    final chronic = (medicalInfo['chronicConditions'] is List)
-        ? (medicalInfo['chronicConditions'] as List)
-              .map((e) => e.toString())
-              .where((e) => e.trim().isNotEmpty)
-              .toList()
-        : const <String>[];
-
-    final meds = (medicalInfo['currentMedications'] is List)
-        ? (medicalInfo['currentMedications'] as List)
-              .whereType<Map>()
-              .map((e) => e.cast<String, dynamic>())
-              .map(
-                (m) => Medication(
-                  medicationId: m['medicationId']?.toString(),
-                  name: (m['name'] ?? m['medicationId'] ?? 'Medication')
-                      .toString(),
-                  dosage: (m['dosage'] ?? m['catalogDosage'] ?? '-').toString(),
-                  frequency: (m['frequency'] ?? '-').toString(),
-                ),
-              )
-              .toList()
-        : const <Medication>[];
-
-    final age = member.ageYears ?? 0;
-    final blood = (member.bloodGroup ?? '-').trim();
-
     return FamilyMember(
       id: member.id,
       name: member.fullName,
-      age: age,
-      relationship: member.relationship,
-      avatar: '',
-      bloodType: blood.isEmpty ? '-' : blood,
-      chronicConditions: chronic,
-      currentMedications: meds,
+      age: member.ageYears,
+      relationship: core_models.FamilyRelationships.frenchLabel(
+        member.relationship,
+      ),
+      avatar: member.photoUrl ?? '',
+      bloodType: '-',
+      chronicConditions: const [],
+      currentMedications: const [],
       documents: const <MedicalDocument>[],
       criticalAlert: null,
       phoneNumber: null,
     );
+  }
+
+  Future<void> _openFamilyMemberForm([core_models.FamilyMember? member]) async {
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => AddFamilyMemberScreen(member: member)),
+    );
+  }
+
+  Future<void> _editFamilyMember(String id) async {
+    final provider = context.read<FamilyProvider>();
+    final matches = provider.members.where((member) => member.id == id);
+    if (matches.isEmpty) return;
+    await _openFamilyMemberForm(matches.first);
+  }
+
+  Future<void> _deactivateFamilyMember(String id) async {
+    final provider = context.read<FamilyProvider>();
+    if (provider.isDeactivating(id)) return;
+    final matches = provider.members.where((member) => member.id == id);
+    if (matches.isEmpty) return;
+    final member = matches.first;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Retirer ce membre ?'),
+        content: Text(
+          '${member.fullName} ne figurera plus dans votre famille. '
+          'Cette action ne supprime pas immédiatement les données médicales.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            icon: const Icon(Icons.person_remove_outlined, size: 18),
+            label: const Text('Retirer'),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFB42318),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await provider.deactivateFamilyMember(id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Membre retiré de votre famille.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            provider.mutationError ?? 'Impossible de retirer ce membre.',
+          ),
+          backgroundColor: const Color(0xFFB42318),
+        ),
+      );
+    }
   }
 
   @override
@@ -82,6 +136,10 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      // Authentication inputs can retain focus while the route changes,
+      // especially on mobile web. Clear it so stale keyboard viewInsets do
+      // not collapse the dashboard on its first frame.
+      FocusManager.instance.primaryFocus?.unfocus();
       final familyProvider = Provider.of<FamilyProvider>(
         context,
         listen: false,
@@ -112,6 +170,24 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     }
   }
 
+  Future<void> _selectAndUploadAvatar(ImageSource source) async {
+    XFile? selected;
+    try {
+      selected = await _filePickerService.pickAndCompressImage(
+        source: source,
+        maxWidth: 2048,
+        maxHeight: 2048,
+        quality: 88,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      context.read<UserProvider>().reportAvatarSelectionFailure();
+      rethrow;
+    }
+    if (selected == null || !mounted) return;
+    await context.read<UserProvider>().uploadAvatar(selected);
+  }
+
   @override
   Widget build(BuildContext context) {
     final onboarding = Provider.of<UserOnboardingProvider>(context);
@@ -122,34 +198,40 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
         backgroundColor: const Color(0xFFF4F5F7),
         body: SafeArea(
           child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.verified_user_outlined,
-                  size: 48,
-                  color: Color(0xFF1FBF9A),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Session restored locally',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF101828),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Profile loading will be connected in the next phase.',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: const Color(0xFF667085),
-                  ),
-                ),
-              ],
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: userProvider.isLoading
+                  ? const CircularProgressIndicator(color: Color(0xFF1FBF9A))
+                  : Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.error_outline_rounded,
+                          size: 44,
+                          color: Color(0xFFD92D20),
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          userProvider.loadError ??
+                              'Impossible de charger le profil.',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF475467),
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        FilledButton.icon(
+                          onPressed: userProvider.refresh,
+                          icon: const Icon(Icons.refresh_rounded, size: 19),
+                          label: const Text('Réessayer'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF087A65),
+                          ),
+                        ),
+                      ],
+                    ),
             ),
           ),
         ),
@@ -160,51 +242,71 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
         ? resolvedDisplayName
         : (onboarding.email?.split('@')[0] ?? 'User');
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF4F5F7),
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            _buildStickyHeader(userName),
-            Expanded(child: _getSelectedTabContent()),
-          ],
+    return MediaQuery.removeViewInsets(
+      context: context,
+      removeBottom: true,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF4F5F7),
+        resizeToAvoidBottomInset: false,
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              _buildStickyHeader(userName),
+              Expanded(child: _getSelectedTabContent(userName)),
+            ],
+          ),
         ),
+        bottomNavigationBar: _buildBottomNavigation(),
       ),
-      bottomNavigationBar: _buildBottomNavigation(),
     );
   }
 
-  Widget _getSelectedTabContent() {
+  Widget _getSelectedTabContent(String userName) {
     switch (_selectedIndex) {
       case 0:
-        return _buildHomeTab();
+        return _buildPatientContentNavigator(userName);
       case 1:
-        return _buildProfileTab();
+        return _buildHealthTab();
       case 3:
-        return _buildNotificationsTab();
-      case 4:
         return _buildHistoryTab();
+      case 4:
+        return _buildProfileTab();
       default:
-        return _buildHomeTab();
+        return _buildHomeTab(userName);
     }
   }
 
-  Widget _buildHomeTab() {
-    return SingleChildScrollView(
-      child: Column(
-        children: [
-          const SizedBox(height: 24),
-          _buildUrgentCareCard(),
-          const SizedBox(height: 16),
-          _buildQuickActionsCards(),
-          const SizedBox(height: 32),
-          _buildTrustSection(),
-          const SizedBox(height: 32),
-          _buildHowItWorksSection(),
-          const SizedBox(height: 100),
-        ],
-      ),
+  Widget _buildPatientContentNavigator(String userName) {
+    return Navigator(
+      key: _patientContentNavigatorKey,
+      initialRoute: '/patient-home',
+      onGenerateRoute: (settings) {
+        final page = switch (settings.name) {
+          '/patient-home' => _buildHomeTab(userName),
+          '/provider-selection' => const ProviderSelectionScreen(),
+          '/m05/request' => const RequestFlowEntryScreen(),
+          '/m05/who-needs-care' => const WhoNeedsCareScreen(),
+          '/m05/clinic-directory' => const ClinicDirectoryScreen(),
+          '/m05/situation' => const SituationScreen(),
+          '/m05/pickup' => const PickupScreen(),
+          '/m05/review' => const ReviewScreen(),
+          '/m05/received' => const RequestReceivedScreen(),
+          '/m05/requests' => const MyRequestsScreen(),
+          _ => _buildHomeTab(userName),
+        };
+        return MaterialPageRoute(builder: (_) => page, settings: settings);
+      },
+    );
+  }
+
+  Widget _buildHomeTab(String userName) {
+    return PatientHomeFeed(
+      displayName: userName,
+      onOpenHealth: () => setState(() => _selectedIndex = 1),
+      onOpenMedicalRecord: () =>
+          Navigator.pushNamed(context, '/medical-documents'),
+      onOpenProfile: () => setState(() => _selectedIndex = 4),
     );
   }
 
@@ -933,6 +1035,102 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
   }
 
   Widget _buildProfileTab() {
+    final userProvider = Provider.of<UserProvider>(context);
+    final familyProvider = Provider.of<FamilyProvider>(context);
+    final profile = userProvider.profile!;
+
+    return PatientProfileScreen(
+      identity: PatientProfileIdentity(
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        displayName: profile.displayName,
+        phoneNumber: profile.primaryPhone?.value ?? '',
+        phoneVerified: profile.primaryPhone?.verified ?? false,
+        email: profile.primaryEmail?.value ?? '',
+        emailVerified: profile.primaryEmail?.verified ?? false,
+        avatarUrl: profile.photoUrl,
+        dateOfBirth: profile.dateOfBirth,
+        gender: profile.gender,
+      ),
+      familyMembers: familyProvider.members
+          .map(
+            (member) => PatientProfileFamilyMember(
+              id: member.id,
+              name: member.fullName,
+              relationship: core_models.FamilyRelationships.frenchLabel(
+                member.relationship,
+              ),
+              avatarUrl: member.photoUrl,
+              graduated: member.graduated,
+            ),
+          )
+          .toList(growable: false),
+      preferredLanguage: profile.preferredLanguage,
+      notificationMedications: profile.notifications.medications,
+      notificationAppointments: profile.notifications.appointments,
+      notificationPassport: profile.notifications.passport,
+      isSaving: userProvider.isSaving,
+      isAvatarUploading: userProvider.isAvatarUploading,
+      avatarUploadProgress: userProvider.avatarUploadProgress,
+      avatarErrorMessage: userProvider.avatarError,
+      errorMessage: userProvider.saveError,
+      onRetry: userProvider.clearSaveError,
+      onAvatarSourceSelected: _selectAndUploadAvatar,
+      onAvatarRemove: () async {
+        await userProvider.removeAvatar();
+      },
+      onAvatarRetry: userProvider.canRetryAvatar
+          ? () async {
+              await userProvider.retryAvatarUpload();
+            }
+          : null,
+      onAvatarErrorDismiss: userProvider.clearAvatarError,
+      familyIsLoading: familyProvider.isLoading,
+      familyErrorMessage: familyProvider.error,
+      onRetryFamily: familyProvider.loadFamilyMembers,
+      onPersonalInformationChanged:
+          ({
+            required firstName,
+            required lastName,
+            required dateOfBirth,
+            required gender,
+          }) async {
+            await userProvider.updatePersonalInformation(
+              firstName: firstName,
+              lastName: lastName,
+              dateOfBirth: dateOfBirth,
+              gender: gender,
+            );
+          },
+      onLanguageChanged: (language) async {
+        await userProvider.updatePreferences(preferredLanguage: language);
+      },
+      onNotificationPreferencesChanged:
+          ({medications, appointments, passport}) async {
+            await userProvider.updatePreferences(
+              notificationMedications: medications,
+              notificationAppointments: appointments,
+              notificationPassport: passport,
+            );
+          },
+      onOpenAccountSecurity: () => Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const AccountSecurityScreen())),
+      onOpenDevices: () => Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const DeviceManagementScreen())),
+      onOpenLoginHistory: () => Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const LoginHistoryScreen())),
+      isLoggingOut: _isLoggingOut,
+      onLogout: _handleLogout,
+      onAddFamilyMember: () => _openFamilyMemberForm(),
+      onEditFamilyMember: _editFamilyMember,
+      onDeactivateFamilyMember: _deactivateFamilyMember,
+    );
+  }
+
+  Widget _buildHealthTab() {
     final onboarding = Provider.of<UserOnboardingProvider>(context);
     final userProvider = Provider.of<UserProvider>(context);
     final resolvedDisplayName = (userProvider.user?.displayName ?? '').trim();
@@ -1081,77 +1279,6 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                             color: Color(0xFF1FBF9A),
                           ),
                         ),
-                ),
-              ),
-              if (_isUploadingProfileAvatar)
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withOpacity(0.6),
-                    ),
-                    child: const Center(
-                      child: CircularProgressIndicator(strokeWidth: 3),
-                    ),
-                  ),
-                ),
-              Positioned(
-                right: 0,
-                bottom: 0,
-                child: Material(
-                  color: Colors.white,
-                  shape: const CircleBorder(),
-                  child: InkWell(
-                    onTap: _isUploadingProfileAvatar
-                        ? null
-                        : () async {
-                            setState(() => _isUploadingProfileAvatar = true);
-                            try {
-                              final picked = await _filePickerService
-                                  .pickAndCompressImage();
-                              if (picked == null) return;
-
-                              final upload = await _filesApi.uploadFile(
-                                file: picked,
-                                folder: 'omnicare/avatars',
-                              );
-
-                              await AccountApi().patchProfilePicture(
-                                profilePictureUrl: upload.url,
-                                profilePicturePublicId: upload.publicId,
-                              );
-
-                              if (!context.mounted) return;
-                              await Provider.of<UserProvider>(
-                                context,
-                                listen: false,
-                              ).refresh();
-                            } catch (e) {
-                              if (!context.mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(e.toString()),
-                                  backgroundColor: const Color(0xFFDC2626),
-                                ),
-                              );
-                            } finally {
-                              if (mounted) {
-                                setState(
-                                  () => _isUploadingProfileAvatar = false,
-                                );
-                              }
-                            }
-                          },
-                    customBorder: const CircleBorder(),
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Icon(
-                        Icons.edit,
-                        size: 18,
-                        color: const Color(0xFF1FBF9A),
-                      ),
-                    ),
-                  ),
                 ),
               ),
             ],
@@ -1942,11 +2069,11 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
           childAspectRatio: 0.85,
           children: [
             ...family.map((m) {
-              final age = m.ageYears == null ? '' : '${m.ageYears} ans';
+              final age = '${m.ageYears} ans';
               final alert = null;
               return _buildFamilyMemberCard(
                 m.fullName,
-                m.relationship,
+                core_models.FamilyRelationships.frenchLabel(m.relationship),
                 age,
                 alert,
                 memberId: m.id,
@@ -2187,13 +2314,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => AddFamilyMemberScreen(
-                  onSave: (data) {
-                    setState(() {
-                      // Add new family member to list
-                    });
-                  },
-                ),
+                builder: (context) => const AddFamilyMemberScreen(),
               ),
             );
           },
@@ -2657,72 +2778,130 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
   }
 
   Widget _buildStickyHeader(String userName) {
-    final provider = Provider.of<UserOnboardingProvider>(context);
-    final currentLanguage = provider.language ?? 'en';
-
     return ClipRect(
+      key: const ValueKey('patient-top-bar'),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.7),
+            color: Colors.white.withValues(alpha: 0.82),
             border: Border(
               bottom: BorderSide(
-                color: Colors.black.withOpacity(0.08),
+                color: Colors.black.withValues(alpha: 0.08),
                 width: 0.5,
               ),
             ),
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // Logo from assets only
-              Image.asset(
-                'assets/images/logo.png',
-                height: 48,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [Color(0xFF1FBF9A), Color(0xFF6BE3B2)],
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 720),
+              child: SizedBox(
+                height: 72,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Image.asset(
+                            'assets/images/logo.png',
+                            height: 43,
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) => Text(
+                              'OmniCare',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 21,
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFF07536A),
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.local_hospital,
-                      size: 20,
-                      color: Colors.white,
-                    ),
-                  );
-                },
-              ),
-              // Language Selector
-              GestureDetector(
-                onTap: () => _showLanguageSelector(provider),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.language_rounded,
-                      color: const Color(0xFF1D2939).withOpacity(0.7),
-                      size: 20,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      currentLanguage.toUpperCase(),
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF1D2939),
+                      Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Material(
+                            color: Colors.white.withValues(alpha: 0.86),
+                            shape: const CircleBorder(
+                              side: BorderSide(color: Color(0xFFD8DEDD)),
+                            ),
+                            elevation: 1,
+                            child: InkWell(
+                              customBorder: const CircleBorder(),
+                              onTap: () => Navigator.pushNamed(
+                                context,
+                                '/notifications',
+                              ),
+                              child: const SizedBox(
+                                width: 40,
+                                height: 40,
+                                child: Icon(
+                                  Icons.notifications_none_rounded,
+                                  color: Color(0xFF172033),
+                                  size: 21,
+                                ),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            right: -3,
+                            top: -4,
+                            child: Container(
+                              width: 18,
+                              height: 18,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEF4444),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 2,
+                                ),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  '2',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 8.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 8),
+                      IconButton(
+                        tooltip: 'Se déconnecter',
+                        constraints: const BoxConstraints.tightFor(
+                          width: 40,
+                          height: 40,
+                        ),
+                        padding: const EdgeInsets.all(8),
+                        onPressed: _isLoggingOut ? null : _handleLogout,
+                        icon: _isLoggingOut
+                            ? const SizedBox(
+                                width: 21,
+                                height: 21,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Color(0xFFFF3347),
+                                ),
+                              )
+                            : const Icon(
+                                Icons.logout_rounded,
+                                color: Color(0xFFFF3347),
+                                size: 22,
+                              ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -2846,7 +3025,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
         children: [
           Expanded(child: _buildUrgentRequestCard()),
           const SizedBox(width: 16),
-          Expanded(child: _buildBrowseDoctorsCard()),
+          Expanded(child: _buildMyRequestsCard()),
         ],
       ),
     );
@@ -2854,7 +3033,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
 
   Widget _buildUrgentRequestCard() {
     return GestureDetector(
-      onTap: () {},
+      onTap: () => Navigator.pushNamed(context, '/m05/request'),
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
@@ -2912,9 +3091,9 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     );
   }
 
-  Widget _buildBrowseDoctorsCard() {
+  Widget _buildMyRequestsCard() {
     return GestureDetector(
-      onTap: () {},
+      onTap: () => Navigator.pushNamed(context, '/m05/requests'),
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
@@ -2939,14 +3118,14 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(
-                Icons.search,
+                Icons.receipt_long_outlined,
                 color: Color(0xFF1FBF9A),
                 size: 24,
               ),
             ),
             const SizedBox(height: 16),
             Text(
-              'Parcourir les\nMédecins',
+              'Mes\ndemandes',
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -2956,7 +3135,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Trouver un spécialiste',
+              'Suivre mes demandes de soins',
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
@@ -3325,49 +3504,67 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
 
   Widget _buildBottomNavigation() {
     return Container(
+      key: const ValueKey('home-bottom-navigation'),
       decoration: BoxDecoration(
         color: Colors.white,
+        border: const Border(top: BorderSide(color: Color(0xFFE1E7E5))),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 8,
-            offset: const Offset(0, -1),
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 14,
+            offset: const Offset(0, -4),
           ),
         ],
       ),
       child: SafeArea(
-        child: Container(
-          height: 65,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildNavItem(
-                icon: Icons.home_rounded,
-                label: 'Accueil',
-                index: 0,
-                hasNotification: false,
+        top: false,
+        child: SizedBox(
+          height: 72,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 720),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                child: Row(
+                  children: [
+                    _buildNavItem(
+                      icon: Icons.home_outlined,
+                      activeIcon: Icons.home_outlined,
+                      label: 'Accueil',
+                      index: 0,
+                      hasNotification: false,
+                    ),
+                    _buildNavItem(
+                      icon: Icons.favorite_border_rounded,
+                      activeIcon: Icons.favorite_rounded,
+                      label: 'Ma Santé',
+                      index: 1,
+                      hasNotification: false,
+                    ),
+                    _buildCenterNavItem(),
+                    _buildNavItem(
+                      iconAsset: 'assets/svg/medical_pass_grey.svg',
+                      activeIconAsset: 'assets/svg/medical_pass_green.svg',
+                      label: 'Dossier médical',
+                      index: 3,
+                      hasNotification: false,
+                      onTap: () =>
+                          Navigator.pushNamed(context, '/medical-documents'),
+                    ),
+                    _buildNavItem(
+                      icon: Icons.account_circle_outlined,
+                      activeIcon: Icons.account_circle_outlined,
+                      label: 'Profil',
+                      index: 4,
+                      hasNotification: false,
+                    ),
+                  ],
+                ),
               ),
-              _buildNavItem(
-                icon: Icons.person_rounded,
-                label: 'Profil',
-                index: 1,
-                hasNotification: false,
-              ),
-              _buildCenterNavItem(),
-              _buildNavItem(
-                icon: Icons.notifications_rounded,
-                label: 'Notifications',
-                index: 3,
-                hasNotification: true,
-              ),
-              _buildNavItem(
-                icon: Icons.history_rounded,
-                label: 'Historique',
-                index: 4,
-                hasNotification: false,
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -3376,6 +3573,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
 
   Widget _buildCenterNavItem() {
     return GestureDetector(
+      key: const ValueKey('patient-care-action'),
       onTap: () async {
         final familyProvider = Provider.of<FamilyProvider>(
           context,
@@ -3385,7 +3583,9 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
           await familyProvider.loadFamilyMembers();
         }
         if (!mounted) return;
-        Navigator.pushNamed(context, '/emergency-step0');
+        _patientContentNavigatorKey.currentState?.pushNamed(
+          '/provider-selection',
+        );
       },
       child: Container(
         width: 56,
@@ -3394,60 +3594,115 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
           gradient: const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFF1FBF9A), Color(0xFF0F6F73)],
+            colors: [Color(0xFF1FC6A5), Color(0xFF087C76)],
           ),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF1FBF9A).withOpacity(0.25),
+              color: const Color(0xFF0A8C80).withValues(alpha: 0.18),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
           ],
         ),
-        child: const Icon(
-          Icons.medical_services_rounded,
-          color: Colors.white,
-          size: 26,
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: SvgPicture.asset(
+            'assets/svg/omnicare_logo_white.svg',
+            fit: BoxFit.contain,
+            colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+            placeholderBuilder: (_) => _buildCenterLogoFallback(),
+            errorBuilder: (_, _, _) => _buildCenterLogoFallback(),
+          ),
         ),
       ),
     );
   }
 
   Widget _buildNavItem({
-    required IconData icon,
+    IconData? icon,
+    IconData? activeIcon,
+    String? iconAsset,
+    String? activeIconAsset,
     required String label,
     required int index,
     required bool hasNotification,
+    VoidCallback? onTap,
   }) {
+    assert(icon != null || iconAsset != null);
+    assert(activeIcon != null || activeIconAsset != null);
     final isSelected = _selectedIndex == index;
     return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
-        child: Container(
-          color: Colors.transparent,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Stack(
+      child: Semantics(
+        button: true,
+        selected: isSelected,
+        label: label,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap:
+              onTap ??
+              () {
+                if (index == 0) {
+                  _patientContentNavigatorKey.currentState?.popUntil(
+                    (route) => route.isFirst,
+                  );
+                }
+                setState(() => _selectedIndex = index);
+              },
+          child: Center(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? const Color(0xFFE8F8F3)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  Icon(
-                    icon,
-                    color: isSelected
-                        ? const Color(0xFF1FBF9A)
-                        : const Color(0xFF9CA3AF),
-                    size: 26,
+                  Center(
+                    child: AnimatedScale(
+                      duration: const Duration(milliseconds: 160),
+                      scale: isSelected ? 1.04 : 1,
+                      child: iconAsset != null
+                          ? SvgPicture.asset(
+                              isSelected
+                                  ? (activeIconAsset ?? iconAsset)
+                                  : iconAsset,
+                              width: 56,
+                              height: 56,
+                              fit: BoxFit.contain,
+                              placeholderBuilder: (_) => Icon(
+                                Icons.menu_book_outlined,
+                                color: isSelected
+                                    ? const Color(0xFF087A65)
+                                    : const Color(0xFFA8AAAD),
+                                size: 30,
+                              ),
+                              errorBuilder: (_, _, _) => Icon(
+                                Icons.menu_book_outlined,
+                                color: isSelected
+                                    ? const Color(0xFF087A65)
+                                    : const Color(0xFFA8AAAD),
+                                size: 30,
+                              ),
+                            )
+                          : Icon(
+                              isSelected ? activeIcon : icon,
+                              color: isSelected
+                                  ? const Color(0xFF087A65)
+                                  : const Color(0xFFA8AAAD),
+                              size: 32,
+                            ),
+                    ),
                   ),
                   if (hasNotification)
                     Positioned(
-                      right: -2,
-                      top: -2,
+                      right: 8,
+                      top: 6,
                       child: Container(
                         width: 8,
                         height: 8,
@@ -3460,24 +3715,17 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                     ),
                 ],
               ),
-              const SizedBox(height: 4),
-              Text(
-                label,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 10,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                  color: isSelected
-                      ? const Color(0xFF1FBF9A)
-                      : const Color(0xFF9CA3AF),
-                  letterSpacing: 0.1,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
+            ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildCenterLogoFallback() {
+    return ColorFiltered(
+      colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+      child: Image.asset('assets/images/app_logo.png', fit: BoxFit.contain),
     );
   }
 }

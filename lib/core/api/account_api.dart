@@ -4,7 +4,7 @@ import '../../features/auth/data/models/auth_dtos.dart';
 import '../network/api_exception.dart';
 import '../network/app_http_client.dart';
 import '../storage/secure_token_store.dart';
-import '../models/account_models.dart';
+import '../models/patient_profile.dart';
 
 class AccountApi {
   AccountApi({AppHttpClient? httpClient, Object? dio})
@@ -12,36 +12,16 @@ class AccountApi {
 
   final AppHttpClient _httpClient;
 
-  Future<AccountFullProfile> getFullProfile() async {
-    final profile = await getPatientProfile();
-    return AccountFullProfile(
-      user: AccountUser(
-        email: '',
-        name: profile.displayName,
-        role: 'PATIENT',
-        firstName: profile.firstName,
-        lastName: profile.lastName,
-        bloodGroup: profile.bloodType,
-        medicalInfo: {
-          'dateOfBirth': profile.dateOfBirth?.toIso8601String(),
-          'gender': profile.gender,
-          'heightCm': profile.heightCm,
-          'weightKg': profile.weightKg,
-          'bmi': profile.bmi,
-          'passportCompletion': profile.passportCompletion,
-          'onboardingCompleted': profile.onboardingCompleted,
-          'onboardingStep': profile.onboardingStep,
-          'preferredLanguage': profile.preferredLanguage,
-        },
-        avatar: profile.photoUrl,
-      ),
-      familyMembers: const [],
-      documents: const [],
+  Future<PatientProfile> getPatientProfile() {
+    return _getJson(
+      '/profile',
+      PatientProfile.fromJson,
+      queryParameters: const {'includeMedical': false},
     );
   }
 
-  Future<PatientProfileDto> getPatientProfile() {
-    return _getJson('/profile', PatientProfileDto.fromJson);
+  Future<PatientProfile> updateProfile(PatientProfileUpdate update) {
+    return _patchForJson('/profile', update.toJson(), PatientProfile.fromJson);
   }
 
   Future<OnboardingStepResponseDto> saveOnboardingStep(
@@ -70,22 +50,16 @@ class AccountApi {
     await _patchJson('/profile/passport', data);
   }
 
-  Future<void> patchProfilePicture({
-    required String profilePictureUrl,
-    String? profilePicturePublicId,
-  }) async {
-    await _patchJson('/profile', {
-      'photoUrl': profilePictureUrl,
-      'profilePicturePublicId': profilePicturePublicId,
-    });
-  }
-
   Future<T> _getJson<T>(
     String path,
-    T Function(Map<String, dynamic>) fromJson,
-  ) async {
+    T Function(Map<String, dynamic>) fromJson, {
+    Map<String, dynamic>? queryParameters,
+  }) async {
     try {
-      final response = await _httpClient.dio.get<dynamic>(path);
+      final response = await _httpClient.dio.get<dynamic>(
+        path,
+        queryParameters: queryParameters,
+      );
       return _parseJson(response.data, fromJson);
     } on DioException catch (e) {
       throw _mapDioException(e);
@@ -122,6 +96,25 @@ class AccountApi {
       await _httpClient.dio.patch<dynamic>(path, data: data);
     } on DioException catch (e) {
       throw _mapDioException(e);
+    }
+  }
+
+  Future<T> _patchForJson<T>(
+    String path,
+    Map<String, dynamic> data,
+    T Function(Map<String, dynamic>) fromJson,
+  ) async {
+    try {
+      final response = await _httpClient.dio.patch<dynamic>(path, data: data);
+      return _parseJson(response.data, fromJson);
+    } on DioException catch (e) {
+      throw _mapDioException(e);
+    } on FormatException catch (e) {
+      throw ApiException(
+        'Malformed server response.',
+        code: 'MALFORMED_RESPONSE',
+        cause: e,
+      );
     }
   }
 

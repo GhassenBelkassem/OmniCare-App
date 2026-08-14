@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/models/patient_profile.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/network/app_http_client.dart';
 import '../../../core/storage/secure_token_store.dart';
@@ -98,8 +99,8 @@ class AuthApi {
     return _postEmpty('/auth/password/change', request.toJson());
   }
 
-  Future<PatientProfileDto> getPatientProfile() {
-    return _getJson('/profile', PatientProfileDto.fromJson);
+  Future<PatientProfile> getPatientProfile() {
+    return _getJson('/profile?includeMedical=false', PatientProfile.fromJson);
   }
 
   Future<void> _postEmpty(

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../features/auth/data/models/auth_dtos.dart';
 import '../storage/secure_token_store.dart';
+import '../utils/uuid_v4.dart';
 
 class DeviceIdentity {
   final String deviceFingerprint;
@@ -77,17 +78,5 @@ class DeviceIdentityService {
     };
   }
 
-  String _generateUuidV4() {
-    final bytes = List<int>.generate(16, (_) => _randomByteGenerator(256));
-    bytes[6] = (bytes[6] & 0x0f) | 0x40;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-
-    String hex(int byte) => byte.toRadixString(16).padLeft(2, '0');
-    final value = bytes.map(hex).join();
-    return '${value.substring(0, 8)}-'
-        '${value.substring(8, 12)}-'
-        '${value.substring(12, 16)}-'
-        '${value.substring(16, 20)}-'
-        '${value.substring(20)}';
-  }
+  String _generateUuidV4() => generateUuidV4(nextByte: _randomByteGenerator);
 }
