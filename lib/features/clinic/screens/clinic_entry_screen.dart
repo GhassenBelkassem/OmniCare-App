@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../auth/application/auth_controller.dart';
 import '../application/clinic_context_controller.dart';
+import '../application/clinic_operational_controller.dart';
 import '../widgets/clinic_widgets.dart';
 import 'clinic_access_unavailable_screen.dart';
 import 'clinic_professional_home_screen.dart';
@@ -47,7 +48,20 @@ class _ClinicEntryScreenState extends State<ClinicEntryScreen>
     final auth = context.read<AuthController>();
     if (!auth.isAuthenticated) return;
     // Throttled inside the controller to avoid refresh storms.
-    context.read<ClinicContextController>().refreshOnResume();
+    _refreshOperationalViewsOnResume();
+  }
+
+  Future<void> _refreshOperationalViewsOnResume() async {
+    final clinic = context.read<ClinicContextController>();
+    await clinic.refreshOnResume();
+    if (!mounted) return;
+    if (clinic.bootstrap == null) {
+      context.read<ClinicOperationalController>().clear();
+      return;
+    }
+    final clinicId = clinic.selectedClinicId;
+    if (clinicId == null) return;
+    await context.read<ClinicOperationalController>().refreshLoaded(clinicId);
   }
 
   @override

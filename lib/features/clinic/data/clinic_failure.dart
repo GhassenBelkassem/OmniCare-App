@@ -24,6 +24,9 @@ enum ClinicFailureKind {
 
   /// Anything else, including server errors.
   unexpected,
+
+  /// A task changed between read and command submission.
+  concurrency,
 }
 
 /// A safe, user-presentable clinic failure.
@@ -208,11 +211,67 @@ class ClinicFailure {
           diagnosticCode: 'CLINIC_PROFESSIONAL_ROLE_INVALID',
         );
       case 'CLINIC_CAPABILITY_FORBIDDEN':
+      case 'CLINIC_TASK_HANDOVER_CAPABILITY_REQUIRED':
         return const ClinicFailure(
           kind: ClinicFailureKind.accessDenied,
           message: 'You do not have permission for this clinic action.',
           retryable: false,
           diagnosticCode: 'CLINIC_CAPABILITY_FORBIDDEN',
+        );
+      case 'CLINIC_TASK_VERSION_CONFLICT':
+      case 'CLINIC_VERSION_CONFLICT':
+      case 'CLINIC_CASE_VERSION_CONFLICT':
+        return const ClinicFailure(
+          kind: ClinicFailureKind.concurrency,
+          message:
+              'This changed while you were viewing it. The latest information has been loaded.',
+          retryable: false,
+          diagnosticCode: 'CLINIC_VERSION_CONFLICT',
+        );
+      case 'CLINIC_TASK_ACKNOWLEDGEMENT_INVALID':
+        return const ClinicFailure(
+          kind: ClinicFailureKind.concurrency,
+          message:
+              'This task changed while you were viewing it. The latest information has been loaded.',
+          retryable: false,
+          diagnosticCode: 'CLINIC_TASK_ACKNOWLEDGEMENT_INVALID',
+        );
+      case 'CLINIC_TASK_NOT_FOUND':
+      case 'CLINIC_TASK_VISIBILITY_FORBIDDEN':
+      case 'CLINIC_TASK_NOT_OWNER':
+      case 'CLINIC_TASK_HANDOVER_NOT_FOUND':
+        return const ClinicFailure(
+          kind: ClinicFailureKind.clinicUnavailable,
+          message: 'This task is not available right now.',
+          retryable: false,
+          diagnosticCode: 'CLINIC_TASK_UNAVAILABLE',
+        );
+      case 'CLINIC_TASK_HANDOVER_INVALID':
+        return const ClinicFailure(
+          kind: ClinicFailureKind.concurrency,
+          message:
+              'This handover changed while you were viewing it. The latest information has been loaded.',
+          retryable: false,
+          diagnosticCode: 'CLINIC_TASK_HANDOVER_INVALID',
+        );
+      case 'CLINIC_TASK_NOT_IN_PROGRESS':
+      case 'CLINIC_TASK_NOT_BLOCKED':
+      case 'CLINIC_TASK_BLOCK_REASON_NOT_GENERIC':
+      case 'CLINIC_TASK_GENERIC_COMPLETE_ADMINISTRATIVE_REVIEW':
+      case 'CLINIC_CASE_TRANSITION_INVALID':
+        return const ClinicFailure(
+          kind: ClinicFailureKind.concurrency,
+          message:
+              'This changed while you were viewing it. The latest information has been loaded.',
+          retryable: false,
+          diagnosticCode: 'CLINIC_COMMAND_STATE_CHANGED',
+        );
+      case 'CLINIC_CASE_NOT_FOUND':
+        return const ClinicFailure(
+          kind: ClinicFailureKind.clinicUnavailable,
+          message: 'This case is not available right now.',
+          retryable: false,
+          diagnosticCode: 'CLINIC_CASE_UNAVAILABLE',
         );
       default:
         return null;

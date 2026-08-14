@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../home/patient_care_destinations.dart';
+
 class ProviderSelectionScreen extends StatelessWidget {
   const ProviderSelectionScreen({super.key});
 
@@ -42,54 +44,29 @@ class ProviderSelectionScreen extends StatelessWidget {
               ),
               const SizedBox(height: 32),
 
-              _buildProviderCard(
-                context: context,
-                title: 'Médecin',
-                subtitle: 'Demander un médecin pour consultation',
-                icon: Icons.medical_services,
-                color: const Color(0xFF1FBF9A),
-                onTap: () {
-                  Navigator.pushNamed(
-                    context,
-                    '/emergency-step0',
-                    arguments: {'providerType': 'doctor'},
-                  );
-                },
+              Expanded(
+                child: ListView.separated(
+                  itemCount: patientCareDestinations.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 16),
+                  itemBuilder: (context, index) {
+                    final destination = patientCareDestinations[index];
+                    return _buildProviderCard(
+                      context: context,
+                      title: destination.label,
+                      subtitle: destination.subtitle,
+                      icon: destination.icon,
+                      color: destination.color,
+                      onTap: () => Navigator.pushNamed(
+                        context,
+                        destination.route,
+                        arguments: destination.isClinic
+                            ? null
+                            : {'providerType': destination.type.name},
+                      ),
+                    );
+                  },
+                ),
               ),
-              const SizedBox(height: 16),
-
-              _buildProviderCard(
-                context: context,
-                title: 'Infirmier',
-                subtitle: 'Demander un infirmier pour consultation',
-                icon: Icons.vaccines,
-                color: const Color(0xFF8B5CF6),
-                onTap: () {
-                  Navigator.pushNamed(
-                    context,
-                    '/emergency-step0',
-                    arguments: {'providerType': 'nurse'},
-                  );
-                },
-              ),
-              const SizedBox(height: 16),
-
-              _buildProviderCard(
-                context: context,
-                title: 'Kinésithérapeute',
-                subtitle: 'Demander un kinésithérapeute pour\nconsultation',
-                icon: Icons.accessibility_new,
-                color: const Color(0xFFF59E0B),
-                onTap: () {
-                  Navigator.pushNamed(
-                    context,
-                    '/emergency-step0',
-                    arguments: {'providerType': 'kine'},
-                  );
-                },
-              ),
-
-              const Spacer(),
 
               Text(
                 'Plus de professionnels arrivent bientôt',
@@ -125,7 +102,7 @@ class ProviderSelectionScreen extends StatelessWidget {
           border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -137,7 +114,7 @@ class ProviderSelectionScreen extends StatelessWidget {
               width: 64,
               height: 64,
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Icon(icon, color: color, size: 32),
@@ -199,7 +176,7 @@ class ProviderSelectionScreen extends StatelessWidget {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(Icons.arrow_forward, color: color, size: 20),

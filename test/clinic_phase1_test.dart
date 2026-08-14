@@ -96,6 +96,168 @@ class FakeClinicRepository implements ClinicRepository {
     if (bootstrap == null) throw ClinicFailure.invalidResponse;
     return bootstrap;
   }
+
+  @override
+  Future<ClinicSlice<ClinicTaskSummary>> loadPositionQueue(
+    String clinicId, {
+    int page = 0,
+    int pageSize = 20,
+    CancelToken? cancelToken,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<ClinicSlice<ClinicTaskSummary>> loadMyTasks(
+    String clinicId, {
+    int page = 0,
+    int pageSize = 20,
+    CancelToken? cancelToken,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<ClinicTaskDetail> loadTaskDetail(
+    String clinicId,
+    String taskId, {
+    CancelToken? cancelToken,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<ClinicTaskDetail> acknowledgeTask(
+    String clinicId,
+    String taskId, {
+    required int expectedVersion,
+    CancelToken? cancelToken,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<ClinicTaskDetail> startTask(
+    String clinicId,
+    String taskId, {
+    required int expectedVersion,
+    CancelToken? cancelToken,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<ClinicTaskDetail> blockTask(
+    String clinicId,
+    String taskId, {
+    required ClinicTaskBlockedReason reason,
+    required int expectedVersion,
+    CancelToken? cancelToken,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<ClinicTaskDetail> unblockTask(
+    String clinicId,
+    String taskId, {
+    required int expectedVersion,
+    CancelToken? cancelToken,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<ClinicTaskDetail> completeTask(
+    String clinicId,
+    String taskId, {
+    required int expectedVersion,
+    CancelToken? cancelToken,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<ClinicSlice<ClinicHandoverTarget>> loadHandoverTargets(
+    String clinicId,
+    String taskId, {
+    int page = 0,
+    int pageSize = 20,
+    CancelToken? cancelToken,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<ClinicHandoverSummary> initiateHandover(
+    String clinicId,
+    String taskId, {
+    required String toMembershipId,
+    required ClinicHandoverReason reason,
+    required int expectedTaskVersion,
+    CancelToken? cancelToken,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<ClinicHandoverSummary> loadHandoverDetail(
+    String clinicId,
+    String handoverId, {
+    CancelToken? cancelToken,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<ClinicHandoverSummary> acceptHandover(
+    String clinicId,
+    String handoverId, {
+    CancelToken? cancelToken,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<ClinicHandoverSummary> declineHandover(
+    String clinicId,
+    String handoverId, {
+    CancelToken? cancelToken,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<ClinicHandoverSummary> cancelHandover(
+    String clinicId,
+    String handoverId, {
+    CancelToken? cancelToken,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<ClinicCaseDetail> loadCaseDetail(
+    String clinicId,
+    String caseId, {
+    CancelToken? cancelToken,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<ClinicCaseDetail> startReview(
+    String clinicId,
+    String caseId, {
+    required int expectedVersion,
+    CancelToken? cancelToken,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<ClinicCaseDetail> requestInformation(
+    String clinicId,
+    String caseId, {
+    required int expectedVersion,
+    required ClinicInformationRequestReason reason,
+    String? patientInstruction,
+    CancelToken? cancelToken,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<ClinicCaseDetail> readyForPlanning(
+    String clinicId,
+    String caseId, {
+    required int expectedVersion,
+    CancelToken? cancelToken,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<ClinicCaseDetail> declineCase(
+    String clinicId,
+    String caseId, {
+    required int expectedVersion,
+    required ClinicCaseDeclineReason reason,
+    CancelToken? cancelToken,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<ClinicSlice<ClinicHandoverSummary>> loadHandovers(
+    String clinicId, {
+    required bool incoming,
+    int page = 0,
+    int pageSize = 20,
+    CancelToken? cancelToken,
+  }) => throw UnimplementedError();
 }
 
 class FakeAuthRepository implements AuthRepositoryContract {
@@ -153,6 +315,7 @@ ClinicBootstrap _bootstrap({
   required String clinicId,
   String role = 'CLINIC_MEDECIN',
   String? clinicName,
+  List<String>? capabilities,
 }) {
   return ClinicBootstrap.fromJson({
     'contractVersion': '1.0',
@@ -167,11 +330,19 @@ ClinicBootstrap _bootstrap({
       'professionalRole': role,
       'version': 1,
     },
-    'capabilities': [
-      'CLINIC_OVERVIEW_READ',
-      'CLINIC_PROFILE_READ',
-      'CLINIC_MEMBERSHIP_SELF_READ',
-    ],
+    'capabilities':
+        capabilities ??
+        [
+          'CLINIC_OVERVIEW_READ',
+          'CLINIC_PROFILE_READ',
+          'CLINIC_MEMBERSHIP_SELF_READ',
+          if (role == 'CLINIC_MEDECIN' ||
+              role == 'CLINIC_INFIRMIERE' ||
+              role == 'CLINIC_KINE') ...[
+            'CLINIC_TASK_READ',
+            'CLINIC_TASK_HANDOVER',
+          ],
+        ],
     'featureFlags': {
       'CLINIC_REQUESTS_ENABLED': false,
       'CLINIC_HOSPITALIZATION_ENABLED': false,
@@ -527,6 +698,39 @@ void main() {
         expect(controller.bootstrap!.hasAnyEnabledModule, isFalse);
       }
     });
+
+    test(
+      'mobile workspace availability follows capabilities, not role name',
+      () async {
+        final repository = FakeClinicRepository()
+          ..directory = _directory(
+            active: [
+              _membershipJson(clinicId: 'clinic-a', role: 'CLINIC_MEDECIN'),
+            ],
+          )
+          ..bootstraps['clinic-a'] = _bootstrap(
+            clinicId: 'clinic-a',
+            role: 'CLINIC_MEDECIN',
+            capabilities: const [
+              'CLINIC_OVERVIEW_READ',
+              'CLINIC_PROFILE_READ',
+              'CLINIC_MEMBERSHIP_SELF_READ',
+            ],
+          );
+
+        final controller = _controller(
+          repository,
+          ClinicSelectionStore(backend: FakeSecureBackend()),
+        );
+
+        await controller.initializeForAuthenticatedUser(
+          globalRole: 'CLINIC_MEDECIN',
+        );
+
+        expect(controller.destination, ClinicDestination.webWorkspace);
+        expect(controller.bootstrap!.canReadTasks, isFalse);
+      },
+    );
 
     testWidgets('landing screens render without enabled future modules', (
       tester,

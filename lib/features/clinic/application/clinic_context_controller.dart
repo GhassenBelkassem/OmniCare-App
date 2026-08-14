@@ -85,10 +85,10 @@ class ClinicContextController extends ChangeNotifier {
 
     final bootstrap = _bootstrap;
     if (bootstrap != null) {
-      final role = bootstrap.membership.professionalRole;
-      if (role.isMobileOperational) return ClinicDestination.professionalHome;
-      if (role.isWebFirst) return ClinicDestination.webWorkspace;
-      return ClinicDestination.accessUnavailable;
+      // Backend capabilities, not role names, decide whether the operational
+      // mobile workspace is available. The role remains identity context only.
+      if (bootstrap.canReadTasks) return ClinicDestination.professionalHome;
+      return ClinicDestination.webWorkspace;
     }
 
     if (_loading || !_initialized) return ClinicDestination.loading;

@@ -32,8 +32,8 @@ class ClinicWebWorkspaceScreen extends StatelessWidget {
     return ClinicPageScaffold(
       title: bootstrap.clinic.clinicName,
       subtitle:
-          'Your ${membership.professionalRole.label.toLowerCase()} workspace '
-          'is on the OmniCare web portal.',
+          'The mobile operational workspace is not enabled for this clinic '
+          'access. Administrative work remains on the OmniCare web portal.',
       leading: Container(
         width: 44,
         height: 44,
@@ -89,9 +89,9 @@ class ClinicWebWorkspaceScreen extends StatelessWidget {
               const ClinicSectionTitle('Where to work'),
               const SizedBox(height: 10),
               Text(
-                'Clinic coordination and configuration are handled in the '
-                'OmniCare web portal. Sign in there on a computer to manage '
-                'your clinic.',
+                'Your current backend capabilities do not include the mobile '
+                'task workspace. Clinic administration and configuration are '
+                'handled in the OmniCare web portal.',
                 style: clinicTextStyle(
                   fontSize: 13,
                   color: ClinicPalette.textSecondary,
@@ -100,8 +100,8 @@ class ClinicWebWorkspaceScreen extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               Text(
-                'This mobile app confirms your clinic identity only. No '
-                'administrative action is available here.',
+                'This mobile app does not expose administrative Clinic '
+                'configuration or task commands in this release.',
                 style: clinicTextStyle(
                   fontSize: 13,
                   color: ClinicPalette.textSecondary,

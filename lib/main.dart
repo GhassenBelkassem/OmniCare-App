@@ -45,9 +45,25 @@ import 'core/storage/secure_token_store.dart';
 import 'features/auth/application/auth_controller.dart';
 import 'features/auth/application/auth_flow_models.dart';
 import 'features/clinic/application/clinic_context_controller.dart';
+import 'features/clinic/application/clinic_operational_controller.dart';
 import 'features/clinic/clinic_routes.dart';
 import 'features/clinic/data/clinic_api.dart';
 import 'features/clinic/data/clinic_repository.dart';
+import 'features/request_core/application/request_submission_controller.dart';
+import 'features/request_core/data/request_api.dart';
+import 'features/request_core/data/request_repository.dart';
+import 'features/patient_clinic/application/patient_clinic_directory_controller.dart';
+import 'features/patient_clinic/data/patient_clinic_api.dart';
+import 'features/patient_clinic/data/patient_clinic_repository.dart';
+import 'features/patient_clinic/presentation/clinic_directory_screen.dart';
+import 'features/request_flow/screens/request_flow_entry_screen.dart';
+import 'features/request_flow/screens/who_needs_care_screen.dart';
+import 'features/request_flow/screens/situation_screen.dart';
+import 'features/request_flow/screens/pickup_screen.dart';
+import 'features/request_flow/screens/review_screen.dart';
+import 'features/request_flow/screens/request_received_screen.dart';
+import 'features/request_history/application/patient_requests_controller.dart';
+import 'features/request_history/presentation/my_requests_screen.dart';
 import 'core/api/account_api.dart';
 import 'core/api/files_api.dart';
 import 'core/api/family_api.dart';
@@ -106,6 +122,7 @@ class OmniCareApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final resolvedHttpClient =
         httpClient ?? AppHttpClient(tokenStore: SecureTokenStore());
+    final clinicRepository = ClinicRepository(ClinicApi(resolvedHttpClient));
     return MultiProvider(
       providers: [
         ChangeNotifierProvider<AuthController>.value(value: authController),
@@ -137,8 +154,32 @@ class OmniCareApp extends StatelessWidget {
           value: appLockService ?? AppLockService(),
         ),
         ChangeNotifierProvider(
-          create: (_) => ClinicContextController(
-            repository: ClinicRepository(ClinicApi(resolvedHttpClient)),
+          create: (_) => ClinicContextController(repository: clinicRepository),
+        ),
+        ChangeNotifierProvider(
+          create: (_) =>
+              ClinicOperationalController(repository: clinicRepository),
+        ),
+        // Module 05 request core. It receives the same shared AppHttpClient as
+        // every other provider here, so it joins the one auth interceptor and
+        // the one refresh coordinator instead of starting a second pipeline.
+        ChangeNotifierProvider(
+          create: (_) => RequestSubmissionController(
+            repository: RequestRepository(RequestApi(resolvedHttpClient)),
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => PatientRequestsController(
+            repository: RequestRepository(RequestApi(resolvedHttpClient)),
+          ),
+        ),
+        // Real patient clinic directory. Same shared client; the controller
+        // owns debounced, cancel-safe search and backend Slice pagination.
+        ChangeNotifierProvider(
+          create: (_) => PatientClinicDirectoryController(
+            repository: PatientClinicRepository(
+              PatientClinicApi(resolvedHttpClient),
+            ),
           ),
         ),
         ChangeNotifierProvider(create: (_) => ReservationProvider()),
@@ -214,6 +255,15 @@ class OmniCareApp extends StatelessWidget {
                   const ProviderSelectionScreen(),
               '/clinic-request': (context) => const ClinicRequestScreen(),
               '/notifications': (context) => const NotificationsScreen(),
+              '/m05/request': (context) => const RequestFlowEntryScreen(),
+              '/m05/who-needs-care': (context) => const WhoNeedsCareScreen(),
+              '/m05/clinic-directory': (context) =>
+                  const ClinicDirectoryScreen(),
+              '/m05/situation': (context) => const SituationScreen(),
+              '/m05/pickup': (context) => const PickupScreen(),
+              '/m05/review': (context) => const ReviewScreen(),
+              '/m05/received': (context) => const RequestReceivedScreen(),
+              '/m05/requests': (context) => const MyRequestsScreen(),
               ...ClinicRoutes.builders(),
             },
             onGenerateRoute: (settings) {
@@ -371,6 +421,12 @@ class _AuthStateListenerState extends State<_AuthStateListener> {
         context.read<FamilyProvider>().clear();
         // Clinic context is scoped to the authenticated session.
         await context.read<ClinicContextController>().clear();
+        if (!context.mounted) return;
+        context.read<ClinicOperationalController>().clear();
+        if (!context.mounted) return;
+        // A patient's in-flight care request, its operation id and its
+        // persisted retry record must not survive into the next session.
+        await context.read<RequestSubmissionController>().clear();
         if (!context.mounted) return;
         if (stayOnPublicSecurityRoute) return;
         AppNav.navigatorKey.currentState?.pushNamedAndRemoveUntil(

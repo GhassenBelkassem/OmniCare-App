@@ -6,12 +6,8 @@ import '../application/clinic_context_controller.dart';
 import '../data/clinic_models.dart';
 import '../widgets/clinic_widgets.dart';
 
-/// Phase 1 landing screen for operational mobile clinic roles
-/// (`CLINIC_MEDECIN`, `CLINIC_INFIRMIERE`, `CLINIC_KINE`).
-///
-/// It only shows the authenticated clinic context. No patients, tasks, alerts,
-/// statistics or medical content are invented here, and every future module is
-/// rendered as unavailable because all Phase 1 feature flags are false.
+/// Lightweight operational landing surface for any active Clinic membership
+/// whose backend bootstrap grants task-read capability.
 class ClinicProfessionalHomeScreen extends StatelessWidget {
   const ClinicProfessionalHomeScreen({super.key});
 
@@ -29,11 +25,13 @@ class ClinicProfessionalHomeScreen extends StatelessWidget {
     }
 
     final membership = bootstrap.membership;
-    final capabilities = bootstrap.capabilities;
+    final canReadTasks = bootstrap.canReadTasks;
+    final canReadHandovers = bootstrap.canReadHandovers;
 
     return ClinicPageScaffold(
-      title: bootstrap.clinic.clinicName,
-      subtitle: 'Signed in as ${membership.professionalRole.label}.',
+      title: 'Clinic work',
+      subtitle:
+          '${bootstrap.clinic.clinicName} · ${membership.professionalRole.label}',
       children: [
         ClinicCard(
           child: Column(
@@ -41,7 +39,9 @@ class ClinicProfessionalHomeScreen extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  const Expanded(child: ClinicSectionTitle('Clinic')),
+                  const Expanded(
+                    child: ClinicSectionTitle('What needs your attention?'),
+                  ),
                   ClinicStatusChip(
                     label: bootstrap.clinic.clinicStatus.label,
                     active: bootstrap.clinic.clinicStatus.isActive,
@@ -49,90 +49,61 @@ class ClinicProfessionalHomeScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 6),
-              ClinicInfoRow(
-                label: 'Clinic name',
-                value: bootstrap.clinic.clinicName,
+              Text(
+                'Open the work list that needs action. Counts are not shown unless the backend provides them.',
+                style: clinicTextStyle(
+                  fontSize: 13,
+                  color: ClinicPalette.textSecondary,
+                  height: 1.45,
+                ),
               ),
-              ClinicInfoRow(
-                label: 'Clinic status',
-                value: bootstrap.clinic.clinicStatus.label,
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        ClinicCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const ClinicSectionTitle('My membership'),
-              const SizedBox(height: 6),
+              const SizedBox(height: 10),
               ClinicInfoRow(
                 label: 'Professional role',
                 value: membership.professionalRole.label,
               ),
-              ClinicInfoRow(
-                label: 'Membership status',
-                value: membership.membershipStatus.label,
-              ),
-              ClinicInfoRow(
-                label: 'Membership version',
-                value: membership.version.toString(),
-              ),
             ],
           ),
         ),
+        const SizedBox(height: 12),
+        if (canReadTasks) ...[
+          _ClinicWorkspaceLink(
+            icon: Icons.inbox_outlined,
+            title: 'Position queue',
+            subtitle: 'Work waiting in a position you can cover.',
+            onTap: () => Navigator.of(context).pushNamed('/clinic/queue'),
+          ),
+          const SizedBox(height: 10),
+          _ClinicWorkspaceLink(
+            icon: Icons.assignment_outlined,
+            title: 'My tasks',
+            subtitle: 'Active work currently assigned to you.',
+            onTap: () => Navigator.of(context).pushNamed('/clinic/tasks'),
+          ),
+        ],
+        if (canReadHandovers) ...[
+          const SizedBox(height: 10),
+          _ClinicWorkspaceLink(
+            icon: Icons.swap_horiz_outlined,
+            title: 'Handovers',
+            subtitle: 'Incoming requests and outgoing pending handovers.',
+            onTap: () => Navigator.of(context).pushNamed('/clinic/handovers'),
+          ),
+        ],
+        if (!canReadTasks)
+          const ClinicCard(
+            child: Text(
+              'Operational work is not enabled for this clinic membership.',
+            ),
+          ),
         const SizedBox(height: 12),
         ClinicCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const ClinicSectionTitle(
-                'Access',
-                subtitle: 'Read-only access granted for this clinic.',
-              ),
-              const SizedBox(height: 10),
-              if (capabilities.isEmpty)
-                Text(
-                  'No read access is granted for this clinic yet.',
-                  style: clinicTextStyle(
-                    fontSize: 13,
-                    color: ClinicPalette.textSecondary,
-                  ),
-                )
-              else
-                ...capabilities.map(
-                  (capability) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.visibility_outlined,
-                          size: 16,
-                          color: ClinicPalette.primary,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            capability.label,
-                            style: clinicTextStyle(fontSize: 13),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        ClinicCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const ClinicSectionTitle(
-                'Clinic modules',
-                subtitle: 'These modules are not part of this release.',
+                'Other Clinic modules',
+                subtitle: 'Not part of this mobile foundation release.',
               ),
               const SizedBox(height: 10),
               ...ClinicFeatureModule.values.map(
@@ -167,6 +138,82 @@ class ClinicProfessionalHomeScreen extends StatelessWidget {
           onPressed: () => context.read<AuthController>().logout(),
         ),
       ],
+    );
+  }
+}
+
+class _ClinicWorkspaceLink extends StatelessWidget {
+  const _ClinicWorkspaceLink({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: '$title. $subtitle',
+      child: Material(
+        color: ClinicPalette.surface,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 76),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: ClinicPalette.border),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: ClinicPalette.primarySoft,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: ClinicPalette.primary),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: clinicTextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        subtitle,
+                        style: clinicTextStyle(
+                          fontSize: 12,
+                          color: ClinicPalette.textSecondary,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right, color: ClinicPalette.textMuted),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

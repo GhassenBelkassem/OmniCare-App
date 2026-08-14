@@ -24,6 +24,15 @@ import '../profile/patient_profile_screen.dart';
 import '../security/account_security_screen.dart';
 import '../security/device_management_screen.dart';
 import '../security/login_history_screen.dart';
+import '../request/provider_selection_screen.dart';
+import '../request_flow/screens/request_flow_entry_screen.dart';
+import '../request_flow/screens/who_needs_care_screen.dart';
+import '../request_flow/screens/situation_screen.dart';
+import '../request_flow/screens/pickup_screen.dart';
+import '../request_flow/screens/review_screen.dart';
+import '../request_flow/screens/request_received_screen.dart';
+import '../patient_clinic/presentation/clinic_directory_screen.dart';
+import '../request_history/presentation/my_requests_screen.dart';
 
 class NewHomeScreen extends StatefulWidget {
   const NewHomeScreen({super.key});
@@ -34,6 +43,8 @@ class NewHomeScreen extends StatefulWidget {
 
 class _NewHomeScreenState extends State<NewHomeScreen> {
   int _selectedIndex = 0;
+  final GlobalKey<NavigatorState> _patientContentNavigatorKey =
+      GlobalKey<NavigatorState>();
 
   bool _isLoggingOut = false;
   final _filePickerService = FilePickerService();
@@ -254,7 +265,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
   Widget _getSelectedTabContent(String userName) {
     switch (_selectedIndex) {
       case 0:
-        return _buildHomeTab(userName);
+        return _buildPatientContentNavigator(userName);
       case 1:
         return _buildHealthTab();
       case 3:
@@ -264,6 +275,29 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
       default:
         return _buildHomeTab(userName);
     }
+  }
+
+  Widget _buildPatientContentNavigator(String userName) {
+    return Navigator(
+      key: _patientContentNavigatorKey,
+      initialRoute: '/patient-home',
+      onGenerateRoute: (settings) {
+        final page = switch (settings.name) {
+          '/patient-home' => _buildHomeTab(userName),
+          '/provider-selection' => const ProviderSelectionScreen(),
+          '/m05/request' => const RequestFlowEntryScreen(),
+          '/m05/who-needs-care' => const WhoNeedsCareScreen(),
+          '/m05/clinic-directory' => const ClinicDirectoryScreen(),
+          '/m05/situation' => const SituationScreen(),
+          '/m05/pickup' => const PickupScreen(),
+          '/m05/review' => const ReviewScreen(),
+          '/m05/received' => const RequestReceivedScreen(),
+          '/m05/requests' => const MyRequestsScreen(),
+          _ => _buildHomeTab(userName),
+        };
+        return MaterialPageRoute(builder: (_) => page, settings: settings);
+      },
+    );
   }
 
   Widget _buildHomeTab(String userName) {
@@ -2745,6 +2779,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
 
   Widget _buildStickyHeader(String userName) {
     return ClipRect(
+      key: const ValueKey('patient-top-bar'),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
         child: Container(
@@ -2990,7 +3025,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
         children: [
           Expanded(child: _buildUrgentRequestCard()),
           const SizedBox(width: 16),
-          Expanded(child: _buildBrowseDoctorsCard()),
+          Expanded(child: _buildMyRequestsCard()),
         ],
       ),
     );
@@ -2998,7 +3033,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
 
   Widget _buildUrgentRequestCard() {
     return GestureDetector(
-      onTap: () {},
+      onTap: () => Navigator.pushNamed(context, '/m05/request'),
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
@@ -3056,9 +3091,9 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     );
   }
 
-  Widget _buildBrowseDoctorsCard() {
+  Widget _buildMyRequestsCard() {
     return GestureDetector(
-      onTap: () {},
+      onTap: () => Navigator.pushNamed(context, '/m05/requests'),
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
@@ -3083,14 +3118,14 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(
-                Icons.search,
+                Icons.receipt_long_outlined,
                 color: Color(0xFF1FBF9A),
                 size: 24,
               ),
             ),
             const SizedBox(height: 16),
             Text(
-              'Parcourir les\nMédecins',
+              'Mes\ndemandes',
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -3100,7 +3135,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Trouver un spécialiste',
+              'Suivre mes demandes de soins',
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
@@ -3538,6 +3573,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
 
   Widget _buildCenterNavItem() {
     return GestureDetector(
+      key: const ValueKey('patient-care-action'),
       onTap: () async {
         final familyProvider = Provider.of<FamilyProvider>(
           context,
@@ -3547,7 +3583,9 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
           await familyProvider.loadFamilyMembers();
         }
         if (!mounted) return;
-        Navigator.pushNamed(context, '/provider-selection');
+        _patientContentNavigatorKey.currentState?.pushNamed(
+          '/provider-selection',
+        );
       },
       child: Container(
         width: 56,
@@ -3601,7 +3639,16 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
         label: label,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: onTap ?? () => setState(() => _selectedIndex = index),
+          onTap:
+              onTap ??
+              () {
+                if (index == 0) {
+                  _patientContentNavigatorKey.currentState?.popUntil(
+                    (route) => route.isFirst,
+                  );
+                }
+                setState(() => _selectedIndex = index);
+              },
           child: Center(
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 180),
