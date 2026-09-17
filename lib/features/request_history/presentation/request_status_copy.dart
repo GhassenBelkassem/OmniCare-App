@@ -1,74 +1,128 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/theme/omni_theme.dart';
 import '../../request_core/domain/request_vocabulary.dart';
 
 class RequestStatusCopy {
-  const RequestStatusCopy(this.label, this.description, this.icon);
+  const RequestStatusCopy({
+    required this.label,
+    required this.description,
+    required this.icon,
+    required this.accent,
+    required this.softBackground,
+    required this.actionMessage,
+  });
+
   final String label;
   final String description;
   final IconData icon;
+
+  /// Semantic accent color for status-specific treatment (icon tint, pill bg).
+  final Color accent;
+
+  /// Soft tinted background for the status card.
+  final Color softBackground;
+
+  /// Patient-facing action/state message below the description.
+  final String actionMessage;
+
   static RequestStatusCopy of(PatientRequestStatus status) => switch (status) {
     PatientRequestStatus.requestReceived => const RequestStatusCopy(
-      'Request received',
-      'The clinic has received your request.',
-      Icons.mark_email_read_outlined,
+      label: 'Request received',
+      description:
+          'The clinic has received your request and will review it shortly.',
+      icon: Icons.mark_email_read_outlined,
+      accent: OmniColors.infoBlue,
+      softBackground: OmniColors.infoBlueSoft,
+      actionMessage: 'No action needed right now',
     ),
     PatientRequestStatus.underReview => const RequestStatusCopy(
-      'Under review',
-      'The clinic is reviewing your request.',
-      Icons.hourglass_top_outlined,
+      label: 'Under review',
+      description:
+          'The clinic has received your request and will review it shortly.',
+      icon: Icons.hourglass_top_outlined,
+      accent: OmniColors.infoBlue,
+      softBackground: OmniColors.infoBlueSoft,
+      actionMessage: 'No action needed right now',
     ),
     PatientRequestStatus.informationRequired => const RequestStatusCopy(
-      'More information needed',
-      'The clinic needs more information before continuing.',
-      Icons.info_outline,
+      label: 'More information needed',
+      description: 'The clinic needs more information before continuing.',
+      icon: Icons.info_outline,
+      accent: OmniColors.amber,
+      softBackground: OmniColors.amberSoft,
+      actionMessage: 'Your response is needed',
     ),
     PatientRequestStatus.schedulingInProgress => const RequestStatusCopy(
-      'Scheduling',
-      'The clinic is arranging the next step.',
-      Icons.event_outlined,
+      label: 'Scheduling',
+      description: 'The clinic is arranging the next step.',
+      icon: Icons.event_outlined,
+      accent: OmniColors.clinicalCyan,
+      softBackground: OmniColors.clinicalCyanSoft,
+      actionMessage: 'The clinic is arranging the next step',
     ),
     PatientRequestStatus.waitingForConfirmation => const RequestStatusCopy(
-      'Waiting for confirmation',
-      'The clinic is waiting for your confirmation.',
-      Icons.pending_actions_outlined,
+      label: 'Waiting for confirmation',
+      description: 'The clinic is waiting for your confirmation.',
+      icon: Icons.pending_actions_outlined,
+      accent: OmniColors.amber,
+      softBackground: OmniColors.amberSoft,
+      actionMessage: 'Your confirmation is needed',
     ),
     PatientRequestStatus.confirmed => const RequestStatusCopy(
-      'Confirmed',
-      'Your request has been confirmed.',
-      Icons.check_circle_outline,
+      label: 'Confirmed',
+      description: 'Your request has been confirmed.',
+      icon: Icons.check_circle_outline,
+      accent: OmniColors.freshMint,
+      softBackground: OmniColors.mintSoft,
+      actionMessage: 'Your request is confirmed',
     ),
     PatientRequestStatus.careInProgress => const RequestStatusCopy(
-      'Care in progress',
-      'Your care is currently in progress.',
-      Icons.medical_services_outlined,
+      label: 'Care in progress',
+      description: 'Your care is currently in progress.',
+      icon: Icons.medical_services_outlined,
+      accent: OmniColors.clinicalCyan,
+      softBackground: OmniColors.clinicalCyanSoft,
+      actionMessage: 'Care is in progress',
     ),
     PatientRequestStatus.completed => const RequestStatusCopy(
-      'Completed',
-      'This request has been completed.',
-      Icons.task_alt_outlined,
+      label: 'Completed',
+      description: 'This request has been completed.',
+      icon: Icons.task_alt_outlined,
+      accent: OmniColors.freshMint,
+      softBackground: OmniColors.mintSoft,
+      actionMessage: 'Request completed',
     ),
     PatientRequestStatus.declined => const RequestStatusCopy(
-      'Request declined',
-      'The clinic could not proceed with this request.',
-      Icons.cancel_outlined,
+      label: 'Request declined',
+      description: 'The clinic could not proceed with this request.',
+      icon: Icons.cancel_outlined,
+      accent: OmniColors.urgentCoral,
+      softBackground: OmniColors.urgentCoralSoft,
+      actionMessage: 'Request ended',
     ),
     PatientRequestStatus.cancelled => const RequestStatusCopy(
-      'Cancelled',
-      'This request has been cancelled.',
-      Icons.do_not_disturb_on_outlined,
+      label: 'Cancelled',
+      description: 'This request has been cancelled.',
+      icon: Icons.do_not_disturb_on_outlined,
+      accent: OmniColors.slateBlue,
+      softBackground: OmniColors.slateSoft,
+      actionMessage: 'Request cancelled',
     ),
     PatientRequestStatus.unknown => const RequestStatusCopy(
-      'Status updated',
-      'Check back for the latest request update.',
-      Icons.info_outline,
+      label: 'Status updated',
+      description: 'Check back for the latest request update.',
+      icon: Icons.info_outline,
+      accent: OmniColors.slateBlue,
+      softBackground: OmniColors.slateSoft,
+      actionMessage: 'Refresh for the latest status',
     ),
   };
 }
 
 String situationLabel(RequestSituation situation) => switch (situation) {
-  RequestSituation.appointment => 'Appointment',
-  RequestSituation.urgent => 'Urgent',
-  RequestSituation.ambulance => 'Transport assistance',
+  RequestSituation.appointment => 'Planned care',
+  RequestSituation.urgent => 'Urgent care',
+  RequestSituation.ambulance => 'Medical transport',
   RequestSituation.unknown => 'Clinic request',
 };

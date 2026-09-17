@@ -25,49 +25,47 @@ class _ConsultationCompleteScreenState extends State<ConsultationCompleteScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF4F5F7),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close, color: Color(0xFF1A202C)),
-          onPressed: () => Navigator.pushNamedAndRemoveUntil(
-            context,
-            '/home',
-            (route) => false,
-          ),
-        ),
-        title: Text(
-          'Consultation Terminée',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-            color: const Color(0xFF1A202C),
-          ),
-        ),
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    _buildSuccessCard(),
-                    const SizedBox(height: 20),
-                    _buildReviewCard(),
-                    const SizedBox(height: 20),
-                    _buildPharmacyCard(),
-                  ],
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 16, 0),
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.close, color: Color(0xFF1A202C)),
+                onPressed: () => Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/home',
+                  (route) => false,
                 ),
               ),
-            ),
-            _buildBottomButton(context),
-          ],
+              Text(
+                'Consultation Terminée',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF1A202C),
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                _buildSuccessCard(),
+                const SizedBox(height: 20),
+                _buildReviewCard(),
+                const SizedBox(height: 20),
+                _buildPharmacyCard(),
+              ],
+            ),
+          ),
+        ),
+        _buildBottomButton(context),
+      ],
     );
   }
 

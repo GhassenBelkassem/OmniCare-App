@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../core/theme/omni_theme.dart';
 import '../../core/api/account_api.dart';
 import '../../core/services/file_picker_service.dart';
 import '../../core/models/family_models.dart' as core_models;
@@ -18,21 +19,36 @@ import 'add_family_member_screen.dart';
 import 'family_member_detail_screen.dart';
 import 'document_viewer_screen.dart';
 import 'qr_code_modal.dart';
-import 'history_tab.dart';
 import 'patient_home_feed.dart';
 import '../profile/patient_profile_screen.dart';
+import '../patient_appointments/presentation/patient_appointments_screen.dart';
 import '../security/account_security_screen.dart';
 import '../security/device_management_screen.dart';
 import '../security/login_history_screen.dart';
 import '../request/provider_selection_screen.dart';
 import '../request_flow/screens/request_flow_entry_screen.dart';
+import '../request_flow/screens/doctor_cabinet_entry_screen.dart';
 import '../request_flow/screens/who_needs_care_screen.dart';
 import '../request_flow/screens/situation_screen.dart';
 import '../request_flow/screens/pickup_screen.dart';
 import '../request_flow/screens/review_screen.dart';
 import '../request_flow/screens/request_received_screen.dart';
 import '../patient_clinic/presentation/clinic_directory_screen.dart';
+import '../patient_doctor/presentation/doctor_directory_screen.dart';
+import '../patient_doctor/presentation/doctor_detail_screen.dart';
+import '../patient_passport/presentation/patient_passport_screen.dart';
 import '../request_history/presentation/my_requests_screen.dart';
+import '../emergency/emergency_request_step0.dart';
+import '../emergency/emergency_request_step1.dart';
+import '../emergency/emergency_request_step2.dart';
+import '../emergency/emergency_request_step3.dart';
+import '../emergency/emergency_review_screen.dart';
+import '../emergency/doctor_selection_screen.dart';
+import '../emergency/review_confirm_screen.dart';
+import '../emergency/doctor_calling_screen.dart';
+import '../emergency/doctor_arriving_screen.dart';
+import '../emergency/consultation_qr_screen.dart';
+import '../emergency/consultation_complete_screen.dart';
 
 class NewHomeScreen extends StatefulWidget {
   const NewHomeScreen({super.key});
@@ -70,6 +86,12 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
   Future<void> _openFamilyMemberForm([core_models.FamilyMember? member]) async {
     await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => AddFamilyMemberScreen(member: member)),
+    );
+  }
+
+  void _openPatientAppointments() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const PatientAppointmentsScreen()),
     );
   }
 
@@ -262,6 +284,12 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     );
   }
 
+  void _selectTab(int index) {
+    if (_selectedIndex != index) {
+      setState(() => _selectedIndex = index);
+    }
+  }
+
   Widget _getSelectedTabContent(String userName) {
     switch (_selectedIndex) {
       case 0:
@@ -269,7 +297,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
       case 1:
         return _buildHealthTab();
       case 3:
-        return _buildHistoryTab();
+        return const PatientPassportScreen();
       case 4:
         return _buildProfileTab();
       default:
@@ -277,17 +305,132 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     }
   }
 
+  /// Builds a [PageRoute] for all Patient nested-Navigator content routes.
+  ///
+  /// Every patient-content route is wrapped in a full-size opaque
+  /// [ColoredBox] surface so that the outgoing route's detailed content
+  /// never bleeds through during the transition.  A restrained slide-from-
+  /// right animation replaces the default Material zoom to avoid the
+  /// prolonged cross-fade of two detailed page trees.
+  static Route<dynamic> _buildPatientPageRoute({
+    required WidgetBuilder builder,
+    required RouteSettings settings,
+  }) {
+    return PageRouteBuilder(
+      settings: settings,
+      fullscreenDialog: false,
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return ColoredBox(color: OmniColors.slateSoft, child: builder(context));
+      },
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        final tween = Tween<Offset>(
+          begin: const Offset(0.06, 0),
+          end: Offset.zero,
+        ).chain(CurveTween(curve: Curves.easeOutCubic));
+        final fadeTween = Tween<double>(begin: 0, end: 1).chain(
+          CurveTween(curve: const Interval(0.3, 1.0, curve: Curves.easeIn)),
+        );
+        return SlideTransition(
+          position: animation.drive(tween),
+          child: FadeTransition(
+            opacity: animation.drive(fadeTween),
+            child: child,
+          ),
+        );
+      },
+      transitionDuration: const Duration(milliseconds: 250),
+      reverseTransitionDuration: const Duration(milliseconds: 200),
+    );
+  }
+
   Widget _buildPatientContentNavigator(String userName) {
     return Navigator(
       key: _patientContentNavigatorKey,
       initialRoute: '/patient-home',
       onGenerateRoute: (settings) {
+        // Emergency patient flow — arguments required for step2+.
+        if (settings.name == '/emergency-step2') {
+          final args = settings.arguments as Map<String, dynamic>;
+          return _buildPatientPageRoute(
+            builder: (_) => EmergencyRequestStep2(step1Data: args),
+            settings: settings,
+          );
+        }
+        if (settings.name == '/emergency-step3') {
+          final args = settings.arguments as Map<String, dynamic>;
+          return _buildPatientPageRoute(
+            builder: (_) => EmergencyRequestStep3(previousData: args),
+            settings: settings,
+          );
+        }
+        if (settings.name == '/emergency-review') {
+          final args = settings.arguments as Map<String, dynamic>;
+          return _buildPatientPageRoute(
+            builder: (_) => EmergencyReviewScreen(requestData: args),
+            settings: settings,
+          );
+        }
+        if (settings.name == '/doctor-selection') {
+          final args = settings.arguments as Map<String, dynamic>;
+          return _buildPatientPageRoute(
+            builder: (_) => DoctorSelectionScreen(emergencyData: args),
+            settings: settings,
+          );
+        }
+        if (settings.name == '/review-confirm') {
+          final args = settings.arguments as Map<String, dynamic>;
+          return _buildPatientPageRoute(
+            builder: (_) => ReviewConfirmScreen(requestData: args),
+            settings: settings,
+          );
+        }
+        if (settings.name == '/doctor-calling') {
+          final args = settings.arguments as Map<String, dynamic>;
+          return _buildPatientPageRoute(
+            builder: (_) => DoctorCallingScreen(requestData: args),
+            settings: settings,
+          );
+        }
+        if (settings.name == '/doctor-arriving') {
+          final args = settings.arguments as Map<String, dynamic>;
+          return _buildPatientPageRoute(
+            builder: (_) => DoctorArrivingScreen(requestData: args),
+            settings: settings,
+          );
+        }
+        if (settings.name == '/consultation-qr') {
+          final args = settings.arguments as Map<String, dynamic>;
+          return _buildPatientPageRoute(
+            builder: (_) => ConsultationQRScreen(requestData: args),
+            settings: settings,
+          );
+        }
+        if (settings.name == '/consultation-complete') {
+          final args = settings.arguments as Map<String, dynamic>;
+          return _buildPatientPageRoute(
+            builder: (_) => ConsultationCompleteScreen(requestData: args),
+            settings: settings,
+          );
+        }
+        if (settings.name == '/m05/doctor-detail') {
+          final args = settings.arguments as String;
+          return _buildPatientPageRoute(
+            builder: (_) => DoctorDetailScreen(doctorId: args),
+            settings: settings,
+          );
+        }
+
+        // Static routes — M05 clinic flow, emergency step0/1, and home.
         final page = switch (settings.name) {
           '/patient-home' => _buildHomeTab(userName),
           '/provider-selection' => const ProviderSelectionScreen(),
+          '/emergency-step0' => const EmergencyRequestStep0(),
+          '/emergency-step1' => const EmergencyRequestStep1(),
           '/m05/request' => const RequestFlowEntryScreen(),
+          '/doctor/cabinet/who-needs-care' => const DoctorCabinetEntryScreen(),
           '/m05/who-needs-care' => const WhoNeedsCareScreen(),
           '/m05/clinic-directory' => const ClinicDirectoryScreen(),
+          '/m05/doctor-directory' => const DoctorDirectoryScreen(),
           '/m05/situation' => const SituationScreen(),
           '/m05/pickup' => const PickupScreen(),
           '/m05/review' => const ReviewScreen(),
@@ -295,7 +438,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
           '/m05/requests' => const MyRequestsScreen(),
           _ => _buildHomeTab(userName),
         };
-        return MaterialPageRoute(builder: (_) => page, settings: settings);
+        return _buildPatientPageRoute(builder: (_) => page, settings: settings);
       },
     );
   }
@@ -303,10 +446,9 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
   Widget _buildHomeTab(String userName) {
     return PatientHomeFeed(
       displayName: userName,
-      onOpenHealth: () => setState(() => _selectedIndex = 1),
-      onOpenMedicalRecord: () =>
-          Navigator.pushNamed(context, '/medical-documents'),
-      onOpenProfile: () => setState(() => _selectedIndex = 4),
+      onOpenHealth: () => _selectTab(1),
+      onOpenMedicalRecord: () => _selectTab(3),
+      onOpenProfile: () => _selectTab(4),
     );
   }
 
@@ -1122,6 +1264,8 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
       onOpenLoginHistory: () => Navigator.of(
         context,
       ).push(MaterialPageRoute(builder: (_) => const LoginHistoryScreen())),
+      onOpenAppointments: _openPatientAppointments,
+      onOpenRequests: () => Navigator.of(context).pushNamed('/m05/requests'),
       isLoggingOut: _isLoggingOut,
       onLogout: _handleLogout,
       onAddFamilyMember: () => _openFamilyMemberForm(),
@@ -2773,10 +2917,6 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     );
   }
 
-  Widget _buildHistoryTab() {
-    return HistoryTab();
-  }
-
   Widget _buildStickyHeader(String userName) {
     return ClipRect(
       key: const ValueKey('patient-top-bar'),
@@ -3551,8 +3691,6 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                       label: 'Dossier médical',
                       index: 3,
                       hasNotification: false,
-                      onTap: () =>
-                          Navigator.pushNamed(context, '/medical-documents'),
                     ),
                     _buildNavItem(
                       icon: Icons.account_circle_outlined,
@@ -3647,7 +3785,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                     (route) => route.isFirst,
                   );
                 }
-                setState(() => _selectedIndex = index);
+                _selectTab(index);
               },
           child: Center(
             child: AnimatedContainer(

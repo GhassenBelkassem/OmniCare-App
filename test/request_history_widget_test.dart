@@ -156,19 +156,10 @@ void main() {
       await tester.pumpWidget(_host(populated, const MyRequestsScreen()));
       await tester.pumpAndSettle();
       expect(
-        find.textContaining('Appointment · Request received'),
+        find.textContaining('Me \u00b7 Planned care'),
         findsOneWidget,
       );
-      expect(
-        find.byWidgetPredicate(
-          (widget) =>
-              widget is Text &&
-              widget.data != null &&
-              widget.data!.contains('Appointment') &&
-              widget.data!.contains('\n'),
-        ),
-        findsOneWidget,
-      );
+      expect(find.text('Request received'), findsOneWidget);
       expect(find.text('44444444-4444-4444-8444-444444444444'), findsNothing);
       expect(find.text('33333333-3333-4333-8333-333333333333'), findsNothing);
       await tester.pumpWidget(const SizedBox());
@@ -209,7 +200,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Request received'), findsOneWidget);
-      expect(find.textContaining('Appointment'), findsOneWidget);
+      expect(find.textContaining('Planned care'), findsOneWidget);
       expect(find.textContaining('Me'), findsOneWidget);
       expect(find.text('Cancel request'), findsNothing);
       expect(find.text('44444444-4444-4444-8444-444444444444'), findsNothing);
@@ -229,12 +220,12 @@ void main() {
       );
       await tester.pumpAndSettle();
       await tester.scrollUntilVisible(
-        find.widgetWithText(FilledButton, 'Cancel request'),
+        find.widgetWithText(OutlinedButton, 'Cancel request'),
         100,
       );
-      await tester.tap(find.widgetWithText(FilledButton, 'Cancel request'));
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Cancel request'));
       await tester.pumpAndSettle();
-      expect(find.text('Cancel request?'), findsOneWidget);
+      expect(find.text('Cancel this request?'), findsOneWidget);
       await tester.tap(
         find.widgetWithText(FilledButton, 'Cancel request').last,
       );
@@ -242,15 +233,15 @@ void main() {
       expect(gateway.cancelCalls, 1);
       expect(
         tester
-            .widget<FilledButton>(
-              find.widgetWithText(FilledButton, 'Cancel request').first,
+            .widget<OutlinedButton>(
+              find.widgetWithText(OutlinedButton, 'Cancel request').first,
             )
             .onPressed,
         isNull,
       );
       gateway.pendingCancel!.complete(_request(canCancel: false));
       await tester.pumpAndSettle();
-      expect(find.widgetWithText(FilledButton, 'Cancel request'), findsNothing);
+      expect(find.widgetWithText(OutlinedButton, 'Cancel request'), findsNothing);
       await tester.pumpWidget(const SizedBox());
       controller.dispose();
     });
@@ -272,10 +263,10 @@ void main() {
         status: PatientRequestStatus.underReview,
       );
       await tester.scrollUntilVisible(
-        find.widgetWithText(FilledButton, 'Cancel request'),
+        find.widgetWithText(OutlinedButton, 'Cancel request'),
         100,
       );
-      await tester.tap(find.widgetWithText(FilledButton, 'Cancel request'));
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Cancel request'));
       await tester.pumpAndSettle();
       await tester.tap(
         find.widgetWithText(FilledButton, 'Cancel request').last,
@@ -289,7 +280,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Cancelled'), findsNothing);
-      expect(find.widgetWithText(FilledButton, 'Cancel request'), findsNothing);
+      expect(find.widgetWithText(OutlinedButton, 'Cancel request'), findsNothing);
       await tester.pumpWidget(const SizedBox());
       controller.dispose();
     });
@@ -320,7 +311,7 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('Information required'), findsOneWidget);
+        expect(find.text('Action required'), findsOneWidget);
         expect(find.text('Contact information'), findsOneWidget);
         expect(
           find.text('Choose how the clinic should contact you.'),
@@ -328,8 +319,8 @@ void main() {
         );
         expect(
           tester
-              .widget<FilledButton>(
-                find.widgetWithText(FilledButton, 'Submit information'),
+              .widget<ElevatedButton>(
+                find.widgetWithText(ElevatedButton, 'Submit information'),
               )
               .onPressed,
           isNull,
@@ -340,11 +331,11 @@ void main() {
         await tester.tap(find.byType(CheckboxListTile));
         await tester.pumpAndSettle();
         await tester.scrollUntilVisible(
-          find.widgetWithText(FilledButton, 'Submit information'),
+          find.widgetWithText(ElevatedButton, 'Submit information'),
           100,
         );
         await tester.tap(
-          find.widgetWithText(FilledButton, 'Submit information'),
+          find.widgetWithText(ElevatedButton, 'Submit information'),
         );
         await tester.pumpAndSettle();
 
@@ -370,10 +361,10 @@ void main() {
       await tester.pumpAndSettle();
       gateway.cancelError = RequestFailure.timedOut;
       await tester.scrollUntilVisible(
-        find.widgetWithText(FilledButton, 'Cancel request'),
+        find.widgetWithText(OutlinedButton, 'Cancel request'),
         100,
       );
-      await tester.tap(find.widgetWithText(FilledButton, 'Cancel request'));
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Cancel request'));
       await tester.pumpAndSettle();
       await tester.tap(
         find.widgetWithText(FilledButton, 'Cancel request').last,

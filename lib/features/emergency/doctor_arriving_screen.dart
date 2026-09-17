@@ -3,26 +3,23 @@ import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:lottie/lottie.dart';
-import 'doctor_selection_screen.dart';
+import 'doctor_matching.dart';
 import '../../core/api/consultations_api.dart';
 import '../../core/api/api_error_utils.dart';
-import '../../core/models/consultation.dart';
 import '../../services/notification_service.dart';
 import '../../core/utils/console_log.dart';
 
 class DoctorArrivingScreen extends StatefulWidget {
   final Map<String, dynamic> requestData;
 
-  const DoctorArrivingScreen({
-    super.key,
-    required this.requestData,
-  });
+  const DoctorArrivingScreen({super.key, required this.requestData});
 
   @override
   State<DoctorArrivingScreen> createState() => _DoctorArrivingScreenState();
 }
 
-class _DoctorArrivingScreenState extends State<DoctorArrivingScreen> with SingleTickerProviderStateMixin {
+class _DoctorArrivingScreenState extends State<DoctorArrivingScreen>
+    with SingleTickerProviderStateMixin {
   int _eta = 12;
   double _distance = 3.2;
   late AnimationController _pulseController;
@@ -91,7 +88,9 @@ class _DoctorArrivingScreenState extends State<DoctorArrivingScreen> with Single
       consoleLog('[DoctorArriving] Missing consultationId; cannot complete.');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Missing consultationId; cannot finalize.')),
+          const SnackBar(
+            content: Text('Missing consultationId; cannot finalize.'),
+          ),
         );
       }
       return;
@@ -111,7 +110,9 @@ class _DoctorArrivingScreenState extends State<DoctorArrivingScreen> with Single
         clinicalNotes: 'Completed from Flutter dev flow',
       );
 
-      consoleLog('[DoctorArriving] Auto-complete succeeded. Fetching latest consultation...');
+      consoleLog(
+        '[DoctorArriving] Auto-complete succeeded. Fetching latest consultation...',
+      );
 
       final latest = await ConsultationsApi().getConsultation(
         consultationId: consultationId,
@@ -148,7 +149,7 @@ class _DoctorArrivingScreenState extends State<DoctorArrivingScreen> with Single
   Future<void> _callDoctor(Doctor? doctor) async {
     final phoneNumber = doctor?.phoneNumber ?? '+21612345678';
     final uri = Uri(scheme: 'tel', path: phoneNumber);
-    
+
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
     } else {
@@ -170,40 +171,37 @@ class _DoctorArrivingScreenState extends State<DoctorArrivingScreen> with Single
   Widget build(BuildContext context) {
     final doctor = widget.requestData['doctor'] as Doctor?;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF4F5F7),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(),
-            if (_isCompleting)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                child: Text(
-                  'Finalizing consultation...',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF667085),
-                  ),
-                ),
-              ),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    _buildAnimationCard(),
-                    const SizedBox(height: 20),
-                    _buildDoctorCard(doctor),
-                    const SizedBox(height: 20),
-                    _buildActionButtons(doctor),
-                  ],
+    return SafeArea(
+      child: Column(
+        children: [
+          _buildHeader(),
+          if (_isCompleting)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: Text(
+                'Finalizing consultation...',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF667085),
                 ),
               ),
             ),
-          ],
-        ),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  _buildAnimationCard(),
+                  const SizedBox(height: 20),
+                  _buildDoctorCard(doctor),
+                  const SizedBox(height: 20),
+                  _buildActionButtons(doctor),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -292,11 +290,7 @@ class _DoctorArrivingScreenState extends State<DoctorArrivingScreen> with Single
                 'Arrivée',
                 const Color(0xFF3B82F6),
               ),
-              Container(
-                width: 1,
-                height: 40,
-                color: const Color(0xFFE2E8F0),
-              ),
+              Container(width: 1, height: 40, color: const Color(0xFFE2E8F0)),
               _buildInfoChip(
                 Icons.navigation,
                 '${_distance.toStringAsFixed(1)} km',
@@ -310,7 +304,12 @@ class _DoctorArrivingScreenState extends State<DoctorArrivingScreen> with Single
     );
   }
 
-  Widget _buildInfoChip(IconData icon, String value, String label, Color color) {
+  Widget _buildInfoChip(
+    IconData icon,
+    String value,
+    String label,
+    Color color,
+  ) {
     return Column(
       children: [
         Row(
@@ -593,11 +592,7 @@ class _DoctorArrivingScreenState extends State<DoctorArrivingScreen> with Single
             top: 56,
             left: 0,
             right: 0,
-            child: SafeArea(
-              child: Center(
-                child: _buildETACard(),
-              ),
-            ),
+            child: SafeArea(child: Center(child: _buildETACard())),
           ),
         ],
       ),
@@ -713,10 +708,7 @@ class _DoctorArrivingScreenState extends State<DoctorArrivingScreen> with Single
                               gradient: const LinearGradient(
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
-                                colors: [
-                                  Color(0xFF3B82F6),
-                                  Color(0xFF1FBF9A),
-                                ],
+                                colors: [Color(0xFF3B82F6), Color(0xFF1FBF9A)],
                               ),
                               borderRadius: BorderRadius.circular(20),
                             ),
@@ -740,7 +732,10 @@ class _DoctorArrivingScreenState extends State<DoctorArrivingScreen> with Single
                                     decoration: BoxDecoration(
                                       color: const Color(0xFF10B981),
                                       shape: BoxShape.circle,
-                                      border: Border.all(color: Colors.white, width: 3),
+                                      border: Border.all(
+                                        color: Colors.white,
+                                        width: 3,
+                                      ),
                                     ),
                                   ),
                                 );
@@ -772,7 +767,11 @@ class _DoctorArrivingScreenState extends State<DoctorArrivingScreen> with Single
                             const SizedBox(height: 8),
                             Row(
                               children: [
-                                const Icon(Icons.location_on, size: 14, color: Color(0xFF667085)),
+                                const Icon(
+                                  Icons.location_on,
+                                  size: 14,
+                                  color: Color(0xFF667085),
+                                ),
                                 const SizedBox(width: 4),
                                 Text(
                                   '${doctor?.distance ?? 0} km',
@@ -787,14 +786,21 @@ class _DoctorArrivingScreenState extends State<DoctorArrivingScreen> with Single
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
                           color: const Color(0xFFFFA500).withOpacity(0.1),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.star, color: Color(0xFFFFA500), size: 16),
+                            const Icon(
+                              Icons.star,
+                              color: Color(0xFFFFA500),
+                              size: 16,
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               '${doctor?.rating ?? 0}',
@@ -811,10 +817,15 @@ class _DoctorArrivingScreenState extends State<DoctorArrivingScreen> with Single
                   ),
                   const SizedBox(height: 16),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFF3B82F6).withOpacity(0.05),
-                      border: Border.all(color: const Color(0xFF3B82F6).withOpacity(0.2)),
+                      border: Border.all(
+                        color: const Color(0xFF3B82F6).withOpacity(0.2),
+                      ),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
@@ -880,7 +891,10 @@ class _DoctorArrivingScreenState extends State<DoctorArrivingScreen> with Single
                       color: const Color(0xFFF4F5F7),
                       borderRadius: BorderRadius.circular(12),
                       border: Border(
-                        left: BorderSide(color: const Color(0xFF1FBF9A), width: 4),
+                        left: BorderSide(
+                          color: const Color(0xFF1FBF9A),
+                          width: 4,
+                        ),
                       ),
                     ),
                     child: Column(
@@ -895,9 +909,18 @@ class _DoctorArrivingScreenState extends State<DoctorArrivingScreen> with Single
                           ),
                         ),
                         const SizedBox(height: 12),
-                        _buildTripDetail('ID de Demande', '#OMN-${DateTime.now().millisecondsSinceEpoch % 10000}'),
-                        _buildTripDetail('Type de Service', 'Visite Médicale Urgente'),
-                        _buildTripDetail('Coût Estimé', '${doctor?.price ?? 0} TND'),
+                        _buildTripDetail(
+                          'ID de Demande',
+                          '#OMN-${DateTime.now().millisecondsSinceEpoch % 10000}',
+                        ),
+                        _buildTripDetail(
+                          'Type de Service',
+                          'Visite Médicale Urgente',
+                        ),
+                        _buildTripDetail(
+                          'Coût Estimé',
+                          '${doctor?.price ?? 0} TND',
+                        ),
                       ],
                     ),
                   ),
@@ -906,12 +929,18 @@ class _DoctorArrivingScreenState extends State<DoctorArrivingScreen> with Single
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: const Color(0xFF3B82F6).withOpacity(0.05),
-                      border: Border.all(color: const Color(0xFF3B82F6).withOpacity(0.2)),
+                      border: Border.all(
+                        color: const Color(0xFF3B82F6).withOpacity(0.2),
+                      ),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.info_outline, color: Color(0xFF3B82F6), size: 20),
+                        const Icon(
+                          Icons.info_outline,
+                          color: Color(0xFF3B82F6),
+                          size: 20,
+                        ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(

@@ -103,10 +103,12 @@ class FakeAuthRepository implements AuthRepositoryContract {
   int emailPasswordLoginCalls = 0;
   int signupInitiateCalls = 0;
   int signupVerifyCalls = 0;
+  int signupCompleteCalls = 0;
   int googleInitiateCalls = 0;
   int googlePhoneInitiateCalls = 0;
   int googlePhoneVerifyCalls = 0;
   int googleCompleteCalls = 0;
+  String? lastGoogleCompletePhone;
   int changePasswordCalls = 0;
   int logoutCalls = 0;
   AuthenticatedPatientSession? restoreResult;
@@ -143,9 +145,11 @@ class FakeAuthRepository implements AuthRepositoryContract {
 
   @override
   Future<AuthenticatedPatientSession> completeGoogleSignup({
+    String? phone,
     bool rememberDevice = false,
   }) async {
     googleCompleteCalls += 1;
+    lastGoogleCompletePhone = phone;
     if (error != null) throw error!;
     return signupResult ?? _authenticated(onboardingCompleted: false);
   }
@@ -209,6 +213,7 @@ class FakeAuthRepository implements AuthRepositoryContract {
     String phone, {
     bool rememberDevice = false,
   }) async {
+    signupCompleteCalls += 1;
     if (error != null) throw error!;
     return signupResult ?? _authenticated(onboardingCompleted: false);
   }
@@ -802,6 +807,7 @@ void main() {
         await api.completeGoogleSignup(
           const GoogleCompleteRequestDto(
             signupToken: 'opaque-signup-token',
+            phone: '+21612345678',
             deviceFingerprint: 'installation-id',
             platform: ClientPlatform.web,
             deviceLabel: 'Web browser',
@@ -882,6 +888,14 @@ void main() {
               )
               .data,
           containsPair('platform', 'WEB'),
+        );
+        expect(
+          adapter.requests
+              .singleWhere(
+                (request) => request.path == '/api/v1/auth/google/complete',
+              )
+              .data,
+          containsPair('phone', '+21612345678'),
         );
         expect(
           adapter.requests
@@ -1688,7 +1702,9 @@ void main() {
         );
         await repository.initiateGooglePhoneSignup('27 545 726');
         await repository.verifyGooglePhoneSignupOtp('27 545 726', ' 123456 ');
-        final session = await repository.completeGoogleSignup();
+        final session = await repository.completeGoogleSignup(
+          phone: '+21627545726',
+        );
 
         expect(initiateResult.outcome, GoogleAuthOutcome.requiresPhone);
         expect(session.routeDecision, AuthRouteDecision.onboarding);
@@ -1728,7 +1744,10 @@ void main() {
                 (request) => request.path == '/api/v1/auth/google/complete',
               )
               .data,
-          containsPair('signupToken', 'opaque-signup-token'),
+          allOf(
+            containsPair('signupToken', 'opaque-signup-token'),
+            containsPair('phone', '+21627545726'),
+          ),
         );
       },
     );
@@ -1786,18 +1805,20 @@ void main() {
       },
     );
 
-    test('phone login state progression and duplicate submit guard', () async {
-      final repo = FakeAuthRepository()
-        ..loginResult = _authenticated(onboardingCompleted: true);
-      final controller = AuthController(repository: repo);
+    test(
+      'phone-only login is unavailable while verification is disabled',
+      () async {
+        final repo = FakeAuthRepository()
+          ..loginResult = _authenticated(onboardingCompleted: true);
+        final controller = AuthController(repository: repo);
 
-      expect(await controller.startPhoneLogin('12 345 678'), isTrue);
-      expect(controller.status, AuthStatus.otpRequired);
-      expect(await controller.verifyPhoneLoginOtp('123456'), isTrue);
-      expect(controller.nextRoute, '/home');
-      expect(repo.loginInitiateCalls, 1);
-      expect(repo.loginVerifyCalls, 1);
-    });
+        expect(await controller.startPhoneLogin('12 345 678'), isFalse);
+        expect(controller.status, AuthStatus.failure);
+        expect(controller.errorMessage, contains('temporarily unavailable'));
+        expect(repo.loginInitiateCalls, 0);
+        expect(repo.loginVerifyCalls, 0);
+      },
+    );
 
     test('email password login authenticates and selects home route', () async {
       final repo = FakeAuthRepository()
@@ -1817,28 +1838,32 @@ void main() {
       expect(controller.nextRoute, '/home');
     });
 
-    test('email password login can require phone OTP before session', () async {
-      final repo = FakeAuthRepository()
-        ..emailPasswordLoginResult =
-            const EmailPasswordLoginResult.requiresPhoneOtp('+21612345678');
-      final controller = AuthController(repository: repo);
+    test(
+      'email password login rejects a server OTP configuration mismatch',
+      () async {
+        final repo = FakeAuthRepository()
+          ..emailPasswordLoginResult =
+              const EmailPasswordLoginResult.requiresPhoneOtp('+21612345678');
+        final controller = AuthController(repository: repo);
 
-      expect(
-        await controller.loginWithEmailPassword(
-          'patient@example.test',
-          'VeryStrongPass123',
-          rememberDevice: true,
-        ),
-        isTrue,
-      );
+        expect(
+          await controller.loginWithEmailPassword(
+            'patient@example.test',
+            'VeryStrongPass123',
+            rememberDevice: true,
+          ),
+          isFalse,
+        );
 
-      expect(repo.emailPasswordLoginCalls, 1);
-      expect(controller.status, AuthStatus.otpRequired);
-      expect(controller.pendingFlow, AuthFlowMode.login);
-      expect(controller.pendingPhone, '+21612345678');
-      expect(controller.currentUser, isNull);
-      expect(controller.nextRoute, isNull);
-    });
+        expect(repo.emailPasswordLoginCalls, 1);
+        expect(controller.status, AuthStatus.failure);
+        expect(controller.pendingFlow, isNull);
+        expect(controller.pendingPhone, isNull);
+        expect(controller.errorMessage, contains('server requested an OTP'));
+        expect(controller.currentUser, isNull);
+        expect(controller.nextRoute, isNull);
+      },
+    );
 
     test(
       'changing required password clears auth state after backend success',
@@ -1866,20 +1891,21 @@ void main() {
       },
     );
 
-    test('in-flight phone submit ignores fast second tap', () async {
-      final gate = Completer<void>();
-      final repo = FakeAuthRepository()..loginInitiateGate = gate;
-      final controller = AuthController(repository: repo);
+    test(
+      'repeated phone-only login attempts never call the repository',
+      () async {
+        final repo = FakeAuthRepository();
+        final controller = AuthController(repository: repo);
 
-      final first = controller.startPhoneLogin('12 345 678');
-      final second = await controller.startPhoneLogin('12 345 678');
-      gate.complete();
+        final first = await controller.startPhoneLogin('12 345 678');
+        final second = await controller.startPhoneLogin('12 345 678');
 
-      expect(second, isFalse);
-      expect(await first, isTrue);
-      expect(repo.loginInitiateCalls, 1);
-      expect(controller.status, AuthStatus.otpRequired);
-    });
+        expect(first, isFalse);
+        expect(second, isFalse);
+        expect(repo.loginInitiateCalls, 0);
+        expect(controller.status, AuthStatus.failure);
+      },
+    );
 
     test(
       'phone signup state progression exposes incomplete onboarding route',
@@ -1897,39 +1923,25 @@ void main() {
         );
 
         expect(await controller.startPhoneSignup(draft, '12345678'), isTrue);
-        expect(controller.status, AuthStatus.otpRequired);
-        expect(await controller.verifyPhoneSignupOtp('123456'), isTrue);
+        expect(controller.status, AuthStatus.authenticated);
         expect(controller.nextRoute, '/conversational-onboarding');
-        expect(repo.signupInitiateCalls, 1);
-        expect(repo.signupVerifyCalls, 1);
+        expect(repo.signupInitiateCalls, 0);
+        expect(repo.signupVerifyCalls, 0);
+        expect(repo.signupCompleteCalls, 1);
       },
     );
 
-    test('in-flight OTP verification ignores fast second tap', () async {
-      final gate = Completer<void>();
-      final repo = FakeAuthRepository()
-        ..signupResult = _authenticated(onboardingCompleted: false)
-        ..signupVerifyGate = gate;
-      final controller = AuthController(repository: repo);
-      final draft = PhoneSignupDraft(
-        email: 'patient@example.test',
-        password: 'VeryStrongPass123',
-        firstName: 'Ahmed',
-        lastName: 'Ben Ali',
-        dateOfBirth: DateTime.utc(1998, 4, 20),
-        gender: 'M',
-      );
-      await controller.startPhoneSignup(draft, '12345678');
+    test(
+      'OTP verification is unavailable while the feature is disabled',
+      () async {
+        final repo = FakeAuthRepository();
+        final controller = AuthController(repository: repo);
 
-      final first = controller.verifyPhoneSignupOtp('123456');
-      final second = await controller.verifyPhoneSignupOtp('123456');
-      gate.complete();
-
-      expect(second, isFalse);
-      expect(await first, isTrue);
-      expect(repo.signupVerifyCalls, 1);
-      expect(controller.status, AuthStatus.authenticated);
-    });
+        expect(await controller.verifyPhoneSignupOtp('123456'), isFalse);
+        expect(repo.signupVerifyCalls, 0);
+        expect(controller.status, AuthStatus.failure);
+      },
+    );
 
     test('duplicate phone signup exposes conflict message', () async {
       final repo = FakeAuthRepository()
@@ -1953,30 +1965,30 @@ void main() {
       expect(controller.status, AuthStatus.failure);
       expect(controller.errorCode, 'AUTH_PHONE_ALREADY_USED');
       expect(controller.errorMessage, 'Ce numéro est déjà utilisé.');
-      expect(repo.signupInitiateCalls, 1);
+      expect(repo.signupInitiateCalls, 0);
+      expect(repo.signupCompleteCalls, 1);
     });
 
     test(
-      'google signup verifies phone and creates an authenticated session',
+      'google signup records phone and creates a session without OTP',
       () async {
         final repo = FakeAuthRepository()
           ..signupResult = _authenticated(onboardingCompleted: false);
         final controller = AuthController(repository: repo);
 
         expect(await controller.startGoogleAuth('google-id-token'), isTrue);
-        expect(controller.status, AuthStatus.otpRequired);
+        expect(controller.status, AuthStatus.phoneRequired);
         expect(controller.hasPendingGoogleSignup, isTrue);
         expect(await controller.startGooglePhoneSignup('27 545 726'), isTrue);
-        expect(controller.pendingPhone, '+21627545726');
-        expect(await controller.verifyPhoneSignupOtp('123456'), isTrue);
 
         expect(controller.status, AuthStatus.authenticated);
         expect(controller.hasPendingGoogleSignup, isFalse);
         expect(controller.nextRoute, '/conversational-onboarding');
         expect(repo.googleInitiateCalls, 1);
-        expect(repo.googlePhoneInitiateCalls, 1);
-        expect(repo.googlePhoneVerifyCalls, 1);
+        expect(repo.googlePhoneInitiateCalls, 0);
+        expect(repo.googlePhoneVerifyCalls, 0);
         expect(repo.googleCompleteCalls, 1);
+        expect(repo.lastGoogleCompletePhone, '+21627545726');
         expect(repo.signupInitiateCalls, 0);
         expect(repo.signupVerifyCalls, 0);
       },
@@ -2001,7 +2013,8 @@ void main() {
         expect(controller.errorCode, 'AUTH_PHONE_ALREADY_USED');
         expect(controller.errorMessage, 'Ce numéro est déjà utilisé.');
         expect(repo.googleInitiateCalls, 1);
-        expect(repo.googlePhoneInitiateCalls, 1);
+        expect(repo.googlePhoneInitiateCalls, 0);
+        expect(repo.googleCompleteCalls, 1);
       },
     );
 
@@ -2015,7 +2028,13 @@ void main() {
         code: 'AUTH_INVALID_OTP',
       );
 
-      expect(await controller.startPhoneLogin('12345678'), isFalse);
+      expect(
+        await controller.loginWithEmailPassword(
+          'patient@example.test',
+          'VeryStrongPass123',
+        ),
+        isFalse,
+      );
       expect(controller.errorCode, 'AUTH_INVALID_OTP');
       expect(controller.errorMessage, 'Code invalide ou expiré.');
 

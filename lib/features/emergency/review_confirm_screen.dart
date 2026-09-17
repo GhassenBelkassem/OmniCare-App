@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'doctor_selection_screen.dart';
+import 'doctor_matching.dart';
 import '../../core/api/consultations_api.dart';
-import '../../core/api/doctors_api.dart';
 import '../../core/utils/logger.dart';
 import '../../core/api/api_error_utils.dart';
 import '../../core/models/consultation.dart';
@@ -69,13 +68,12 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
         throw StateError('Missing latitude/longitude');
       }
 
-      final doctors = await DoctorsApi().listDoctors();
-      if (doctors.isEmpty) {
-        throw StateError('No doctors returned from /api/doctors');
-      }
-      final doctorId = doctors.first['doctorId']?.toString();
+      final selectedDoctor = widget.requestData['doctor'] as Doctor?;
+      final doctorId =
+          widget.requestData['selectedDoctorId']?.toString() ??
+          selectedDoctor?.backendDoctorId;
       if (doctorId == null || doctorId.isEmpty) {
-        throw StateError('Missing doctorId field in /api/doctors response');
+        throw StateError('Missing selected doctor ID');
       }
 
       final backendPatientId =
@@ -151,139 +149,133 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
     final painLevel = widget.requestData['painLevel'] as int;
     final description = widget.requestData['description'] as String;
     final location = widget.requestData['location'] as Map<String, dynamic>;
-    final consultationType =
-        widget.requestData['consultationType'] as String? ?? 'home';
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFF4F5F7),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF1A202C)),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          'Révision & Confirmation',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-            color: const Color(0xFF1A202C),
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 16, 0),
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back, color: Color(0xFF1A202C)),
+                onPressed: () => Navigator.pop(context),
+              ),
+              Text(
+                'Révision & Confirmation',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF1A202C),
+                ),
+              ),
+            ],
           ),
         ),
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  Text(
-                    'Révision & Confirmation',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF1A202C),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                Text(
+                  'Révision & Confirmation',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF1A202C),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Veuillez vérifier vos informations avant de confirmer',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    color: const Color(0xFF667085),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                _buildDoctorCard(doctor),
+                const SizedBox(height: 16),
+                _buildInfoCard(
+                  icon: Icons.person,
+                  title: 'Informations Patient',
+                  children: [
+                    _buildInfoRow(
+                      'Type de patient',
+                      _getPatientTypeLabel(patientType),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Veuillez vérifier vos informations avant de confirmer',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 14,
-                      color: const Color(0xFF667085),
+                    if (widget.requestData['age'] != null)
+                      _buildInfoRow('Âge', '${widget.requestData['age']} ans'),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _buildInfoCard(
+                  icon: Icons.medical_services,
+                  title: 'Symptômes',
+                  children: [
+                    _buildInfoRow(
+                      'Zones affectées',
+                      '${bodyParts.length} zone(s)',
                     ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 24),
-                  _buildDoctorCard(doctor),
-                  const SizedBox(height: 16),
-                  _buildInfoCard(
-                    icon: Icons.person,
-                    title: 'Informations Patient',
-                    children: [
-                      _buildInfoRow(
-                        'Type de patient',
-                        _getPatientTypeLabel(patientType),
+                    _buildInfoRow('Niveau de douleur', '$painLevel/10'),
+                    const SizedBox(height: 8),
+                    Text(
+                      description,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        color: const Color(0xFF1A202C),
                       ),
-                      if (widget.requestData['age'] != null)
-                        _buildInfoRow(
-                          'Âge',
-                          '${widget.requestData['age']} ans',
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _buildInfoCard(
-                    icon: Icons.medical_services,
-                    title: 'Symptômes',
-                    children: [
-                      _buildInfoRow(
-                        'Zones affectées',
-                        '${bodyParts.length} zone(s)',
-                      ),
-                      _buildInfoRow('Niveau de douleur', '$painLevel/10'),
-                      const SizedBox(height: 8),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _buildInfoCard(
+                  icon: Icons.location_on,
+                  title: 'Lieu de Visite',
+                  children: [
+                    if (location['useGPS'] == true)
                       Text(
-                        description,
+                        'Utilisation de la position GPS actuelle',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          color: const Color(0xFF667085),
+                        ),
+                      )
+                    else ...[
+                      Text(
+                        location['street'] ?? '',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 13,
                           color: const Color(0xFF1A202C),
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _buildInfoCard(
-                    icon: Icons.location_on,
-                    title: 'Lieu de Visite',
-                    children: [
-                      if (location['useGPS'] == true)
+                      if (location['apartment']?.isNotEmpty == true)
                         Text(
-                          'Utilisation de la position GPS actuelle',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13,
-                            color: const Color(0xFF667085),
-                          ),
-                        )
-                      else ...[
-                        Text(
-                          location['street'] ?? '',
+                          location['apartment'],
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 13,
                             color: const Color(0xFF1A202C),
                           ),
                         ),
-                        if (location['apartment']?.isNotEmpty == true)
-                          Text(
-                            location['apartment'],
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 13,
-                              color: const Color(0xFF1A202C),
-                            ),
-                          ),
-                        Text(
-                          '${location['city']}, Tunisie',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF1A202C),
-                          ),
+                      Text(
+                        '${location['city']}, Tunisie',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF1A202C),
                         ),
-                      ],
+                      ),
                     ],
-                  ),
-                  const SizedBox(height: 16),
-                  _buildPaymentMethodCard(),
-                  const SizedBox(height: 24),
-                ],
-              ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _buildPaymentMethodCard(),
+                const SizedBox(height: 24),
+              ],
             ),
           ),
-          _buildBottomBar(),
-        ],
-      ),
+        ),
+        _buildBottomBar(),
+      ],
     );
   }
 

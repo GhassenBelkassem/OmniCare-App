@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme/omni_theme.dart';
+
 /// The patient-visible care destinations supported by the current app.
 ///
 /// This is presentation/navigation metadata only. It deliberately contains no
@@ -13,6 +15,7 @@ class PatientCareDestination {
     required this.subtitle,
     required this.icon,
     required this.color,
+    required this.illustration,
   });
 
   final PatientCareType type;
@@ -20,6 +23,7 @@ class PatientCareDestination {
   final String subtitle;
   final IconData icon;
   final Color color;
+  final String illustration;
 
   bool get isClinic => type == PatientCareType.clinic;
   String get route => isClinic ? '/m05/request' : '/emergency-step0';
@@ -29,30 +33,34 @@ const patientCareDestinations = <PatientCareDestination>[
   PatientCareDestination(
     type: PatientCareType.doctor,
     label: 'Médecin',
-    subtitle: 'Consultation à domicile ou rendez-vous',
+    subtitle: 'Consultation à domicile ou en cabinet',
     icon: Icons.medical_services_outlined,
-    color: Color(0xFF1FBF9A),
+    color: OmniColors.freshMint,
+    illustration: 'assets/illustrations/services/doctor.png',
+  ),
+  PatientCareDestination(
+    type: PatientCareType.clinic,
+    label: 'Clinique',
+    subtitle: 'Consultations et soins en clinique',
+    icon: Icons.account_balance_outlined,
+    color: OmniColors.infoBlue,
+    illustration: 'assets/illustrations/services/clinic.png',
+  ),
+  PatientCareDestination(
+    type: PatientCareType.kine,
+    label: 'Kinésithérapeute',
+    subtitle: 'Rééducation et suivi thérapeutique',
+    icon: Icons.accessibility_new_rounded,
+    color: OmniColors.amber,
+    illustration: 'assets/illustrations/services/kine.png',
   ),
   PatientCareDestination(
     type: PatientCareType.nurse,
     label: 'Infirmier',
     subtitle: 'Soins infirmiers à domicile',
     icon: Icons.vaccines_outlined,
-    color: Color(0xFF8B5CF6),
-  ),
-  PatientCareDestination(
-    type: PatientCareType.kine,
-    label: 'Kinésithérapeute',
-    subtitle: 'Demande et suivi de rééducation',
-    icon: Icons.accessibility_new_rounded,
-    color: Color(0xFFF59E0B),
-  ),
-  PatientCareDestination(
-    type: PatientCareType.clinic,
-    label: 'Clinique',
-    subtitle: 'Envoyer une demande à une clinique',
-    icon: Icons.local_hospital_outlined,
-    color: Color(0xFF087A65),
+    color: OmniColors.violet,
+    illustration: 'assets/illustrations/services/nurse.png',
   ),
 ];
 

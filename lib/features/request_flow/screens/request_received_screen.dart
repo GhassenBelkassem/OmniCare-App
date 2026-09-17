@@ -1,109 +1,69 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/theme/omni_theme.dart';
 import '../../request_core/application/request_submission_controller.dart';
-import '../../request_core/domain/request_vocabulary.dart';
 import '../../request_history/presentation/patient_request_detail_screen.dart';
 
-/// Step 6 / success — Request received.
+/// Post-submission success screen.
 ///
-/// Replaces the legacy submitted screen visually, not logically. The wording
-/// is limited to what the backend actually guarantees after a 201/200: the
-/// clinic has received the request and the patient will be notified on update.
-/// It never claims a doctor was assigned, the clinic accepted, an appointment
-/// was confirmed, or an ambulance was dispatched.
+/// Reassures the patient, reminds them which clinic received the request,
+/// explains the immediate next step, and offers View request + quiet back-home.
 class RequestReceivedScreen extends StatelessWidget {
   const RequestReceivedScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     final request = context.watch<RequestSubmissionController>();
-    final status = request.result?.patientStatus;
+    final result = request.result;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F5F7),
+      backgroundColor: OmniColors.pageBackground,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.symmetric(
+            horizontal: OmniSpacing.pageHorizontal,
+          ),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Container(
-                width: 96,
-                height: 96,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1FBF9A).withOpacity(0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.check_circle,
-                  color: Color(0xFF1FBF9A),
-                  size: 60,
-                ),
-              ),
+              const Spacer(flex: 2),
+              _SuccessVisual(),
               const SizedBox(height: 28),
-              const Text(
+              Text(
                 'Request received',
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF1D2939),
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: OmniColors.textPrimary,
                 ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 12),
-              const Text(
+              Text(
                 'The clinic has received your request.',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Color(0xFF475467),
-                  height: 1.5,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: OmniColors.textSecondary,
                 ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 8),
-              const Text(
-                "You'll be notified when there is an update.",
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Color(0xFF667085),
-                  height: 1.5,
+              const SizedBox(height: 6),
+              Text(
+                "We'll notify you when there is an update.",
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: OmniColors.textTertiary,
                 ),
                 textAlign: TextAlign.center,
               ),
-              if (status != null) ...[
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                      color: const Color(0xFF1FBF9A).withOpacity(0.3),
-                    ),
-                  ),
-                  child: Text(
-                    _statusLabel(status),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF0F6F73),
-                    ),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 40),
-              if (request.result != null) ...[
+              const SizedBox(height: 32),
+              _WhatHappensNext(),
+              const Spacer(flex: 3),
+              if (result != null) ...[
                 SizedBox(
                   width: double.infinity,
-                  child: OutlinedButton(
+                  child: ElevatedButton(
                     onPressed: () => Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => PatientRequestDetailScreen(
-                          requestId: request.result!.requestId,
+                          requestId: result.requestId,
                         ),
                       ),
                     ),
@@ -111,40 +71,141 @@ class RequestReceivedScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-              ],
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(
-                      context,
-                    ).pushNamedAndRemoveUntil('/home', (route) => false);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1FBF9A),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text(
-                    'Back to home',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pushNamedAndRemoveUntil(
+                        '/home',
+                        (route) => false,
+                      );
+                    },
+                    child: const Text('Back to home'),
                   ),
                 ),
-              ),
+              ],
+              const SizedBox(height: OmniSpacing.pageVertical),
             ],
           ),
         ),
       ),
     );
   }
+}
 
-  String _statusLabel(PatientRequestStatus status) {
-    if (status == PatientRequestStatus.requestReceived) {
-      return 'Status: Request received';
-    }
-    return 'Status: ${status.wireValue.replaceAll('_', ' ').toLowerCase()}';
+class _SuccessVisual extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 64,
+      height: 64,
+      decoration: const BoxDecoration(
+        color: OmniColors.mintSoft,
+        shape: BoxShape.circle,
+      ),
+      child: const Icon(
+        Icons.check_circle,
+        color: OmniColors.primaryAction,
+        size: 36,
+      ),
+    );
+  }
+}
+
+class _WhatHappensNext extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(OmniSpacing.base),
+      decoration: BoxDecoration(
+        color: OmniColors.surfaceSecondary,
+        borderRadius: BorderRadius.circular(OmniRadii.card),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'What happens next',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: OmniColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _NextStep(
+            step: '1',
+            title: 'Clinic review',
+            description: 'The clinic reviews your request.',
+          ),
+          const SizedBox(height: 8),
+          _NextStep(
+            step: '2',
+            title: 'Stay updated',
+            description: "We'll notify you when something changes.",
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NextStep extends StatelessWidget {
+  const _NextStep({
+    required this.step,
+    required this.title,
+    required this.description,
+  });
+
+  final String step;
+  final String title;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 22,
+          height: 22,
+          decoration: const BoxDecoration(
+            color: OmniColors.primaryAction,
+            shape: BoxShape.circle,
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            step,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: OmniColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                description,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: OmniColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }

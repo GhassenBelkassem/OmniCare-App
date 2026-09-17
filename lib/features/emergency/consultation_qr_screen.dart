@@ -103,57 +103,55 @@ class _ConsultationQRScreenState extends State<ConsultationQRScreen> {
         ? 'OMNICARE_CONSULTATION:$consultationId'
         : 'OMNICARE_PATIENT:$patientId:$patientName';
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF4F5F7),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF1A202C)),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          'Consultation en Cours',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-            color: const Color(0xFF1A202C),
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 16, 0),
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back, color: Color(0xFF1A202C)),
+                onPressed: () => Navigator.pop(context),
+              ),
+              Text(
+                'Consultation en Cours',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF1A202C),
+                ),
+              ),
+            ],
           ),
         ),
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            if (_isCompleting)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                child: Text(
-                  'Finalizing consultation...',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF667085),
-                  ),
-                ),
-              ),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    _buildStatusCard(),
-                    const SizedBox(height: 20),
-                    _buildQRCard(qrData, patientName),
-                    const SizedBox(height: 20),
-                    _buildInstructionsCard(),
-                  ],
-                ),
+        if (_isCompleting)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            child: Text(
+              'Finalizing consultation...',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF667085),
               ),
             ),
-            _buildBottomButton(context),
-          ],
+          ),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                _buildStatusCard(),
+                const SizedBox(height: 20),
+                _buildQRCard(qrData, patientName),
+                const SizedBox(height: 20),
+                _buildInstructionsCard(),
+              ],
+            ),
+          ),
         ),
-      ),
+        _buildBottomButton(context),
+      ],
     );
   }
 

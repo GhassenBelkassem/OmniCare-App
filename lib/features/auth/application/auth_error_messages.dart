@@ -1,4 +1,5 @@
 import '../../../core/network/api_exception.dart';
+import 'auth_flow_models.dart';
 import 'tunisian_phone_number.dart';
 
 class AuthErrorPresentation {
@@ -18,6 +19,10 @@ class AuthErrorMessages {
 
   static AuthErrorPresentation fromObject(Object error) {
     if (error is PhoneNumberFormatException) {
+      return AuthErrorPresentation(message: error.message);
+    }
+
+    if (error is AuthFlowException) {
       return AuthErrorPresentation(message: error.message);
     }
 
