@@ -152,16 +152,7 @@ void main() {
           ),
         );
         expect(find.text('Clinic review'), findsOneWidget);
-        expect(find.textContaining('Action required'), findsOneWidget);
-        expect(
-          find.byWidgetPredicate(
-            (widget) =>
-                widget is Semantics &&
-                widget.properties.label ==
-                    'Action required: the clinic needs your response.',
-          ),
-          findsOneWidget,
-        );
+        expect(find.text('The clinic team reviews your request.'), findsOneWidget);
 
         await tester.pumpWidget(
           MaterialApp(

@@ -90,6 +90,8 @@ class PatientProfileScreen extends StatefulWidget {
     required this.onOpenAccountSecurity,
     required this.onOpenDevices,
     required this.onOpenLoginHistory,
+    this.onOpenAppointments,
+    this.onOpenRequests,
     this.onAddFamilyMember,
     this.onEditFamilyMember,
     this.onDeactivateFamilyMember,
@@ -134,6 +136,8 @@ class PatientProfileScreen extends StatefulWidget {
   final VoidCallback onOpenAccountSecurity;
   final VoidCallback onOpenDevices;
   final VoidCallback onOpenLoginHistory;
+  final VoidCallback? onOpenAppointments;
+  final VoidCallback? onOpenRequests;
   final String preferredLanguage;
   final bool notificationMedications;
   final bool notificationAppointments;
@@ -188,6 +192,29 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
                     onDismiss: widget.onAvatarErrorDismiss,
                   ),
                 ],
+                const SizedBox(height: 28),
+                const _SectionLabel('ACTIVITÉ'),
+                const SizedBox(height: 10),
+                _ProfileGroup(
+                  children: [
+                    _SettingsTile(
+                      icon: Icons.calendar_month_outlined,
+                      iconColor: _teal,
+                      iconBackground: _paleMint,
+                      title: 'Mes rendez-vous',
+                      subtitle: 'Prochains rendez-vous et historique',
+                      onTap: _isBusy ? null : widget.onOpenAppointments,
+                    ),
+                    _SettingsTile(
+                      icon: Icons.receipt_long_outlined,
+                      iconColor: const Color(0xFF175CD3),
+                      iconBackground: const Color(0xFFEFF4FF),
+                      title: 'Mes demandes',
+                      subtitle: 'Suivi de vos demandes',
+                      onTap: _isBusy ? null : widget.onOpenRequests,
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 28),
                 const _SectionLabel('MON COMPTE'),
                 const SizedBox(height: 10),

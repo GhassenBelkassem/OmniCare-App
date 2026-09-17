@@ -16,6 +16,10 @@ class AppEnvironment {
   static const _hasDefinedBaseUrl = bool.hasEnvironment(
     'OMNICARE_API_BASE_URL',
   );
+  static const phoneVerificationEnabled = bool.fromEnvironment(
+    'OMNICARE_PHONE_VERIFICATION_ENABLED',
+    defaultValue: false,
+  );
 
   const AppEnvironment._();
 

@@ -2,18 +2,26 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/models/family_models.dart';
+import '../../../core/theme/omni_theme.dart';
+import '../../../features/home/add_family_member_screen.dart';
 import '../../../features/patient_clinic/presentation/clinic_directory_screen.dart';
+import '../../../features/patient_doctor/presentation/doctor_directory_screen.dart';
 import '../../../providers/family_provider.dart';
 import '../../request_core/application/request_submission_controller.dart';
+import '../../request_core/domain/request_vocabulary.dart';
+import '../widgets/care_subject_card.dart';
 
 /// Step 1 — Who needs care?
 ///
-/// Only SELF and owned FAMILY_MEMBER are offered. There is deliberately no
-/// "Other Person" mode: a Module 05 request is for the account holder or one
-/// of their own family members. Selection is explicit and drives a Continue
-/// button — tapping "Me" never navigates on its own.
+/// Profile-grid interaction adapted to healthcare:
+/// - SELF is always the first profile
+/// - Family members follow
+/// - "Add family member" tile completes the grid
+/// - Selection is local; Continue commits the choice
 class WhoNeedsCareScreen extends StatefulWidget {
-  const WhoNeedsCareScreen({super.key});
+  const WhoNeedsCareScreen({super.key, this.requestKind = RequestKind.clinic});
+
+  final RequestKind requestKind;
 
   @override
   State<WhoNeedsCareScreen> createState() => _WhoNeedsCareScreenState();
@@ -25,205 +33,338 @@ class _WhoNeedsCareScreenState extends State<WhoNeedsCareScreen> {
   @override
   void initState() {
     super.initState();
-    final family = context.read<FamilyProvider>();
-    if (!family.hasMembers) {
-      family.loadFamilyMembers();
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final family = context.read<FamilyProvider>();
+      if (!family.hasMembers) {
+        family.loadFamilyMembers();
+      }
+    });
   }
 
-  void _continue(BuildContext context) {
+  void _continue() {
     final request = context.read<RequestSubmissionController>();
+
     if (_selectedMember == null) {
       request.selectSelfSubject();
     } else {
       request.selectFamilyMemberSubject(_selectedMember!);
     }
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const ClinicDirectoryScreen()),
+
+    if (widget.requestKind == RequestKind.doctor) {
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const DoctorDirectoryScreen()));
+    } else {
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const ClinicDirectoryScreen()));
+    }
+  }
+
+  Future<void> _openAddFamilyMember() async {
+    final result = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const AddFamilyMemberScreen()),
     );
+    if (result == true && mounted) {
+      context.read<FamilyProvider>().loadFamilyMembers();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final family = context.watch<FamilyProvider>();
+    final textTheme = Theme.of(context).textTheme;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF4F5F7),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: const Text(
-          'Who needs care?',
-          style: TextStyle(
-            color: Color(0xFF1D2939),
-            fontWeight: FontWeight.w700,
+    final tiles = <_GridItem>[
+      _GridItem.self(),
+      ...family.members.map(_GridItem.member),
+      _GridItem.addFamily(),
+    ];
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 16, 0),
+          child: Row(
+            children: [
+              IconButton(
+                tooltip: 'Back',
+                onPressed: () => Navigator.of(context).maybePop(),
+                icon: const Icon(
+                  Icons.arrow_back_rounded,
+                  size: 24,
+                  color: OmniColors.textPrimary,
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  'Who needs care?',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.titleLarge?.copyWith(
+                    fontSize: 26,
+                    height: 1.2,
+                    fontWeight: FontWeight.w700,
+                    color: OmniColors.textPrimary,
+                    letterSpacing: -0.45,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
-        leading: const BackButton(color: Color(0xFF1D2939)),
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                _SubjectTile(
-                  icon: Icons.person_outline,
-                  title: 'Me',
-                  subtitle: 'Request care for myself.',
-                  selected: _selectedMember == null,
-                  onTap: () => setState(() => _selectedMember = null),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Family members',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF667085),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                if (family.isLoading)
-                  const Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Center(child: CircularProgressIndicator()),
-                  )
-                else if (family.members.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Text(
-                      'No family members added yet.',
-                      style: TextStyle(color: Color(0xFF667085)),
-                      textAlign: TextAlign.center,
-                    ),
-                  )
-                else
-                  for (final member in family.members)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _SubjectTile(
-                        icon: Icons.group_outlined,
-                        title: member.fullName,
-                        subtitle: _relationshipLabel(member.relationship),
-                        selected: _selectedMember?.id == member.id,
-                        onTap: () => setState(() => _selectedMember = member),
-                      ),
-                    ),
-              ],
+        Expanded(
+          child: ListView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(
+              OmniSpacing.pageHorizontal,
+              OmniSpacing.sm,
+              OmniSpacing.pageHorizontal,
+              OmniSpacing.xxl,
             ),
-          ),
-          SafeArea(
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Color(0x11000000),
-                    blurRadius: 8,
-                    offset: Offset(0, -2),
-                  ),
-                ],
-              ),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => _continue(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1FBF9A),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text(
-                    'Continue',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                  ),
+            children: [
+              Text(
+                'Choose who this request is for.',
+                style: textTheme.bodyMedium?.copyWith(
+                  fontSize: 15,
+                  height: 1.5,
+                  color: OmniColors.textSecondary,
                 ),
               ),
-            ),
+              const SizedBox(height: OmniSpacing.xl),
+              _ProfileGrid(
+                items: tiles,
+                selectedId: _selectedMember?.id,
+                onSelfTap: () {
+                  setState(() {
+                    _selectedMember = null;
+                  });
+                },
+                onMemberTap: (member) {
+                  setState(() {
+                    _selectedMember = member;
+                  });
+                },
+                onAddTap: _openAddFamilyMember,
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+        _ContinueFooter(onPressed: _continue),
+      ],
     );
   }
 }
 
-class _SubjectTile extends StatelessWidget {
-  const _SubjectTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
+// ---------------------------------------------------------------------------
+// Grid item model
+// ---------------------------------------------------------------------------
+
+enum _GridItemKind { self_, member, addFamily }
+
+class _GridItem {
+  const _GridItem._({required this.kind, this.member});
+
+  const _GridItem.self() : this._(kind: _GridItemKind.self_);
+
+  const _GridItem.member(FamilyMember m)
+    : this._(kind: _GridItemKind.member, member: m);
+
+  const _GridItem.addFamily() : this._(kind: _GridItemKind.addFamily);
+
+  final _GridItemKind kind;
+  final FamilyMember? member;
+
+  bool get isSelf => kind == _GridItemKind.self_;
+  bool get isAdd => kind == _GridItemKind.addFamily;
+}
+
+// ---------------------------------------------------------------------------
+// Profile grid
+// ---------------------------------------------------------------------------
+
+class _ProfileGrid extends StatelessWidget {
+  const _ProfileGrid({
+    required this.items,
+    required this.selectedId,
+    required this.onSelfTap,
+    required this.onMemberTap,
+    required this.onAddTap,
+  });
+
+  final List<_GridItem> items;
+  final String? selectedId;
+  final VoidCallback onSelfTap;
+  final ValueChanged<FamilyMember> onMemberTap;
+  final VoidCallback onAddTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final gap = OmniSpacing.lg;
+        final tileWidth = (constraints.maxWidth - gap) / 2;
+
+        return Wrap(
+          spacing: gap,
+          runSpacing: OmniSpacing.xl,
+          children: items.map((item) {
+            return SizedBox(
+              width: tileWidth,
+              child: item.isAdd
+                  ? _AddFamilyTile(onTap: onAddTap)
+                  : _ProfileTile(
+                      item: item,
+                      selected: item.isSelf
+                          ? selectedId == null
+                          : selectedId == item.member?.id,
+                      onTap: () {
+                        if (item.isSelf) {
+                          onSelfTap();
+                        } else if (item.member != null) {
+                          onMemberTap(item.member!);
+                        }
+                      },
+                    ),
+            );
+          }).toList(),
+        );
+      },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Profile tile
+// ---------------------------------------------------------------------------
+
+class _ProfileTile extends StatelessWidget {
+  const _ProfileTile({
+    required this.item,
     required this.selected,
     required this.onTap,
   });
 
-  final IconData icon;
-  final String title;
-  final String subtitle;
+  final _GridItem item;
   final bool selected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: selected ? theme.colorScheme.primary : Colors.grey.withOpacity(0.18),
-          width: selected ? 2 : 1,
+    final name = item.isSelf ? 'Me' : item.member!.fullName;
+    final subtitle = item.isSelf
+        ? 'My care request'
+        : _relationshipLabel(item.member!.relationship);
+
+    return CareSubjectCard(
+      title: name,
+      subtitle: subtitle,
+      selected: selected,
+      onTap: onTap,
+      avatarId: item.member?.id,
+      photoUrl: item.member?.photoUrl,
+      isSelf: item.isSelf,
+    );
+  }
+}
+
+const double _avatarSize = 120;
+const double _avatarRadius = 24;
+
+// ---------------------------------------------------------------------------
+// Add family member tile
+// ---------------------------------------------------------------------------
+
+class _AddFamilyTile extends StatelessWidget {
+  const _AddFamilyTile({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Add family member',
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: _avatarSize,
+              height: _avatarSize,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(_avatarRadius),
+                color: Colors.white,
+                border: Border.all(color: OmniColors.borderStrong, width: 1.5),
+              ),
+              child: Icon(
+                Icons.add_rounded,
+                size: 32,
+                color: OmniColors.slateBlue,
+              ),
+            ),
+            const SizedBox(height: OmniSpacing.sm),
+            Text(
+              'Add family member',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontSize: 15,
+                height: 1.25,
+                fontWeight: FontWeight.w700,
+                color: OmniColors.textPrimary,
+                letterSpacing: -0.2,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              ' ',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(fontSize: 13),
+            ),
+          ],
         ),
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1FBF9A).withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(icon, color: const Color(0xFF1FBF9A)),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF1D2939),
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: Color(0xFF667085),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (selected)
-                  const Icon(Icons.check_circle, color: Color(0xFF1FBF9A)),
-              ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Continue footer
+// ---------------------------------------------------------------------------
+
+class _ContinueFooter extends StatelessWidget {
+  const _ContinueFooter({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: OmniColors.borderLight)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            OmniSpacing.pageHorizontal,
+            OmniSpacing.md,
+            OmniSpacing.pageHorizontal,
+            OmniSpacing.md,
+          ),
+          child: SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton(
+              onPressed: onPressed,
+              child: const Text('Continue'),
             ),
           ),
         ),
@@ -231,6 +372,10 @@ class _SubjectTile extends StatelessWidget {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 String _relationshipLabel(String relationship) {
   return FamilyRelationships.frenchLabel(relationship);

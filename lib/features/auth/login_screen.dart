@@ -5,6 +5,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import '../../core/auth/google_web_sign_in_button.dart';
+import '../../core/config/app_environment.dart';
 import 'application/auth_controller.dart';
 import 'application/auth_flow_models.dart';
 import 'application/post_auth_navigation.dart';
@@ -295,9 +296,11 @@ class _LoginScreenState extends State<LoginScreen>
                                       const SizedBox(height: 20),
 
                                       _buildEmailPasswordForm(),
-                                      const SizedBox(height: 16),
-
-                                      _buildPhoneButton(),
+                                      if (AppEnvironment
+                                          .phoneVerificationEnabled) ...[
+                                        const SizedBox(height: 16),
+                                        _buildPhoneButton(),
+                                      ],
                                       const SizedBox(height: 24),
 
                                       // Footer

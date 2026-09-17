@@ -2,6 +2,15 @@ import '../../../core/models/patient_profile.dart';
 import '../data/models/auth_dtos.dart';
 import 'auth_role_family.dart';
 
+class AuthFlowException implements Exception {
+  final String message;
+
+  const AuthFlowException(this.message);
+
+  @override
+  String toString() => message;
+}
+
 enum AuthFlowMode { login, signup }
 
 enum AuthRouteDecision {

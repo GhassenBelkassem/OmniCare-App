@@ -16,6 +16,7 @@ abstract class AuthRepositoryContract {
   Future<void> initiateGooglePhoneSignup(String phone);
   Future<void> verifyGooglePhoneSignupOtp(String phone, String otp);
   Future<AuthenticatedPatientSession> completeGoogleSignup({
+    String? phone,
     bool rememberDevice = false,
   });
   Future<void> initiatePhoneSignup(String phone);
@@ -128,6 +129,7 @@ class AuthRepository implements AuthRepositoryContract {
 
   @override
   Future<AuthenticatedPatientSession> completeGoogleSignup({
+    String? phone,
     bool rememberDevice = false,
   }) async {
     final signupToken = _requirePendingGoogleSignupToken();
@@ -135,6 +137,7 @@ class AuthRepository implements AuthRepositoryContract {
     final response = await _api.completeGoogleSignup(
       GoogleCompleteRequestDto(
         signupToken: signupToken,
+        phone: phone,
         deviceFingerprint: identity.deviceFingerprint,
         platform: identity.platform,
         deviceLabel: identity.deviceLabel,

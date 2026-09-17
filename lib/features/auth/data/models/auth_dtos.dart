@@ -417,6 +417,7 @@ class GooglePhoneVerifyRequestDto {
 
 class GoogleCompleteRequestDto {
   final String signupToken;
+  final String? phone;
   final String deviceFingerprint;
   final ClientPlatform platform;
   final String deviceLabel;
@@ -425,6 +426,7 @@ class GoogleCompleteRequestDto {
 
   const GoogleCompleteRequestDto({
     required this.signupToken,
+    this.phone,
     required this.deviceFingerprint,
     required this.platform,
     required this.deviceLabel,
@@ -435,6 +437,7 @@ class GoogleCompleteRequestDto {
   Map<String, dynamic> toJson() {
     return {
       'signupToken': signupToken,
+      if (phone != null) 'phone': phone,
       'deviceFingerprint': deviceFingerprint,
       'platform': platform.value,
       'deviceLabel': deviceLabel,

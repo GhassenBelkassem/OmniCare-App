@@ -1,18 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/theme/omni_theme.dart';
 import '../../../features/request_core/application/request_submission_controller.dart';
 import '../application/patient_clinic_directory_controller.dart';
 import 'clinic_detail_screen.dart';
+import 'clinic_filter_model.dart';
 import 'widgets/clinic_card.dart';
+import 'widgets/clinic_filter_sheet.dart';
+import 'widgets/clinic_search_field.dart';
 
-/// Patient clinic directory: real backend Clinics, search, pagination.
+/// Patient clinic directory: real backend Clinics, search, local presentation
+/// filters and bounded pagination.
 ///
 /// Selects nothing on its own — it records the chosen clinic on
 /// [RequestSubmissionController] only via the detail screen's CTA, and shows
 /// the current selection so the patient can continue to the next step. The
 /// directory controller handles debounced, cancel-safe search and `Slice`
 /// pagination, so this screen never loads every clinic.
+///
+/// Presentation filters (specialty, city, clinic type, services, accepting,
+/// sort) are local and applied only to the currently loaded clinics. They
+/// never become backend query parameters.
 class ClinicDirectoryScreen extends StatefulWidget {
   const ClinicDirectoryScreen({super.key});
 
@@ -23,16 +32,27 @@ class ClinicDirectoryScreen extends StatefulWidget {
 class _ClinicDirectoryScreenState extends State<ClinicDirectoryScreen> {
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  ClinicFilterSnapshot _filters = ClinicFilterSnapshot.none;
 
   @override
   void initState() {
     super.initState();
-    final controller = context.read<PatientClinicDirectoryController>();
-    if (controller.items.isEmpty &&
-        controller.status == PatientClinicDirectoryStatus.idle) {
-      controller.loadFirst();
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final controller = context.read<PatientClinicDirectoryController>();
+      if (controller.items.isEmpty &&
+          controller.status == PatientClinicDirectoryStatus.idle) {
+        controller.loadFirst();
+      }
+    });
     _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _scrollController.dispose();
+    super.dispose();
   }
 
   void _onScroll() {
@@ -43,11 +63,25 @@ class _ClinicDirectoryScreenState extends State<ClinicDirectoryScreen> {
     }
   }
 
-  @override
-  void dispose() {
-    _searchController.dispose();
-    _scrollController.dispose();
-    super.dispose();
+  Future<void> _openFilters() async {
+    final directory = context.read<PatientClinicDirectoryController>();
+    final result = await showClinicFilterSheet(
+      context: context,
+      options: buildClinicFilterOptions(directory.items),
+      items: directory.items,
+      initial: _filters,
+    );
+    if (result != null && result != _filters) {
+      setState(() {
+        _filters = result;
+      });
+    }
+  }
+
+  void _resetFilters() {
+    setState(() {
+      _filters = ClinicFilterSnapshot.none;
+    });
   }
 
   @override
@@ -56,168 +90,424 @@ class _ClinicDirectoryScreenState extends State<ClinicDirectoryScreen> {
     final request = context.watch<RequestSubmissionController>();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F5F7),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: const Text(
-          'Choose a clinic',
-          style: TextStyle(
-            color: Color(0xFF1D2939),
-            fontWeight: FontWeight.w700,
-          ),
+      backgroundColor: OmniColors.pageBackground,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                OmniSpacing.pageHorizontal,
+                OmniSpacing.md,
+                OmniSpacing.pageHorizontal,
+                0,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _BackButton(),
+                  const SizedBox(height: OmniSpacing.md),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Choose a clinic',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .headlineMedium
+                                  ?.copyWith(
+                                    fontSize: 26,
+                                    fontWeight: FontWeight.w700,
+                                    height: 1.15,
+                                    color: OmniColors.textPrimary,
+                                    letterSpacing: -0.5,
+                                  ),
+                            ),
+                            const SizedBox(height: OmniSpacing.sm),
+                            Text(
+                              'Find a clinic that\'s right for you.',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(
+                                    fontSize: 14,
+                                    height: 1.5,
+                                    color: OmniColors.textSecondary,
+                                  ),
+                              maxLines: 2,
+                            ),
+                          ],
+                        ),
+                      ),
+                      _FilterAction(
+                        activeCount: _filters.activeGroupCount,
+                        onTap: _openFilters,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                OmniSpacing.pageHorizontal,
+                OmniSpacing.md,
+                OmniSpacing.pageHorizontal,
+                OmniSpacing.sm,
+              ),
+              child: ClinicSearchField(
+                controller: _searchController,
+                onChanged: directory.search,
+              ),
+            ),
+            Expanded(
+              child: _DirectoryBody(
+                directory: directory,
+                selectedClinicId: request.selectedClinicId,
+                scrollController: _scrollController,
+                filters: _filters,
+                onResetFilters: _resetFilters,
+              ),
+            ),
+            if (request.selectedClinicId != null)
+              _ContinueBar(
+                onContinue: () {
+                  Navigator.of(context).pushNamed('/m05/situation');
+                },
+              ),
+          ],
         ),
-        leading: const BackButton(color: Color(0xFF1D2939)),
-      ),
-      body: Column(
-        children: [
-          _SearchBar(
-            controller: _searchController,
-            onChanged: directory.search,
-          ),
-          Expanded(
-            child: _Body(
-              directory: directory,
-              selectedClinicId: request.selectedClinicId,
-            ),
-          ),
-          if (request.selectedClinicId != null)
-            _ContinueBar(
-              onContinue: () {
-                Navigator.of(context).pushNamed('/m05/situation');
-              },
-            ),
-        ],
       ),
     );
   }
 }
 
-class _SearchBar extends StatelessWidget {
-  const _SearchBar({required this.controller, required this.onChanged});
+class _BackButton extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Back',
+      child: GestureDetector(
+        onTap: () => Navigator.of(context).maybePop(),
+        child: Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+            border: Border.all(color: OmniColors.borderLight),
+            boxShadow: const [OmniColors.shadowSm],
+          ),
+          child: const Icon(
+            Icons.arrow_back_rounded,
+            size: 22,
+            color: OmniColors.textPrimary,
+          ),
+        ),
+      ),
+    );
+  }
+}
 
-  final TextEditingController controller;
-  final void Function(String) onChanged;
+class _FilterAction extends StatelessWidget {
+  const _FilterAction({
+    required this.activeCount,
+    required this.onTap,
+  });
+
+  final int activeCount;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final hasActive = activeCount > 0;
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      child: TextField(
-        controller: controller,
-        onChanged: onChanged,
-        decoration: InputDecoration(
-          hintText: 'Search clinics',
-          prefixIcon: const Icon(Icons.search, color: Color(0xFF98A2B3)),
-          filled: true,
-          fillColor: Colors.white,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 12,
+      padding: const EdgeInsets.only(top: 2),
+      child: Semantics(
+        button: true,
+        label: hasActive ? 'Filters, $activeCount active' : 'Filters',
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: hasActive ? OmniColors.mintSoft : Colors.transparent,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Center(
+                  child: Icon(
+                    Icons.tune_rounded,
+                    size: 22,
+                    color: hasActive
+                        ? OmniColors.deepTeal
+                        : OmniColors.textPrimary,
+                  ),
+                ),
+                if (hasActive)
+                  Positioned(
+                    top: 2,
+                    right: 2,
+                    child: Container(
+                      constraints: const BoxConstraints(
+                        minWidth: 16,
+                        minHeight: 16,
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      alignment: Alignment.center,
+                      decoration: const BoxDecoration(
+                        color: OmniColors.freshMint,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        '$activeCount',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          height: 1.1,
+                          fontWeight: FontWeight.w700,
+                          color: OmniColors.deepTealActive,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
-        textInputAction: TextInputAction.search,
       ),
     );
   }
 }
 
-class _Body extends StatelessWidget {
-  const _Body({required this.directory, this.selectedClinicId});
+class _DirectoryBody extends StatelessWidget {
+  const _DirectoryBody({
+    required this.directory,
+    this.selectedClinicId,
+    this.scrollController,
+    required this.filters,
+    required this.onResetFilters,
+  });
 
   final PatientClinicDirectoryController directory;
   final String? selectedClinicId;
+  final ScrollController? scrollController;
+  final ClinicFilterSnapshot filters;
+  final VoidCallback onResetFilters;
 
   @override
   Widget build(BuildContext context) {
     final status = directory.status;
+    final rawItems = directory.items;
 
     if (status == PatientClinicDirectoryStatus.loadingFirst &&
-        directory.items.isEmpty) {
+        rawItems.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (status == PatientClinicDirectoryStatus.error &&
-        directory.items.isEmpty) {
+    if (status == PatientClinicDirectoryStatus.error && rawItems.isEmpty) {
       return _ErrorState(
         message: directory.error?.message ?? 'Unable to load clinics.',
         onRetry: directory.loadFirst,
       );
     }
 
-    if (status == PatientClinicDirectoryStatus.empty &&
-        directory.items.isEmpty) {
-      return _EmptyState(query: directory.query);
+    if (rawItems.isEmpty) {
+      if (filters.isActive) {
+        return _FilteredEmptyState(onReset: onResetFilters);
+      }
+      return _EmptyState(
+        hasQuery: directory.query.trim().isNotEmpty,
+      );
     }
 
-    final items = directory.items;
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      itemCount: items.length + (directory.isLoadingMore ? 1 : 0),
-      separatorBuilder: (context, index) => const SizedBox.shrink(),
-      itemBuilder: (context, index) {
-        if (index >= items.length) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 16),
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
-        final clinic = items[index];
-        return ClinicListCard(
-          clinic: clinic,
-          selected: clinic.clinicId == selectedClinicId,
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => ClinicDetailScreen(clinicId: clinic.clinicId),
-              ),
-            );
-          },
-        );
-      },
+    final visible = applyClinicFilters(
+      items: rawItems,
+      filters: filters,
+    );
+
+    if (visible.isEmpty) {
+      return _FilteredEmptyState(onReset: onResetFilters);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            OmniSpacing.pageHorizontal,
+            0,
+            OmniSpacing.pageHorizontal,
+            OmniSpacing.sm,
+          ),
+          child: Text(
+            visible.length == 1
+                ? '1 clinic found'
+                : '${visible.length} clinics found',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: OmniColors.textSecondary,
+            ),
+          ),
+        ),
+        Expanded(
+          child: ListView.separated(
+            controller: scrollController,
+            padding: const EdgeInsets.fromLTRB(
+              OmniSpacing.pageHorizontal,
+              0,
+              OmniSpacing.pageHorizontal,
+              OmniSpacing.pageVertical,
+            ),
+            itemCount: visible.length + (directory.isLoadingMore ? 1 : 0),
+            separatorBuilder: (context, index) =>
+                const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              if (index >= visible.length) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: OmniSpacing.md),
+                  child: Center(
+                    child: SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2.2),
+                    ),
+                  ),
+                );
+              }
+              final item = visible[index];
+              return ClinicListCard(
+                clinic: item.clinic,
+                selected: item.clinicId == selectedClinicId,
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          ClinicDetailScreen(clinicId: item.clinicId),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({this.query = ''});
+  const _EmptyState({required this.hasQuery});
 
-  final String query;
+  final bool hasQuery;
 
   @override
   Widget build(BuildContext context) {
-    final hasQuery = query.trim().isNotEmpty;
+    final theme = Theme.of(context);
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(OmniSpacing.xxl),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
-              Icons.local_hospital_outlined,
-              size: 56,
-              color: Color(0xFF98A2B3),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              hasQuery ? 'No clinics found' : 'No clinics available',
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF1D2939),
+            Container(
+              width: 56,
+              height: 56,
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(
+                color: OmniColors.surfaceSecondary,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.local_hospital_outlined,
+                size: 26,
+                color: OmniColors.slateBlue,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: OmniSpacing.base),
+            Text(
+              hasQuery ? 'No clinics found' : 'No clinics available',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: OmniColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: OmniSpacing.sm),
             Text(
               hasQuery
-                  ? 'Try a different search.'
+                  ? 'Try another search.'
                   : 'Check back later for open clinics.',
-              style: const TextStyle(fontSize: 14, color: Color(0xFF667085)),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontSize: 14,
+                height: 1.4,
+                color: OmniColors.textSecondary,
+              ),
               textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FilteredEmptyState extends StatelessWidget {
+  const _FilteredEmptyState({required this.onReset});
+
+  final VoidCallback onReset;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(OmniSpacing.xxl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(
+                color: OmniColors.surfaceSecondary,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.filter_alt_outlined,
+                size: 26,
+                color: OmniColors.slateBlue,
+              ),
+            ),
+            const SizedBox(height: OmniSpacing.base),
+            Text(
+              'No clinics match these filters.',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: OmniColors.textPrimary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: OmniSpacing.base),
+            SizedBox(
+              width: 150,
+              height: 44,
+              child: OutlinedButton(
+                onPressed: onReset,
+                child: const Text('Reset filters'),
+              ),
             ),
           ],
         ),
@@ -234,30 +524,45 @@ class _ErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(OmniSpacing.xxl),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, size: 56, color: Color(0xFFD92D20)),
-            const SizedBox(height: 16),
+            Container(
+              width: 56,
+              height: 56,
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(
+                color: OmniColors.errorSoft,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.error_outline_rounded,
+                size: 26,
+                color: OmniColors.error,
+              ),
+            ),
+            const SizedBox(height: OmniSpacing.base),
             Text(
               message,
-              style: const TextStyle(fontSize: 16, color: Color(0xFF475467)),
+              style: theme.textTheme.bodyLarge?.copyWith(
+                fontSize: 15,
+                height: 1.4,
+                color: OmniColors.textPrimary,
+              ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: onRetry,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1FBF9A),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+            const SizedBox(height: OmniSpacing.base + 4),
+            SizedBox(
+              width: 160,
+              height: 44,
+              child: ElevatedButton(
+                onPressed: onRetry,
+                child: const Text('Try again'),
               ),
-              child: const Text('Try again'),
             ),
           ],
         ),
@@ -273,34 +578,28 @@ class _ContinueBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Color(0x11000000),
-              blurRadius: 8,
-              offset: Offset(0, -2),
-            ),
-          ],
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          top: BorderSide(color: OmniColors.borderLight),
         ),
-        child: SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: onContinue,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1FBF9A),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: const Text(
-              'Continue',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            OmniSpacing.pageHorizontal,
+            OmniSpacing.md,
+            OmniSpacing.pageHorizontal,
+            OmniSpacing.md,
+          ),
+          child: SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton(
+              onPressed: onContinue,
+              child: const Text('Continue'),
             ),
           ),
         ),

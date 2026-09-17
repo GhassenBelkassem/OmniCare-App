@@ -5,6 +5,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import '../../core/auth/google_web_sign_in_button.dart';
+import '../../core/config/app_environment.dart';
 import '../../providers/user_provider.dart';
 import '../../core/nav/keyboard_navigation.dart';
 import 'application/auth_controller.dart';
@@ -306,7 +307,9 @@ class _SignupScreenState extends State<SignupScreen> {
                     ),
                   )
                 : Text(
-                    'Verify phone number',
+                    AppEnvironment.phoneVerificationEnabled
+                        ? 'Verify phone number'
+                        : 'Continue',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,

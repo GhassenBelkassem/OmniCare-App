@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'features/auth/splash_screen.dart';
 import 'features/auth/login_screen.dart';
-import 'features/auth/phone_input_screen.dart';
 import 'features/auth/reset_password_screen.dart';
 import 'features/profile/vital_info_screen.dart';
 import 'features/profile/medications_screen.dart';
@@ -39,11 +37,11 @@ import 'providers/reservation_provider.dart';
 import 'services/notification_service.dart';
 import 'l10n/app_localizations.dart';
 import 'core/nav/app_nav.dart';
+import 'core/theme/omni_theme.dart';
 import 'core/device/device_identity_service.dart';
 import 'core/network/app_http_client.dart';
 import 'core/storage/secure_token_store.dart';
 import 'features/auth/application/auth_controller.dart';
-import 'features/auth/application/auth_flow_models.dart';
 import 'features/clinic/application/clinic_context_controller.dart';
 import 'features/clinic/application/clinic_operational_controller.dart';
 import 'features/clinic/clinic_routes.dart';
@@ -56,7 +54,11 @@ import 'features/patient_clinic/application/patient_clinic_directory_controller.
 import 'features/patient_clinic/data/patient_clinic_api.dart';
 import 'features/patient_clinic/data/patient_clinic_repository.dart';
 import 'features/patient_clinic/presentation/clinic_directory_screen.dart';
+import 'features/patient_doctor/presentation/doctor_directory_screen.dart';
+import 'features/patient_doctor/presentation/doctor_detail_screen.dart';
+import 'features/patient_doctor/application/doctor_directory_controller.dart';
 import 'features/request_flow/screens/request_flow_entry_screen.dart';
+import 'features/request_flow/screens/doctor_cabinet_entry_screen.dart';
 import 'features/request_flow/screens/who_needs_care_screen.dart';
 import 'features/request_flow/screens/situation_screen.dart';
 import 'features/request_flow/screens/pickup_screen.dart';
@@ -182,6 +184,7 @@ class OmniCareApp extends StatelessWidget {
             ),
           ),
         ),
+        ChangeNotifierProvider(create: (_) => DoctorDirectoryController()),
         ChangeNotifierProvider(create: (_) => ReservationProvider()),
       ],
       child: Consumer2<UserOnboardingProvider, UserProvider>(
@@ -223,22 +226,11 @@ class OmniCareApp extends StatelessWidget {
               GlobalWidgetsLocalizations.delegate,
               GlobalCupertinoLocalizations.delegate,
             ],
-            theme: ThemeData(
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: const Color(0xFF1FBF9A),
-                primary: const Color(0xFF1FBF9A),
-                secondary: const Color(0xFF6BE3B2),
-              ),
-              scaffoldBackgroundColor: const Color(0xFFF4F5F7),
-              textTheme: GoogleFonts.plusJakartaSansTextTheme(),
-              useMaterial3: true,
-            ),
+            theme: buildOmniTheme(),
             home: const SplashScreen(),
             navigatorObservers: [AppNav.routeObserver],
             routes: {
               '/login': (context) => const LoginScreen(),
-              '/phone-input': (context) =>
-                  const PhoneInputScreen(mode: AuthFlowMode.login),
               '/medical-profile': (context) => const VitalInfoScreen(),
               '/medications': (context) => const MedicationsScreen(),
               '/medical-documents': (context) => const MedicalDocumentsScreen(),
@@ -256,9 +248,13 @@ class OmniCareApp extends StatelessWidget {
               '/clinic-request': (context) => const ClinicRequestScreen(),
               '/notifications': (context) => const NotificationsScreen(),
               '/m05/request': (context) => const RequestFlowEntryScreen(),
+              '/doctor/cabinet/who-needs-care': (context) =>
+                  const DoctorCabinetEntryScreen(),
               '/m05/who-needs-care': (context) => const WhoNeedsCareScreen(),
               '/m05/clinic-directory': (context) =>
                   const ClinicDirectoryScreen(),
+              '/m05/doctor-directory': (context) =>
+                  const DoctorDirectoryScreen(),
               '/m05/situation': (context) => const SituationScreen(),
               '/m05/pickup': (context) => const PickupScreen(),
               '/m05/review': (context) => const ReviewScreen(),

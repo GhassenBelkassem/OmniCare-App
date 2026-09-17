@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import '../../core/config/app_environment.dart';
 import '../../providers/user_onboarding_provider.dart';
 import 'application/auth_controller.dart';
 import 'application/auth_flow_models.dart';
+import 'application/post_auth_navigation.dart';
 import 'application/tunisian_phone_number.dart';
 import 'otp_verification_screen.dart';
 
@@ -75,18 +77,22 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
       if (!mounted) return;
       setState(() => _isLoading = false);
       if (success) {
-        await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => OtpVerificationScreen(
-              mode: widget.mode,
-              contactInfo: phoneNumber,
+        if (auth.isAuthenticated) {
+          await navigateAfterAuthentication(context, auth);
+        } else if (AppEnvironment.phoneVerificationEnabled) {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => OtpVerificationScreen(
+                mode: widget.mode,
+                contactInfo: phoneNumber,
+              ),
             ),
-          ),
-        );
+          );
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(auth.errorMessage ?? 'Unable to send code.')),
+          SnackBar(content: Text(auth.errorMessage ?? 'Unable to continue.')),
         );
       }
     }
@@ -140,7 +146,9 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
                 Text(
                   widget.mode == AuthFlowMode.login
                       ? 'Phone Login'
-                      : 'Phone Verification',
+                      : AppEnvironment.phoneVerificationEnabled
+                      ? 'Phone Verification'
+                      : 'Phone Number',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 18,
@@ -152,7 +160,9 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
                 Text(
                   widget.mode == AuthFlowMode.login
                       ? 'Enter your phone number to receive a login code.'
-                      : 'We need to register your phone number before getting started!',
+                      : AppEnvironment.phoneVerificationEnabled
+                      ? 'We need to verify your phone number before getting started.'
+                      : 'Add a contact number to finish creating your account.',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 12,
@@ -272,7 +282,9 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
                             ),
                           )
                         : Text(
-                            'Send the Code',
+                            AppEnvironment.phoneVerificationEnabled
+                                ? 'Send the Code'
+                                : 'Continue',
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
