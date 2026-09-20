@@ -32,6 +32,8 @@ class DoctorRepository {
   }
 
   List<Map<String, dynamic>> getKines() {
-    return createMockDoctors().where((d) => d['specialty'] == 'Kinésithérapeute').toList();
+    return createMockDoctors()
+        .where((d) => d['specialty'] == 'Kinésithérapeute')
+        .toList();
   }
 }

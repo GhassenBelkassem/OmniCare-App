@@ -7,17 +7,20 @@ class NotificationService {
   factory NotificationService() => _instance;
   NotificationService._internal();
 
-  final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
+  final FlutterLocalNotificationsPlugin _notifications =
+      FlutterLocalNotificationsPlugin();
   bool _initialized = false;
 
   Future<void> initialize() async {
     if (_initialized) return;
 
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidSettings = AndroidInitializationSettings(
+      '@mipmap/ic_launcher',
+    );
     const iosSettings = DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
+      requestAlertPermission: false,
+      requestBadgePermission: false,
+      requestSoundPermission: false,
     );
 
     const initSettings = InitializationSettings(
@@ -29,25 +32,15 @@ class NotificationService {
       initSettings,
       onDidReceiveNotificationResponse: _onNotificationTapped,
     );
-    
-    // Enable foreground notifications on iOS
-    await _notifications
-        .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>()
-        ?.requestPermissions(
-          alert: true,
-          badge: true,
-          sound: true,
-        );
 
-    // Request permissions for iOS
+    // Request iOS permission once. Initialization now runs after the first
+    // Flutter frame, so this platform dialog cannot delay application startup.
     if (defaultTargetPlatform == TargetPlatform.iOS) {
       await _notifications
-          .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>()
-          ?.requestPermissions(
-            alert: true,
-            badge: true,
-            sound: true,
-          );
+          .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin
+          >()
+          ?.requestPermissions(alert: true, badge: true, sound: true);
     }
 
     _initialized = true;
@@ -59,7 +52,9 @@ class NotificationService {
   }
 
   Future<void> showDoctorsFoundNotification() async {
-    debugPrint('🔔 NOTIFICATION: Attempting to show Doctors Found notification');
+    debugPrint(
+      '🔔 NOTIFICATION: Attempting to show Doctors Found notification',
+    );
     final androidDetails = AndroidNotificationDetails(
       'emergency_channel',
       'Urgences Médicales',
@@ -98,7 +93,9 @@ class NotificationService {
   }
 
   Future<void> showDoctorOnWayNotification(String doctorName) async {
-    debugPrint('🔔 NOTIFICATION: Attempting to show Doctor On Way notification for $doctorName');
+    debugPrint(
+      '🔔 NOTIFICATION: Attempting to show Doctor On Way notification for $doctorName',
+    );
     final androidDetails = AndroidNotificationDetails(
       'emergency_channel',
       'Urgences Médicales',
@@ -137,7 +134,9 @@ class NotificationService {
   }
 
   Future<void> showDoctorArrivedNotification(String doctorName) async {
-    debugPrint('🔔 NOTIFICATION: Attempting to show Doctor Arrived notification for $doctorName');
+    debugPrint(
+      '🔔 NOTIFICATION: Attempting to show Doctor Arrived notification for $doctorName',
+    );
     final androidDetails = AndroidNotificationDetails(
       'emergency_channel',
       'Urgences Médicales',
@@ -191,7 +190,7 @@ class NotificationService {
   // Test notification to verify setup works
   Future<void> showTestNotification() async {
     debugPrint('🔔 NOTIFICATION: Sending test notification');
-    
+
     final androidDetails = AndroidNotificationDetails(
       'test_channel',
       'Test',

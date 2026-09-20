@@ -16,7 +16,9 @@ class MedicationsScreen extends StatefulWidget {
 class _MedicationsScreenState extends State<MedicationsScreen> {
   void _showAddMedicationDialog({MedicationEntry? medication, int? index}) {
     final nameController = TextEditingController(text: medication?.name ?? '');
-    final dosageController = TextEditingController(text: medication?.dosage ?? '');
+    final dosageController = TextEditingController(
+      text: medication?.dosage ?? '',
+    );
     String frequency = medication?.frequency ?? '1x daily';
     String? selectedMedicationId = medication?.medicationId;
     MedicationSearchResult? selectedDetails;
@@ -26,20 +28,21 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            final frequencyItems = ['1x daily', '2x daily', '3x daily', 'As needed']
-                .map(
-                  (freq) => DropdownMenuItem(
-                    value: freq,
-                    child: Text(
-                      freq,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 16,
-                        color: const Color(0xFF1D2939),
+            final frequencyItems =
+                ['1x daily', '2x daily', '3x daily', 'As needed']
+                    .map(
+                      (freq) => DropdownMenuItem(
+                        value: freq,
+                        child: Text(
+                          freq,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 16,
+                            color: const Color(0xFF1D2939),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                )
-                .toList();
+                    )
+                    .toList();
             return AlertDialog(
               backgroundColor: Colors.white,
               shape: RoundedRectangleBorder(
@@ -86,25 +89,27 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                     ),
                     if (selectedDetails != null) ...[
                       const SizedBox(height: 10),
-                      Builder(builder: (context) {
-                        final d = selectedDetails!;
-                        final parts = <String>[];
-                        final form = (d.form ?? '').trim();
-                        final dci = (d.dci ?? '').trim();
-                        final type = (d.type ?? '').trim();
-                        if (form.isNotEmpty) parts.add(form);
-                        if (dci.isNotEmpty) parts.add(dci);
-                        if (type.isNotEmpty) parts.add(type);
-                        if (d.isSoluble) parts.add('Soluble');
-                        if (parts.isEmpty) return const SizedBox.shrink();
-                        return Text(
-                          parts.join(' • '),
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12,
-                            color: const Color(0xFF667085),
-                          ),
-                        );
-                      }),
+                      Builder(
+                        builder: (context) {
+                          final d = selectedDetails!;
+                          final parts = <String>[];
+                          final form = (d.form ?? '').trim();
+                          final dci = (d.dci ?? '').trim();
+                          final type = (d.type ?? '').trim();
+                          if (form.isNotEmpty) parts.add(form);
+                          if (dci.isNotEmpty) parts.add(dci);
+                          if (type.isNotEmpty) parts.add(type);
+                          if (d.isSoluble) parts.add('Soluble');
+                          if (parts.isEmpty) return const SizedBox.shrink();
+                          return Text(
+                            parts.join(' • '),
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              color: const Color(0xFF667085),
+                            ),
+                          );
+                        },
+                      ),
                     ],
                     const SizedBox(height: 16),
                     Text(
@@ -132,11 +137,15 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                         fillColor: const Color(0xFFF4F5F7),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE5E7EB),
+                          ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE5E7EB),
+                          ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -158,7 +167,8 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                     ),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
-                      initialValue: frequencyItems.any((i) => i.value == frequency)
+                      initialValue:
+                          frequencyItems.any((i) => i.value == frequency)
                           ? frequency
                           : frequencyItems.first.value,
                       onChanged: (value) {
@@ -172,11 +182,15 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                         fillColor: const Color(0xFFF4F5F7),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE5E7EB),
+                          ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE5E7EB),
+                          ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -206,7 +220,8 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                   onPressed: () {
                     if (nameController.text.isNotEmpty &&
                         dosageController.text.isNotEmpty) {
-                      if (selectedMedicationId == null || selectedMedicationId!.trim().isEmpty) {
+                      if (selectedMedicationId == null ||
+                          selectedMedicationId!.trim().isEmpty) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text(
@@ -387,7 +402,8 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: provider.medications.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 12),
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 12),
                   itemBuilder: (context, index) {
                     final medication = provider.medications[index];
                     return Container(

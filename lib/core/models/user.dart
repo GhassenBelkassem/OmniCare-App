@@ -3,11 +3,7 @@ class UserDto {
   final String? name;
   final String? phoneNumber;
 
-  const UserDto({
-    this.email,
-    this.name,
-    this.phoneNumber,
-  });
+  const UserDto({this.email, this.name, this.phoneNumber});
 
   factory UserDto.fromJson(Map<String, dynamic> json) {
     return UserDto(

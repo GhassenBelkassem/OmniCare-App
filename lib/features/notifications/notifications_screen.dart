@@ -12,7 +12,8 @@ class NotificationsScreen extends StatelessWidget {
         'id': '1',
         'type': 'appointment_confirmed',
         'title': 'Rendez-vous Confirmé',
-        'message': 'Dr. Ahmed Mansour a accepté votre demande et propose des créneaux disponibles',
+        'message':
+            'Dr. Ahmed Mansour a accepté votre demande et propose des créneaux disponibles',
         'doctor': {
           'name': 'Dr. Ahmed Mansour',
           'specialty': 'Médecin Généraliste',
@@ -26,7 +27,8 @@ class NotificationsScreen extends StatelessWidget {
         'id': '2',
         'type': 'appointment_confirmed',
         'title': 'Rendez-vous Confirmé',
-        'message': 'Dr. Sarah Benali a accepté votre demande et propose des créneaux disponibles',
+        'message':
+            'Dr. Sarah Benali a accepté votre demande et propose des créneaux disponibles',
         'doctor': {
           'name': 'Dr. Sarah Benali',
           'specialty': 'Cardiologue',
@@ -147,10 +149,13 @@ class NotificationsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildNotificationCard(BuildContext context, Map<String, dynamic> notification) {
+  Widget _buildNotificationCard(
+    BuildContext context,
+    Map<String, dynamic> notification,
+  ) {
     final isRead = notification['isRead'] as bool;
     final type = notification['type'] as String;
-    
+
     return GestureDetector(
       onTap: () {
         if (type == 'appointment_confirmed') {
@@ -165,10 +170,14 @@ class NotificationsScreen extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isRead ? Colors.white : const Color(0xFF1FBF9A).withOpacity(0.05),
+          color: isRead
+              ? Colors.white
+              : const Color(0xFF1FBF9A).withOpacity(0.05),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isRead ? const Color(0xFFE5E7EB) : const Color(0xFF1FBF9A).withOpacity(0.2),
+            color: isRead
+                ? const Color(0xFFE5E7EB)
+                : const Color(0xFF1FBF9A).withOpacity(0.2),
           ),
           boxShadow: [
             BoxShadow(
@@ -196,7 +205,7 @@ class NotificationsScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 16),
-            
+
             // Content
             Expanded(
               child: Column(

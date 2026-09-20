@@ -26,7 +26,8 @@ class _EmergencyRequestStep0State extends State<EmergencyRequestStep0> {
     }
 
     // Get providerType from route arguments
-    final routeArgs = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    final routeArgs =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     final providerType = routeArgs?['providerType'] as String? ?? 'doctor';
 
     final data = {
@@ -34,11 +35,7 @@ class _EmergencyRequestStep0State extends State<EmergencyRequestStep0> {
       'providerType': providerType,
     };
 
-    Navigator.pushNamed(
-      context,
-      '/emergency-step1',
-      arguments: data,
-    );
+    Navigator.pushNamed(context, '/emergency-step1', arguments: data);
   }
 
   @override
@@ -87,26 +84,28 @@ class _EmergencyRequestStep0State extends State<EmergencyRequestStep0> {
                     ),
                   ),
                   const SizedBox(height: 32),
-                  
+
                   // Home Consultation Option
                   _buildConsultationTypeCard(
                     type: 'home',
                     title: 'Consultation à Domicile',
                     subtitle: 'Urgence - Visite immédiate',
-                    description: 'Un professionnel viendra chez vous rapidement',
+                    description:
+                        'Un professionnel viendra chez vous rapidement',
                     icon: Icons.home,
                     color: const Color(0xFF1FBF9A),
                     badge: 'URGENT',
                     badgeColor: const Color(0xFFEF4444),
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // Book Appointment Option
                   _buildConsultationTypeCard(
                     type: 'book',
                     title: 'Prendre Rendez-vous',
                     subtitle: 'Planifié - Choisir un professionnel',
-                    description: 'Sélectionnez parmi les professionnels disponibles',
+                    description:
+                        'Sélectionnez parmi les professionnels disponibles',
                     icon: Icons.calendar_today,
                     color: const Color(0xFF8B5CF6),
                     badge: 'PLANIFIÉ',
@@ -208,7 +207,7 @@ class _EmergencyRequestStep0State extends State<EmergencyRequestStep0> {
     required Color badgeColor,
   }) {
     final isSelected = _selectedConsultationType == type;
-    
+
     return GestureDetector(
       onTap: () {
         setState(() {
@@ -246,15 +245,14 @@ class _EmergencyRequestStep0State extends State<EmergencyRequestStep0> {
                     color: color.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(
-                    icon,
-                    color: color,
-                    size: 24,
-                  ),
+                  child: Icon(icon, color: color, size: 24),
                 ),
                 const Spacer(),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: badgeColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
@@ -325,9 +323,7 @@ class _EmergencyRequestStep0State extends State<EmergencyRequestStep0> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border(
-          top: BorderSide(color: const Color(0xFFE2E8F0)),
-        ),
+        border: Border(top: BorderSide(color: const Color(0xFFE2E8F0))),
       ),
       child: SafeArea(
         child: SizedBox(

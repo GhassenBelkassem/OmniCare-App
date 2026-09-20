@@ -4,15 +4,12 @@ import 'package:google_fonts/google_fonts.dart';
 class MedicalDocumentViewerScreen extends StatelessWidget {
   final Map<String, dynamic> document;
 
-  const MedicalDocumentViewerScreen({
-    super.key,
-    required this.document,
-  });
+  const MedicalDocumentViewerScreen({super.key, required this.document});
 
   @override
   Widget build(BuildContext context) {
     final String docType = document['type'] ?? 'report';
-    
+
     return Scaffold(
       backgroundColor: const Color(0xFFF4F5F7),
       appBar: AppBar(
@@ -109,7 +106,11 @@ class MedicalDocumentViewerScreen extends StatelessWidget {
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      const Icon(Icons.calendar_today, color: Colors.white, size: 16),
+                      const Icon(
+                        Icons.calendar_today,
+                        color: Colors.white,
+                        size: 16,
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         document['date'] ?? 'Date unknown',
@@ -149,7 +150,11 @@ class MedicalDocumentViewerScreen extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.description, color: Color(0xFF1FBF9A), size: 24),
+                      const Icon(
+                        Icons.description,
+                        color: Color(0xFF1FBF9A),
+                        size: 24,
+                      ),
                       const SizedBox(width: 12),
                       Text(
                         'Document Preview',
@@ -162,7 +167,7 @@ class MedicalDocumentViewerScreen extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 20),
-                  
+
                   // Simulated document content based on type
                   _buildDocumentContent(docType),
                 ],
@@ -182,7 +187,11 @@ class MedicalDocumentViewerScreen extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.info_outline, color: Color(0xFF1FBF9A), size: 24),
+                      const Icon(
+                        Icons.info_outline,
+                        color: Color(0xFF1FBF9A),
+                        size: 24,
+                      ),
                       const SizedBox(width: 12),
                       Text(
                         'Document Information',
@@ -272,7 +281,11 @@ class MedicalDocumentViewerScreen extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.description, size: 80, color: Color(0xFF667085)),
+                const Icon(
+                  Icons.description,
+                  size: 80,
+                  color: Color(0xFF667085),
+                ),
                 const SizedBox(height: 16),
                 Text(
                   'Blood Test Results Document',
@@ -292,7 +305,10 @@ class MedicalDocumentViewerScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 20),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF1FBF9A).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
@@ -301,7 +317,11 @@ class MedicalDocumentViewerScreen extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.zoom_in, color: Color(0xFF1FBF9A), size: 20),
+                      const Icon(
+                        Icons.zoom_in,
+                        color: Color(0xFF1FBF9A),
+                        size: 20,
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         'Tap to view full document',
@@ -328,7 +348,11 @@ class MedicalDocumentViewerScreen extends StatelessWidget {
           ),
           child: Row(
             children: [
-              const Icon(Icons.info_outline, color: Color(0xFF0F6F73), size: 20),
+              const Icon(
+                Icons.info_outline,
+                color: Color(0xFF0F6F73),
+                size: 20,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
@@ -361,7 +385,11 @@ class MedicalDocumentViewerScreen extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.medical_information, size: 60, color: Color(0xFF667085)),
+                const Icon(
+                  Icons.medical_information,
+                  size: 60,
+                  color: Color(0xFF667085),
+                ),
                 const SizedBox(height: 12),
                 Text(
                   'Brain Scan Image',
@@ -467,7 +495,12 @@ class MedicalDocumentViewerScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildTestResult(String name, String value, String status, bool isNormal) {
+  Widget _buildTestResult(
+    String name,
+    String value,
+    String status,
+    bool isNormal,
+  ) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
@@ -503,9 +536,9 @@ class MedicalDocumentViewerScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: isNormal 
-                ? const Color(0xFF1FBF9A).withOpacity(0.1)
-                : Colors.orange.withOpacity(0.1),
+              color: isNormal
+                  ? const Color(0xFF1FBF9A).withOpacity(0.1)
+                  : Colors.orange.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(

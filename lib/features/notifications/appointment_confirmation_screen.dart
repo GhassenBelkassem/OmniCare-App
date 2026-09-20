@@ -5,16 +5,15 @@ import 'package:url_launcher/url_launcher.dart';
 class AppointmentConfirmationScreen extends StatefulWidget {
   final Map<String, dynamic> doctorData;
 
-  const AppointmentConfirmationScreen({
-    super.key,
-    required this.doctorData,
-  });
+  const AppointmentConfirmationScreen({super.key, required this.doctorData});
 
   @override
-  State<AppointmentConfirmationScreen> createState() => _AppointmentConfirmationScreenState();
+  State<AppointmentConfirmationScreen> createState() =>
+      _AppointmentConfirmationScreenState();
 }
 
-class _AppointmentConfirmationScreenState extends State<AppointmentConfirmationScreen> {
+class _AppointmentConfirmationScreenState
+    extends State<AppointmentConfirmationScreen> {
   String? _selectedSlot;
 
   // Mock available urgent time slots (combined date + time)
@@ -68,7 +67,7 @@ class _AppointmentConfirmationScreenState extends State<AppointmentConfirmationS
     final lat = _doctorLocation['latitude'];
     final lng = _doctorLocation['longitude'];
     final url = 'https://www.google.com/maps/search/?api=1&query=$lat,$lng';
-    
+
     if (await canLaunchUrl(Uri.parse(url))) {
       await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
     }
@@ -136,7 +135,10 @@ class _AppointmentConfirmationScreenState extends State<AppointmentConfirmationS
                       runSpacing: 8,
                       children: ['Français', 'Arabe', 'Anglais'].map((lang) {
                         return Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xFFF4F5F7),
                             borderRadius: BorderRadius.circular(8),
@@ -222,11 +224,11 @@ class _AppointmentConfirmationScreenState extends State<AppointmentConfirmationS
                   // Doctor Card
                   _buildDoctorCard(),
                   const SizedBox(height: 16),
-                  
+
                   // More Details Button
                   _buildMoreDetailsButton(),
                   const SizedBox(height: 24),
-                  
+
                   // Time Slots Selection
                   Text(
                     'Créneaux Disponibles',
@@ -239,7 +241,7 @@ class _AppointmentConfirmationScreenState extends State<AppointmentConfirmationS
                   const SizedBox(height: 12),
                   _buildTimeSlotSelection(),
                   const SizedBox(height: 24),
-                  
+
                   // Location Info & Google Maps Button
                   Text(
                     'Lieu de Consultation',
@@ -288,11 +290,7 @@ class _AppointmentConfirmationScreenState extends State<AppointmentConfirmationS
               ),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(
-              Icons.person,
-              color: Colors.white,
-              size: 36,
-            ),
+            child: const Icon(Icons.person, color: Colors.white, size: 36),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -312,7 +310,10 @@ class _AppointmentConfirmationScreenState extends State<AppointmentConfirmationS
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF1FBF9A).withOpacity(0.1),
                         borderRadius: BorderRadius.circular(6),
@@ -320,7 +321,11 @@ class _AppointmentConfirmationScreenState extends State<AppointmentConfirmationS
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.check_circle, color: Color(0xFF1FBF9A), size: 14),
+                          const Icon(
+                            Icons.check_circle,
+                            color: Color(0xFF1FBF9A),
+                            size: 14,
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             'Disponible',
@@ -410,7 +415,7 @@ class _AppointmentConfirmationScreenState extends State<AppointmentConfirmationS
       children: _availableSlots.map((slot) {
         final isSelected = _selectedSlot == slot['id'];
         final isUrgent = slot['isUrgent'] as bool;
-        
+
         return GestureDetector(
           onTap: () {
             setState(() {
@@ -424,7 +429,9 @@ class _AppointmentConfirmationScreenState extends State<AppointmentConfirmationS
               color: Colors.white,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: isSelected ? const Color(0xFF1FBF9A) : const Color(0xFFE5E7EB),
+                color: isSelected
+                    ? const Color(0xFF1FBF9A)
+                    : const Color(0xFFE5E7EB),
                 width: isSelected ? 2 : 1,
               ),
             ),
@@ -434,14 +441,16 @@ class _AppointmentConfirmationScreenState extends State<AppointmentConfirmationS
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: isSelected 
+                    color: isSelected
                         ? const Color(0xFF1FBF9A).withOpacity(0.1)
                         : const Color(0xFFF4F5F7),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
                     Icons.access_time,
-                    color: isSelected ? const Color(0xFF1FBF9A) : const Color(0xFF667085),
+                    color: isSelected
+                        ? const Color(0xFF1FBF9A)
+                        : const Color(0xFF667085),
                     size: 24,
                   ),
                 ),
@@ -454,8 +463,12 @@ class _AppointmentConfirmationScreenState extends State<AppointmentConfirmationS
                           slot['displayText'],
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 15,
-                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                            color: isSelected ? const Color(0xFF1FBF9A) : const Color(0xFF1D2939),
+                            fontWeight: isSelected
+                                ? FontWeight.w700
+                                : FontWeight.w600,
+                            color: isSelected
+                                ? const Color(0xFF1FBF9A)
+                                : const Color(0xFF1D2939),
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -463,7 +476,10 @@ class _AppointmentConfirmationScreenState extends State<AppointmentConfirmationS
                       if (isUrgent) ...[
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xFFEF4444).withOpacity(0.1),
                             borderRadius: BorderRadius.circular(6),
@@ -574,7 +590,7 @@ class _AppointmentConfirmationScreenState extends State<AppointmentConfirmationS
 
   Widget _buildBottomBar() {
     final canConfirm = _selectedSlot != null;
-    
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(

@@ -8,10 +8,7 @@ import 'package:geocoding/geocoding.dart';
 class EmergencyRequestStep3 extends StatefulWidget {
   final Map<String, dynamic> previousData;
 
-  const EmergencyRequestStep3({
-    super.key,
-    required this.previousData,
-  });
+  const EmergencyRequestStep3({super.key, required this.previousData});
 
   @override
   State<EmergencyRequestStep3> createState() => _EmergencyRequestStep3State();
@@ -23,7 +20,7 @@ class _EmergencyRequestStep3State extends State<EmergencyRequestStep3> {
   String _selectedAddress = '';
   bool _isLoadingLocation = false;
   bool _useManualAddress = false;
-  
+
   final TextEditingController _streetController = TextEditingController();
   final TextEditingController _apartmentController = TextEditingController();
   final TextEditingController _cityController = TextEditingController();
@@ -100,13 +97,15 @@ class _EmergencyRequestStep3State extends State<EmergencyRequestStep3> {
       if (placemarks.isNotEmpty) {
         Placemark place = placemarks[0];
         setState(() {
-          _selectedAddress = '${place.street}, ${place.locality}, ${place.country}';
+          _selectedAddress =
+              '${place.street}, ${place.locality}, ${place.country}';
         });
       }
     } catch (e) {
       print('Error getting address: $e');
       setState(() {
-        _selectedAddress = 'Lat: ${position.latitude.toStringAsFixed(4)}, Lng: ${position.longitude.toStringAsFixed(4)}';
+        _selectedAddress =
+            'Lat: ${position.latitude.toStringAsFixed(4)}, Lng: ${position.longitude.toStringAsFixed(4)}';
       });
     }
   }
@@ -135,7 +134,8 @@ class _EmergencyRequestStep3State extends State<EmergencyRequestStep3> {
 
   bool _canProceed() {
     if (_useManualAddress) {
-      return _streetController.text.isNotEmpty && _cityController.text.isNotEmpty;
+      return _streetController.text.isNotEmpty &&
+          _cityController.text.isNotEmpty;
     }
     return _selectedAddress.isNotEmpty;
   }
@@ -151,7 +151,8 @@ class _EmergencyRequestStep3State extends State<EmergencyRequestStep3> {
               'street': _streetController.text,
               'apartment': _apartmentController.text,
               'city': _cityController.text,
-              'fullAddress': '${_streetController.text}, ${_apartmentController.text}, ${_cityController.text}',
+              'fullAddress':
+                  '${_streetController.text}, ${_apartmentController.text}, ${_cityController.text}',
             }
           : {
               'type': 'gps',
@@ -161,11 +162,7 @@ class _EmergencyRequestStep3State extends State<EmergencyRequestStep3> {
             },
     };
 
-    Navigator.pushNamed(
-      context,
-      '/emergency-review',
-      arguments: data,
-    );
+    Navigator.pushNamed(context, '/emergency-review', arguments: data);
   }
 
   @override
@@ -575,7 +572,10 @@ class _EmergencyRequestStep3State extends State<EmergencyRequestStep3> {
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: Color(0xFF1FBF9A), width: 2),
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
           ),
           style: GoogleFonts.plusJakartaSans(
             fontSize: 14,

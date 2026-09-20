@@ -4,10 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 class BookingConfirmedScreen extends StatelessWidget {
   final Map<String, dynamic> bookingData;
 
-  const BookingConfirmedScreen({
-    super.key,
-    required this.bookingData,
-  });
+  const BookingConfirmedScreen({super.key, required this.bookingData});
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +34,7 @@ class BookingConfirmedScreen extends StatelessWidget {
           child: Column(
             children: [
               const SizedBox(height: 20),
-              
+
               // Success Illustration
               Image.asset(
                 'assets/images/Confirmed-bro.png',
@@ -67,9 +64,9 @@ class BookingConfirmedScreen extends StatelessWidget {
                   );
                 },
               ),
-              
+
               const SizedBox(height: 32),
-              
+
               // Success Icon
               Container(
                 width: 80,
@@ -84,9 +81,9 @@ class BookingConfirmedScreen extends StatelessWidget {
                   size: 50,
                 ),
               ),
-              
+
               const SizedBox(height: 24),
-              
+
               // Title
               Text(
                 'Rendez-vous Confirmé !',
@@ -97,9 +94,9 @@ class BookingConfirmedScreen extends StatelessWidget {
                 ),
                 textAlign: TextAlign.center,
               ),
-              
+
               const SizedBox(height: 12),
-              
+
               // Subtitle
               Text(
                 'Votre rendez-vous a été confirmé avec succès',
@@ -109,9 +106,9 @@ class BookingConfirmedScreen extends StatelessWidget {
                 ),
                 textAlign: TextAlign.center,
               ),
-              
+
               const SizedBox(height: 32),
-              
+
               // Booking Details Card
               Container(
                 padding: const EdgeInsets.all(20),
@@ -172,11 +169,11 @@ class BookingConfirmedScreen extends StatelessWidget {
                         ),
                       ],
                     ),
-                    
+
                     const SizedBox(height: 20),
                     const Divider(height: 1, color: Color(0xFFE5E7EB)),
                     const SizedBox(height: 20),
-                    
+
                     // Date & Time
                     _buildDetailRow(
                       Icons.calendar_today,
@@ -184,7 +181,7 @@ class BookingConfirmedScreen extends StatelessWidget {
                       '${_formatDate(date)} à $time',
                     ),
                     const SizedBox(height: 16),
-                    
+
                     // Location
                     _buildDetailRow(
                       Icons.location_on,
@@ -194,9 +191,9 @@ class BookingConfirmedScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              
+
               const SizedBox(height: 24),
-              
+
               // Reminder Card
               Container(
                 padding: const EdgeInsets.all(16),
@@ -228,9 +225,9 @@ class BookingConfirmedScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              
+
               const SizedBox(height: 32),
-              
+
               // Actions
               Row(
                 children: [
@@ -274,9 +271,9 @@ class BookingConfirmedScreen extends StatelessWidget {
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 12),
-              
+
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -301,7 +298,7 @@ class BookingConfirmedScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              
+
               const SizedBox(height: 24),
             ],
           ),
@@ -357,7 +354,20 @@ class BookingConfirmedScreen extends StatelessWidget {
     // Simple date formatting - in production use intl package
     final parts = date.split('-');
     if (parts.length == 3) {
-      final months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
+      final months = [
+        'Jan',
+        'Fév',
+        'Mar',
+        'Avr',
+        'Mai',
+        'Juin',
+        'Juil',
+        'Août',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Déc',
+      ];
       final month = int.tryParse(parts[1]) ?? 1;
       return '${parts[2]} ${months[month - 1]} ${parts[0]}';
     }

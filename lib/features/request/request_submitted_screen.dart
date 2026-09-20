@@ -13,8 +13,10 @@ class RequestSubmittedScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final providerLabel = providerType == 'doctor' ? 'médecins' : 'kinésithérapeutes';
-    
+    final providerLabel = providerType == 'doctor'
+        ? 'médecins'
+        : 'kinésithérapeutes';
+
     return Scaffold(
       backgroundColor: const Color(0xFFF4F5F7),
       appBar: AppBar(
@@ -37,7 +39,7 @@ class RequestSubmittedScreen extends StatelessWidget {
           child: Column(
             children: [
               const SizedBox(height: 40),
-              
+
               // Illustration Image
               Image.asset(
                 'assets/images/Confirmed-bro.png',
@@ -67,9 +69,9 @@ class RequestSubmittedScreen extends StatelessWidget {
                   );
                 },
               ),
-              
+
               const SizedBox(height: 40),
-              
+
               // Success Icon
               Container(
                 width: 80,
@@ -84,9 +86,9 @@ class RequestSubmittedScreen extends StatelessWidget {
                   size: 50,
                 ),
               ),
-              
+
               const SizedBox(height: 24),
-              
+
               // Title
               Text(
                 'Demandes Envoyées !',
@@ -97,9 +99,9 @@ class RequestSubmittedScreen extends StatelessWidget {
                 ),
                 textAlign: TextAlign.center,
               ),
-              
+
               const SizedBox(height: 16),
-              
+
               // Message
               Text(
                 'Vos demandes ont été envoyées à $providerCount $providerLabel.',
@@ -110,9 +112,9 @@ class RequestSubmittedScreen extends StatelessWidget {
                 ),
                 textAlign: TextAlign.center,
               ),
-              
+
               const SizedBox(height: 12),
-              
+
               // Notification message
               Container(
                 padding: const EdgeInsets.all(16),
@@ -144,9 +146,9 @@ class RequestSubmittedScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              
+
               const SizedBox(height: 32),
-              
+
               // What's Next Section
               Container(
                 padding: const EdgeInsets.all(20),
@@ -183,16 +185,22 @@ class RequestSubmittedScreen extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    _buildStep('1', 'Les professionnels examinent votre demande'),
+                    _buildStep(
+                      '1',
+                      'Les professionnels examinent votre demande',
+                    ),
                     _buildStep('2', 'Ils proposent des créneaux disponibles'),
-                    _buildStep('3', 'Vous choisissez l\'horaire qui vous convient'),
+                    _buildStep(
+                      '3',
+                      'Vous choisissez l\'horaire qui vous convient',
+                    ),
                     _buildStep('4', 'Confirmation de votre rendez-vous'),
                   ],
                 ),
               ),
-              
+
               const SizedBox(height: 40),
-              
+
               // Back to Home Button
               SizedBox(
                 width: double.infinity,
@@ -218,7 +226,7 @@ class RequestSubmittedScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              
+
               const SizedBox(height: 24),
             ],
           ),
