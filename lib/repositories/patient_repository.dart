@@ -62,7 +62,11 @@ class PatientRepository {
     String? notes,
   }) async {
     if (_api == null) return;
-    await _api!.addPatientCondition(patientId: patientId, name: name, notes: notes);
+    await _api!.addPatientCondition(
+      patientId: patientId,
+      name: name,
+      notes: notes,
+    );
   }
 
   Future<void> addPatientMedication({

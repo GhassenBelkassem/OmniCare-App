@@ -140,7 +140,8 @@ class _MedicationSearchFieldState extends State<MedicationSearchField> {
 
   @override
   Widget build(BuildContext context) {
-    final showResults = _focusNode.hasFocus && (_loading || _results.isNotEmpty);
+    final showResults =
+        _focusNode.hasFocus && (_loading || _results.isNotEmpty);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -148,11 +149,20 @@ class _MedicationSearchFieldState extends State<MedicationSearchField> {
         TextField(
           controller: widget.controller,
           focusNode: _focusNode,
-          style: GoogleFonts.plusJakartaSans(fontSize: 13, color: const Color(0xFF1D2939)),
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 13,
+            color: const Color(0xFF1D2939),
+          ),
           decoration: InputDecoration(
             hintText: widget.hintText,
-            hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: const Color(0xFF667085)),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            hintStyle: GoogleFonts.plusJakartaSans(
+              fontSize: 13,
+              color: const Color(0xFF667085),
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 10,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
               borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
@@ -216,13 +226,19 @@ class _MedicationSearchFieldState extends State<MedicationSearchField> {
                           dense: true,
                           title: Text(
                             r.name,
-                            style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600),
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                           subtitle: subtitleParts.isEmpty
                               ? null
                               : Text(
                                   subtitleParts.join(' • '),
-                                  style: GoogleFonts.plusJakartaSans(fontSize: 12, color: const Color(0xFF667085)),
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 12,
+                                    color: const Color(0xFF667085),
+                                  ),
                                 ),
                         ),
                       );

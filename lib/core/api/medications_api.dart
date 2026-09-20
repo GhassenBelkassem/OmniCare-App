@@ -46,9 +46,11 @@ class MedicationsApi {
     final all = createMockMedications();
     final lower = trimmed.toLowerCase();
     return all
-        .where((m) =>
-            m.name.toLowerCase().contains(lower) ||
-            (m.dci?.toLowerCase().contains(lower) ?? false))
+        .where(
+          (m) =>
+              m.name.toLowerCase().contains(lower) ||
+              (m.dci?.toLowerCase().contains(lower) ?? false),
+        )
         .take(10)
         .toList();
   }

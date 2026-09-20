@@ -38,6 +38,7 @@ class ProfileNotificationPreferences {
 
 class PatientProfile {
   const PatientProfile({
+    this.patientId,
     required this.userId,
     required this.firstName,
     required this.lastName,
@@ -54,6 +55,7 @@ class PatientProfile {
     required this.updatedAt,
   });
 
+  final String? patientId;
   final String userId;
   final String firstName;
   final String lastName;
@@ -71,6 +73,7 @@ class PatientProfile {
 
   factory PatientProfile.fromJson(Map<String, dynamic> json) {
     return PatientProfile(
+      patientId: _optionalString(json['patientId']),
       userId: _requiredString(json, 'userId'),
       firstName: _requiredString(json, 'firstName'),
       lastName: _requiredString(json, 'lastName'),
@@ -109,6 +112,7 @@ class PatientProfile {
     DateTime? updatedAt,
   }) {
     return PatientProfile(
+      patientId: patientId,
       userId: userId,
       firstName: firstName ?? this.firstName,
       lastName: lastName ?? this.lastName,

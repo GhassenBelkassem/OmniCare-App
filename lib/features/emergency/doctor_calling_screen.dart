@@ -9,16 +9,14 @@ import '../../services/notification_service.dart';
 class DoctorCallingScreen extends StatefulWidget {
   final Map<String, dynamic> requestData;
 
-  const DoctorCallingScreen({
-    super.key,
-    required this.requestData,
-  });
+  const DoctorCallingScreen({super.key, required this.requestData});
 
   @override
   State<DoctorCallingScreen> createState() => _DoctorCallingScreenState();
 }
 
-class _DoctorCallingScreenState extends State<DoctorCallingScreen> with SingleTickerProviderStateMixin {
+class _DoctorCallingScreenState extends State<DoctorCallingScreen>
+    with SingleTickerProviderStateMixin {
   late AnimationController _pulseController;
   Timer? _navigationTimer;
   Timer? _pollTimer;
@@ -101,8 +99,7 @@ class _DoctorCallingScreenState extends State<DoctorCallingScreen> with SingleTi
             },
           );
         }
-      } catch (_) {
-      }
+      } catch (_) {}
     });
   }
 
@@ -178,21 +175,24 @@ class _DoctorCallingScreenState extends State<DoctorCallingScreen> with SingleTi
                   icon: Icons.phone,
                   color: const Color(0xFF3B82F6),
                   title: 'Appel de Confirmation',
-                  description: 'Le médecin vérifiera votre emplacement et confirmera l\'heure d\'arrivée estimée.',
+                  description:
+                      'Le médecin vérifiera votre emplacement et confirmera l\'heure d\'arrivée estimée.',
                 ),
                 const SizedBox(height: 16),
                 _buildInfoCard(
                   icon: Icons.check_circle,
                   color: const Color(0xFF10B981),
                   title: 'Que Préparer',
-                  description: 'Ayez votre passeport médical prêt et assurez un accès facile à votre emplacement.',
+                  description:
+                      'Ayez votre passeport médical prêt et assurez un accès facile à votre emplacement.',
                 ),
                 const SizedBox(height: 16),
                 _buildInfoCard(
                   icon: Icons.access_time,
                   color: const Color(0xFFFFA500),
                   title: 'Après Confirmation',
-                  description: 'Une fois confirmé, vous pourrez suivre l\'arrivée du médecin en temps réel sur la carte.',
+                  description:
+                      'Une fois confirmé, vous pourrez suivre l\'arrivée du médecin en temps réel sur la carte.',
                 ),
                 const SizedBox(height: 32),
                 Row(
@@ -203,7 +203,9 @@ class _DoctorCallingScreenState extends State<DoctorCallingScreen> with SingleTi
                       height: 20,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF1FBF9A)),
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                          Color(0xFF1FBF9A),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -224,7 +226,10 @@ class _DoctorCallingScreenState extends State<DoctorCallingScreen> with SingleTi
                     color: const Color(0xFFF4F5F7),
                     borderRadius: BorderRadius.circular(12),
                     border: Border(
-                      left: BorderSide(color: const Color(0xFF1FBF9A), width: 4),
+                      left: BorderSide(
+                        color: const Color(0xFF1FBF9A),
+                        width: 4,
+                      ),
                     ),
                   ),
                   child: Text(
@@ -261,7 +266,9 @@ class _DoctorCallingScreenState extends State<DoctorCallingScreen> with SingleTi
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: const Color(0xFF1FBF9A).withOpacity(0.6 - (value * 0.6)),
+                    color: const Color(
+                      0xFF1FBF9A,
+                    ).withOpacity(0.6 - (value * 0.6)),
                     width: 2,
                   ),
                 ),
@@ -277,11 +284,7 @@ class _DoctorCallingScreenState extends State<DoctorCallingScreen> with SingleTi
             color: const Color(0xFF1FBF9A).withOpacity(0.1),
             shape: BoxShape.circle,
           ),
-          child: const Icon(
-            Icons.phone,
-            color: Color(0xFF1FBF9A),
-            size: 48,
-          ),
+          child: const Icon(Icons.phone, color: Color(0xFF1FBF9A), size: 48),
         ),
       ],
     );

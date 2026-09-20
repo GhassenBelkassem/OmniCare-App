@@ -34,10 +34,7 @@ class QRCodeModal extends StatelessWidget {
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [
-                    const Color(0xFF1FBF9A),
-                    const Color(0xFF0F6F73),
-                  ],
+                  colors: [const Color(0xFF1FBF9A), const Color(0xFF0F6F73)],
                 ),
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(24),
@@ -63,7 +60,9 @@ class QRCodeModal extends StatelessWidget {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              isFamilyMember ? 'Membre de la famille' : 'Mon carnet de santé',
+                              isFamilyMember
+                                  ? 'Membre de la famille'
+                                  : 'Mon carnet de santé',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 13,
                                 color: Colors.white.withOpacity(0.9),

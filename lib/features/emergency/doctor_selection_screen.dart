@@ -60,10 +60,7 @@ class DoctorReview {
 class DoctorSelectionScreen extends StatefulWidget {
   final Map<String, dynamic> emergencyData;
 
-  const DoctorSelectionScreen({
-    super.key,
-    required this.emergencyData,
-  });
+  const DoctorSelectionScreen({super.key, required this.emergencyData});
 
   @override
   State<DoctorSelectionScreen> createState() => _DoctorSelectionScreenState();
@@ -87,7 +84,8 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
       rating: 4.8,
       reviewCount: 142,
       tags: ['ECG Portable', 'Urgences', 'Arabe/Français'],
-      description: 'Médecin généraliste expérimenté avec plus de 15 ans de pratique. Spécialisé dans les soins d\'urgence à domicile et équipé d\'un ECG portable pour les diagnostics cardiaques.',
+      description:
+          'Médecin généraliste expérimenté avec plus de 15 ans de pratique. Spécialisé dans les soins d\'urgence à domicile et équipé d\'un ECG portable pour les diagnostics cardiaques.',
       education: [
         'Doctorat en Médecine - Faculté de Médecine de Tunis (2008)',
         'Résidence en Médecine Générale - CHU La Rabta (2008-2012)',
@@ -101,13 +99,15 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
         DoctorReview(
           patientName: 'Ahmed K.',
           rating: 5.0,
-          comment: 'Excellent médecin, très professionnel et à l\'écoute. Il a pris le temps d\'expliquer mon diagnostic.',
+          comment:
+              'Excellent médecin, très professionnel et à l\'écoute. Il a pris le temps d\'expliquer mon diagnostic.',
           date: 'Il y a 2 semaines',
         ),
         DoctorReview(
           patientName: 'Fatma M.',
           rating: 4.5,
-          comment: 'Très bon service, arrivé rapidement. Diagnostic précis et traitement efficace.',
+          comment:
+              'Très bon service, arrivé rapidement. Diagnostic précis et traitement efficace.',
           date: 'Il y a 1 mois',
         ),
         DoctorReview(
@@ -131,7 +131,8 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
       rating: 4.9,
       reviewCount: 203,
       tags: ['Spécialiste Pédiatrique', 'Vaccinations'],
-      description: 'Pédiatre certifiée avec une approche douce et rassurante pour les enfants. Spécialisée dans les soins pédiatriques d\'urgence et les vaccinations.',
+      description:
+          'Pédiatre certifiée avec une approche douce et rassurante pour les enfants. Spécialisée dans les soins pédiatriques d\'urgence et les vaccinations.',
       education: [
         'Doctorat en Médecine - Faculté de Médecine de Sousse (2010)',
         'Spécialisation en Pédiatrie - CHU Farhat Hached (2010-2014)',
@@ -145,13 +146,15 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
         DoctorReview(
           patientName: 'Leila B.',
           rating: 5.0,
-          comment: 'Excellente avec les enfants! Ma fille était très à l\'aise. Merci Dr. Mansouri!',
+          comment:
+              'Excellente avec les enfants! Ma fille était très à l\'aise. Merci Dr. Mansouri!',
           date: 'Il y a 1 semaine',
         ),
         DoctorReview(
           patientName: 'Karim H.',
           rating: 5.0,
-          comment: 'Très professionnelle et patiente. Elle a bien expliqué le traitement.',
+          comment:
+              'Très professionnelle et patiente. Elle a bien expliqué le traitement.',
           date: 'Il y a 3 semaines',
         ),
       ],
@@ -169,7 +172,8 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
       rating: 4.7,
       reviewCount: 95,
       tags: ['Maladies Chroniques', 'Diabète'],
-      description: 'Spécialiste en médecine interne avec expertise dans la gestion des maladies chroniques, notamment le diabète et l\'hypertension.',
+      description:
+          'Spécialiste en médecine interne avec expertise dans la gestion des maladies chroniques, notamment le diabète et l\'hypertension.',
       education: [
         'Doctorat en Médecine - Faculté de Médecine de Monastir (2012)',
         'Spécialisation en Médecine Interne - CHU Monastir (2012-2016)',
@@ -183,7 +187,8 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
         DoctorReview(
           patientName: 'Nadia T.',
           rating: 4.5,
-          comment: 'Très bon suivi pour mon diabète. Médecin compétent et disponible.',
+          comment:
+              'Très bon suivi pour mon diabète. Médecin compétent et disponible.',
           date: 'Il y a 2 semaines',
         ),
         DoctorReview(
@@ -201,7 +206,7 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
   void initState() {
     super.initState();
     _startDoctorDiscovery();
-    
+
     // Send test notification to verify notifications work
     Future.delayed(const Duration(seconds: 2), () {
       NotificationService().showTestNotification();
@@ -218,51 +223,61 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
 
   void _startDoctorDiscovery() {
     // Phase 1: Searching (2 seconds)
-    _timers.add(Timer(const Duration(seconds: 2), () {
-      if (mounted) {
-        setState(() {
-          _isSearching = false;
-        });
-      }
-    }));
+    _timers.add(
+      Timer(const Duration(seconds: 2), () {
+        if (mounted) {
+          setState(() {
+            _isSearching = false;
+          });
+        }
+      }),
+    );
 
     // Phase 2: Doctors appear one by one
     for (int i = 0; i < _mockDoctors.length; i++) {
       final doctor = _mockDoctors[i];
       final appearDelay = 2500 + (i * 1500);
 
-      _timers.add(Timer(Duration(milliseconds: appearDelay), () {
-        if (mounted) {
-          setState(() {
-            doctor.status = 'checking';
-            _visibleDoctors.add(doctor);
-          });
+      _timers.add(
+        Timer(Duration(milliseconds: appearDelay), () {
+          if (mounted) {
+            setState(() {
+              doctor.status = 'checking';
+              _visibleDoctors.add(doctor);
+            });
 
-          // Change to 'viewing' after 1-2 seconds
-          _timers.add(Timer(Duration(milliseconds: 1000 + (i * 200)), () {
-            if (mounted) {
-              setState(() {
-                doctor.status = 'viewing';
-              });
-            }
-          }));
+            // Change to 'viewing' after 1-2 seconds
+            _timers.add(
+              Timer(Duration(milliseconds: 1000 + (i * 200)), () {
+                if (mounted) {
+                  setState(() {
+                    doctor.status = 'viewing';
+                  });
+                }
+              }),
+            );
 
-          // Change to 'ready' after another 1-2 seconds
-          _timers.add(Timer(Duration(milliseconds: 2500 + (i * 300)), () {
-            if (mounted) {
-              setState(() {
-                doctor.status = 'ready';
-              });
-              
-              // Send notification when all 3 doctors are ready
-              final readyDoctors = _visibleDoctors.where((d) => d.status == 'ready').length;
-              if (readyDoctors == 3) {
-                NotificationService().showDoctorsFoundNotification();
-              }
-            }
-          }));
-        }
-      }));
+            // Change to 'ready' after another 1-2 seconds
+            _timers.add(
+              Timer(Duration(milliseconds: 2500 + (i * 300)), () {
+                if (mounted) {
+                  setState(() {
+                    doctor.status = 'ready';
+                  });
+
+                  // Send notification when all 3 doctors are ready
+                  final readyDoctors = _visibleDoctors
+                      .where((d) => d.status == 'ready')
+                      .length;
+                  if (readyDoctors == 3) {
+                    NotificationService().showDoctorsFoundNotification();
+                  }
+                }
+              }),
+            );
+          }
+        }),
+      );
     }
   }
 
@@ -270,10 +285,7 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
     Navigator.pushNamed(
       context,
       '/review-confirm',
-      arguments: {
-        ...widget.emergencyData,
-        'doctor': doctor,
-      },
+      arguments: {...widget.emergencyData, 'doctor': doctor},
     );
   }
 
@@ -391,11 +403,11 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
                         ),
                       ],
                     ),
-                    
+
                     const SizedBox(height: 24),
                     const Divider(height: 1, color: Color(0xFFE2E8F0)),
                     const SizedBox(height: 24),
-                    
+
                     // Quick Info Cards
                     Row(
                       children: [
@@ -424,9 +436,9 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
                         ),
                       ],
                     ),
-                    
+
                     const SizedBox(height: 24),
-                    
+
                     // About Section
                     _buildSectionTitle('À Propos', Icons.info_outline),
                     const SizedBox(height: 12),
@@ -438,23 +450,28 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
                         color: const Color(0xFF667085),
                       ),
                     ),
-                    
+
                     const SizedBox(height: 24),
-                    
+
                     // Education Section
                     _buildSectionTitle('Formation Médicale', Icons.school),
                     const SizedBox(height: 12),
                     ...doctor.education.map((edu) => _buildListItem(edu)),
-                    
+
                     const SizedBox(height: 24),
-                    
+
                     // Certifications Section
-                    _buildSectionTitle('Certifications', Icons.workspace_premium),
+                    _buildSectionTitle(
+                      'Certifications',
+                      Icons.workspace_premium,
+                    ),
                     const SizedBox(height: 12),
-                    ...doctor.certifications.map((cert) => _buildListItem(cert)),
-                    
+                    ...doctor.certifications.map(
+                      (cert) => _buildListItem(cert),
+                    ),
+
                     const SizedBox(height: 24),
-                    
+
                     // Skills
                     _buildSectionTitle('Compétences', Icons.medical_services),
                     const SizedBox(height: 12),
@@ -463,7 +480,10 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
                       runSpacing: 8,
                       children: doctor.tags.map((tag) {
                         return Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xFF6BE3B2).withOpacity(0.1),
                             borderRadius: BorderRadius.circular(8),
@@ -482,16 +502,16 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
                         );
                       }).toList(),
                     ),
-                    
+
                     const SizedBox(height: 24),
-                    
+
                     // Reviews Section
                     _buildSectionTitle('Avis des Patients', Icons.rate_review),
                     const SizedBox(height: 12),
                     ...doctor.reviews.map((review) => _buildReviewCard(review)),
-                    
+
                     const SizedBox(height: 32),
-                    
+
                     // Confirm Button
                     SizedBox(
                       width: double.infinity,
@@ -511,7 +531,9 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
                           ),
                         ),
                         child: Text(
-                          doctor.status == 'ready' ? 'Confirmer ce Médecin' : 'En attente...',
+                          doctor.status == 'ready'
+                              ? 'Confirmer ce Médecin'
+                              : 'En attente...',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
@@ -530,7 +552,7 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
       ),
     );
   }
-  
+
   Widget _buildQuickInfoCard(IconData icon, String value, String label) {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -562,7 +584,7 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
       ),
     );
   }
-  
+
   Widget _buildSectionTitle(String title, IconData icon) {
     return Row(
       children: [
@@ -579,7 +601,7 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
       ],
     );
   }
-  
+
   Widget _buildListItem(String text) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -610,7 +632,7 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
       ),
     );
   }
-  
+
   Widget _buildReviewCard(DoctorReview review) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -713,11 +735,7 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
               color: const Color(0xFF1FBF9A).withOpacity(0.1),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(
-              icon,
-              color: const Color(0xFF1FBF9A),
-              size: 20,
-            ),
+            child: Icon(icon, color: const Color(0xFF1FBF9A), size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -774,10 +792,12 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
           children: [
             _buildHeader(),
             const SizedBox(height: 24),
-            ..._visibleDoctors.map((doctor) => Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: _buildDoctorCard(doctor),
-            )),
+            ..._visibleDoctors.map(
+              (doctor) => Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: _buildDoctorCard(doctor),
+              ),
+            ),
             const SizedBox(height: 40),
           ],
         ),
@@ -992,7 +1012,10 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
                     runSpacing: 8,
                     children: doctor.tags.map((tag) {
                       return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
                           color: const Color(0xFF6BE3B2).withOpacity(0.1),
                           borderRadius: BorderRadius.circular(8),
@@ -1011,7 +1034,11 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      const Icon(Icons.location_on, size: 16, color: Color(0xFF667085)),
+                      const Icon(
+                        Icons.location_on,
+                        size: 16,
+                        color: Color(0xFF667085),
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         '${doctor.distance} km',
@@ -1021,7 +1048,11 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
                         ),
                       ),
                       const SizedBox(width: 16),
-                      const Icon(Icons.access_time, size: 16, color: Color(0xFF0F6F73)),
+                      const Icon(
+                        Icons.access_time,
+                        size: 16,
+                        color: Color(0xFF0F6F73),
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         'Arrive en ${doctor.eta} min',
@@ -1096,12 +1127,16 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
                                     ],
                                   )
                                 : null,
-                            color: doctor.status != 'ready' ? const Color(0xFFE2E8F0) : null,
+                            color: doctor.status != 'ready'
+                                ? const Color(0xFFE2E8F0)
+                                : null,
                             borderRadius: BorderRadius.circular(12),
                             boxShadow: doctor.status == 'ready'
                                 ? [
                                     BoxShadow(
-                                      color: const Color(0xFF1FBF9A).withOpacity(0.3),
+                                      color: const Color(
+                                        0xFF1FBF9A,
+                                      ).withOpacity(0.3),
                                       blurRadius: 8,
                                       offset: const Offset(0, 4),
                                     ),
@@ -1117,7 +1152,9 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
                               borderRadius: BorderRadius.circular(12),
                               child: Center(
                                 child: Text(
-                                  doctor.status == 'ready' ? 'Confirmer' : 'Patienter...',
+                                  doctor.status == 'ready'
+                                      ? 'Confirmer'
+                                      : 'Patienter...',
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 15,
                                     fontWeight: FontWeight.w700,

@@ -112,11 +112,7 @@ class DocumentViewerScreen extends StatelessWidget {
                       color: docColor.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: Icon(
-                      docIcon,
-                      size: 40,
-                      color: docColor,
-                    ),
+                    child: Icon(docIcon, size: 40, color: docColor),
                   ),
                   const SizedBox(height: 16),
                   Text(
@@ -130,7 +126,10 @@ class DocumentViewerScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: docColor.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(20),
@@ -198,7 +197,7 @@ class DocumentViewerScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    
+
                     // Document Info
                     Container(
                       margin: const EdgeInsets.symmetric(horizontal: 20),
@@ -243,7 +242,10 @@ class DocumentViewerScreen extends StatelessWidget {
                       ),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: const Color(0xFF1FBF9A),
-                        side: const BorderSide(color: Color(0xFF1FBF9A), width: 2),
+                        side: const BorderSide(
+                          color: Color(0xFF1FBF9A),
+                          width: 2,
+                        ),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),

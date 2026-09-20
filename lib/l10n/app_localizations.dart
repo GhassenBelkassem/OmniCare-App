@@ -17,7 +17,7 @@ class AppLocalizations {
       // Language Selection
       'choose_language': 'Choose Your Language',
       'select_language': 'Select your preferred language',
-      
+
       // Login/Signup
       'welcome_back': 'Welcome Back',
       'sign_in_continue': 'Sign in to continue to OmniCare',
@@ -42,23 +42,25 @@ class AppLocalizations {
       'confirm_password_required': 'Please confirm your password',
       'passwords_not_match': 'Passwords do not match',
       'forgot_password': 'Forgot Password?',
-      
+
       // Forgot Password
       'reset_password': 'Reset Password',
-      'reset_password_subtitle': 'Enter your email or phone number to receive a verification code',
+      'reset_password_subtitle':
+          'Enter your email or phone number to receive a verification code',
       'email_or_phone': 'Email or Phone Number',
       'email_or_phone_hint': 'Enter your email or phone number',
       'send_code': 'Send Code',
       'email_or_phone_required': 'Email or phone number is required',
       'create_new_password': 'Create New Password',
-      'create_new_password_subtitle': 'Your new password must be different from previous passwords',
+      'create_new_password_subtitle':
+          'Your new password must be different from previous passwords',
       'new_password': 'New Password',
       'new_password_hint': 'Enter new password',
       'confirm_new_password': 'Confirm New Password',
       'confirm_new_password_hint': 'Re-enter new password',
       'reset_password_btn': 'Reset Password',
       'password_reset_success': 'Password reset successfully!',
-      
+
       // OTP Verification
       'verify_email': 'Verify Email',
       'verify_phone': 'Verify Phone',
@@ -67,22 +69,26 @@ class AppLocalizations {
       'resend_code': 'Resend code',
       'verify': 'Verify',
       'enter_all_digits': 'Please enter all 6 digits',
-      
+
       // Phone Input
       'phone_verification': 'Phone Verification',
-      'enter_phone_verification': 'Enter your phone number to receive a verification code',
+      'enter_phone_verification':
+          'Enter your phone number to receive a verification code',
       'phone_number': 'Phone Number',
       'phone_required': 'Phone number is required',
       'valid_phone': 'Please enter a valid phone number',
       'continue': 'Continue',
-      
+
       // Conversational Onboarding
       'blood_type_question': 'What is your blood type?',
-      'blood_type_subtitle': 'This helps our emergency team prepare the right blood supply for you.',
+      'blood_type_subtitle':
+          'This helps our emergency team prepare the right blood supply for you.',
       'chronic_conditions_question': 'Any chronic conditions?',
-      'chronic_conditions_subtitle': 'Doctors use this to ensure your treatment plan is 100% safe.',
+      'chronic_conditions_subtitle':
+          'Doctors use this to ensure your treatment plan is 100% safe.',
       'current_medications': 'Current Medications',
-      'medications_subtitle': 'Knowing your current meds prevents dangerous drug-to-drug interactions.',
+      'medications_subtitle':
+          'Knowing your current meds prevents dangerous drug-to-drug interactions.',
       'search_conditions': 'Search conditions...',
       'medicine_name': 'Medicine Name',
       'dosage': 'Dosage',
@@ -90,14 +96,15 @@ class AppLocalizations {
       'medication': 'Medication',
       'complete': 'Complete',
       'skip': 'Skip',
-      
+
       // Home Page - Hero Section
       'medical_care_on_demand': 'Medical Care On Demand',
-      'hero_subtitle': 'Connect with verified doctors in Tunisia. Get urgent medical assistance anytime, anywhere.',
+      'hero_subtitle':
+          'Connect with verified doctors in Tunisia. Get urgent medical assistance anytime, anywhere.',
       'request_urgent_doctor': 'Request Urgent Doctor',
       'talk_psychologist': 'Talk to Psychologist',
       'call_ambulance': 'Call Ambulance',
-      
+
       // Home Page - Search & Filter
       'find_doctor': 'Find a Doctor',
       'search_doctors': 'Search doctors...',
@@ -107,7 +114,7 @@ class AppLocalizations {
       'pediatrics': 'Pediatrics',
       'dermatology': 'Dermatology',
       'orthopedics': 'Orthopedics',
-      
+
       // Home Page - Doctor Grid
       'available_doctors': 'Available Doctors',
       'verified': 'Verified',
@@ -115,7 +122,7 @@ class AppLocalizations {
       'request_visit': 'Request Visit',
       'km_away': 'km',
       'reviews': 'reviews',
-      
+
       // Home Page - Sidebar
       'medical_passport': 'Medical Passport',
       'medical_passport_desc': 'Your complete medical history in one place',
@@ -131,7 +138,7 @@ class AppLocalizations {
       'tunis_center': 'Tunis Center',
       'lac_2': 'Lac 2',
       'ben_arous': 'Ben Arous',
-      
+
       // Common
       'loading': 'Loading...',
       'error': 'Error',
@@ -141,7 +148,7 @@ class AppLocalizations {
       // Language Selection
       'choose_language': 'Choisissez Votre Langue',
       'select_language': 'Sélectionnez votre langue préférée',
-      
+
       // Login/Signup
       'welcome_back': 'Bon Retour',
       'sign_in_continue': 'Connectez-vous pour continuer sur OmniCare',
@@ -162,27 +169,30 @@ class AppLocalizations {
       'email_required': "L'email est requis",
       'valid_email': 'Veuillez entrer un email valide',
       'password_required': 'Le mot de passe est requis',
-      'password_min_length': 'Le mot de passe doit contenir au moins 6 caractères',
+      'password_min_length':
+          'Le mot de passe doit contenir au moins 6 caractères',
       'confirm_password_required': 'Veuillez confirmer votre mot de passe',
       'passwords_not_match': 'Les mots de passe ne correspondent pas',
       'forgot_password': 'Mot de passe oublié?',
-      
+
       // Forgot Password
       'reset_password': 'Réinitialiser le mot de passe',
-      'reset_password_subtitle': 'Entrez votre email ou numéro de téléphone pour recevoir un code de vérification',
+      'reset_password_subtitle':
+          'Entrez votre email ou numéro de téléphone pour recevoir un code de vérification',
       'email_or_phone': 'Email ou Numéro de Téléphone',
       'email_or_phone_hint': 'Entrez votre email ou numéro de téléphone',
       'send_code': 'Envoyer le code',
       'email_or_phone_required': 'Email ou numéro de téléphone requis',
       'create_new_password': 'Créer un nouveau mot de passe',
-      'create_new_password_subtitle': 'Votre nouveau mot de passe doit être différent des précédents',
+      'create_new_password_subtitle':
+          'Votre nouveau mot de passe doit être différent des précédents',
       'new_password': 'Nouveau mot de passe',
       'new_password_hint': 'Entrez le nouveau mot de passe',
       'confirm_new_password': 'Confirmer le nouveau mot de passe',
       'confirm_new_password_hint': 'Ressaisissez le nouveau mot de passe',
       'reset_password_btn': 'Réinitialiser le mot de passe',
       'password_reset_success': 'Mot de passe réinitialisé avec succès!',
-      
+
       // OTP Verification
       'verify_email': 'Vérifier Email',
       'verify_phone': 'Vérifier Téléphone',
@@ -191,22 +201,26 @@ class AppLocalizations {
       'resend_code': 'Renvoyer le code',
       'verify': 'Vérifier',
       'enter_all_digits': 'Veuillez entrer les 6 chiffres',
-      
+
       // Phone Input
       'phone_verification': 'Vérification du Téléphone',
-      'enter_phone_verification': 'Entrez votre numéro de téléphone pour recevoir un code de vérification',
+      'enter_phone_verification':
+          'Entrez votre numéro de téléphone pour recevoir un code de vérification',
       'phone_number': 'Numéro de Téléphone',
       'phone_required': 'Le numéro de téléphone est requis',
       'valid_phone': 'Veuillez entrer un numéro de téléphone valide',
       'continue': 'Continuer',
-      
+
       // Conversational Onboarding
       'blood_type_question': 'Quel est votre groupe sanguin?',
-      'blood_type_subtitle': "Cela aide notre équipe d'urgence à préparer le bon approvisionnement en sang pour vous.",
+      'blood_type_subtitle':
+          "Cela aide notre équipe d'urgence à préparer le bon approvisionnement en sang pour vous.",
       'chronic_conditions_question': 'Des maladies chroniques?',
-      'chronic_conditions_subtitle': 'Les médecins utilisent cela pour garantir que votre plan de traitement est 100% sûr.',
+      'chronic_conditions_subtitle':
+          'Les médecins utilisent cela pour garantir que votre plan de traitement est 100% sûr.',
       'current_medications': 'Médicaments Actuels',
-      'medications_subtitle': 'Connaître vos médicaments actuels évite les interactions médicamenteuses dangereuses.',
+      'medications_subtitle':
+          'Connaître vos médicaments actuels évite les interactions médicamenteuses dangereuses.',
       'search_conditions': 'Rechercher des conditions...',
       'medicine_name': 'Nom du Médicament',
       'dosage': 'Dosage',
@@ -214,14 +228,15 @@ class AppLocalizations {
       'medication': 'Médicament',
       'complete': 'Terminer',
       'skip': 'Passer',
-      
+
       // Home Page - Hero Section
       'medical_care_on_demand': 'Soins Médicaux à la Demande',
-      'hero_subtitle': 'Connectez-vous avec des médecins vérifiés en Tunisie. Obtenez une assistance médicale urgente à tout moment, n\'importe où.',
+      'hero_subtitle':
+          'Connectez-vous avec des médecins vérifiés en Tunisie. Obtenez une assistance médicale urgente à tout moment, n\'importe où.',
       'request_urgent_doctor': 'Demander un Médecin Urgent',
       'talk_psychologist': 'Parler à un Psychologue',
       'call_ambulance': 'Appeler une Ambulance',
-      
+
       // Home Page - Search & Filter
       'find_doctor': 'Trouver un Médecin',
       'search_doctors': 'Rechercher des médecins...',
@@ -231,7 +246,7 @@ class AppLocalizations {
       'pediatrics': 'Pédiatrie',
       'dermatology': 'Dermatologie',
       'orthopedics': 'Orthopédie',
-      
+
       // Home Page - Doctor Grid
       'available_doctors': 'Médecins Disponibles',
       'verified': 'Vérifié',
@@ -239,10 +254,11 @@ class AppLocalizations {
       'request_visit': 'Demander une Visite',
       'km_away': 'km',
       'reviews': 'avis',
-      
+
       // Home Page - Sidebar
       'medical_passport': 'Passeport Médical',
-      'medical_passport_desc': 'Votre historique médical complet en un seul endroit',
+      'medical_passport_desc':
+          'Votre historique médical complet en un seul endroit',
       'recent_visit': 'Visite Récente',
       'view_full_history': 'Voir l\'Historique Complet',
       'pharmacie_de_garde': 'Pharmacie de Garde',
@@ -255,7 +271,7 @@ class AppLocalizations {
       'tunis_center': 'Centre de Tunis',
       'lac_2': 'Lac 2',
       'ben_arous': 'Ben Arous',
-      
+
       // Common
       'loading': 'Chargement...',
       'error': 'Erreur',
@@ -265,7 +281,7 @@ class AppLocalizations {
       // Language Selection
       'choose_language': 'اختر لغتك',
       'select_language': 'اختر لغتك المفضلة',
-      
+
       // Login/Signup
       'welcome_back': 'مرحباً بعودتك',
       'sign_in_continue': 'سجل الدخول للمتابعة إلى OmniCare',
@@ -290,23 +306,25 @@ class AppLocalizations {
       'confirm_password_required': 'يرجى تأكيد كلمة المرور',
       'passwords_not_match': 'كلمات المرور غير متطابقة',
       'forgot_password': 'هل نسيت كلمة المرور؟',
-      
+
       // Forgot Password
       'reset_password': 'إعادة تعيين كلمة المرور',
-      'reset_password_subtitle': 'أدخل بريدك الإلكتروني أو رقم هاتفك لتلقي رمز التحقق',
+      'reset_password_subtitle':
+          'أدخل بريدك الإلكتروني أو رقم هاتفك لتلقي رمز التحقق',
       'email_or_phone': 'البريد الإلكتروني أو رقم الهاتف',
       'email_or_phone_hint': 'أدخل بريدك الإلكتروني أو رقم هاتفك',
       'send_code': 'إرسال الرمز',
       'email_or_phone_required': 'البريد الإلكتروني أو رقم الهاتف مطلوب',
       'create_new_password': 'إنشاء كلمة مرور جديدة',
-      'create_new_password_subtitle': 'يجب أن تكون كلمة المرور الجديدة مختلفة عن كلمات المرور السابقة',
+      'create_new_password_subtitle':
+          'يجب أن تكون كلمة المرور الجديدة مختلفة عن كلمات المرور السابقة',
       'new_password': 'كلمة المرور الجديدة',
       'new_password_hint': 'أدخل كلمة المرور الجديدة',
       'confirm_new_password': 'تأكيد كلمة المرور الجديدة',
       'confirm_new_password_hint': 'أعد إدخال كلمة المرور الجديدة',
       'reset_password_btn': 'إعادة تعيين كلمة المرور',
       'password_reset_success': 'تم إعادة تعيين كلمة المرور بنجاح!',
-      
+
       // OTP Verification
       'verify_email': 'تحقق من البريد الإلكتروني',
       'verify_phone': 'تحقق من الهاتف',
@@ -315,7 +333,7 @@ class AppLocalizations {
       'resend_code': 'إعادة إرسال الرمز',
       'verify': 'تحقق',
       'enter_all_digits': 'يرجى إدخال جميع الأرقام الستة',
-      
+
       // Phone Input
       'phone_verification': 'التحقق من الهاتف',
       'enter_phone_verification': 'أدخل رقم هاتفك لتلقي رمز التحقق',
@@ -323,14 +341,17 @@ class AppLocalizations {
       'phone_required': 'رقم الهاتف مطلوب',
       'valid_phone': 'يرجى إدخال رقم هاتف صالح',
       'continue': 'متابعة',
-      
+
       // Conversational Onboarding
       'blood_type_question': 'ما هي فصيلة دمك؟',
-      'blood_type_subtitle': 'يساعد هذا فريق الطوارئ لدينا على تحضير إمدادات الدم المناسبة لك.',
+      'blood_type_subtitle':
+          'يساعد هذا فريق الطوارئ لدينا على تحضير إمدادات الدم المناسبة لك.',
       'chronic_conditions_question': 'هل لديك أي أمراض مزمنة؟',
-      'chronic_conditions_subtitle': 'يستخدم الأطباء هذا لضمان أن خطة العلاج الخاصة بك آمنة بنسبة 100٪.',
+      'chronic_conditions_subtitle':
+          'يستخدم الأطباء هذا لضمان أن خطة العلاج الخاصة بك آمنة بنسبة 100٪.',
       'current_medications': 'الأدوية الحالية',
-      'medications_subtitle': 'معرفة أدويتك الحالية تمنع التفاعلات الدوائية الخطيرة.',
+      'medications_subtitle':
+          'معرفة أدويتك الحالية تمنع التفاعلات الدوائية الخطيرة.',
       'search_conditions': 'البحث عن الحالات...',
       'medicine_name': 'اسم الدواء',
       'dosage': 'الجرعة',
@@ -338,14 +359,15 @@ class AppLocalizations {
       'medication': 'دواء',
       'complete': 'إكمال',
       'skip': 'تخطي',
-      
+
       // Home Page - Hero Section
       'medical_care_on_demand': 'الرعاية الطبية عند الطلب',
-      'hero_subtitle': 'تواصل مع أطباء معتمدين في تونس. احصل على المساعدة الطبية العاجلة في أي وقت وفي أي مكان.',
+      'hero_subtitle':
+          'تواصل مع أطباء معتمدين في تونس. احصل على المساعدة الطبية العاجلة في أي وقت وفي أي مكان.',
       'request_urgent_doctor': 'طلب طبيب عاجل',
       'talk_psychologist': 'التحدث إلى طبيب نفسي',
       'call_ambulance': 'اتصل بسيارة إسعاف',
-      
+
       // Home Page - Search & Filter
       'find_doctor': 'ابحث عن طبيب',
       'search_doctors': 'البحث عن الأطباء...',
@@ -355,7 +377,7 @@ class AppLocalizations {
       'pediatrics': 'طب الأطفال',
       'dermatology': 'الأمراض الجلدية',
       'orthopedics': 'جراحة العظام',
-      
+
       // Home Page - Doctor Grid
       'available_doctors': 'الأطباء المتاحون',
       'verified': 'معتمد',
@@ -363,7 +385,7 @@ class AppLocalizations {
       'request_visit': 'طلب زيارة',
       'km_away': 'كم',
       'reviews': 'تقييمات',
-      
+
       // Home Page - Sidebar
       'medical_passport': 'جواز السفر الطبي',
       'medical_passport_desc': 'تاريخك الطبي الكامل في مكان واحد',
@@ -379,7 +401,7 @@ class AppLocalizations {
       'tunis_center': 'مركز تونس',
       'lac_2': 'البحيرة 2',
       'ben_arous': 'بن عروس',
-      
+
       // Common
       'loading': 'جاري التحميل...',
       'error': 'خطأ',
@@ -424,7 +446,8 @@ class AppLocalizations {
   String get sendCode => translate('send_code');
   String get emailOrPhoneRequired => translate('email_or_phone_required');
   String get createNewPassword => translate('create_new_password');
-  String get createNewPasswordSubtitle => translate('create_new_password_subtitle');
+  String get createNewPasswordSubtitle =>
+      translate('create_new_password_subtitle');
   String get newPassword => translate('new_password');
   String get newPasswordHint => translate('new_password_hint');
   String get confirmNewPassword => translate('confirm_new_password');
@@ -446,8 +469,10 @@ class AppLocalizations {
   String get continueBtn => translate('continue');
   String get bloodTypeQuestion => translate('blood_type_question');
   String get bloodTypeSubtitle => translate('blood_type_subtitle');
-  String get chronicConditionsQuestion => translate('chronic_conditions_question');
-  String get chronicConditionsSubtitle => translate('chronic_conditions_subtitle');
+  String get chronicConditionsQuestion =>
+      translate('chronic_conditions_question');
+  String get chronicConditionsSubtitle =>
+      translate('chronic_conditions_subtitle');
   String get currentMedications => translate('current_medications');
   String get medicationsSubtitle => translate('medications_subtitle');
   String get searchConditions => translate('search_conditions');
@@ -457,7 +482,7 @@ class AppLocalizations {
   String get medication => translate('medication');
   String get complete => translate('complete');
   String get skip => translate('skip');
-  
+
   // Home Page getters
   String get medicalCareOnDemand => translate('medical_care_on_demand');
   String get heroSubtitle => translate('hero_subtitle');
