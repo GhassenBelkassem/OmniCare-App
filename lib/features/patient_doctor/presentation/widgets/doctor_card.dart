@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/omni_theme.dart';
-import '../../data/doctor_detail_mock_data.dart';
 import '../../data/doctor_models.dart';
 
 /// Compact horizontal doctor result card in the patient directory.
@@ -18,7 +17,6 @@ class DoctorListCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final nextAvailability = getDoctorDetail(doctor.id)?.nextAvailableLabel;
 
     return Semantics(
       button: true,
@@ -62,11 +60,12 @@ class DoctorListCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       _SpecialtyRow(specialty: doctor.specialty),
-                      const SizedBox(height: 6),
-                      _ProfileMetaRow(
-                        experienceLabel: doctor.experienceLabel,
-                        nextAvailability: nextAvailability,
-                      ),
+                      if (doctor.experienceLabel.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        _ProfileMetaRow(
+                          experienceLabel: doctor.experienceLabel,
+                        ),
+                      ],
                       const SizedBox(height: 6),
                       _LocationRow(
                         address: doctor.address,
@@ -211,56 +210,46 @@ class _SpecialtyRow extends StatelessWidget {
 }
 
 class _ProfileMetaRow extends StatelessWidget {
-  const _ProfileMetaRow({required this.experienceLabel, this.nextAvailability});
+  const _ProfileMetaRow({required this.experienceLabel});
 
   final String experienceLabel;
-  final String? nextAvailability;
 
   @override
   Widget build(BuildContext context) {
+    if (experienceLabel.isEmpty) return const SizedBox.shrink();
     return Wrap(
       spacing: 10,
       runSpacing: 4,
       children: [
-        if (experienceLabel.isNotEmpty)
-          _CardMetaItem(
-            icon: Icons.work_outline_rounded,
-            label: experienceLabel,
-          ),
-        if (nextAvailability != null)
-          _CardMetaItem(
-            icon: Icons.schedule_outlined,
-            label: nextAvailability!,
-            color: OmniColors.deepTeal,
-          ),
+        _CardMetaItem(
+          icon: Icons.work_outline_rounded,
+          label: experienceLabel,
+        ),
       ],
     );
   }
 }
 
 class _CardMetaItem extends StatelessWidget {
-  const _CardMetaItem({
-    required this.icon,
-    required this.label,
-    this.color = OmniColors.textTertiary,
-  });
+  const _CardMetaItem({required this.icon, required this.label});
 
   final IconData icon;
   final String label;
-  final Color color;
+
+  static const _color = OmniColors.textTertiary;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 13, color: color),
+        Icon(icon, size: 13, color: _color),
         const SizedBox(width: 3),
         Text(
           label,
           style: Theme.of(
             context,
-          ).textTheme.bodySmall?.copyWith(fontSize: 12, color: color),
+          ).textTheme.bodySmall?.copyWith(fontSize: 12, color: _color),
         ),
       ],
     );

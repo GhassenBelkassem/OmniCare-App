@@ -18,6 +18,8 @@ import 'package:omnicare_mobile/features/request_core/domain/clinic_request_inte
 import 'package:omnicare_mobile/features/request_core/domain/request_vocabulary.dart';
 import 'package:omnicare_mobile/features/request_core/identity/request_operation_id.dart';
 import 'package:omnicare_mobile/features/patient_doctor/application/doctor_directory_controller.dart';
+import 'package:omnicare_mobile/features/patient_doctor/data/doctor_directory_models.dart';
+import 'package:omnicare_mobile/features/patient_doctor/data/doctor_directory_repository.dart';
 import 'package:omnicare_mobile/features/request_flow/screens/who_needs_care_screen.dart';
 import 'package:omnicare_mobile/providers/family_provider.dart';
 import 'package:omnicare_mobile/repositories/family_repository.dart';
@@ -66,6 +68,46 @@ class _FakeRequestRepository implements RequestRepository {
     required PatientInformationResponsePayload payload,
     CancelToken? cancelToken,
   }) async => throw UnimplementedError();
+}
+
+class _FakeDoctorRepository implements DoctorDirectoryRepository {
+  _FakeDoctorRepository({List<DoctorDirectoryListItem> doctors = const []})
+      : doctors = List.unmodifiable(doctors);
+
+  final List<DoctorDirectoryListItem> doctors;
+
+  @override
+  Future<List<DoctorDirectoryListItem>> listDoctors({
+    String? query,
+    CancelToken? cancelToken,
+  }) async =>
+      doctors;
+
+  @override
+  Future<DoctorDirectoryDetail> getDoctor(
+    String doctorId, {
+    CancelToken? cancelToken,
+  }) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<List<AvailabilitySlotDto>> getSlots({
+    required String doctorId,
+    required DateTime from,
+    required DateTime to,
+    CancelToken? cancelToken,
+  }) async =>
+      const [];
+
+  @override
+  Future<DoctorBookingResult> bookAppointment({
+    required String doctorId,
+    required String startTime,
+    required String endTime,
+    String? notes,
+    CancelToken? cancelToken,
+  }) async =>
+      throw UnimplementedError();
 }
 
 class _FakeClinicRepository implements PatientClinicRepository {
@@ -136,7 +178,9 @@ Widget _buildApp({
       ChangeNotifierProvider<RequestSubmissionController>.value(value: rc),
       ChangeNotifierProvider<PatientClinicDirectoryController>.value(value: dc),
       ChangeNotifierProvider<DoctorDirectoryController>(
-        create: (_) => DoctorDirectoryController(),
+        create: (_) => DoctorDirectoryController(
+          repository: _FakeDoctorRepository(),
+        ),
       ),
     ],
     child: MaterialApp(
