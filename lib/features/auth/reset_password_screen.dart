@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/theme/omni_theme.dart';
 import '../../l10n/app_localizations.dart';
 import 'application/auth_controller.dart';
 
@@ -80,7 +80,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       messenger.showSnackBar(
         const SnackBar(
           content: Text('Mot de passe mis a jour. Connectez-vous a nouveau.'),
-          backgroundColor: Color(0xFF1FBF9A),
+          backgroundColor: OmniColors.primaryAction,
         ),
       );
       navigator.pushNamedAndRemoveUntil('/login', (_) => false);
@@ -91,10 +91,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
         controller.errorMessage ??
         'Impossible de mettre a jour le mot de passe.';
     messenger.showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: const Color(0xFFDC2626),
-      ),
+      SnackBar(content: Text(message), backgroundColor: OmniColors.error),
     );
   }
 
@@ -112,141 +109,130 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     final isLoading = auth.isSubmitting;
 
     return Scaffold(
-      resizeToAvoidBottomInset: true,
-      backgroundColor: Colors.white,
+      backgroundColor: OmniColors.pageBackground,
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
+        title: const Text('Sécurité du compte'),
         actions: [
           IconButton(
             tooltip: 'Se deconnecter',
-            icon: const Icon(Icons.logout_rounded, color: Color(0xFF344054)),
+            icon: const Icon(
+              Icons.logout_rounded,
+              color: OmniColors.textSecondary,
+            ),
             onPressed: isLoading ? null : _logout,
           ),
         ],
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: 12),
-                Center(
-                  child: Container(
-                    width: 132,
-                    height: 132,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFF0FDF9),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.lock_reset_rounded,
-                      size: 72,
-                      color: Color(0xFF1FBF9A),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  'Changer le mot de passe',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF101828),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Votre mot de passe actuel doit etre remplace avant de continuer.',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w400,
-                    color: const Color(0xFF667085),
-                  ),
-                ),
-                const SizedBox(height: 32),
-                _PasswordField(
-                  label: 'Mot de passe actuel',
-                  hintText: 'Entrez le mot de passe actuel',
-                  controller: _currentPasswordController,
-                  validator: _validateCurrentPassword,
-                  obscureText: _obscureCurrentPassword,
-                  onToggleObscure: () {
-                    setState(() {
-                      _obscureCurrentPassword = !_obscureCurrentPassword;
-                    });
-                  },
-                ),
-                const SizedBox(height: 20),
-                _PasswordField(
-                  label: 'Nouveau mot de passe',
-                  hintText: '12 caracteres minimum',
-                  controller: _newPasswordController,
-                  validator: _validateNewPassword,
-                  obscureText: _obscureNewPassword,
-                  onToggleObscure: () {
-                    setState(() {
-                      _obscureNewPassword = !_obscureNewPassword;
-                    });
-                  },
-                ),
-                const SizedBox(height: 20),
-                _PasswordField(
-                  label: 'Confirmer le nouveau mot de passe',
-                  hintText: 'Repetez le nouveau mot de passe',
-                  controller: _confirmPasswordController,
-                  validator: _validateConfirmPassword,
-                  obscureText: _obscureConfirmPassword,
-                  onToggleObscure: () {
-                    setState(() {
-                      _obscureConfirmPassword = !_obscureConfirmPassword;
-                    });
-                  },
-                ),
-                const SizedBox(height: 32),
-                SizedBox(
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: isLoading ? null : _changePassword,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1FBF9A),
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      disabledBackgroundColor: const Color(
-                        0xFF1FBF9A,
-                      ).withValues(alpha: 0.5),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+        top: false,
+        child: Center(
+          child: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.fromLTRB(
+              OmniSpacing.pageHorizontal,
+              OmniSpacing.xl,
+              OmniSpacing.pageHorizontal,
+              OmniSpacing.xxl,
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Container(
+                        width: 64,
+                        height: 64,
+                        decoration: BoxDecoration(
+                          color: OmniColors.violetSoft,
+                          borderRadius: BorderRadius.circular(OmniRadii.card),
+                        ),
+                        child: const Icon(
+                          Icons.lock_reset_rounded,
+                          size: 30,
+                          color: OmniColors.violet,
+                        ),
                       ),
                     ),
-                    child: isLoading
-                        ? const SizedBox(
-                            height: 24,
-                            width: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Colors.white,
-                              ),
-                            ),
-                          )
-                        : Text(
-                            'Mettre a jour',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
+                    const SizedBox(height: OmniSpacing.lg),
+                    Text(
+                      'Changer le mot de passe',
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            color: OmniColors.textPrimary,
+                            letterSpacing: -0.3,
                           ),
-                  ),
+                    ),
+                    const SizedBox(height: OmniSpacing.sm),
+                    Text(
+                      'Votre mot de passe actuel doit être remplacé avant de continuer.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontSize: 14,
+                        height: 1.45,
+                        color: OmniColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: OmniSpacing.xl),
+                    _PasswordField(
+                      label: 'Mot de passe actuel',
+                      hintText: 'Entrez le mot de passe actuel',
+                      controller: _currentPasswordController,
+                      validator: _validateCurrentPassword,
+                      obscureText: _obscureCurrentPassword,
+                      onToggleObscure: () {
+                        setState(() {
+                          _obscureCurrentPassword = !_obscureCurrentPassword;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: OmniSpacing.base),
+                    _PasswordField(
+                      label: 'Nouveau mot de passe',
+                      hintText: '12 caractères minimum',
+                      controller: _newPasswordController,
+                      validator: _validateNewPassword,
+                      obscureText: _obscureNewPassword,
+                      onToggleObscure: () {
+                        setState(() {
+                          _obscureNewPassword = !_obscureNewPassword;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: OmniSpacing.base),
+                    _PasswordField(
+                      label: 'Confirmer le nouveau mot de passe',
+                      hintText: 'Répétez le nouveau mot de passe',
+                      controller: _confirmPasswordController,
+                      validator: _validateConfirmPassword,
+                      obscureText: _obscureConfirmPassword,
+                      onToggleObscure: () {
+                        setState(() {
+                          _obscureConfirmPassword = !_obscureConfirmPassword;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: OmniSpacing.xxl),
+                    ElevatedButton(
+                      onPressed: isLoading ? null : _changePassword,
+                      child: isLoading
+                          ? const SizedBox.square(
+                              dimension: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text('Mettre à jour'),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 24),
-              ],
+              ),
             ),
           ),
         ),
@@ -274,65 +260,32 @@ class _PasswordField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: const Color(0xFF1D2939),
-          ),
+    return TextFormField(
+      controller: controller,
+      validator: validator,
+      obscureText: obscureText,
+      textInputAction: label.startsWith('Confirmer')
+          ? TextInputAction.done
+          : TextInputAction.next,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hintText,
+        prefixIcon: const Icon(
+          Icons.lock_outline_rounded,
+          size: 20,
+          color: OmniColors.textSecondary,
         ),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: controller,
-          validator: validator,
-          obscureText: obscureText,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 16,
-            fontWeight: FontWeight.w400,
-            color: const Color(0xFF1D2939),
+        suffixIcon: IconButton(
+          tooltip: obscureText ? 'Afficher' : 'Masquer',
+          icon: Icon(
+            obscureText
+                ? Icons.visibility_off_outlined
+                : Icons.visibility_outlined,
+            color: OmniColors.textSecondary,
           ),
-          decoration: InputDecoration(
-            hintText: hintText,
-            hintStyle: GoogleFonts.plusJakartaSans(
-              fontSize: 16,
-              fontWeight: FontWeight.w400,
-              color: const Color(0xFF9CA3AF),
-            ),
-            filled: true,
-            fillColor: Colors.white,
-            suffixIcon: IconButton(
-              tooltip: obscureText ? 'Afficher' : 'Masquer',
-              icon: Icon(
-                obscureText
-                    ? Icons.visibility_off_outlined
-                    : Icons.visibility_outlined,
-                color: const Color(0xFF667085),
-              ),
-              onPressed: onToggleObscure,
-            ),
-            border: _border(const Color(0xFFE5E7EB)),
-            enabledBorder: _border(const Color(0xFFE5E7EB)),
-            focusedBorder: _border(const Color(0xFF1FBF9A), width: 2),
-            errorBorder: _border(const Color(0xFFDC2626)),
-            focusedErrorBorder: _border(const Color(0xFFDC2626), width: 2),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 16,
-            ),
-          ),
+          onPressed: onToggleObscure,
         ),
-      ],
-    );
-  }
-
-  OutlineInputBorder _border(Color color, {double width = 1}) {
-    return OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
-      borderSide: BorderSide(color: color, width: width),
+      ),
     );
   }
 }

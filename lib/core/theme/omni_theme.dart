@@ -257,6 +257,51 @@ abstract final class OmniRadii {
   static const double pill = 999;
 }
 
+/// Shared style for high-emphasis green actions.
+///
+/// Enabled and pressed buttons always use white labels/icons. Disabled
+/// controls intentionally use the neutral disabled surface and text colors.
+ButtonStyle buildOmniPrimaryButtonStyle() {
+  return ButtonStyle(
+    minimumSize: const WidgetStatePropertyAll(Size(double.infinity, 50)),
+    padding: const WidgetStatePropertyAll(
+      EdgeInsets.symmetric(horizontal: OmniSpacing.base, vertical: 14),
+    ),
+    elevation: const WidgetStatePropertyAll(0),
+    shadowColor: const WidgetStatePropertyAll(Colors.transparent),
+    shape: WidgetStatePropertyAll(
+      RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    ),
+    backgroundColor: WidgetStateProperty.resolveWith((states) {
+      if (states.contains(WidgetState.disabled)) {
+        return OmniColors.borderLight;
+      }
+      if (states.contains(WidgetState.pressed)) {
+        return OmniColors.primaryActionPressed;
+      }
+      return OmniColors.primaryAction;
+    }),
+    foregroundColor: WidgetStateProperty.resolveWith(
+      (states) => states.contains(WidgetState.disabled)
+          ? OmniColors.textTertiary
+          : Colors.white,
+    ),
+    overlayColor: WidgetStateProperty.resolveWith(
+      (states) => states.contains(WidgetState.pressed)
+          ? Colors.white.withValues(alpha: 0.06)
+          : null,
+    ),
+    textStyle: const WidgetStatePropertyAll(
+      TextStyle(
+        fontFamily: 'Plus Jakarta Sans',
+        fontSize: 16,
+        fontWeight: FontWeight.w700,
+        letterSpacing: -0.1,
+      ),
+    ),
+  );
+}
+
 /// Builds the shared OmniCare Material 3 patient theme.
 ///
 /// Semantic hierarchy (the color system lives here):
@@ -280,7 +325,8 @@ ThemeData buildOmniTheme() {
     brightness: Brightness.light,
 
     // MINT = brand/selection/accepting. Text over mint uses the deep
-    // readable teal, never white.
+    // readable teal, never white. Primary action buttons override this pair
+    // through [buildOmniPrimaryButtonStyle].
     primary: OmniColors.freshMint,
     onPrimary: OmniColors.textOnMint,
 
@@ -317,7 +363,6 @@ ThemeData buildOmniTheme() {
     // ─────────────────────────────────────────────────────
     // Canvas
     // ─────────────────────────────────────────────────────
-
     scaffoldBackgroundColor: OmniColors.pageBackground,
     canvasColor: OmniColors.surfacePrimary,
     cardColor: OmniColors.surfacePrimary,
@@ -325,13 +370,11 @@ ThemeData buildOmniTheme() {
     // ─────────────────────────────────────────────────────
     // Typography
     // ─────────────────────────────────────────────────────
-
     textTheme: textTheme,
 
     // ─────────────────────────────────────────────────────
     // App bar
     // ─────────────────────────────────────────────────────
-
     appBarTheme: const AppBarTheme(
       backgroundColor: OmniColors.surfacePrimary,
       foregroundColor: OmniColors.textPrimary,
@@ -351,75 +394,15 @@ ThemeData buildOmniTheme() {
     // ─────────────────────────────────────────────────────
     // Primary CTA
     // ─────────────────────────────────────────────────────
-
     elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ButtonStyle(
-        minimumSize: const WidgetStatePropertyAll(
-          Size(double.infinity, 50),
-        ),
+      style: buildOmniPrimaryButtonStyle(),
+    ),
 
-        padding: const WidgetStatePropertyAll(
-          EdgeInsets.symmetric(
-            horizontal: OmniSpacing.base,
-            vertical: 14,
-          ),
-        ),
-
-        elevation: const WidgetStatePropertyAll(0),
-
-        shadowColor: const WidgetStatePropertyAll(
-          Colors.transparent,
-        ),
-
-        shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-        ),
-
-        backgroundColor: WidgetStateProperty.resolveWith(
-          (states) {
-            if (states.contains(WidgetState.disabled)) {
-              return OmniColors.borderLight;
-            }
-
-            if (states.contains(WidgetState.pressed)) {
-              return OmniColors.primaryActionPressed;
-            }
-
-            return OmniColors.primaryAction;
-          },
-        ),
-
-        foregroundColor: WidgetStateProperty.resolveWith(
-          (states) {
-            if (states.contains(WidgetState.disabled)) {
-              return OmniColors.textTertiary;
-            }
-
-            return Colors.white;
-          },
-        ),
-
-        overlayColor: WidgetStateProperty.resolveWith(
-          (states) {
-            if (states.contains(WidgetState.pressed)) {
-              return Colors.white.withValues(alpha: 0.06);
-            }
-
-            return null;
-          },
-        ),
-
-        textStyle: const WidgetStatePropertyAll(
-          TextStyle(
-            fontFamily: 'Plus Jakarta Sans',
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            letterSpacing: -0.1,
-          ),
-        ),
-      ),
+    // FilledButton is used throughout Patient, Security and Request flows.
+    // Mirror the primary CTA contract instead of falling back to the seed
+    // color's foreground, which previously produced gray/dark labels.
+    filledButtonTheme: FilledButtonThemeData(
+      style: buildOmniPrimaryButtonStyle(),
     ),
 
     // ─────────────────────────────────────────────────────
@@ -428,51 +411,32 @@ ThemeData buildOmniTheme() {
     //
     // Neutral slate outline, not mint: secondary/quiet actions (Reset,
     // Change…) must never compete with the primary CTA.
-
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: ButtonStyle(
-        minimumSize: const WidgetStatePropertyAll(
-          Size(double.infinity, 50),
-        ),
+        minimumSize: const WidgetStatePropertyAll(Size(double.infinity, 50)),
 
         padding: const WidgetStatePropertyAll(
-          EdgeInsets.symmetric(
-            horizontal: OmniSpacing.base,
-            vertical: 14,
-          ),
+          EdgeInsets.symmetric(horizontal: OmniSpacing.base, vertical: 14),
         ),
 
-        foregroundColor: const WidgetStatePropertyAll(
-          OmniColors.slateBlue,
-        ),
+        foregroundColor: const WidgetStatePropertyAll(OmniColors.slateBlue),
 
-        backgroundColor: const WidgetStatePropertyAll(
-          Colors.white,
-        ),
+        backgroundColor: const WidgetStatePropertyAll(Colors.white),
 
-        overlayColor: WidgetStateProperty.resolveWith(
-          (states) {
-            if (states.contains(WidgetState.pressed)) {
-              return OmniColors.slateBlue.withValues(
-                alpha: 0.06,
-              );
-            }
+        overlayColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.pressed)) {
+            return OmniColors.slateBlue.withValues(alpha: 0.06);
+          }
 
-            return null;
-          },
-        ),
+          return null;
+        }),
 
         side: const WidgetStatePropertyAll(
-          BorderSide(
-            color: OmniColors.borderStrong,
-            width: 1.25,
-          ),
+          BorderSide(color: OmniColors.borderStrong, width: 1.25),
         ),
 
         shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
 
         textStyle: const WidgetStatePropertyAll(
@@ -489,7 +453,6 @@ ThemeData buildOmniTheme() {
     // ─────────────────────────────────────────────────────
     // Quiet / tertiary actions
     // ─────────────────────────────────────────────────────
-
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         foregroundColor: OmniColors.deepTeal,
@@ -504,7 +467,6 @@ ThemeData buildOmniTheme() {
     // ─────────────────────────────────────────────────────
     // Inputs
     // ─────────────────────────────────────────────────────
-
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: OmniColors.surfacePrimary,
@@ -532,57 +494,34 @@ ThemeData buildOmniTheme() {
       ),
 
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(
-          OmniRadii.field,
-        ),
-        borderSide: const BorderSide(
-          color: OmniColors.borderLight,
-        ),
+        borderRadius: BorderRadius.circular(OmniRadii.field),
+        borderSide: const BorderSide(color: OmniColors.borderLight),
       ),
 
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(
-          OmniRadii.field,
-        ),
-        borderSide: const BorderSide(
-          color: OmniColors.borderLight,
-        ),
+        borderRadius: BorderRadius.circular(OmniRadii.field),
+        borderSide: const BorderSide(color: OmniColors.borderLight),
       ),
 
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(
-          OmniRadii.field,
-        ),
-        borderSide: const BorderSide(
-          color: OmniColors.freshMint,
-          width: 1.75,
-        ),
+        borderRadius: BorderRadius.circular(OmniRadii.field),
+        borderSide: const BorderSide(color: OmniColors.freshMint, width: 1.75),
       ),
 
       errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(
-          OmniRadii.field,
-        ),
-        borderSide: const BorderSide(
-          color: OmniColors.error,
-        ),
+        borderRadius: BorderRadius.circular(OmniRadii.field),
+        borderSide: const BorderSide(color: OmniColors.error),
       ),
 
       focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(
-          OmniRadii.field,
-        ),
-        borderSide: const BorderSide(
-          color: OmniColors.error,
-          width: 1.75,
-        ),
+        borderRadius: BorderRadius.circular(OmniRadii.field),
+        borderSide: const BorderSide(color: OmniColors.error, width: 1.75),
       ),
     ),
 
     // ─────────────────────────────────────────────────────
     // Dividers
     // ─────────────────────────────────────────────────────
-
     dividerTheme: const DividerThemeData(
       color: OmniColors.borderLight,
       thickness: 1,
@@ -592,7 +531,6 @@ ThemeData buildOmniTheme() {
     // ─────────────────────────────────────────────────────
     // Progress
     // ─────────────────────────────────────────────────────
-
     progressIndicatorTheme: const ProgressIndicatorThemeData(
       color: OmniColors.freshMint,
     ),
@@ -600,51 +538,38 @@ ThemeData buildOmniTheme() {
     // ─────────────────────────────────────────────────────
     // Radio
     // ─────────────────────────────────────────────────────
-
     radioTheme: RadioThemeData(
-      fillColor: WidgetStateProperty.resolveWith(
-        (states) {
-          if (states.contains(WidgetState.selected)) {
-            return OmniColors.freshMint;
-          }
+      fillColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
+          return OmniColors.freshMint;
+        }
 
-          return OmniColors.textTertiary;
-        },
-      ),
+        return OmniColors.textTertiary;
+      }),
     ),
 
     // ─────────────────────────────────────────────────────
     // Checkbox
     // ─────────────────────────────────────────────────────
-
     checkboxTheme: CheckboxThemeData(
-      fillColor: WidgetStateProperty.resolveWith(
-        (states) {
-          if (states.contains(WidgetState.selected)) {
-            return OmniColors.freshMint;
-          }
+      fillColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
+          return OmniColors.freshMint;
+        }
 
-          return Colors.transparent;
-        },
-      ),
+        return Colors.transparent;
+      }),
 
-      checkColor: const WidgetStatePropertyAll(
-        OmniColors.deepTealActive,
-      ),
+      checkColor: const WidgetStatePropertyAll(OmniColors.deepTealActive),
 
-      side: const BorderSide(
-        color: OmniColors.borderStrong,
-      ),
+      side: const BorderSide(color: OmniColors.borderStrong),
 
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(4),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
     ),
 
     // ─────────────────────────────────────────────────────
     // Bottom sheets
     // ─────────────────────────────────────────────────────
-
     bottomSheetTheme: const BottomSheetThemeData(
       backgroundColor: OmniColors.surfacePrimary,
       surfaceTintColor: Colors.transparent,
@@ -667,7 +592,6 @@ ThemeData buildOmniTheme() {
     // ─────────────────────────────────────────────────────
     // Dialogs
     // ─────────────────────────────────────────────────────
-
     dialogTheme: DialogThemeData(
       backgroundColor: OmniColors.surfacePrimary,
       surfaceTintColor: Colors.transparent,
@@ -675,16 +599,13 @@ ThemeData buildOmniTheme() {
       elevation: 8,
 
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(
-          OmniRadii.cardLarge,
-        ),
+        borderRadius: BorderRadius.circular(OmniRadii.cardLarge),
       ),
     ),
 
     // ─────────────────────────────────────────────────────
     // Chips
     // ─────────────────────────────────────────────────────
-
     chipTheme: ChipThemeData(
       backgroundColor: OmniColors.surfaceSecondary,
 
@@ -706,36 +627,23 @@ ThemeData buildOmniTheme() {
         color: OmniColors.deepTeal,
       ),
 
-      side: const BorderSide(
-        color: OmniColors.borderLight,
-      ),
+      side: const BorderSide(color: OmniColors.borderLight),
 
       shape: const StadiumBorder(),
 
-      padding: const EdgeInsets.symmetric(
-        horizontal: OmniSpacing.sm,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: OmniSpacing.sm),
     ),
 
     // ─────────────────────────────────────────────────────
     // Interaction feedback
     // ─────────────────────────────────────────────────────
+    splashColor: OmniColors.freshMint.withValues(alpha: 0.08),
 
-    splashColor: OmniColors.freshMint.withValues(
-      alpha: 0.08,
-    ),
+    highlightColor: OmniColors.freshMint.withValues(alpha: 0.04),
 
-    highlightColor: OmniColors.freshMint.withValues(
-      alpha: 0.04,
-    ),
+    focusColor: OmniColors.freshMint.withValues(alpha: 0.12),
 
-    focusColor: OmniColors.freshMint.withValues(
-      alpha: 0.12,
-    ),
-
-    hoverColor: OmniColors.freshMint.withValues(
-      alpha: 0.04,
-    ),
+    hoverColor: OmniColors.freshMint.withValues(alpha: 0.04),
   );
 }
 

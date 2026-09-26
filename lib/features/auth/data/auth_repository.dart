@@ -19,6 +19,8 @@ abstract class AuthRepositoryContract {
     String? phone,
     bool rememberDevice = false,
   });
+  Future<AuthenticatedPatientSession> linkGoogleAccount(String password);
+  void cancelGoogleAccountLink();
   Future<void> initiatePhoneSignup(String phone);
   Future<void> verifyPhoneSignupOtp(String phone, String otp);
   Future<AuthenticatedPatientSession> completePhoneSignup(
@@ -59,6 +61,7 @@ class AuthRepository implements AuthRepositoryContract {
   final DeviceIdentityService _deviceIdentityService;
   final AuthRefreshCoordinator _refreshCoordinator;
   String? _pendingGoogleSignupToken;
+  String? _pendingGoogleLinkChallenge;
 
   @override
   Future<GoogleAuthResult> initiateGoogle(
@@ -87,6 +90,7 @@ class AuthRepository implements AuthRepositoryContract {
           );
         }
         _pendingGoogleSignupToken = null;
+        _pendingGoogleLinkChallenge = null;
         await _saveLoginResponse(login);
         return GoogleAuthResult.authenticated(await loadCurrentProfile());
       case GoogleAuthStatus.requiresPhone:
@@ -98,8 +102,46 @@ class AuthRepository implements AuthRepositoryContract {
           );
         }
         _pendingGoogleSignupToken = signupToken.trim();
+        _pendingGoogleLinkChallenge = null;
         return const GoogleAuthResult.requiresPhone();
+      case GoogleAuthStatus.requiresAccountLink:
+        final challenge = response.linkChallenge;
+        final emailHint = response.emailHint;
+        if (challenge == null ||
+            challenge.trim().isEmpty ||
+            emailHint == null ||
+            emailHint.trim().isEmpty) {
+          throw const ApiException(
+            'Malformed server response.',
+            code: 'MALFORMED_RESPONSE',
+          );
+        }
+        _pendingGoogleSignupToken = null;
+        _pendingGoogleLinkChallenge = challenge.trim();
+        return GoogleAuthResult.requiresAccountLink(emailHint.trim());
     }
+  }
+
+  @override
+  Future<AuthenticatedPatientSession> linkGoogleAccount(String password) async {
+    final challenge = _pendingGoogleLinkChallenge;
+    if (challenge == null || challenge.isEmpty) {
+      throw const ApiException(
+        'Google account linking was not started.',
+        code: 'AUTH_GOOGLE_LINK_INVALID',
+      );
+    }
+    final response = await _api.linkGoogleAccount(
+      GoogleLinkRequestDto(linkChallenge: challenge, password: password),
+    );
+    _pendingGoogleLinkChallenge = null;
+    await _saveLoginResponse(response);
+    return loadCurrentProfile();
+  }
+
+  @override
+  void cancelGoogleAccountLink() {
+    _pendingGoogleLinkChallenge = null;
   }
 
   @override

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
-import 'language_selection_screen.dart';
 import '../../providers/user_provider.dart';
 import 'application/auth_controller.dart';
 import 'application/post_auth_navigation.dart';
@@ -37,16 +36,7 @@ class _SplashScreenState extends State<SplashScreen> {
         return;
       }
 
-      Navigator.of(context).pushReplacement(
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              const LanguageSelectionScreen(),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return FadeTransition(opacity: animation, child: child);
-          },
-          transitionDuration: const Duration(milliseconds: 600),
-        ),
-      );
+      Navigator.of(context).pushReplacementNamed('/login');
     });
   }
 
@@ -88,20 +78,7 @@ class _SplashScreenState extends State<SplashScreen> {
                   if (!context.mounted) return;
                   await context.read<UserProvider>().logout();
                   if (!context.mounted) return;
-                  Navigator.of(context).pushReplacement(
-                    PageRouteBuilder(
-                      pageBuilder: (context, animation, secondaryAnimation) =>
-                          const LanguageSelectionScreen(),
-                      transitionsBuilder:
-                          (context, animation, secondaryAnimation, child) {
-                            return FadeTransition(
-                              opacity: animation,
-                              child: child,
-                            );
-                          },
-                      transitionDuration: const Duration(milliseconds: 300),
-                    ),
-                  );
+                  Navigator.of(context).pushReplacementNamed('/login');
                 },
                 child: const Text('Clear Local Session'),
               ),

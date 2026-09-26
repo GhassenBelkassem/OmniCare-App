@@ -86,6 +86,7 @@ bool isPublicAuthPath(String path) {
   return normalized.startsWith('/api/v1/auth/signup/') ||
       normalized.startsWith('/api/v1/auth/login/') ||
       normalized.startsWith('/api/v1/auth/google/') ||
+      normalized == '/api/v1/professional-access-requests' ||
       normalized == '/api/v1/auth/refresh';
 }
 
