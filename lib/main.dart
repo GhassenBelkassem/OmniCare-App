@@ -58,6 +58,8 @@ import 'features/patient_clinic/data/patient_clinic_repository.dart';
 import 'features/patient_clinic/presentation/clinic_directory_screen.dart';
 import 'features/patient_doctor/presentation/doctor_directory_screen.dart';
 import 'features/patient_doctor/application/doctor_directory_controller.dart';
+import 'features/patient_doctor/data/doctor_directory_api.dart';
+import 'features/patient_doctor/data/doctor_directory_repository.dart';
 import 'features/request_flow/screens/request_flow_entry_screen.dart';
 import 'features/request_flow/screens/doctor_cabinet_entry_screen.dart';
 import 'features/request_flow/screens/who_needs_care_screen.dart';
@@ -185,7 +187,15 @@ class OmniCareApp extends StatelessWidget {
             ),
           ),
         ),
-        ChangeNotifierProvider(create: (_) => DoctorDirectoryController()),
+        // Real patient doctor directory. Same shared client; the controller
+        // owns debounced, cancel-safe search over the plain /doctors array.
+        ChangeNotifierProvider(
+          create: (_) => DoctorDirectoryController(
+            repository: DoctorDirectoryRepository(
+              DoctorDirectoryApi(resolvedHttpClient),
+            ),
+          ),
+        ),
         ChangeNotifierProvider(create: (_) => ReservationProvider()),
       ],
       child: Consumer2<UserOnboardingProvider, UserProvider>(

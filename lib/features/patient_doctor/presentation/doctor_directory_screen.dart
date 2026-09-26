@@ -289,6 +289,15 @@ class _DirectoryBody extends StatelessWidget {
       return const Center(child: CircularProgressIndicator());
     }
 
+    if (status == DoctorDirectoryStatus.error) {
+      return _DirectoryErrorState(
+        message:
+            directory.error?.message ??
+            'Le répertoire des médecins est momentanément indisponible.',
+        onRetry: () => directory.loadFirst(),
+      );
+    }
+
     if (status == DoctorDirectoryStatus.empty) {
       if (filters.isActive) {
         return _FilteredEmptyState(onReset: onResetFilters);
@@ -344,6 +353,61 @@ class _DirectoryBody extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _DirectoryErrorState extends StatelessWidget {
+  const _DirectoryErrorState({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(OmniSpacing.xxl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(
+                color: OmniColors.surfaceSecondary,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.cloud_off_outlined,
+                size: 26,
+                color: OmniColors.slateBlue,
+              ),
+            ),
+            const SizedBox(height: OmniSpacing.base),
+            Text(
+              message,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: OmniColors.textPrimary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: OmniSpacing.base),
+            SizedBox(
+              width: 150,
+              height: 44,
+              child: OutlinedButton(
+                onPressed: onRetry,
+                child: const Text('Réessayer'),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

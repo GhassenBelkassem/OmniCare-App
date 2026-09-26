@@ -1,42 +1,154 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../../core/theme/omni_theme.dart';
 import '../../patient_clinic/presentation/widgets/clinic_full_screen_gallery.dart';
 import '../../patient_clinic/presentation/clinic_presentation_metadata.dart'
     as clinic;
 import '../../patient_clinic/presentation/widgets/clinic_image_renderer.dart';
-import '../data/doctor_detail_mock_data.dart';
+import '../application/doctor_directory_controller.dart';
 import '../data/doctor_detail_models.dart';
+import '../data/doctor_directory_failure.dart';
 import 'doctor_availability_sheet.dart';
 import 'doctor_presentation_metadata.dart';
 
 /// Doctor detail / profile screen.
 ///
-/// The profile keeps the existing navigation and availability flow, while
-/// presenting the doctor as a person first and their clinical metadata second.
-class DoctorDetailScreen extends StatelessWidget {
+/// Backend values stay authoritative (identity, verifications, clinical
+/// metadata, availability, practiceCity); presentation-only data comes from
+/// [DoctorPresentationCatalog]. The profile is fed by the shared
+/// [DoctorDirectoryController] via [fetchDetail].
+class DoctorDetailScreen extends StatefulWidget {
   const DoctorDetailScreen({super.key, required this.doctorId});
 
   final String doctorId;
 
   @override
+  State<DoctorDetailScreen> createState() => _DoctorDetailScreenState();
+}
+
+class _DoctorDetailScreenState extends State<DoctorDetailScreen> {
+  bool _detailRequested = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _detailRequested) return;
+      _detailRequested = true;
+      context.read<DoctorDirectoryController>().fetchDetail(widget.doctorId);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final detail = getDoctorDetail(doctorId);
-    if (detail == null) {
-      return Scaffold(
-        backgroundColor: OmniColors.pageBackground,
-        appBar: AppBar(title: const Text('Profil du médecin')),
-        body: const Center(child: Text('Médecin introuvable')),
-      );
-    }
-    return _DoctorDetailBody(detail: detail);
+    final directory = context.watch<DoctorDirectoryController>();
+    final detail = directory.detail;
+
+    final failed = directory.detailError != null && detail == null;
+    final loading = detail == null && !failed;
+
+    return Scaffold(
+      backgroundColor: OmniColors.pageBackground,
+      body: SafeArea(
+        bottom: false,
+        child: detail == null
+            ? (loading
+                ? const Center(child: CircularProgressIndicator())
+                : _DetailErrorState(
+                    message:
+                        directory.detailError?.message ??
+                        'Impossible de charger ce médecin.',
+                    notFound: directory.isNotFound,
+                    onRetry: () => directory.fetchDetail(widget.doctorId),
+                  ))
+            : _DoctorDetailBody(
+                detail: detail,
+                controller: directory,
+                availabilityError: directory.availabilityError,
+                onRetryAvailability: directory.retryFetchAvailability,
+              ),
+      ),
+    );
+  }
+}
+
+class _DetailErrorState extends StatelessWidget {
+  const _DetailErrorState({
+    required this.message,
+    required this.notFound,
+    required this.onRetry,
+  });
+
+  final String message;
+  final bool notFound;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(OmniSpacing.xxl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(
+                color: OmniColors.surfaceSecondary,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                notFound
+                    ? Icons.person_off_outlined
+                    : Icons.error_outline_rounded,
+                size: 26,
+                color: OmniColors.slateBlue,
+              ),
+            ),
+            const SizedBox(height: OmniSpacing.base),
+            Text(
+              notFound ? 'Médecin introuvable' : message,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: OmniColors.textPrimary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            if (!notFound) ...[
+              const SizedBox(height: OmniSpacing.base),
+              SizedBox(
+                width: 140,
+                height: 44,
+                child: OutlinedButton(
+                  onPressed: onRetry,
+                  child: const Text('Réessayer'),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 }
 
 class _DoctorDetailBody extends StatefulWidget {
-  const _DoctorDetailBody({required this.detail});
+  const _DoctorDetailBody({
+    required this.detail,
+    required this.controller,
+    this.availabilityError,
+    required this.onRetryAvailability,
+  });
 
   final DoctorDetail detail;
+  final DoctorDirectoryController controller;
+  final DoctorDirectoryFailure? availabilityError;
+  final VoidCallback onRetryAvailability;
 
   @override
   State<_DoctorDetailBody> createState() => _DoctorDetailBodyState();
@@ -57,7 +169,10 @@ class _DoctorDetailBodyState extends State<_DoctorDetailBody> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (_) => DoctorAvailabilitySheet(detail: detail),
+      builder: (_) => DoctorAvailabilitySheet(
+        detail: detail,
+        controller: widget.controller,
+      ),
     );
   }
 
@@ -65,7 +180,12 @@ class _DoctorDetailBodyState extends State<_DoctorDetailBody> {
     final metadata = DoctorPresentationCatalog.forDoctor(detail.id);
     return switch (_selectedTab) {
       0 => _AboutTab(detail: detail),
-      1 => _AvailabilityTab(detail: detail, onSeeAll: _openAvailabilitySheet),
+      1 => _AvailabilityTab(
+          detail: detail,
+          availabilityError: widget.availabilityError,
+          onRetryAvailability: widget.onRetryAvailability,
+          onSeeAll: _openAvailabilitySheet,
+        ),
       2 => _CabinetTab(location: location, metadata: metadata),
       _ => _AboutTab(detail: detail),
     };
@@ -206,10 +326,12 @@ class _DoctorIdentityHeader extends StatelessWidget {
                           ),
                         ],
                         const SizedBox(height: OmniSpacing.sm),
-                        _HeaderMetaLine(
-                          icon: Icons.work_outline_rounded,
-                          label: '${detail.experienceYears} ans d\'expérience',
-                        ),
+                        if (detail.experienceYears > 0)
+                          _HeaderMetaLine(
+                            icon: Icons.work_outline_rounded,
+                            label:
+                                '${detail.experienceYears} ans d\'expérience',
+                          ),
                         if (location != null)
                           _HeaderMetaLine(
                             icon: Icons.location_on_outlined,
@@ -733,9 +855,16 @@ class _CompactRows extends StatelessWidget {
 }
 
 class _AvailabilityTab extends StatelessWidget {
-  const _AvailabilityTab({required this.detail, required this.onSeeAll});
+  const _AvailabilityTab({
+    required this.detail,
+    this.availabilityError,
+    required this.onRetryAvailability,
+    required this.onSeeAll,
+  });
 
   final DoctorDetail detail;
+  final DoctorDirectoryFailure? availabilityError;
+  final VoidCallback onRetryAvailability;
   final VoidCallback onSeeAll;
 
   @override
@@ -768,7 +897,12 @@ class _AvailabilityTab extends StatelessWidget {
       children: [
         const _SectionTitle(title: 'Prochaine disponibilité'),
         const SizedBox(height: OmniSpacing.sm),
-        if (nextDays.isEmpty)
+        if (availabilityError != null) ...[
+          _AvailabilityErrorPanel(
+            message: availabilityError!.message,
+            onRetry: onRetryAvailability,
+          ),
+        ] else if (nextDays.isEmpty)
           _SoftPanel(
             child: Text(
               'Aucune disponibilité proche trouvée.',
@@ -783,16 +917,18 @@ class _AvailabilityTab extends StatelessWidget {
             _AvailabilityDayPreview(day: day),
             const SizedBox(height: OmniSpacing.sm),
           ],
-        const SizedBox(height: OmniSpacing.md),
-        SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: OutlinedButton.icon(
-            onPressed: onSeeAll,
-            icon: const Icon(Icons.calendar_today_outlined, size: 18),
-            label: const Text('Voir tous les créneaux'),
+        if (availabilityError == null) ...[
+          const SizedBox(height: OmniSpacing.md),
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: OutlinedButton.icon(
+              onPressed: onSeeAll,
+              icon: const Icon(Icons.calendar_today_outlined, size: 18),
+              label: const Text('Voir tous les créneaux'),
+            ),
           ),
-        ),
+        ],
       ],
     );
   }
@@ -824,6 +960,51 @@ class _AvailabilityTab extends StatelessWidget {
       'décembre',
     ];
     return '${date.day} ${months[date.month]}';
+  }
+}
+
+class _AvailabilityErrorPanel extends StatelessWidget {
+  const _AvailabilityErrorPanel({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(OmniSpacing.base),
+      decoration: BoxDecoration(
+        color: OmniColors.surfacePrimary,
+        borderRadius: BorderRadius.circular(OmniRadii.card),
+        border: Border.all(color: OmniColors.borderLight),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            message,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontSize: 13,
+              height: 1.45,
+              color: OmniColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: OmniSpacing.sm),
+          TextButton.icon(
+            onPressed: onRetry,
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(0, 36),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            icon: const Icon(Icons.refresh_rounded, size: 18),
+            label: const Text('Réessayer'),
+          ),
+        ],
+      ),
+    );
   }
 }
 

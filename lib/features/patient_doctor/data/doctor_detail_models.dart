@@ -1,22 +1,41 @@
 /// Detail presentation models for the patient doctor profile screen.
 ///
-/// These are static/mock-only models — no backend API is used.
 /// [DoctorDetail] is the primary profile model. [PracticeLocation] represents
-/// a single workplace (future multi-location compatible). [DoctorAvailabilitySlot]
-/// represents a single bookable time slot.
+/// a single workplace (future multi-location compatible; the cabinet tab keeps
+/// its presentation-only data). [DoctorAvailabilitySlot] represents a single
+/// real bookable time slot parsed from the availability endpoint.
 library;
 
 import 'doctor_models.dart';
 
 /// A single available time slot for a specific date.
 class DoctorAvailabilitySlot {
-  const DoctorAvailabilitySlot({required this.time, required this.timeOfDay});
+  const DoctorAvailabilitySlot({
+    required this.time,
+    required this.timeOfDay,
+    required this.startIso,
+    required this.endIso,
+    required this.start,
+    required this.end,
+  });
 
   /// The time label (e.g. '09:00', '14:30').
   final String time;
 
   /// Period of day grouping: 'Matin', 'Après-midi', 'Soir'.
   final String timeOfDay;
+
+  /// The exact backend `start` Instant (`BookingRequest.startTime`).
+  final String startIso;
+
+  /// The exact backend `end` Instant (`BookingRequest.endTime`).
+  final String endIso;
+
+  /// Parsed local start ([startIso] in local time).
+  final DateTime start;
+
+  /// Parsed local end ([endIso] in local time).
+  final DateTime end;
 }
 
 /// Date-level availability: which day has which slots.
@@ -163,4 +182,25 @@ class DoctorDetail {
   List<String> get visitReasons => listItem.visitReasons;
   String? get imageAssetPath => listItem.imageAssetPath;
   double? get distanceKm => listItem.distanceKm;
+
+  /// Returns a copy with freshly fetched availability data attached.
+  DoctorDetail copyWith({
+    List<DoctorDayAvailability>? availability,
+    String? nextAvailableLabel,
+    bool clearNextAvailableLabel = false,
+  }) {
+    return DoctorDetail(
+      listItem: listItem,
+      verified: verified,
+      areasOfCare: areasOfCare,
+      expertise: expertise,
+      biography: biography,
+      patientAgeGroups: patientAgeGroups,
+      practiceLocations: practiceLocations,
+      availability: availability ?? this.availability,
+      nextAvailableLabel: clearNextAvailableLabel
+          ? null
+          : nextAvailableLabel ?? this.nextAvailableLabel,
+    );
+  }
 }
