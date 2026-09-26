@@ -88,19 +88,39 @@ class AuthenticatedPatientSession {
   }
 }
 
-enum GoogleAuthOutcome { authenticated, requiresPhone }
+enum GoogleAuthOutcome { authenticated, requiresPhone, requiresAccountLink }
 
 class GoogleAuthResult {
   final GoogleAuthOutcome outcome;
   final AuthenticatedPatientSession? session;
+  final String? emailHint;
 
-  const GoogleAuthResult._({required this.outcome, required this.session});
+  const GoogleAuthResult._({
+    required this.outcome,
+    required this.session,
+    required this.emailHint,
+  });
 
   const GoogleAuthResult.authenticated(AuthenticatedPatientSession session)
-    : this._(outcome: GoogleAuthOutcome.authenticated, session: session);
+    : this._(
+        outcome: GoogleAuthOutcome.authenticated,
+        session: session,
+        emailHint: null,
+      );
 
   const GoogleAuthResult.requiresPhone()
-    : this._(outcome: GoogleAuthOutcome.requiresPhone, session: null);
+    : this._(
+        outcome: GoogleAuthOutcome.requiresPhone,
+        session: null,
+        emailHint: null,
+      );
+
+  const GoogleAuthResult.requiresAccountLink(String emailHint)
+    : this._(
+        outcome: GoogleAuthOutcome.requiresAccountLink,
+        session: null,
+        emailHint: emailHint,
+      );
 }
 
 enum EmailPasswordLoginOutcome { authenticated, requiresPhoneOtp }

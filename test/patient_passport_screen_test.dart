@@ -7,7 +7,7 @@ void main() {
   Widget buildTestApp() {
     return MaterialApp(
       theme: buildOmniTheme(),
-      home: const PatientPassportScreen(),
+      home: const Scaffold(body: PatientPassportScreen()),
     );
   }
 
@@ -21,12 +21,16 @@ void main() {
     expect(find.text('Identité du passeport'), findsOneWidget);
     expect(find.text('Metformine'), findsOneWidget);
 
-    await tester.tap(find.text('Anciens'));
+    final previousMedicines = find.text('Anciens');
+    await tester.scrollUntilVisible(previousMedicines, 160);
+    await tester.tap(previousMedicines);
     await tester.pumpAndSettle();
     expect(find.text('Amoxicilline'), findsOneWidget);
     expect(find.text('Metformine'), findsNothing);
 
-    await tester.tap(find.text('Historique'));
+    final history = find.text('Historique');
+    await tester.scrollUntilVisible(history, -160);
+    await tester.tap(history);
     await tester.pumpAndSettle();
     expect(find.text('Historique des consultations'), findsOneWidget);
     expect(find.text('3 consultations'), findsOneWidget);

@@ -8,7 +8,7 @@ void main() {
   ) async {
     await tester.pumpWidget(
       MaterialApp(
-        home: const ProviderSelectionScreen(),
+        home: const Scaffold(body: ProviderSelectionScreen()),
         routes: {
           '/m05/request': (_) => const Scaffold(body: Text('Who needs care?')),
           '/clinic-request': (_) =>
@@ -18,7 +18,9 @@ void main() {
     );
 
     expect(find.text('Médecin'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Infirmier'), 200);
     expect(find.text('Infirmier'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Kinésithérapeute'), 200);
     expect(find.text('Kinésithérapeute'), findsOneWidget);
     await tester.scrollUntilVisible(find.text('Clinique'), 200);
     expect(find.text('Clinique'), findsOneWidget);

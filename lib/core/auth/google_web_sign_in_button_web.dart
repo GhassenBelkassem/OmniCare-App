@@ -1,3 +1,7 @@
+// Google Identity Services still exposes this button through browser DOM and
+// snake_case JavaScript fields; keep the interop isolated in this web file.
+// ignore_for_file: avoid_web_libraries_in_flutter, deprecated_member_use, non_constant_identifier_names
+
 @JS()
 library;
 
@@ -6,6 +10,8 @@ import 'dart:ui_web' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:js/js.dart';
+
+import '../theme/omni_theme.dart';
 
 @JS('google.accounts.id')
 external _GoogleAccountsId get _googleAccountsId;
@@ -39,7 +45,8 @@ class GoogleWebSignInButton extends StatefulWidget {
 class _GoogleWebSignInButtonState extends State<GoogleWebSignInButton> {
   late final String _viewType;
   html.DivElement? _container;
-  bool _initialized = false;
+  bool _gisInitialized = false;
+  int? _renderedWidth;
 
   @override
   void initState() {
@@ -48,11 +55,11 @@ class _GoogleWebSignInButtonState extends State<GoogleWebSignInButton> {
 
     // ignore:undefined_prefixed_name
     ui.platformViewRegistry.registerViewFactory(_viewType, (int viewId) {
-      _container = html.DivElement();
+      _container = html.DivElement()
+        ..style.width = '100%'
+        ..style.height = '50px';
       return _container!;
     });
-
-    WidgetsBinding.instance.addPostFrameCallback((_) => _initGis());
   }
 
   String? _readClientIdFromMeta() {
@@ -62,8 +69,8 @@ class _GoogleWebSignInButtonState extends State<GoogleWebSignInButton> {
     return tag?.getAttribute('content');
   }
 
-  void _initGis() {
-    if (!mounted || _initialized) return;
+  void _initGis(int width) {
+    if (!mounted) return;
 
     final clientId = _readClientIdFromMeta();
     if (clientId == null || clientId.isEmpty) {
@@ -73,49 +80,63 @@ class _GoogleWebSignInButtonState extends State<GoogleWebSignInButton> {
     final container = _container;
     if (container == null) return;
 
-    _googleAccountsId.initialize(
-      _IdConfiguration(
-        client_id: clientId,
-        // ignore: undefined_method
-        callback: allowInterop((dynamic response) {
-          final credential = (response is Object)
-              ? (response as dynamic).credential
-              : null;
-          final token = credential?.toString();
-          if (token != null && token.isNotEmpty) {
-            widget.onIdToken(token);
-          }
-        }),
-      ),
-    );
+    if (!_gisInitialized) {
+      _googleAccountsId.initialize(
+        _IdConfiguration(
+          client_id: clientId,
+          // ignore: undefined_method
+          callback: allowInterop((dynamic response) {
+            final credential = (response is Object)
+                ? (response as dynamic).credential
+                : null;
+            final token = credential?.toString();
+            if (token != null && token.isNotEmpty) {
+              widget.onIdToken(token);
+            }
+          }),
+        ),
+      );
+      _gisInitialized = true;
+    }
+
+    if (_renderedWidth == width) return;
+    container.children.clear();
 
     _googleAccountsId.renderButton(container, {
       'type': 'standard',
       'theme': 'outline',
       'size': 'large',
-      'width': 384,
+      'width': width,
       'text': 'continue_with',
-      'shape': 'pill',
+      'shape': 'rectangular',
+      'logo_alignment': 'left',
     });
 
-    _initialized = true;
+    _renderedWidth = width;
   }
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 50,
-      width: double.infinity,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: HtmlElementView(viewType: _viewType),
-        ),
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth.clamp(200.0, 400.0).round();
+        WidgetsBinding.instance.addPostFrameCallback((_) => _initGis(width));
+
+        return SizedBox(
+          height: 50,
+          width: double.infinity,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: OmniColors.surfacePrimary,
+              borderRadius: BorderRadius.circular(OmniRadii.field),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(OmniRadii.field),
+              child: HtmlElementView(viewType: _viewType),
+            ),
+          ),
+        );
+      },
     );
   }
 }

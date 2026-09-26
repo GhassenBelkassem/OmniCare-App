@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../core/config/app_environment.dart';
+import '../../core/theme/omni_theme.dart';
 import '../../providers/user_onboarding_provider.dart';
 import 'application/auth_controller.dart';
 import 'application/auth_flow_models.dart';
@@ -101,199 +101,122 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: OmniColors.pageBackground,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF101828)),
+          tooltip: 'Retour',
+          icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => Navigator.pop(context),
         ),
+        title: const Text('Numéro de téléphone'),
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              children: [
-                const SizedBox(height: 4),
-                // Illustration placeholder
-                Container(
-                  width: 200,
-                  height: 200,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF0FDF9),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Image.asset(
-                      'assets/images/phone_verification.png',
-                      width: 160,
-                      height: 160,
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Icon(
-                          Icons.phone_android_rounded,
-                          size: 90,
-                          color: const Color(0xFF1FBF9A),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  widget.mode == AuthFlowMode.login
-                      ? 'Phone Login'
-                      : AppEnvironment.phoneVerificationEnabled
-                      ? 'Phone Verification'
-                      : 'Phone Number',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF101828),
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  widget.mode == AuthFlowMode.login
-                      ? 'Enter your phone number to receive a login code.'
-                      : AppEnvironment.phoneVerificationEnabled
-                      ? 'We need to verify your phone number before getting started.'
-                      : 'Add a contact number to finish creating your account.',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                    color: const Color(0xFF667085),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
+        top: false,
+        child: Center(
+          child: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.fromLTRB(
+              OmniSpacing.pageHorizontal,
+              OmniSpacing.xl,
+              OmniSpacing.pageHorizontal,
+              OmniSpacing.xxl,
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Country code selector
-                    Container(
-                      height: 48,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF9FAFB),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFD0D5DD)),
-                      ),
-                      child: Row(
-                        children: [
-                          Text('🇹🇳', style: const TextStyle(fontSize: 24)),
-                          const SizedBox(width: 8),
-                          const Icon(
-                            Icons.arrow_drop_down,
-                            color: Color(0xFF667085),
-                          ),
-                        ],
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Container(
+                        width: 64,
+                        height: 64,
+                        decoration: BoxDecoration(
+                          color: OmniColors.infoBlueSoft,
+                          borderRadius: BorderRadius.circular(OmniRadii.card),
+                        ),
+                        child: const Icon(
+                          Icons.phone_iphone_rounded,
+                          size: 30,
+                          color: OmniColors.infoBlue,
+                        ),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    // Phone input
-                    Expanded(
-                      child: Container(
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFD0D5DD)),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                              ),
-                              child: Text(
-                                '+216',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
-                                  color: const Color(0xFF101828),
-                                ),
-                              ),
-                            ),
-                            Container(
-                              width: 1,
-                              height: 32,
-                              color: const Color(0xFFD0D5DD),
-                            ),
-                            Expanded(
-                              child: TextFormField(
-                                controller: _phoneController,
-                                keyboardType: TextInputType.phone,
-                                validator: _validatePhone,
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w400,
-                                  color: const Color(0xFF101828),
-                                ),
-                                decoration: InputDecoration(
-                                  hintText: '12 345 678',
-                                  hintStyle: GoogleFonts.plusJakartaSans(
-                                    fontSize: 16,
-                                    color: const Color(0xFF98A2B3),
-                                  ),
-                                  border: InputBorder.none,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 16,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                    const SizedBox(height: OmniSpacing.lg),
+                    Text(
+                      widget.mode == AuthFlowMode.login
+                          ? 'Connexion par téléphone'
+                          : AppEnvironment.phoneVerificationEnabled
+                          ? 'Vérifiez votre téléphone'
+                          : 'Votre numéro de téléphone',
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            color: OmniColors.textPrimary,
+                            letterSpacing: -0.3,
+                          ),
+                    ),
+                    const SizedBox(height: OmniSpacing.sm),
+                    Text(
+                      widget.mode == AuthFlowMode.login
+                          ? 'Saisissez votre numéro pour recevoir un code de connexion.'
+                          : AppEnvironment.phoneVerificationEnabled
+                          ? 'Nous devons vérifier votre numéro avant de continuer.'
+                          : 'Ajoutez un numéro de contact pour finaliser votre compte.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontSize: 14,
+                        height: 1.45,
+                        color: OmniColors.textSecondary,
                       ),
+                    ),
+                    const SizedBox(height: OmniSpacing.xl),
+                    TextFormField(
+                      controller: _phoneController,
+                      keyboardType: TextInputType.phone,
+                      textInputAction: TextInputAction.done,
+                      validator: _validatePhone,
+                      onFieldSubmitted: (_) => _submitPhone(),
+                      decoration: const InputDecoration(
+                        labelText: 'Numéro de téléphone',
+                        hintText: '12 345 678',
+                        prefixIcon: Icon(
+                          Icons.phone_outlined,
+                          size: 20,
+                          color: OmniColors.textSecondary,
+                        ),
+                        prefixText: '+216  ',
+                      ),
+                    ),
+                    const SizedBox(height: OmniSpacing.sm),
+                    Text(
+                      'Format tunisien à 8 chiffres',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: OmniColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: OmniSpacing.xxl),
+                    ElevatedButton(
+                      onPressed: _isLoading ? null : _submitPhone,
+                      child: _isLoading
+                          ? const SizedBox.square(
+                              dimension: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Text(
+                              AppEnvironment.phoneVerificationEnabled
+                                  ? 'Envoyer le code'
+                                  : 'Continuer',
+                            ),
                     ),
                   ],
                 ),
-                const Spacer(),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _submitPhone,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1FBF9A),
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      disabledBackgroundColor: const Color(
-                        0xFF1FBF9A,
-                      ).withValues(alpha: 0.5),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 24,
-                            width: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Colors.white,
-                              ),
-                            ),
-                          )
-                        : Text(
-                            AppEnvironment.phoneVerificationEnabled
-                                ? 'Send the Code'
-                                : 'Continue',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-              ],
+              ),
             ),
           ),
         ),

@@ -7,6 +7,17 @@ enum MedicationGroup { current, previous }
 enum PassportConsultationStatus { completed, cancelled }
 
 @immutable
+class PassportConsultationMedication {
+  const PassportConsultationMedication({
+    required this.name,
+    required this.instruction,
+  });
+
+  final String name;
+  final String instruction;
+}
+
+@immutable
 class PassportMedication {
   final String name;
   final String dosage;
@@ -29,16 +40,22 @@ class PassportMedication {
 class PassportConsultation {
   final String date;
   final String doctor;
+  final String doctorType;
   final String reason;
   final String specialty;
+  final String diagnosis;
+  final List<PassportConsultationMedication> medications;
   final PassportConsultationStatus status;
   final bool isShareable;
 
   const PassportConsultation({
     required this.date,
     required this.doctor,
+    required this.doctorType,
     required this.reason,
     required this.specialty,
+    required this.diagnosis,
+    this.medications = const [],
     required this.status,
     required this.isShareable,
   });

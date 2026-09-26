@@ -5,6 +5,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'features/auth/splash_screen.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/reset_password_screen.dart';
+import 'features/auth/professional_access_request_screen.dart';
+import 'features/auth/data/professional_access_request_api.dart';
 import 'features/profile/vital_info_screen.dart';
 import 'features/profile/medications_screen.dart';
 import 'features/profile/medical_documents_screen.dart';
@@ -21,7 +23,7 @@ import 'features/emergency/doctor_calling_screen.dart';
 import 'features/emergency/doctor_arriving_screen.dart';
 import 'features/emergency/consultation_qr_screen.dart';
 import 'features/emergency/consultation_complete_screen.dart';
-import 'features/doctor/doctor_dashboard_screen.dart';
+import 'features/doctor/doctor_auth_shell_screen.dart';
 import 'features/request/provider_selection_screen.dart';
 import 'features/request/consultation_type_screen.dart';
 import 'features/request/provider_list_screen.dart';
@@ -55,7 +57,6 @@ import 'features/patient_clinic/data/patient_clinic_api.dart';
 import 'features/patient_clinic/data/patient_clinic_repository.dart';
 import 'features/patient_clinic/presentation/clinic_directory_screen.dart';
 import 'features/patient_doctor/presentation/doctor_directory_screen.dart';
-import 'features/patient_doctor/presentation/doctor_detail_screen.dart';
 import 'features/patient_doctor/application/doctor_directory_controller.dart';
 import 'features/request_flow/screens/request_flow_entry_screen.dart';
 import 'features/request_flow/screens/doctor_cabinet_entry_screen.dart';
@@ -230,7 +231,15 @@ class OmniCareApp extends StatelessWidget {
             home: const SplashScreen(),
             navigatorObservers: [AppNav.routeObserver],
             routes: {
+              // Compatibility route for existing links. It deliberately reuses the
+              // one role-neutral sign-in screen.
+              '/auth-entry': (context) => const LoginScreen(),
               '/login': (context) => const LoginScreen(),
+              '/professional-login': (context) => const LoginScreen(),
+              '/professional-access-request': (context) =>
+                  ProfessionalAccessRequestScreen(
+                    api: ProfessionalAccessRequestApi(resolvedHttpClient),
+                  ),
               '/medical-profile': (context) => const VitalInfoScreen(),
               '/medications': (context) => const MedicationsScreen(),
               '/medical-documents': (context) => const MedicalDocumentsScreen(),
@@ -239,7 +248,7 @@ class OmniCareApp extends StatelessWidget {
               '/change-password-required': (context) =>
                   const ResetPasswordScreen(),
               '/home': (context) => const NewHomeScreen(),
-              '/doctor-dashboard': (context) => const DoctorDashboardScreen(),
+              '/doctor-dashboard': (context) => const DoctorAuthShellScreen(),
               '/emergency-step0': (context) => const EmergencyRequestStep0(),
               '/emergency-step1': (context) => const EmergencyRequestStep1(),
               '/request-care': (context) => const ProviderSelectionScreen(),

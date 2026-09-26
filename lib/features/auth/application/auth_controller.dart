@@ -16,6 +16,7 @@ enum AuthStatus {
   submitting,
   phoneRequired,
   otpRequired,
+  accountLinkRequired,
   authenticated,
   failure,
 }
@@ -34,6 +35,8 @@ class AuthController extends ChangeNotifier {
   String? _pendingPhone;
   PhoneSignupDraft? _pendingSignupDraft;
   bool _pendingGoogleSignup = false;
+  bool _pendingGoogleAccountLink = false;
+  String? _pendingGoogleEmailHint;
   bool _pendingRememberDevice = false;
   String? _errorCode;
   String? _errorMessage;
@@ -50,6 +53,8 @@ class AuthController extends ChangeNotifier {
   AuthFlowMode? get pendingFlow => _pendingFlow;
   String? get pendingPhone => _pendingPhone;
   bool get hasPendingGoogleSignup => _pendingGoogleSignup;
+  bool get hasPendingGoogleAccountLink => _pendingGoogleAccountLink;
+  String? get pendingGoogleEmailHint => _pendingGoogleEmailHint;
   String? get errorCode => _errorCode;
   String? get errorMessage => _errorMessage;
   Map<String, String> get fieldErrors => _fieldErrors;
@@ -199,8 +204,45 @@ class AuthController extends ChangeNotifier {
               ? AuthStatus.otpRequired
               : AuthStatus.phoneRequired;
           return true;
+        case GoogleAuthOutcome.requiresAccountLink:
+          final emailHint = result.emailHint;
+          if (emailHint == null || emailHint.isEmpty) {
+            throw const AuthFlowException(
+              'Google account-link details were not returned.',
+            );
+          }
+          _pendingGoogleSignup = false;
+          _pendingGoogleAccountLink = true;
+          _pendingGoogleEmailHint = emailHint;
+          _pendingPhone = null;
+          _pendingFlow = null;
+          _pendingSignupDraft = null;
+          _pendingRememberDevice = rememberDevice;
+          _status = AuthStatus.accountLinkRequired;
+          return true;
       }
     });
+  }
+
+  Future<bool> linkGoogleAccount(String password) async {
+    if (_submitting || !_pendingGoogleAccountLink) return false;
+    return _runSubmitting(() async {
+      final session = await _repository.linkGoogleAccount(password);
+      _setAuthenticated(session);
+      return true;
+    });
+  }
+
+  void cancelGoogleAccountLink() {
+    if (_submitting || _status == AuthStatus.authenticated) return;
+    _repository.cancelGoogleAccountLink();
+    _pendingGoogleAccountLink = false;
+    _pendingGoogleEmailHint = null;
+    _errorCode = null;
+    _errorMessage = null;
+    _fieldErrors = const {};
+    _status = AuthStatus.unauthenticated;
+    _notify();
   }
 
   Future<bool> verifyPhoneLoginOtp(String otp) async {
@@ -391,13 +433,19 @@ class AuthController extends ChangeNotifier {
 
   void cancelPendingFlow() {
     if (_submitting || _status == AuthStatus.authenticated) return;
+    if (_pendingGoogleAccountLink) {
+      _repository.cancelGoogleAccountLink();
+    }
     _pendingFlow = null;
     _pendingPhone = null;
     _pendingSignupDraft = null;
     _pendingGoogleSignup = false;
+    _pendingGoogleAccountLink = false;
+    _pendingGoogleEmailHint = null;
     _pendingRememberDevice = false;
     if (_status == AuthStatus.otpRequired ||
-        _status == AuthStatus.phoneRequired) {
+        _status == AuthStatus.phoneRequired ||
+        _status == AuthStatus.accountLinkRequired) {
       _status = AuthStatus.unauthenticated;
     }
     _notify();
@@ -426,6 +474,8 @@ class AuthController extends ChangeNotifier {
     _pendingPhone = null;
     _pendingSignupDraft = null;
     _pendingGoogleSignup = false;
+    _pendingGoogleAccountLink = false;
+    _pendingGoogleEmailHint = null;
     _pendingRememberDevice = false;
     _errorCode = null;
     _errorMessage = null;
@@ -468,6 +518,8 @@ class AuthController extends ChangeNotifier {
     _pendingPhone = null;
     _pendingSignupDraft = null;
     _pendingGoogleSignup = false;
+    _pendingGoogleAccountLink = false;
+    _pendingGoogleEmailHint = null;
     _pendingRememberDevice = false;
     _errorCode = null;
     _errorMessage = null;
