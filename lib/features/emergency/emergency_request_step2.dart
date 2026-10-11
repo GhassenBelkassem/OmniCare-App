@@ -11,9 +11,18 @@ class EmergencyRequestStep2 extends StatefulWidget {
     super.key,
     required this.step1Data,
     this.flowMode = UrgentFlowMode.create,
+    this.onBack,
+    this.onContinue,
+    this.p4SafePresentation = false,
   });
   final Map<String, dynamic> step1Data;
   final UrgentFlowMode flowMode;
+  final VoidCallback? onBack;
+  final ValueChanged<Map<String, dynamic>>? onContinue;
+
+  /// Keeps the approved intake presentation while removing P5/MRS semantics.
+  /// The optional narrative remains Patient-private in the typed P4 adapter.
+  final bool p4SafePresentation;
 
   @override
   State<EmergencyRequestStep2> createState() => _EmergencyRequestStep2State();
@@ -29,7 +38,8 @@ class _EmergencyRequestStep2State extends State<EmergencyRequestStep2>
 
   bool get _canProceed =>
       _selectedBodyParts.isNotEmpty &&
-      _descriptionController.text.trim().isNotEmpty;
+      (widget.p4SafePresentation ||
+          _descriptionController.text.trim().isNotEmpty);
 
   @override
   void initState() {
@@ -89,8 +99,15 @@ class _EmergencyRequestStep2State extends State<EmergencyRequestStep2>
       // Legacy review expects a string. Keep the same narrative in both keys.
       'symptoms': description,
       'voiceMessage': null,
-      'shareMedicalRecord': _shareMedicalRecord,
+      'shareMedicalRecord': widget.p4SafePresentation
+          ? false
+          : _shareMedicalRecord,
     };
+    final onContinue = widget.onContinue;
+    if (onContinue != null) {
+      onContinue(data);
+      return;
+    }
     if (widget.flowMode == UrgentFlowMode.editFromReview) {
       Navigator.pop(context, data);
       return;
@@ -116,7 +133,8 @@ class _EmergencyRequestStep2State extends State<EmergencyRequestStep2>
                   IconButton(
                     tooltip: 'Retour',
                     icon: const Icon(Icons.arrow_back_rounded),
-                    onPressed: () => Navigator.maybePop(context),
+                    onPressed:
+                        widget.onBack ?? () => Navigator.maybePop(context),
                   ),
                   Expanded(
                     child: Text(
@@ -230,20 +248,30 @@ class _EmergencyRequestStep2State extends State<EmergencyRequestStep2>
                         SymptomDescriptionCard(
                           key: _descriptionKey,
                           controller: _descriptionController,
+                          supportingText: widget.p4SafePresentation
+                              ? 'Facultatif. Cette note reste privée au Patient et ne fait pas partie des informations montrées au médecin avant engagement.'
+                              : null,
+                          hintText: widget.p4SafePresentation
+                              ? 'Ajoutez une note privée si cela peut vous aider.'
+                              : null,
                         ),
                         const SizedBox(height: OmniSpacing.xl),
-                        MedicalPassportToggle(
-                          value: _shareMedicalRecord,
-                          onChanged: (value) =>
-                              setState(() => _shareMedicalRecord = value),
-                        ),
-                        const SizedBox(height: OmniSpacing.base),
+                        if (!widget.p4SafePresentation) ...[
+                          MedicalPassportToggle(
+                            value: _shareMedicalRecord,
+                            onChanged: (value) =>
+                                setState(() => _shareMedicalRecord = value),
+                          ),
+                          const SizedBox(height: OmniSpacing.base),
+                        ],
                         SpecialtyAssistantCard(
                           areas: _selectedBodyParts,
                           description: _descriptionController.text,
                         ),
                         const SizedBox(height: OmniSpacing.base),
-                        const _InstructionsPanel(),
+                        _InstructionsPanel(
+                          p4SafePresentation: widget.p4SafePresentation,
+                        ),
                       ],
                     ),
                   ),
@@ -269,7 +297,9 @@ class _SectionDivider extends StatelessWidget {
 }
 
 class _InstructionsPanel extends StatelessWidget {
-  const _InstructionsPanel();
+  const _InstructionsPanel({this.p4SafePresentation = false});
+
+  final bool p4SafePresentation;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -292,7 +322,9 @@ class _InstructionsPanel extends StatelessWidget {
         ),
         const SizedBox(height: OmniSpacing.sm),
         Text(
-          'Sélectionnez une ou plusieurs zones et décrivez brièvement vos symptômes. Les suggestions de spécialité sont indicatives.',
+          p4SafePresentation
+              ? 'Sélectionnez une ou plusieurs zones. La note privée est facultative et les suggestions de spécialité sont indicatives.'
+              : 'Sélectionnez une ou plusieurs zones et décrivez brièvement vos symptômes. Les suggestions de spécialité sont indicatives.',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
             color: OmniColors.textSecondary,
             fontSize: 13,

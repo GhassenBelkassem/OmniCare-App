@@ -21,6 +21,9 @@ import 'package:omnicare_mobile/features/patient_doctor/application/doctor_direc
 import 'package:omnicare_mobile/features/patient_doctor/data/doctor_directory_models.dart';
 import 'package:omnicare_mobile/features/patient_doctor/data/doctor_directory_repository.dart';
 import 'package:omnicare_mobile/features/request_flow/screens/who_needs_care_screen.dart';
+import 'package:omnicare_mobile/features/request_flow/screens/doctor_cabinet_entry_screen.dart';
+import 'package:omnicare_mobile/features/scheduled_care_prototype/scheduled_care_controller.dart';
+import 'package:omnicare_mobile/features/scheduled_care_prototype/scheduled_care_models.dart';
 import 'package:omnicare_mobile/providers/family_provider.dart';
 import 'package:omnicare_mobile/repositories/family_repository.dart';
 
@@ -71,43 +74,40 @@ class _FakeRequestRepository implements RequestRepository {
 }
 
 class _FakeDoctorRepository implements DoctorDirectoryRepository {
-  _FakeDoctorRepository({List<DoctorDirectoryListItem> doctors = const []})
-      : doctors = List.unmodifiable(doctors);
+  _FakeDoctorRepository({List<DoctorSearchCard> doctors = const []})
+    : doctors = List.unmodifiable(doctors);
 
-  final List<DoctorDirectoryListItem> doctors;
+  final List<DoctorSearchCard> doctors;
+  final List<DoctorSearchCriteria> criteria = [];
 
   @override
-  Future<List<DoctorDirectoryListItem>> listDoctors({
-    String? query,
+  Future<DoctorSearchPage> searchDoctors({
+    required DoctorSearchCriteria criteria,
     CancelToken? cancelToken,
-  }) async =>
-      doctors;
+  }) async {
+    this.criteria.add(criteria);
+    return DoctorSearchPage(
+      content: doctors,
+      page: criteria.page,
+      size: criteria.size,
+      hasNext: false,
+    );
+  }
 
   @override
   Future<DoctorDirectoryDetail> getDoctor(
     String doctorId, {
     CancelToken? cancelToken,
-  }) async =>
-      throw UnimplementedError();
+  }) async => throw UnimplementedError();
 
   @override
   Future<List<AvailabilitySlotDto>> getSlots({
     required String doctorId,
+    required String practiceLocationId,
     required DateTime from,
     required DateTime to,
     CancelToken? cancelToken,
-  }) async =>
-      const [];
-
-  @override
-  Future<DoctorBookingResult> bookAppointment({
-    required String doctorId,
-    required String startTime,
-    required String endTime,
-    String? notes,
-    CancelToken? cancelToken,
-  }) async =>
-      throw UnimplementedError();
+  }) async => const [];
 }
 
 class _FakeClinicRepository implements PatientClinicRepository {
@@ -161,6 +161,8 @@ Widget _buildApp({
   RequestKind requestKind = RequestKind.clinic,
   List<FamilyMember>? members,
   RequestSubmissionController? requestController,
+  _FakeDoctorRepository? doctorRepository,
+  Widget? home,
 }) {
   final fp = FamilyProvider(
     repository: _FakeFamilyRepository(members: members ?? []),
@@ -179,19 +181,63 @@ Widget _buildApp({
       ChangeNotifierProvider<PatientClinicDirectoryController>.value(value: dc),
       ChangeNotifierProvider<DoctorDirectoryController>(
         create: (_) => DoctorDirectoryController(
-          repository: _FakeDoctorRepository(),
+          repository: doctorRepository ?? _FakeDoctorRepository(),
         ),
       ),
     ],
     child: MaterialApp(
       theme: buildOmniTheme(),
-      home: WhoNeedsCareScreen(requestKind: requestKind),
+      home: home ?? WhoNeedsCareScreen(requestKind: requestKind),
     ),
   );
 }
 
 void main() {
   group('Doctor Cabinet navigation', () {
+    testWidgets(
+      'Cabinet entry initial request carries required discovery constraints',
+      (tester) async {
+        final repository = _FakeDoctorRepository();
+        await tester.pumpWidget(
+          _buildApp(
+            doctorRepository: repository,
+            home: const DoctorCabinetEntryScreen(),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Continue'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(DoctorDirectoryScreen), findsOneWidget);
+        expect(repository.criteria, hasLength(1));
+        expect(
+          repository.criteria.single.careCapability,
+          DoctorCareCapability.cabinet,
+        );
+        expect(repository.criteria.single.acceptingNewPatients, isTrue);
+        expect(repository.criteria.single.page, 0);
+        expect(repository.criteria.single.size, 20);
+      },
+    );
+
+    testWidgets('direct Doctor directory flow remains generic', (tester) async {
+      final repository = _FakeDoctorRepository();
+      await tester.pumpWidget(
+        _buildApp(
+          requestKind: RequestKind.doctor,
+          doctorRepository: repository,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+
+      expect(repository.criteria.single.careCapability, isNull);
+      expect(repository.criteria.single.acceptingNewPatients, isNull);
+    });
+
     testWidgets(
       'Continue with RequestKind.doctor navigates to DoctorDirectoryScreen',
       (tester) async {
@@ -246,6 +292,16 @@ void main() {
         expect(find.byType(ClinicDirectoryScreen), findsNothing);
         expect(request.subject.isSelf, isFalse);
         expect(request.subject.familyMemberId, 'test-id');
+        final workflow = Provider.of<ScheduledCarePrototypeController>(
+          tester.element(find.byType(DoctorDirectoryScreen)),
+          listen: false,
+        );
+        expect(workflow.records, isEmpty);
+        expect(workflow.draft.patient?.familyMemberId, 'test-id');
+        expect(
+          workflow.draft.patient?.type,
+          ScheduledPatientSubjectType.familyMember,
+        );
       },
     );
 
@@ -264,6 +320,22 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(request.subject.isSelf, isTrue);
+      final workflow = Provider.of<ScheduledCarePrototypeController>(
+        tester.element(find.byType(DoctorDirectoryScreen)),
+        listen: false,
+      );
+      expect(workflow.records, isEmpty);
+      expect(workflow.draft.patient?.type, ScheduledPatientSubjectType.self);
+    });
+
+    testWidgets('generic Doctor directory has no prototype dependency', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_buildApp(home: const DoctorDirectoryScreen()));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(DoctorDirectoryScreen), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('WhoNeedsCareScreen renders with RequestKind.doctor', (

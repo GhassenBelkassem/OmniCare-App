@@ -4,7 +4,16 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/omni_theme.dart';
 
 class EmergencyRequestStep0 extends StatelessWidget {
-  const EmergencyRequestStep0({super.key});
+  const EmergencyRequestStep0({
+    super.key,
+    this.onClose,
+    this.onHomeSelected,
+    this.onCabinetSelected,
+  });
+
+  final VoidCallback? onClose;
+  final VoidCallback? onHomeSelected;
+  final VoidCallback? onCabinetSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +30,7 @@ class EmergencyRequestStep0 extends StatelessWidget {
               padding: const EdgeInsets.only(top: 8),
               child: IconButton(
                 icon: const Icon(Icons.close, color: OmniColors.textPrimary),
-                onPressed: () => Navigator.pop(context),
+                onPressed: onClose ?? () => Navigator.pop(context),
               ),
             ),
             _buildHeader(),
@@ -34,6 +43,7 @@ class EmergencyRequestStep0 extends StatelessWidget {
                 itemBuilder: (context, index) {
                   if (index == 0) {
                     return _ConsultationModeCard(
+                      key: const ValueKey('p4-home-mode-card'),
                       title: 'Consultation à domicile',
                       subtitle: 'Un médecin se déplace chez vous.',
                       illustration:
@@ -44,6 +54,10 @@ class EmergencyRequestStep0 extends StatelessWidget {
                         alpha: 0.03,
                       ),
                       onTap: () {
+                        if (onHomeSelected != null) {
+                          onHomeSelected!();
+                          return;
+                        }
                         final routeArgs =
                             ModalRoute.of(context)?.settings.arguments
                                 as Map<String, dynamic>?;
@@ -61,6 +75,7 @@ class EmergencyRequestStep0 extends StatelessWidget {
                     );
                   } else {
                     return _ConsultationModeCard(
+                      key: const ValueKey('p4-cabinet-mode-card'),
                       title: 'Consultation au cabinet',
                       subtitle: 'Prenez rendez-vous au cabinet du médecin.',
                       illustration:
@@ -71,6 +86,10 @@ class EmergencyRequestStep0 extends StatelessWidget {
                         alpha: 0.03,
                       ),
                       onTap: () {
+                        if (onCabinetSelected != null) {
+                          onCabinetSelected!();
+                          return;
+                        }
                         Navigator.pushNamed(
                           context,
                           '/doctor/cabinet/who-needs-care',
@@ -121,6 +140,7 @@ class EmergencyRequestStep0 extends StatelessWidget {
 
 class _ConsultationModeCard extends StatelessWidget {
   const _ConsultationModeCard({
+    super.key,
     required this.title,
     required this.subtitle,
     required this.illustration,

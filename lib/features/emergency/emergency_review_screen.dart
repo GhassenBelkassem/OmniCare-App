@@ -7,6 +7,24 @@ import 'emergency_request_step2.dart';
 import 'emergency_request_step3.dart';
 import 'urgent_flow_mode.dart';
 
+class EmergencyCabinetReviewTarget {
+  const EmergencyCabinetReviewTarget({
+    required this.doctorName,
+    required this.specialtyLabel,
+    required this.cabinetName,
+    required this.publicAddress,
+    required this.feeLabel,
+    required this.feeVersion,
+  });
+
+  final String doctorName;
+  final String specialtyLabel;
+  final String cabinetName;
+  final String publicAddress;
+  final String feeLabel;
+  final String feeVersion;
+}
+
 class EmergencyReviewScreen extends StatefulWidget {
   const EmergencyReviewScreen({
     super.key,
@@ -14,12 +32,28 @@ class EmergencyReviewScreen extends StatefulWidget {
     this.locationGateway = const DeviceEmergencyLocationGateway(),
     this.placesGateway,
     this.mapsEnabled = true,
+    this.onBack,
+    this.onEditPatient,
+    this.onEditSymptoms,
+    this.onEditModeSpecific,
+    this.onSubmit,
+    this.cabinetTarget,
+    this.afterSendText,
+    this.submitLabel,
   });
 
   final Map<String, dynamic> requestData;
   final EmergencyLocationGateway locationGateway;
   final EmergencyPlacesGateway? placesGateway;
   final bool mapsEnabled;
+  final VoidCallback? onBack;
+  final VoidCallback? onEditPatient;
+  final VoidCallback? onEditSymptoms;
+  final VoidCallback? onEditModeSpecific;
+  final VoidCallback? onSubmit;
+  final EmergencyCabinetReviewTarget? cabinetTarget;
+  final String? afterSendText;
+  final String? submitLabel;
 
   @override
   State<EmergencyReviewScreen> createState() => _EmergencyReviewScreenState();
@@ -112,7 +146,9 @@ class _EmergencyReviewScreenState extends State<EmergencyReviewScreen> {
     color: OmniColors.pageBackground,
     child: Column(
       children: [
-        _ReviewHeader(onBack: () => Navigator.maybePop(context)),
+        _ReviewHeader(
+          onBack: widget.onBack ?? () => Navigator.maybePop(context),
+        ),
         Expanded(
           child: SingleChildScrollView(
             key: const ValueKey('emergency-review-scroll'),
@@ -145,28 +181,37 @@ class _EmergencyReviewScreenState extends State<EmergencyReviewScreen> {
                     const SizedBox(height: 24),
                     _PatientReviewSection(
                       data: _requestData,
-                      onEdit: _editPatient,
+                      onEdit: widget.onEditPatient ?? _editPatient,
                     ),
                     const SizedBox(height: 12),
                     _SymptomsReviewSection(
                       data: _requestData,
-                      onEdit: _editSymptoms,
+                      onEdit: widget.onEditSymptoms ?? _editSymptoms,
                     ),
                     const SizedBox(height: 12),
-                    _LocationReviewSection(
-                      data: _requestData,
-                      onEdit: _editLocation,
-                      mapsEnabled: widget.mapsEnabled,
-                    ),
+                    if (widget.cabinetTarget == null)
+                      _LocationReviewSection(
+                        data: _requestData,
+                        onEdit: widget.onEditModeSpecific ?? _editLocation,
+                        mapsEnabled: widget.mapsEnabled,
+                      )
+                    else
+                      _CabinetTargetReviewSection(
+                        target: widget.cabinetTarget!,
+                        onEdit: widget.onEditModeSpecific ?? _editLocation,
+                      ),
                     const SizedBox(height: 12),
-                    const _AfterSendSection(),
+                    _AfterSendSection(text: widget.afterSendText),
                   ],
                 ),
               ),
             ),
           ),
         ),
-        _ReviewFooter(onPressed: _sendUrgentRequest),
+        _ReviewFooter(
+          onPressed: widget.onSubmit ?? _sendUrgentRequest,
+          label: widget.submitLabel,
+        ),
       ],
     ),
   );
@@ -510,6 +555,54 @@ class _ReviewMapPreview extends StatelessWidget {
   );
 }
 
+class _CabinetTargetReviewSection extends StatelessWidget {
+  const _CabinetTargetReviewSection({
+    required this.target,
+    required this.onEdit,
+  });
+
+  final EmergencyCabinetReviewTarget target;
+  final VoidCallback onEdit;
+
+  @override
+  Widget build(BuildContext context) => _ReviewSection(
+    key: const ValueKey('review-cabinet-target-section'),
+    title: 'Médecin et cabinet',
+    icon: Icons.local_hospital_outlined,
+    onEdit: onEdit,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          target.doctorName,
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+            color: OmniColors.textPrimary,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text('${target.specialtyLabel} · ${target.cabinetName}'),
+        const SizedBox(height: 4),
+        Text(
+          target.publicAddress,
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: OmniColors.textSecondary),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          '${target.feeLabel} · version ${target.feeVersion}',
+          key: const ValueKey('review-cabinet-fee'),
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: OmniColors.deepTeal,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 class _ReviewInfoMessage extends StatelessWidget {
   const _ReviewInfoMessage({required this.text});
 
@@ -534,7 +627,9 @@ class _ReviewInfoMessage extends StatelessWidget {
 }
 
 class _AfterSendSection extends StatelessWidget {
-  const _AfterSendSection();
+  const _AfterSendSection({this.text});
+
+  final String? text;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -557,7 +652,8 @@ class _AfterSendSection extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          'Votre demande sera transmise aux médecins disponibles pouvant intervenir dans votre zone.',
+          text ??
+              'Votre demande sera transmise aux médecins disponibles pouvant intervenir dans votre zone.',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
             color: OmniColors.textSecondary,
             height: 1.45,
@@ -569,9 +665,10 @@ class _AfterSendSection extends StatelessWidget {
 }
 
 class _ReviewFooter extends StatelessWidget {
-  const _ReviewFooter({required this.onPressed});
+  const _ReviewFooter({required this.onPressed, this.label});
 
   final VoidCallback onPressed;
+  final String? label;
 
   @override
   Widget build(BuildContext context) => DecoratedBox(
@@ -599,7 +696,7 @@ class _ReviewFooter extends StatelessWidget {
                     borderRadius: BorderRadius.circular(14),
                   ),
                 ),
-                child: const Text('Envoyer la demande urgente'),
+                child: Text(label ?? 'Envoyer la demande urgente'),
               ),
             ),
           ),

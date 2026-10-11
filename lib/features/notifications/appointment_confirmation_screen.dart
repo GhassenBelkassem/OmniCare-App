@@ -303,7 +303,7 @@ class _AppointmentConfirmationScreenState extends State<AppointmentConfirmationS
                   children: [
                     Expanded(
                       child: Text(
-                        widget.doctorData['name'] ?? 'Dr. Ahmed Mansour',
+                        widget.doctorData['name'] ?? 'Médecin',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 18,
                           fontWeight: FontWeight.w700,

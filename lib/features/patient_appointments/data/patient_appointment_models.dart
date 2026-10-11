@@ -6,9 +6,21 @@ library;
 
 enum PatientAppointmentProviderType { doctor, clinic }
 
+enum PatientAppointmentResourceType { bookingRequest, appointment }
+
 enum PatientAppointmentSubjectType { self, familyMember }
 
-enum PatientAppointmentStatus { confirmed, completed, cancelled }
+enum PatientAppointmentStatus {
+  pendingDoctor,
+  pendingPatientTimeConfirmation,
+  confirmed,
+  completed,
+  cancelledByPatient,
+  cancelledByDoctor,
+  expired,
+}
+
+enum PatientAppointmentIntakeStatus { notSubmitted, submitted }
 
 enum PatientAppointmentTab { upcoming, past, cancelled }
 
@@ -33,12 +45,33 @@ class PatientAppointment {
     required this.appointmentReference,
     this.providerImageAssetPath,
     this.preparationInstructions,
+    this.prototypeRecordId,
+    this.requestedStartAt,
+    this.requestedEndAt,
+    this.responseDeadline,
+    this.patientResponseDeadline,
+    this.intakeStatus = PatientAppointmentIntakeStatus.notSubmitted,
+    this.cancelledAt,
+    this.cancellationReason,
+    this.lateCancellation = false,
     this.canCancel = false,
     this.canReschedule = false,
     this.canReportProblem = true,
+    this.resourceType = PatientAppointmentResourceType.appointment,
+    this.requestId,
+    this.sourceBookingRequestId,
+    this.version = 0,
+    this.availableActions = const {},
+    this.timezone,
   });
 
-  final String appointmentId;
+  final String? appointmentId;
+  final String? requestId;
+  final String? sourceBookingRequestId;
+  final PatientAppointmentResourceType resourceType;
+  final int version;
+  final Set<String> availableActions;
+  final String? timezone;
   final PatientAppointmentProviderType providerType;
   final String providerId;
   final String providerDisplayName;
@@ -55,17 +88,41 @@ class PatientAppointment {
   final String consultationType;
   final String appointmentReference;
   final String? preparationInstructions;
+  final String? prototypeRecordId;
+  final DateTime? requestedStartAt;
+  final DateTime? requestedEndAt;
+  final DateTime? responseDeadline;
+  final DateTime? patientResponseDeadline;
+  final PatientAppointmentIntakeStatus intakeStatus;
+  final DateTime? cancelledAt;
+  final String? cancellationReason;
+  final bool lateCancellation;
   final bool canCancel;
   final bool canReschedule;
   final bool canReportProblem;
+
+  String get resourceId =>
+      resourceType == PatientAppointmentResourceType.bookingRequest
+      ? requestId!
+      : appointmentId!;
 
   PatientAppointment copyWith({
     PatientAppointmentStatus? status,
     bool? canCancel,
     bool? canReschedule,
+    PatientAppointmentIntakeStatus? intakeStatus,
+    DateTime? cancelledAt,
+    String? cancellationReason,
+    bool? lateCancellation,
   }) {
     return PatientAppointment(
       appointmentId: appointmentId,
+      requestId: requestId,
+      sourceBookingRequestId: sourceBookingRequestId,
+      resourceType: resourceType,
+      version: version,
+      availableActions: availableActions,
+      timezone: timezone,
       providerType: providerType,
       providerId: providerId,
       providerDisplayName: providerDisplayName,
@@ -82,6 +139,15 @@ class PatientAppointment {
       consultationType: consultationType,
       appointmentReference: appointmentReference,
       preparationInstructions: preparationInstructions,
+      prototypeRecordId: prototypeRecordId,
+      requestedStartAt: requestedStartAt,
+      requestedEndAt: requestedEndAt,
+      responseDeadline: responseDeadline,
+      patientResponseDeadline: patientResponseDeadline,
+      intakeStatus: intakeStatus ?? this.intakeStatus,
+      cancelledAt: cancelledAt ?? this.cancelledAt,
+      cancellationReason: cancellationReason ?? this.cancellationReason,
+      lateCancellation: lateCancellation ?? this.lateCancellation,
       canCancel: canCancel ?? this.canCancel,
       canReschedule: canReschedule ?? this.canReschedule,
       canReportProblem: canReportProblem,
@@ -94,6 +160,7 @@ class PatientAppointmentFilters {
     this.providerType,
     this.subjectType,
     this.subjectDisplayName,
+    this.subjectFamilyMemberId,
     this.dateFilter = PatientAppointmentDateFilter.all,
     this.customStart,
     this.customEnd,
@@ -105,6 +172,7 @@ class PatientAppointmentFilters {
   final PatientAppointmentProviderType? providerType;
   final PatientAppointmentSubjectType? subjectType;
   final String? subjectDisplayName;
+  final String? subjectFamilyMemberId;
   final PatientAppointmentDateFilter dateFilter;
   final DateTime? customStart;
   final DateTime? customEnd;
@@ -114,6 +182,7 @@ class PatientAppointmentFilters {
       providerType != null ||
       subjectType != null ||
       (subjectDisplayName?.isNotEmpty ?? false) ||
+      (subjectFamilyMemberId?.isNotEmpty ?? false) ||
       dateFilter != PatientAppointmentDateFilter.all ||
       city != null;
 
@@ -133,6 +202,8 @@ class PatientAppointmentFilters {
     bool clearSubjectType = false,
     String? subjectDisplayName,
     bool clearSubjectDisplayName = false,
+    String? subjectFamilyMemberId,
+    bool clearSubjectFamilyMemberId = false,
     PatientAppointmentDateFilter? dateFilter,
     DateTime? customStart,
     DateTime? customEnd,
@@ -148,6 +219,9 @@ class PatientAppointmentFilters {
       subjectDisplayName: clearSubjectDisplayName
           ? null
           : subjectDisplayName ?? this.subjectDisplayName,
+      subjectFamilyMemberId: clearSubjectFamilyMemberId
+          ? null
+          : subjectFamilyMemberId ?? this.subjectFamilyMemberId,
       dateFilter: dateFilter ?? this.dateFilter,
       customStart: clearCustomRange ? null : customStart ?? this.customStart,
       customEnd: clearCustomRange ? null : customEnd ?? this.customEnd,

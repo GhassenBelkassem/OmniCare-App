@@ -152,7 +152,7 @@ class BookingConfirmedScreen extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                doctor['name'] ?? 'Dr. Ahmed Mansour',
+                                doctor['name'] ?? 'Médecin',
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w700,

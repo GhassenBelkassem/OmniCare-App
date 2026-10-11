@@ -9,10 +9,18 @@ class SelectedBodyAreasPanel extends StatelessWidget {
     required this.parts,
     required this.onRemove,
     required this.onReset,
+    this.title = 'Zones sélectionnées',
+    this.resetLabel = 'Réinitialiser',
+    this.removeLabel = 'Retirer',
+    this.labelBuilder,
   });
   final List<String> parts;
   final ValueChanged<String> onRemove;
   final VoidCallback onReset;
+  final String title;
+  final String resetLabel;
+  final String removeLabel;
+  final String Function(String)? labelBuilder;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -24,14 +32,14 @@ class SelectedBodyAreasPanel extends StatelessWidget {
         spacing: OmniSpacing.sm,
         children: [
           Text(
-            'Zones sélectionnées',
+            title,
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
               color: OmniColors.textPrimary,
               fontSize: 15,
               fontWeight: FontWeight.w700,
             ),
           ),
-          TextButton(onPressed: onReset, child: const Text('Réinitialiser')),
+          TextButton(onPressed: onReset, child: Text(resetLabel)),
         ],
       ),
       Wrap(
@@ -41,9 +49,10 @@ class SelectedBodyAreasPanel extends StatelessWidget {
             .map(
               (part) => InputChip(
                 key: ValueKey('selected-$part'),
-                label: Text(bodyAreaLabel(part)),
+                label: Text((labelBuilder ?? bodyAreaLabel)(part)),
                 onDeleted: () => onRemove(part),
-                deleteButtonTooltipMessage: 'Retirer ${bodyAreaLabel(part)}',
+                deleteButtonTooltipMessage:
+                    '$removeLabel ${(labelBuilder ?? bodyAreaLabel)(part)}',
                 materialTapTargetSize: MaterialTapTargetSize.padded,
                 backgroundColor: OmniColors.mintSoft,
                 side: const BorderSide(color: OmniColors.freshMint),
@@ -74,9 +83,23 @@ class PainLevelControl extends StatelessWidget {
     super.key,
     required this.value,
     required this.onChanged,
+    this.title = 'Intensité de la douleur',
+    this.lowLabel = 'Légère',
+    this.mediumLabel = 'Modérée',
+    this.highLabel = 'Sévère',
   });
   final double value;
   final ValueChanged<double> onChanged;
+  final String title;
+  final String lowLabel;
+  final String mediumLabel;
+  final String highLabel;
+
+  String label(double level) => level <= 3
+      ? lowLabel
+      : level <= 6
+      ? mediumLabel
+      : highLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -89,7 +112,7 @@ class PainLevelControl extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Intensité de la douleur',
+          title,
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
             color: OmniColors.textPrimary,
             fontSize: 16,
@@ -108,7 +131,7 @@ class PainLevelControl extends StatelessWidget {
             ),
             const Spacer(),
             Text(
-              painLevelLabel(value),
+              label(value),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: color,
                 fontWeight: FontWeight.w600,
@@ -124,20 +147,20 @@ class PainLevelControl extends StatelessWidget {
           divisions: 9,
           activeColor: color,
           semanticFormatterCallback: (level) =>
-              '${level.round()} sur 10, ${painLevelLabel(level)}',
+              '${level.round()} sur 10, ${label(level)}',
           onChanged: onChanged,
         ),
         Row(
           children: [
             Expanded(
               child: Text(
-                '1 · Légère',
+                '1 · $lowLabel',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),
             Expanded(
               child: Text(
-                '10 · Sévère',
+                '10 · $highLabel',
                 textAlign: TextAlign.end,
                 style: Theme.of(context).textTheme.bodySmall,
               ),
@@ -150,8 +173,15 @@ class PainLevelControl extends StatelessWidget {
 }
 
 class SymptomDescriptionCard extends StatelessWidget {
-  const SymptomDescriptionCard({super.key, required this.controller});
+  const SymptomDescriptionCard({
+    super.key,
+    required this.controller,
+    this.supportingText,
+    this.hintText,
+  });
   final TextEditingController controller;
+  final String? supportingText;
+  final String? hintText;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -167,7 +197,7 @@ class SymptomDescriptionCard extends StatelessWidget {
       ),
       const SizedBox(height: OmniSpacing.xs),
       Text(
-        'Une courte description suffit. Ce champ est requis.',
+        supportingText ?? 'Une courte description suffit. Ce champ est requis.',
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
           color: OmniColors.textSecondary,
           fontSize: 13,
@@ -205,9 +235,9 @@ class SymptomDescriptionCard extends StatelessWidget {
         scrollPhysics: const NeverScrollableScrollPhysics(),
         keyboardType: TextInputType.multiline,
         textInputAction: TextInputAction.newline,
-        decoration: const InputDecoration(
-          hintText: 'Décrivez brièvement ce que vous ressentez.',
-          contentPadding: EdgeInsets.symmetric(
+        decoration: InputDecoration(
+          hintText: hintText ?? 'Décrivez brièvement ce que vous ressentez.',
+          contentPadding: const EdgeInsets.symmetric(
             horizontal: OmniSpacing.base,
             vertical: 14,
           ),

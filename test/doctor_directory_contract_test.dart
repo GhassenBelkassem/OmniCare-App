@@ -1,6 +1,11 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:omnicare_mobile/core/network/app_http_client.dart';
+import 'package:omnicare_mobile/core/storage/secure_token_store.dart';
 import 'package:omnicare_mobile/features/patient_doctor/data/doctor_detail_models.dart';
 import 'package:omnicare_mobile/features/patient_doctor/data/doctor_directory_api.dart';
 import 'package:omnicare_mobile/features/patient_doctor/data/doctor_directory_failure.dart';
@@ -8,18 +13,31 @@ import 'package:omnicare_mobile/features/patient_doctor/data/doctor_directory_ma
 import 'package:omnicare_mobile/features/patient_doctor/data/doctor_directory_models.dart';
 import 'package:omnicare_mobile/features/patient_doctor/data/doctor_directory_repository.dart';
 
-const _listItemJson = <String, dynamic>{
+const _searchCardJson = <String, dynamic>{
   'doctorId': 'doc-1',
   'displayName': 'Dr. Sarah Mansour',
   'specialty': 'Médecin généraliste',
   'photoUrl': null,
-  'affiliatedClinicId': null,
-  'availableForUrgent': false,
   'consultationPriceTnd': null,
-  'phoneNumber': null,
-  'isActive': true,
   'experienceYears': 12,
-  'distanceKm': null,
+  'verified': true,
+  'acceptingNewPatients': true,
+  'careCapabilities': ['CABINET', 'HOME_VISIT'],
+  'distanceKm': 2.4,
+  'matchingPracticeLocation': {
+    'practiceLocationId': 'cabinet-1',
+    'name': 'Cabinet La Marsa',
+    'city': 'La Marsa',
+    'governorate': 'Tunis',
+    'distanceKm': 2.4,
+  },
+};
+
+const _searchPageJson = <String, dynamic>{
+  'content': [_searchCardJson],
+  'page': 0,
+  'size': 20,
+  'hasNext': false,
 };
 
 const _detailJson = <String, dynamic>{
@@ -45,22 +63,67 @@ const _detailJson = <String, dynamic>{
   'patientAgeGroups': ['Adultes', 'Personnes âgées'],
   'consultationTypes': ['En cabinet', 'Téléconsultation'],
   'biography': 'Une brève biographie.',
-};
-
-const _appointmentJson = <String, dynamic>{
-  'id': 'appt-1',
-  'doctorId': 'doc-1',
-  'patientId': 'patient-1',
-  'patientName': null,
-  'startTime': '2026-09-24T15:30:00Z',
-  'endTime': '2026-09-24T16:00:00Z',
-  'status': 'CONFIRMED',
-  'source': 'PATIENT_APP',
-  'notes': null,
-  'quotedPriceTnd': null,
-  'startedAt': null,
-  'completedAt': null,
-  'createdAt': null,
+  'education': [
+    {
+      'id': 'education-1',
+      'institution': 'Faculté de Médecine de Tunis',
+      'qualification': 'Doctorat en médecine',
+      'fieldOfStudy': 'Médecine familiale',
+      'completionYear': 2014,
+      'displayOrder': 0,
+    },
+  ],
+  'certifications': [
+    {
+      'id': 'certification-1',
+      'name': 'Formation en échographie',
+      'issuer': 'Société tunisienne de médecine',
+      'issuedYear': 2022,
+      'expiryDate': '2027-12-31',
+      'displayOrder': 0,
+    },
+  ],
+  'practiceLocations': [
+    {
+      'id': 'cabinet-1',
+      'type': 'CABINET',
+      'name': 'Cabinet La Marsa',
+      'governorate': 'Tunis',
+      'city': 'La Marsa',
+      'address': '1 rue du Lac',
+      'latitude': 36.84,
+      'longitude': 10.27,
+      'publicPhone': '+216 71 000 000',
+      'wheelchairAccessible': true,
+      'patientInstructions': 'Apportez vos anciens résultats.',
+      'primary': true,
+      'gallery': [
+        {'url': 'https://cdn.example/cabinet.jpg', 'displayOrder': 0},
+      ],
+      'equipment': [
+        {'code': 'ECG', 'displayName': 'ECG', 'portable': false},
+      ],
+      'coverage': {
+        'selfPay': {
+          'acceptance': 'ACCEPTED',
+          'provenance': 'DECLARED',
+          'verified': false,
+        },
+        'cnam': {
+          'acceptance': 'ACCEPTED',
+          'provenance': 'DECLARED',
+          'verified': false,
+        },
+        'privateInsurance': {
+          'acceptance': 'NOT_DECLARED',
+          'provenance': null,
+          'verified': false,
+        },
+        'specificPrivateInsurerDetailsAvailable': false,
+      },
+    },
+  ],
+  'careCapabilities': ['CABINET', 'HOME_VISIT'],
 };
 
 DioException _dio({
@@ -84,55 +147,195 @@ DioException _dio({
 DioException _badResponse(int statusCode) => _dio(statusCode: statusCode);
 
 void main() {
-  group('DTO parsing — DoctorDirectoryListItem', () {
+  group('Search request contract', () {
+    test('serializes every P1-06 query parameter with exact enum values', () {
+      final query = const DoctorSearchCriteria(
+        query: '  cardio ',
+        specialty: 'Cardiologie',
+        governorate: 'Tunis',
+        city: 'La Marsa',
+        location: DoctorSearchLocation(latitude: 36.88, longitude: 10.32),
+        maxDistanceKm: 10,
+        careCapability: DoctorCareCapability.homeVisit,
+        cnamAcceptance: DoctorCoverageAcceptance.accepted,
+        privateInsuranceAcceptance: DoctorCoverageAcceptance.notDeclared,
+        selfPayAcceptance: DoctorCoverageAcceptance.notAccepted,
+        acceptingNewPatients: true,
+        page: 3,
+        size: 25,
+      ).toQueryParameters();
+
+      expect(query, {
+        'q': 'cardio',
+        'specialty': 'Cardiologie',
+        'governorate': 'Tunis',
+        'city': 'La Marsa',
+        'lat': 36.88,
+        'lng': 10.32,
+        'maxDistanceKm': 10.0,
+        'careCapability': 'HOME_VISIT',
+        'cnamAcceptance': 'ACCEPTED',
+        'privateInsuranceAcceptance': 'NOT_DECLARED',
+        'selfPayAcceptance': 'NOT_ACCEPTED',
+        'acceptingNewPatients': true,
+        'page': 3,
+        'size': 25,
+      });
+    });
+
+    test('uses /doctors/search and decodes the slice envelope', () async {
+      final adapter = _RecordingAdapter(jsonEncode(_searchPageJson));
+      final dio = Dio()..httpClientAdapter = adapter;
+      final client = AppHttpClient(
+        tokenStore: SecureTokenStore(backend: _MemoryBackend()),
+        baseUrl: 'https://api.example.test',
+        dio: dio,
+        refreshDio: Dio(),
+      );
+      final api = DoctorDirectoryApi(client);
+
+      final page = await api.searchDoctors(
+        criteria: const DoctorSearchCriteria(query: 'cardio', page: 0),
+      );
+
+      expect(adapter.path, '/api/v1/doctors/search');
+      expect(adapter.query['q'], 'cardio');
+      expect(adapter.query['page'], 0);
+      expect(adapter.query['size'], 20);
+      expect(page.content.single.doctorId, 'doc-1');
+    });
+
+    test('sends exact Cabinet acquisition query parameters', () async {
+      final adapter = _RecordingAdapter(jsonEncode(_searchPageJson));
+      final dio = Dio()..httpClientAdapter = adapter;
+      final client = AppHttpClient(
+        tokenStore: SecureTokenStore(backend: _MemoryBackend()),
+        baseUrl: 'https://api.example.test',
+        dio: dio,
+        refreshDio: Dio(),
+      );
+      final api = DoctorDirectoryApi(client);
+
+      await api.searchDoctors(
+        criteria: const DoctorSearchCriteria(
+          careCapability: DoctorCareCapability.cabinet,
+          acceptingNewPatients: true,
+          page: 0,
+          size: 20,
+        ),
+      );
+
+      expect(adapter.path, '/api/v1/doctors/search');
+      expect(adapter.query, {
+        'careCapability': 'CABINET',
+        'acceptingNewPatients': true,
+        'page': 0,
+        'size': 20,
+      });
+    });
+
+    test('uses the selected real doctorId for the detail endpoint', () async {
+      final adapter = _RecordingAdapter(jsonEncode(_detailJson));
+      final dio = Dio()..httpClientAdapter = adapter;
+      final client = AppHttpClient(
+        tokenStore: SecureTokenStore(backend: _MemoryBackend()),
+        baseUrl: 'https://api.example.test',
+        dio: dio,
+        refreshDio: Dio(),
+      );
+      final api = DoctorDirectoryApi(client);
+
+      final detail = await api.getDoctor('doc-1');
+
+      expect(adapter.path, '/api/v1/doctors/doc-1');
+      expect(detail.doctorId, 'doc-1');
+      expect(detail.practiceLocations.single.id, 'cabinet-1');
+    });
+
+    test('scopes availability to the selected Cabinet', () async {
+      final adapter = _RecordingAdapter(
+        jsonEncode(const <String, dynamic>{
+          'slots': [
+            {'start': '2026-09-24T09:00:00Z', 'end': '2026-09-24T09:30:00Z'},
+          ],
+        }),
+      );
+      final dio = Dio()..httpClientAdapter = adapter;
+      final client = AppHttpClient(
+        tokenStore: SecureTokenStore(backend: _MemoryBackend()),
+        baseUrl: 'https://api.example.test',
+        dio: dio,
+        refreshDio: Dio(),
+      );
+      final api = DoctorDirectoryApi(client);
+
+      final slots = await api.getSlots(
+        doctorId: 'doc-1',
+        practiceLocationId: 'cabinet-1',
+        from: DateTime.utc(2026, 9, 24),
+        to: DateTime.utc(2026, 9, 25),
+      );
+
+      expect(adapter.path, '/api/v1/appointments/availability/slots');
+      expect(adapter.query['doctorId'], 'doc-1');
+      expect(adapter.query['practiceLocationId'], 'cabinet-1');
+      expect(slots.single.start, '2026-09-24T09:00:00Z');
+    });
+  });
+
+  group('DTO parsing — Doctor search slice', () {
     test('parses the full contract payload', () {
-      final item = DoctorDirectoryListItem.fromJson(_listItemJson);
+      final page = DoctorSearchPage.fromJson(_searchPageJson);
+      final item = page.content.single;
       expect(item.doctorId, 'doc-1');
       expect(item.displayName, 'Dr. Sarah Mansour');
       expect(item.specialty, 'Médecin généraliste');
-      expect(item.availableForUrgent, isFalse);
-      expect(item.isActive, isTrue);
       expect(item.experienceYears, 12);
       expect(item.consultationPriceTnd, isNull);
-      expect(item.distanceKm, isNull);
+      expect(item.distanceKm, 2.4);
+      expect(item.careCapabilities, [
+        DoctorCareCapability.cabinet,
+        DoctorCareCapability.homeVisit,
+      ]);
+      expect(item.matchingPracticeLocation?.name, 'Cabinet La Marsa');
+      expect(item.matchingPracticeLocation?.city, 'La Marsa');
+      expect(page.hasNext, isFalse);
     });
 
-    test('accepts a minimal payload', () {
-      final item = DoctorDirectoryListItem.fromJson(
-        const <String, dynamic>{
-          'doctorId': 'doc-2',
-          'displayName': 'Dr. Nadia Cherif',
-          'availableForUrgent': false,
-          'isActive': true,
-        },
-      );
+    test('accepts nullable card values', () {
+      final item = DoctorSearchCard.fromJson(const <String, dynamic>{
+        'doctorId': 'doc-2',
+        'displayName': 'Dr. Nadia Cherif',
+        'verified': true,
+        'acceptingNewPatients': false,
+        'careCapabilities': <String>[],
+      });
       expect(item.doctorId, 'doc-2');
       expect(item.specialty, isNull);
+      expect(item.matchingPracticeLocation, isNull);
     });
 
     test('rejects a missing required identifier', () {
       expect(
-        () => DoctorDirectoryListItem.fromJson(
-          const <String, dynamic>{
-            'displayName': 'Dr. X',
-            'availableForUrgent': false,
-            'isActive': true,
-          },
-        ),
+        () => DoctorSearchCard.fromJson(const <String, dynamic>{
+          'displayName': 'Dr. X',
+          'verified': true,
+          'acceptingNewPatients': true,
+          'careCapabilities': <String>[],
+        }),
         throwsA(isA<DoctorContractException>()),
       );
     });
 
-    test('rejects a non-boolean availableForUrgent', () {
+    test('rejects an unknown capability enum', () {
       expect(
-        () => DoctorDirectoryListItem.fromJson(
-          const <String, dynamic>{
-            'doctorId': 'doc-2',
-            'displayName': 'Dr. X',
-            'availableForUrgent': 'yes',
-            'isActive': true,
-          },
-        ),
+        () => DoctorSearchCard.fromJson(const <String, dynamic>{
+          'doctorId': 'doc-2',
+          'displayName': 'Dr. X',
+          'verified': true,
+          'acceptingNewPatients': true,
+          'careCapabilities': ['ONLINE_NOW'],
+        }),
         throwsA(isA<DoctorContractException>()),
       );
     });
@@ -149,93 +352,151 @@ void main() {
       expect(detail.languages, ['Français', 'Arabe']);
       expect(detail.acceptingNewPatients, isTrue);
       expect(detail.areasOfCare, ['Bilan général', 'Hypertension']);
-      expect(detail.expertise, ['Médecine préventive', 'Coordination des soins']);
-      expect(detail.visitReasons, ['Bilan de santé', 'Suivi de maladie chronique']);
+      expect(detail.expertise, [
+        'Médecine préventive',
+        'Coordination des soins',
+      ]);
+      expect(detail.visitReasons, [
+        'Bilan de santé',
+        'Suivi de maladie chronique',
+      ]);
       expect(detail.patientAgeGroups, ['Adultes', 'Personnes âgées']);
       expect(detail.consultationTypes, ['En cabinet', 'Téléconsultation']);
       expect(detail.biography, 'Une brève biographie.');
+      expect(detail.education.single.qualification, 'Doctorat en médecine');
+      expect(detail.education.single.completionYear, 2014);
+      expect(detail.certifications.single.name, 'Formation en échographie');
+      expect(detail.certifications.single.expiryDate, DateTime(2027, 12, 31));
+      expect(detail.careCapabilities, [
+        DoctorCareCapability.cabinet,
+        DoctorCareCapability.homeVisit,
+      ]);
+      final cabinet = detail.practiceLocations.single;
+      expect(cabinet.id, 'cabinet-1');
+      expect(cabinet.type, DoctorPracticeLocationType.cabinet);
+      expect(cabinet.gallery.single.url, 'https://cdn.example/cabinet.jpg');
+      expect(cabinet.equipment.single.displayName, 'ECG');
+      expect(
+        cabinet.coverage?.cnam.acceptance,
+        DoctorCoverageAcceptance.accepted,
+      );
+      expect(
+        cabinet.coverage?.cnam.provenance,
+        DoctorCoverageProvenance.declared,
+      );
+      expect(cabinet.coverage?.cnam.verified, isFalse);
     });
 
     test('defaults acceptingNewPatients to true when absent', () {
-      final detail = DoctorDirectoryDetail.fromJson(
-        const <String, dynamic>{
-          'doctorId': 'doc-1',
-          'displayName': 'Dr. X',
-          'availableForUrgent': false,
-          'isActive': true,
-          'verified': false,
-        },
-      );
+      final detail = DoctorDirectoryDetail.fromJson(const <String, dynamic>{
+        'doctorId': 'doc-1',
+        'displayName': 'Dr. X',
+        'availableForUrgent': false,
+        'isActive': true,
+        'verified': false,
+      });
       expect(detail.acceptingNewPatients, isTrue);
     });
 
     test('acceptingNewPatients false is honored', () {
-      final detail = DoctorDirectoryDetail.fromJson(
-        const <String, dynamic>{
+      final detail = DoctorDirectoryDetail.fromJson(const <String, dynamic>{
+        'doctorId': 'doc-1',
+        'displayName': 'Dr. X',
+        'availableForUrgent': false,
+        'isActive': true,
+        'verified': false,
+        'acceptingNewPatients': false,
+      });
+      expect(detail.acceptingNewPatients, isFalse);
+    });
+
+    test('accepts nullable optional nested values and zero Cabinets', () {
+      final json = Map<String, dynamic>.from(_detailJson)
+        ..['education'] = [
+          {
+            'id': 'education-2',
+            'institution': 'Faculté de Médecine',
+            'qualification': 'Doctorat',
+            'fieldOfStudy': null,
+            'completionYear': null,
+            'displayOrder': 0,
+          },
+        ]
+        ..['certifications'] = [
+          {
+            'id': 'certification-2',
+            'name': 'Certification',
+            'issuer': null,
+            'issuedYear': null,
+            'expiryDate': null,
+            'displayOrder': 0,
+          },
+        ]
+        ..['practiceLocations'] = <Map<String, dynamic>>[];
+
+      final detail = DoctorDirectoryDetail.fromJson(json);
+
+      expect(detail.education.single.fieldOfStudy, isNull);
+      expect(detail.education.single.completionYear, isNull);
+      expect(detail.certifications.single.issuer, isNull);
+      expect(detail.certifications.single.expiryDate, isNull);
+      expect(detail.practiceLocations, isEmpty);
+    });
+
+    test('preserves every Cabinet in backend order', () {
+      final first = Map<String, dynamic>.from(
+        (_detailJson['practiceLocations'] as List).single as Map,
+      );
+      final second = Map<String, dynamic>.from(first)
+        ..['id'] = 'cabinet-2'
+        ..['name'] = 'Cabinet Bizerte'
+        ..['city'] = 'Bizerte'
+        ..['primary'] = false
+        ..['gallery'] = <Map<String, dynamic>>[]
+        ..['equipment'] = <Map<String, dynamic>>[]
+        ..['coverage'] = null;
+      final json = Map<String, dynamic>.from(_detailJson)
+        ..['practiceLocations'] = [first, second];
+
+      final detail = DoctorDirectoryDetail.fromJson(json);
+
+      expect(detail.practiceLocations.map((location) => location.id), [
+        'cabinet-1',
+        'cabinet-2',
+      ]);
+      expect(detail.practiceLocations.last.primary, isFalse);
+    });
+
+    test('rejects a string list carrying a non-string element', () {
+      expect(
+        () => DoctorDirectoryDetail.fromJson(const <String, dynamic>{
           'doctorId': 'doc-1',
           'displayName': 'Dr. X',
           'availableForUrgent': false,
           'isActive': true,
           'verified': false,
-          'acceptingNewPatients': false,
-        },
-      );
-      expect(detail.acceptingNewPatients, isFalse);
-    });
-
-    test('rejects a string list carrying a non-string element', () {
-      expect(
-        () => DoctorDirectoryDetail.fromJson(
-          const <String, dynamic>{
-            'doctorId': 'doc-1',
-            'displayName': 'Dr. X',
-            'availableForUrgent': false,
-            'isActive': true,
-            'verified': false,
-            'subSpecialties': ['ok', 42],
-          },
-        ),
+          'subSpecialties': ['ok', 42],
+        }),
         throwsA(isA<DoctorContractException>()),
       );
     });
   });
 
-  group('DTO parsing — slots and booking', () {
+  group('DTO parsing — slots', () {
     test('parses an availability slot', () {
-      final slot = AvailabilitySlotDto.fromJson(
-        const <String, dynamic>{
-          'start': '2026-09-24T09:00:00Z',
-          'end': '2026-09-24T09:30:00Z',
-        },
-      );
+      final slot = AvailabilitySlotDto.fromJson(const <String, dynamic>{
+        'start': '2026-09-24T09:00:00Z',
+        'end': '2026-09-24T09:30:00Z',
+      });
       expect(slot.start, '2026-09-24T09:00:00Z');
       expect(slot.end, '2026-09-24T09:30:00Z');
     });
 
     test('rejects a slot missing its window', () {
       expect(
-        () => AvailabilitySlotDto.fromJson(
-          const <String, dynamic>{'end': '2026-09-24T09:30:00Z'},
-        ),
-        throwsA(isA<DoctorContractException>()),
-      );
-    });
-
-    test('parses an appointment response', () {
-      final booking = AppointmentBooking.fromJson(_appointmentJson);
-      expect(booking.id, 'appt-1');
-      expect(booking.doctorId, 'doc-1');
-      expect(booking.patientId, 'patient-1');
-      expect(booking.status, 'CONFIRMED');
-      expect(booking.source, 'PATIENT_APP');
-      expect(booking.startTime, '2026-09-24T15:30:00Z');
-      expect(booking.endTime, '2026-09-24T16:00:00Z');
-    });
-
-    test('rejects an appointment response missing its id', () {
-      final json = Map<String, dynamic>.from(_appointmentJson)..remove('id');
-      expect(
-        () => AppointmentBooking.fromJson(json),
+        () => AvailabilitySlotDto.fromJson(const <String, dynamic>{
+          'end': '2026-09-24T09:30:00Z',
+        }),
         throwsA(isA<DoctorContractException>()),
       );
     });
@@ -243,16 +504,15 @@ void main() {
 
   group('Mapper', () {
     test('maps a list DTO onto DoctorListItem', () {
-      final item = toDoctorListItem(
-        DoctorDirectoryListItem.fromJson(_listItemJson),
-      );
+      final item = toDoctorListItem(DoctorSearchCard.fromJson(_searchCardJson));
       expect(item.id, 'doc-1');
       expect(item.name, 'Dr. Sarah Mansour');
       expect(item.specialty, 'Médecin généraliste');
       expect(item.experienceYears, 12);
-      expect(item.officeConsultationFee, 0.0);
+      expect(item.consultationPriceTnd, isNull);
       expect(item.acceptingNewPatients, isTrue);
-      expect(item.imageAssetPath, isNull);
+      expect(item.photoUrl, isNull);
+      expect(item.matchingPracticeLocation?.name, 'Cabinet La Marsa');
     });
 
     test('builds DoctorDetail from the detail DTO', () {
@@ -266,16 +526,39 @@ void main() {
       expect(detail.languages, ['Français', 'Arabe']);
       expect(detail.areasOfCare, ['Bilan général', 'Hypertension']);
       expect(detail.consultationTypes, ['En cabinet', 'Téléconsultation']);
-      expect(detail.practiceLocations, isNotEmpty);
-      expect(detail.practiceLocations.single.city, 'Tunis');
+      expect(
+        detail.education.single.institution,
+        'Faculté de Médecine de Tunis',
+      );
+      expect(
+        detail.certifications.single.issuer,
+        'Société tunisienne de médecine',
+      );
+      expect(detail.careCapabilities, [
+        DoctorCareCapability.cabinet,
+        DoctorCareCapability.homeVisit,
+      ]);
+      final cabinet = detail.practiceLocations.single;
+      expect(cabinet.name, 'Cabinet La Marsa');
+      expect(cabinet.address, '1 rue du Lac');
+      expect(cabinet.city, 'La Marsa');
+      expect(cabinet.galleryImages, ['https://cdn.example/cabinet.jpg']);
+      expect(cabinet.equipment.single.label, 'ECG');
+      expect(cabinet.accessibility, ['Accessible PMR']);
+      expect(cabinet.coverage, [
+        'CNAM acceptée (déclaration du professionnel)',
+        'Paiement direct accepté (déclaration du professionnel)',
+      ]);
+      expect(
+        cabinet.appointmentInstructions,
+        'Apportez vos anciens résultats.',
+      );
     });
 
-    test('practice locations are empty when practiceCity is absent', () {
+    test('does not fabricate a Cabinet from legacy practiceCity', () {
       final json = Map<String, dynamic>.from(_detailJson)
-        ..['practiceCity'] = null;
-      final detail = buildDoctorDetail(
-        DoctorDirectoryDetail.fromJson(json),
-      );
+        ..['practiceLocations'] = <Map<String, dynamic>>[];
+      final detail = buildDoctorDetail(DoctorDirectoryDetail.fromJson(json));
       expect(detail.practiceLocations, isEmpty);
     });
 
@@ -299,17 +582,17 @@ void main() {
       });
 
       test('evening slots are mapped to Soir', () {
-        final days = groupAvailabilitySlots([_slotUtc(DateTime(2026, 9, 24, 19, 0))]);
+        final days = groupAvailabilitySlots([
+          _slotUtc(DateTime(2026, 9, 24, 19, 0)),
+        ]);
         expect(days.single.slots.single.timeOfDay, 'Soir');
       });
 
       test('throws on an unparseable instant', () {
         expect(
-          () => groupAvailabilitySlots(
-            const [
-              AvailabilitySlotDto(start: 'nope', end: '2026-09-24T09:30:00Z'),
-            ],
-          ),
+          () => groupAvailabilitySlots(const [
+            AvailabilitySlotDto(start: 'nope', end: '2026-09-24T09:30:00Z'),
+          ]),
           throwsA(isA<DoctorContractException>()),
         );
       });
@@ -376,9 +659,9 @@ void main() {
       expect(failure.kind, DoctorDirectoryFailureKind.server);
     });
 
-    test('bad response 422 maps to contract', () {
+    test('bad response 422 maps to validation', () {
       final failure = DoctorDirectoryFailure.from(_badResponse(422));
-      expect(failure.kind, DoctorDirectoryFailureKind.contract);
+      expect(failure.kind, DoctorDirectoryFailureKind.validation);
     });
 
     test('connection error maps to network', () {
@@ -421,92 +704,53 @@ void main() {
   });
 
   group('Repository', () {
-    test('list, detail and slots failures become DoctorDirectoryFailure', () async {
-      final api = _FakeApi(
-        listError: _badResponse(401),
-        detailError: _badResponse(404),
-        slotsError: _dio(type: DioExceptionType.connectionError),
-      );
-      final repository = DoctorDirectoryRepository(api);
+    test(
+      'list, detail and slots failures become DoctorDirectoryFailure',
+      () async {
+        final api = _FakeApi(
+          listError: _badResponse(401),
+          detailError: _badResponse(404),
+          slotsError: _dio(type: DioExceptionType.connectionError),
+        );
+        final repository = DoctorDirectoryRepository(api);
 
-      await expectLater(
-        repository.listDoctors(),
-        throwsA(
-          isA<DoctorDirectoryFailure>().having(
-            (f) => f.kind,
-            'kind',
-            DoctorDirectoryFailureKind.sessionExpired,
+        await expectLater(
+          repository.searchDoctors(criteria: const DoctorSearchCriteria()),
+          throwsA(
+            isA<DoctorDirectoryFailure>().having(
+              (f) => f.kind,
+              'kind',
+              DoctorDirectoryFailureKind.sessionExpired,
+            ),
           ),
-        ),
-      );
-      await expectLater(
-        repository.getDoctor('doc-1'),
-        throwsA(
-          isA<DoctorDirectoryFailure>().having((f) => f.isNotFound, 'notFound', true),
-        ),
-      );
-      await expectLater(
-        repository.getSlots(
-          doctorId: 'doc-1',
-          from: DateTime.now(),
-          to: DateTime.now().add(const Duration(days: 1)),
-        ),
-        throwsA(
-          isA<DoctorDirectoryFailure>().having(
-            (f) => f.kind,
-            'kind',
-            DoctorDirectoryFailureKind.network,
+        );
+        await expectLater(
+          repository.getDoctor('doc-1'),
+          throwsA(
+            isA<DoctorDirectoryFailure>().having(
+              (f) => f.isNotFound,
+              'notFound',
+              true,
+            ),
           ),
-        ),
-      );
-    });
-
-    test('successful booking returns a success result', () async {
-      final booking = AppointmentBooking.fromJson(_appointmentJson);
-      final repository = DoctorDirectoryRepository(
-        _FakeApi(bookingResult: booking),
-      );
-
-      final result = await repository.bookAppointment(
-        doctorId: 'doc-1',
-        startTime: '2026-09-24T15:30:00Z',
-        endTime: '2026-09-24T16:00:00Z',
-      );
-
-      expect(result.succeeded, isTrue);
-      expect(result.booking?.id, 'appt-1');
-    });
-
-    test('409 becomes a conflict result, not a failure', () async {
-      final repository = DoctorDirectoryRepository(
-        _FakeApi(bookingError: _badResponse(409)),
-      );
-
-      final result = await repository.bookAppointment(
-        doctorId: 'doc-1',
-        startTime: '2026-09-24T15:30:00Z',
-        endTime: '2026-09-24T16:00:00Z',
-      );
-
-      expect(result.isConflict, isTrue);
-      expect(result.failure, isNull);
-      expect(result.conflictMessage, contains('réservé'));
-    });
-
-    test('non-conflict booking failure maps to a failure result', () async {
-      final repository = DoctorDirectoryRepository(
-        _FakeApi(bookingError: _dio(type: DioExceptionType.connectionError)),
-      );
-
-      final result = await repository.bookAppointment(
-        doctorId: 'doc-1',
-        startTime: '2026-09-24T15:30:00Z',
-        endTime: '2026-09-24T16:00:00Z',
-      );
-
-      expect(result.status, DoctorBookingStatus.failure);
-      expect(result.failure?.kind, DoctorDirectoryFailureKind.network);
-    });
+        );
+        await expectLater(
+          repository.getSlots(
+            doctorId: 'doc-1',
+            practiceLocationId: 'cabinet-1',
+            from: DateTime.now(),
+            to: DateTime.now().add(const Duration(days: 1)),
+          ),
+          throwsA(
+            isA<DoctorDirectoryFailure>().having(
+              (f) => f.kind,
+              'kind',
+              DoctorDirectoryFailureKind.network,
+            ),
+          ),
+        );
+      },
+    );
   });
 }
 
@@ -519,7 +763,11 @@ AvailabilitySlotDto _slotUtc(DateTime local) {
   );
 }
 
-DoctorDayAvailability _day(DateTime date, List<String> times, List<String> periods) {
+DoctorDayAvailability _day(
+  DateTime date,
+  List<String> times,
+  List<String> periods,
+) {
   assert(times.length == periods.length);
   return DoctorDayAvailability(
     date: DateTime(date.year, date.month, date.day),
@@ -538,28 +786,25 @@ DoctorDayAvailability _day(DateTime date, List<String> times, List<String> perio
 }
 
 class _FakeApi implements DoctorDirectoryApi {
-  _FakeApi({
-    this.listError,
-    this.detailError,
-    this.slotsError,
-    this.bookingError,
-    this.bookingResult,
-  });
+  _FakeApi({this.listError, this.detailError, this.slotsError});
 
   final Object? listError;
   final Object? detailError;
   final Object? slotsError;
-  final Object? bookingError;
-  final AppointmentBooking? bookingResult;
 
   @override
-  Future<List<DoctorDirectoryListItem>> listDoctors({
-    String? query,
+  Future<DoctorSearchPage> searchDoctors({
+    required DoctorSearchCriteria criteria,
     CancelToken? cancelToken,
   }) async {
     final error = listError;
     if (error != null) throw error;
-    return const [];
+    return DoctorSearchPage(
+      content: const [],
+      page: criteria.page,
+      size: criteria.size,
+      hasNext: false,
+    );
   }
 
   @override
@@ -575,6 +820,7 @@ class _FakeApi implements DoctorDirectoryApi {
   @override
   Future<List<AvailabilitySlotDto>> getSlots({
     required String doctorId,
+    required String practiceLocationId,
     required DateTime from,
     required DateTime to,
     CancelToken? cancelToken,
@@ -583,17 +829,43 @@ class _FakeApi implements DoctorDirectoryApi {
     if (error != null) throw error;
     return const [];
   }
+}
+
+class _RecordingAdapter implements HttpClientAdapter {
+  _RecordingAdapter(this.responseBody);
+
+  final String responseBody;
+  String? path;
+  Map<String, dynamic> query = const {};
 
   @override
-  Future<AppointmentBooking> bookAppointment({
-    required String doctorId,
-    required String startTime,
-    required String endTime,
-    String? notes,
-    CancelToken? cancelToken,
-  }) async {
-    final error = bookingError;
-    if (error != null) throw error;
-    return bookingResult!;
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    path = options.uri.path;
+    query = Map<String, dynamic>.from(options.queryParameters);
+    return ResponseBody.fromString(
+      responseBody,
+      200,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
+    );
   }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+class _MemoryBackend implements SecureTokenStorageBackend {
+  @override
+  Future<void> delete({required String key}) async {}
+
+  @override
+  Future<String?> read({required String key}) async => null;
+
+  @override
+  Future<void> write({required String key, required String value}) async {}
 }

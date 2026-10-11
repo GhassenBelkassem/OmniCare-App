@@ -6,6 +6,8 @@ import 'package:omnicare_mobile/features/doctor/shell/doctor_app_shell.dart';
 import 'package:omnicare_mobile/features/doctor/shell/doctor_navigation_destination.dart';
 import 'package:omnicare_mobile/features/doctor/workspace/doctor_workspace_config.dart';
 
+import 'support/doctor_scheduled_care_test_support.dart';
+
 DoctorWorkspaceConfig _workspace(
   String doctorId,
   Set<DoctorPracticeMode> modes,
@@ -42,14 +44,19 @@ DoctorWorkspaceConfig _workspace(
   );
 }
 
-Widget _shell(DoctorWorkspaceConfig config) => MaterialApp(
-  theme: buildOmniTheme(),
-  home: DoctorAppShell(
-    profile: DoctorDemoProfile.current,
-    onLogout: () async {},
-    workspaceConfig: config,
-  ),
-);
+Widget _shell(DoctorWorkspaceConfig config) {
+  final scheduledCare = DoctorScheduledCareTestHarness(withFixtures: false);
+  addTearDown(scheduledCare.dispose);
+  return MaterialApp(
+    theme: buildOmniTheme(),
+    home: DoctorAppShell(
+      profile: DoctorDemoProfile.current,
+      onLogout: () async {},
+      workspaceConfig: config,
+      scheduledCare: scheduledCare.coordinator,
+    ),
+  );
+}
 
 List<String> _labels(DoctorWorkspaceConfig config) =>
     deriveDoctorNavigationDestinations(

@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../../core/theme/omni_theme.dart';
 import '../demo/doctor_demo_profile.dart';
-import '../agenda/doctor_agenda_controller.dart';
 import '../agenda/doctor_agenda_screen.dart';
 import '../home/doctor_home_screen.dart';
+import '../scheduled_care/doctor_scheduled_care_coordinator.dart';
 import '../medical_record/doctor_medical_record_access.dart';
 import '../medical_record/doctor_medical_record_screen.dart';
 import '../urgent/doctor_urgent_controller.dart';
@@ -13,6 +14,8 @@ import '../urgent/doctor_urgent_screen.dart';
 import '../workspace/doctor_workspace_config.dart';
 import 'doctor_navigation_destination.dart';
 import 'doctor_placeholder_tab.dart';
+import '../../notifications/application/notification_controller.dart';
+import '../../notifications/notifications_screen.dart';
 
 /// Shared, feature-neutral frame for the Doctor mobile experience.
 ///
@@ -26,6 +29,7 @@ class DoctorAppShell extends StatefulWidget {
     this.workspaceConfig,
     this.onResetDemo,
     this.urgentController,
+    required this.scheduledCare,
   });
 
   static const profileTabKey = ValueKey('doctor-tab-profile');
@@ -35,6 +39,7 @@ class DoctorAppShell extends StatefulWidget {
   final DoctorWorkspaceConfig? workspaceConfig;
   final Future<void> Function()? onResetDemo;
   final DoctorUrgentController? urgentController;
+  final DoctorScheduledCareCoordinator scheduledCare;
 
   @override
   State<DoctorAppShell> createState() => _DoctorAppShellState();
@@ -45,14 +50,11 @@ class _DoctorAppShellState extends State<DoctorAppShell> {
       DoctorNavigationDestinationId.home;
   bool _isLoggingOut = false;
   _DoctorUrgentWorkflow _urgentWorkflow = _DoctorUrgentWorkflow.urgent;
-  late final DoctorAgendaController _agendaController =
-      DoctorAgendaController();
   late final DoctorUrgentController _urgentController =
       widget.urgentController ?? DoctorUrgentController();
 
   @override
   void dispose() {
-    _agendaController.dispose();
     if (widget.urgentController == null) {
       _urgentController.dispose();
     }
@@ -135,19 +137,35 @@ class _DoctorAppShellState extends State<DoctorAppShell> {
 
   Widget _selectedContent(DoctorNavigationDestinationId destination) {
     return switch (destination) {
-      DoctorNavigationDestinationId.home => DoctorHomeScreen(
-        profile: widget.profile,
-        capabilities: _capabilities,
-        workspaceConfig: widget.workspaceConfig,
-        agendaNextAppointment: _agendaController.nextAppointment,
-        urgentController: _urgentController,
-        onOpenAgenda: () =>
-            _selectDestination(DoctorNavigationDestinationId.agenda),
-        onOpenUrgencies: () =>
-            _selectDestination(DoctorNavigationDestinationId.urgent),
+      DoctorNavigationDestinationId.home => AnimatedBuilder(
+        animation: Listenable.merge([
+          widget.scheduledCare.home,
+          widget.scheduledCare.agenda,
+        ]),
+        builder: (context, _) {
+          final summary = widget.scheduledCare.home.summary;
+          final pending = summary?.nextPendingRequest;
+          return DoctorHomeScreen(
+            profile: widget.profile,
+            capabilities: _capabilities,
+            workspaceConfig: widget.workspaceConfig,
+            agendaNextAppointment: summary?.nextConfirmedAppointment,
+            useAgendaAuthority: true,
+            pendingScheduledRequests: pending == null ? const [] : [pending],
+            pendingScheduledRequestCount: summary?.pendingRequestCount,
+            scheduledCareFailure: widget.scheduledCare.home.failure,
+            scheduledCareLoading: widget.scheduledCare.home.isLoading,
+            onRetryScheduledCare: widget.scheduledCare.home.load,
+            urgentController: _urgentController,
+            onOpenAgenda: () =>
+                _selectDestination(DoctorNavigationDestinationId.agenda),
+            onOpenUrgencies: () =>
+                _selectDestination(DoctorNavigationDestinationId.urgent),
+          );
+        },
       ),
       DoctorNavigationDestinationId.agenda => DoctorAgendaScreen(
-        controller: _agendaController,
+        controller: widget.scheduledCare.agenda,
       ),
       DoctorNavigationDestinationId.urgent => _UrgentWorkflowContent(
         workflow: _urgentWorkflow,
@@ -235,6 +253,8 @@ class _DoctorTopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final notificationController = context.watch<NotificationController?>();
+    final unreadCount = notificationController?.unreadCount ?? 0;
     return Container(
       key: const ValueKey('doctor-top-bar'),
       height: 72,
@@ -275,6 +295,53 @@ class _DoctorTopBar extends StatelessWidget {
                     ],
                   ),
                 ),
+                Semantics(
+                  label: 'Notifications',
+                  button: true,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      IconButton(
+                        key: const ValueKey('doctor-notification-bell'),
+                        onPressed: notificationController == null
+                            ? null
+                            : () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const NotificationsScreen(),
+                                ),
+                              ),
+                        icon: const Icon(Icons.notifications_none_rounded),
+                        color: OmniColors.textSecondary,
+                      ),
+                      if (unreadCount > 0)
+                        Positioned(
+                          right: 2,
+                          top: 2,
+                          child: Container(
+                            constraints: const BoxConstraints(
+                              minWidth: 17,
+                              minHeight: 17,
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 3),
+                            alignment: Alignment.center,
+                            decoration: const BoxDecoration(
+                              color: OmniColors.error,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              unreadCount > 99 ? '99+' : '$unreadCount',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: OmniSpacing.xs),
                 Semantics(
                   label: 'Profil de ${profile.fullName}',
                   child: Container(

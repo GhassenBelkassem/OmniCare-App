@@ -272,7 +272,7 @@ void main() {
 
     expect(
       controller.byId('cancel-me')!.status,
-      PatientAppointmentStatus.cancelled,
+      PatientAppointmentStatus.cancelledByPatient,
     );
     controller.setTab(PatientAppointmentTab.cancelled);
     expect(controller.visibleAppointments().single.appointmentId, 'cancel-me');
@@ -319,7 +319,11 @@ void main() {
     );
     expect(
       appointments.map((item) => item.status).toSet(),
-      containsAll(PatientAppointmentStatus.values),
+      equals({
+        PatientAppointmentStatus.confirmed,
+        PatientAppointmentStatus.completed,
+        PatientAppointmentStatus.cancelledByPatient,
+      }),
     );
     expect(
       appointments.map((item) => item.subjectType).toSet(),

@@ -6,6 +6,9 @@ import 'package:omnicare_mobile/features/doctor/home/doctor_home_demo_state.dart
 import 'package:omnicare_mobile/features/doctor/home/doctor_home_screen.dart';
 import 'package:omnicare_mobile/features/doctor/shell/doctor_app_shell.dart';
 import 'package:omnicare_mobile/features/doctor/workspace/doctor_workspace_config.dart';
+import 'package:omnicare_mobile/features/scheduled_care/domain/scheduled_care_models.dart';
+
+import 'support/doctor_scheduled_care_test_support.dart';
 
 DoctorWorkspaceConfig _workspace(Set<DoctorPracticeMode> modes) {
   final hasCabinet = modes.contains(DoctorPracticeMode.cabinet);
@@ -145,6 +148,9 @@ void main() {
       DoctorPracticeMode.homeVisit,
       DoctorPracticeMode.urgentHome,
     });
+    final scheduledCare = DoctorScheduledCareTestHarness();
+    addTearDown(scheduledCare.dispose);
+    await scheduledCare.start();
     await tester.pumpWidget(
       MaterialApp(
         theme: buildOmniTheme(),
@@ -152,6 +158,7 @@ void main() {
           profile: DoctorDemoProfile.current,
           onLogout: () async {},
           workspaceConfig: config,
+          scheduledCare: scheduledCare.coordinator,
         ),
       ),
     );
@@ -187,5 +194,38 @@ void main() {
       expect(find.byKey(const ValueKey('doctor-home-scroll')), findsOneWidget);
       expect(tester.takeException(), isNull);
     }
+  });
+
+  testWidgets('Doctor Home and Agenda react to the same REST-backed state', (
+    tester,
+  ) async {
+    final scheduledCare = DoctorScheduledCareTestHarness();
+    addTearDown(scheduledCare.dispose);
+    await scheduledCare.start();
+    final config = _workspace({DoctorPracticeMode.cabinet});
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildOmniTheme(),
+        home: DoctorAppShell(
+          profile: DoctorDemoProfile.current,
+          onLogout: () async {},
+          workspaceConfig: config,
+          scheduledCare: scheduledCare.coordinator,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Demandes de rendez-vous'), findsOneWidget);
+    expect(find.text('Mariem Ben Amor'), findsOneWidget);
+    expect(find.text('Cabinet Lac 2'), findsWidgets);
+
+    final request = scheduledCare.coordinator.agenda.records.singleWhere(
+      (item) => item.resourceType == ScheduledCareResourceType.bookingRequest,
+    );
+    await scheduledCare.coordinator.agenda.accept(request);
+    await tester.pumpAndSettle();
+    expect(find.text('Demandes de rendez-vous'), findsNothing);
+    expect(find.text('Prochain rendez-vous'), findsOneWidget);
   });
 }

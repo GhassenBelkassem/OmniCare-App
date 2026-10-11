@@ -6,10 +6,10 @@ import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
 
 import '../../../core/theme/omni_theme.dart';
+import '../../scheduled_care/domain/scheduled_care_models.dart';
+import '../scheduled_care/doctor_scheduled_care_models.dart';
 import 'doctor_agenda_controller.dart';
-import 'doctor_demo_appointment.dart';
 
-final _agendaToday = DateTime(2026, 9, 24);
 const _agendaMotion = Duration(milliseconds: 200);
 
 Duration _motionDuration(BuildContext context) =>
@@ -27,7 +27,7 @@ class DoctorAgendaScreen extends StatelessWidget {
     return AnimatedBuilder(
       animation: controller,
       builder: (context, _) {
-        final items = controller.appointmentsFor(controller.selectedDate);
+        final items = controller.recordsFor(controller.selectedDate);
         final motionDuration = _motionDuration(context);
         return SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(
@@ -48,6 +48,17 @@ class DoctorAgendaScreen extends StatelessWidget {
                       fontWeight: FontWeight.w800,
                     ),
                   ),
+                  if (controller.failure != null) ...[
+                    const SizedBox(height: OmniSpacing.md),
+                    _FailureBanner(
+                      message: controller.failure!.message,
+                      onRetry: controller.loadFocusedMonth,
+                    ),
+                  ],
+                  if (controller.isLoading) ...[
+                    const SizedBox(height: OmniSpacing.sm),
+                    const LinearProgressIndicator(),
+                  ],
                   const SizedBox(height: OmniSpacing.lg),
                   _AgendaViewSelector(
                     value: controller.view,
@@ -202,19 +213,19 @@ class _MonthView extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         _MonthHeader(day: controller.focusedDate, controller: controller),
-        TableCalendar<DoctorDemoAppointment>(
+        TableCalendar<DoctorScheduledCareItem>(
           locale: 'fr_FR',
-          firstDay: DateTime(2026, 1, 1),
-          lastDay: DateTime(2027, 12, 31),
+          firstDay: DateTime.now().subtract(const Duration(days: 365)),
+          lastDay: DateTime.now().add(const Duration(days: 730)),
           focusedDay: controller.focusedDate,
-          currentDay: _agendaToday,
+          currentDay: DateTime.now(),
           startingDayOfWeek: StartingDayOfWeek.monday,
           calendarFormat: CalendarFormat.month,
           availableCalendarFormats: const {CalendarFormat.month: 'Mois'},
           headerVisible: false,
           selectedDayPredicate: (day) =>
               DateUtils.isSameDay(day, controller.selectedDate),
-          eventLoader: controller.appointmentsFor,
+          eventLoader: controller.recordsFor,
           onDaySelected: (selected, focused) =>
               controller.selectDate(selected, focusedDate: focused),
           onPageChanged: controller.focusMonth,
@@ -240,7 +251,7 @@ class _MonthView extends StatelessWidget {
             cellPadding: EdgeInsets.zero,
             markersMaxCount: 3,
           ),
-          calendarBuilders: CalendarBuilders<DoctorDemoAppointment>(
+          calendarBuilders: CalendarBuilders<DoctorScheduledCareItem>(
             selectedBuilder: (context, day, _) =>
                 _CalendarDayCell(day: day, state: _CalendarDayState.selected),
             todayBuilder: (context, day, _) =>
@@ -250,7 +261,7 @@ class _MonthView extends StatelessWidget {
                 _CalendarDayCell(day: day, state: _CalendarDayState.outside),
             markerBuilder: (context, day, events) => events.isEmpty
                 ? null
-                : _EventMarkers(day: day, count: events.length),
+                : _EventMarkers(day: day, records: events),
           ),
         ),
       ],
@@ -306,10 +317,10 @@ class _CalendarDayCell extends StatelessWidget {
 }
 
 class _EventMarkers extends StatelessWidget {
-  const _EventMarkers({required this.day, required this.count});
+  const _EventMarkers({required this.day, required this.records});
 
   final DateTime day;
-  final int count;
+  final List<DoctorScheduledCareItem> records;
 
   @override
   Widget build(BuildContext context) => Align(
@@ -317,24 +328,26 @@ class _EventMarkers extends StatelessWidget {
     child: Padding(
       padding: const EdgeInsets.only(bottom: 2),
       child: Semantics(
-        label: '$count rendez-vous',
+        label: '${records.length} demandes ou rendez-vous',
         child: Row(
           key: ValueKey(
             'agenda-marker-${day.toIso8601String().substring(0, 10)}',
           ),
           mainAxisSize: MainAxisSize.min,
-          children: List.generate(
-            count.clamp(1, 3).toInt(),
-            (_) => Container(
-              width: 4,
-              height: 4,
-              margin: const EdgeInsets.symmetric(horizontal: 1.5),
-              decoration: const BoxDecoration(
-                color: OmniColors.freshMint,
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
+          children: records
+              .take(3)
+              .map(
+                (record) => Container(
+                  width: 4,
+                  height: 4,
+                  margin: const EdgeInsets.symmetric(horizontal: 1.5),
+                  decoration: BoxDecoration(
+                    color: _statusColor(record.status),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              )
+              .toList(growable: false),
         ),
       ),
     ),
@@ -410,7 +423,7 @@ class _AgendaList extends StatelessWidget {
     required this.controller,
   });
   final DateTime date;
-  final List<DoctorDemoAppointment> items;
+  final List<DoctorScheduledCareItem> items;
   final DoctorAgendaController controller;
   @override
   Widget build(BuildContext context) => Column(
@@ -462,13 +475,13 @@ class _EmptyDay extends StatelessWidget {
 
 class _AppointmentRow extends StatelessWidget {
   const _AppointmentRow({required this.item, required this.onTap});
-  final DoctorDemoAppointment item;
+  final DoctorScheduledCareItem item;
   final VoidCallback onTap;
   @override
   Widget build(BuildContext context) => Semantics(
     button: true,
     label:
-        '${DateFormat('HH:mm').format(item.dateTime)}, ${item.patientName}, ${_statusLabel(item.status)}',
+        '${DateFormat('HH:mm').format(_displayStart(item))}, ${item.patientDisplayName}, ${doctorScheduledCareStatusLabel(item.status)}',
     child: Material(
       color: Colors.transparent,
       child: InkWell(
@@ -480,7 +493,10 @@ class _AppointmentRow extends StatelessWidget {
             vertical: OmniSpacing.md,
           ),
           decoration: BoxDecoration(
-            border: Border.all(color: OmniColors.borderLight),
+            color: _statusColor(item.status).withValues(alpha: .04),
+            border: Border.all(
+              color: _statusColor(item.status).withValues(alpha: .28),
+            ),
             borderRadius: BorderRadius.circular(OmniRadii.card),
           ),
           child: Row(
@@ -489,7 +505,7 @@ class _AppointmentRow extends StatelessWidget {
               SizedBox(
                 width: 46,
                 child: Text(
-                  DateFormat('HH:mm').format(item.dateTime),
+                  DateFormat('HH:mm').format(_displayStart(item)),
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     color: OmniColors.deepTeal,
                     fontWeight: FontWeight.w800,
@@ -502,7 +518,7 @@ class _AppointmentRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      item.patientName,
+                      item.patientDisplayName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -511,7 +527,7 @@ class _AppointmentRow extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      item.reason,
+                      '${item.relationshipLabel} · ${item.activeSlot.durationMinutes} min',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -520,7 +536,7 @@ class _AppointmentRow extends StatelessWidget {
                     ),
                     const SizedBox(height: 1),
                     Text(
-                      item.locationName,
+                      item.cabinet.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -542,33 +558,13 @@ class _AppointmentRow extends StatelessWidget {
 
 class _StatusChip extends StatelessWidget {
   const _StatusChip({required this.status});
-  final DoctorAppointmentStatus status;
+  final DoctorScheduledCareStatus status;
   @override
   Widget build(BuildContext context) {
-    final (color, background) = switch (status) {
-      DoctorAppointmentStatus.scheduled => (
-        OmniColors.amber,
-        OmniColors.amberSoft,
-      ),
-      DoctorAppointmentStatus.arrived => (
-        OmniColors.deepTeal,
-        OmniColors.mintSoft,
-      ),
-      DoctorAppointmentStatus.inConsultation => (
-        OmniColors.clinicalCyan,
-        OmniColors.clinicalCyanSoft,
-      ),
-      DoctorAppointmentStatus.completed => (
-        OmniColors.slateBlue,
-        OmniColors.slateSoft,
-      ),
-      DoctorAppointmentStatus.cancelled => (
-        OmniColors.error,
-        OmniColors.errorSoft,
-      ),
-    };
+    final color = _statusColor(status);
+    final background = color.withValues(alpha: .12);
     return Semantics(
-      label: 'Statut : ${_statusLabel(status)}',
+      label: 'Statut : ${doctorScheduledCareStatusLabel(status)}',
       child: Container(
         constraints: const BoxConstraints(minWidth: 68),
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
@@ -578,7 +574,7 @@ class _StatusChip extends StatelessWidget {
           borderRadius: BorderRadius.circular(OmniRadii.pill),
         ),
         child: Text(
-          _statusLabel(status),
+          doctorScheduledCareStatusLabel(status),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
@@ -594,9 +590,12 @@ class _StatusChip extends StatelessWidget {
 
 Future<void> _showAppointmentDetail(
   BuildContext context,
-  DoctorDemoAppointment item,
+  DoctorScheduledCareItem item,
   DoctorAgendaController controller,
-) {
+) async {
+  final refreshed = await controller.refreshItem(item);
+  if (refreshed == null || !context.mounted) return;
+  item = refreshed;
   final animationsDisabled =
       MediaQuery.maybeOf(context)?.disableAnimations ?? false;
   return showModalBottomSheet<void>(
@@ -613,7 +612,7 @@ Future<void> _showAppointmentDetail(
     builder: (context) => SafeArea(
       top: false,
       child: SizedBox(
-        height: 460,
+        height: MediaQuery.sizeOf(context).height * .78,
         child: Padding(
           padding: EdgeInsets.fromLTRB(
             20,
@@ -624,9 +623,12 @@ Future<void> _showAppointmentDetail(
           child: AnimatedBuilder(
             animation: controller,
             builder: (context, child) {
-              final current = controller.appointments.firstWhere(
-                (value) => value.id == item.id,
-              );
+              final current =
+                  controller.itemByIdentity(
+                    item.resourceType,
+                    item.resourceId,
+                  ) ??
+                  item;
               return SingleChildScrollView(
                 key: const ValueKey('doctor-appointment-detail-scroll'),
                 child: Column(
@@ -634,19 +636,22 @@ Future<void> _showAppointmentDetail(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      current.patientName,
+                      current.patientDisplayName,
                       style: Theme.of(context).textTheme.headlineSmall
                           ?.copyWith(fontWeight: FontWeight.w800),
                     ),
                     Text(
-                      '${current.patientAge} ans',
+                      current.relationshipLabel,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: OmniColors.textSecondary,
                       ),
                     ),
                     const SizedBox(height: 20),
                     Text(
-                      current.reason,
+                      current.resourceType ==
+                              ScheduledCareResourceType.appointment
+                          ? 'Rendez-vous confirmé'
+                          : 'Demande de rendez-vous',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w800,
                       ),
@@ -657,24 +662,103 @@ Future<void> _showAppointmentDetail(
                       DateFormat(
                         'd MMMM yyyy',
                         'fr_FR',
-                      ).format(current.dateTime),
+                      ).format(_displayStart(current)),
                     ),
                     _DetailLine(
                       'Heure',
-                      DateFormat('HH:mm').format(current.dateTime),
+                      '${DateFormat('HH:mm').format(_displayStart(current))}–${DateFormat('HH:mm').format(_displayEnd(current))}',
                     ),
-                    _DetailLine('Lieu', current.locationName),
-                    _DetailLine('Statut', _statusLabel(current.status)),
+                    _DetailLine(
+                      'Durée',
+                      '${current.activeSlot.durationMinutes} min',
+                    ),
+                    _DetailLine('Cabinet', current.cabinet.name),
+                    _DetailLine(
+                      'Adresse',
+                      '${current.cabinet.address}, ${current.cabinet.city}',
+                    ),
+                    _DetailLine(
+                      'Statut',
+                      doctorScheduledCareStatusLabel(current.status),
+                    ),
+                    if (current.status ==
+                            DoctorScheduledCareStatus.pendingDoctor &&
+                        current.responseDeadline != null)
+                      _DetailLine(
+                        'Échéance',
+                        DateFormat(
+                          'd MMM · HH:mm',
+                          'fr_FR',
+                        ).format(current.responseDeadline!),
+                      ),
+                    if (current.status ==
+                            DoctorScheduledCareStatus
+                                .pendingPatientTimeConfirmation &&
+                        current.patientResponseDeadline != null)
+                      _DetailLine(
+                        'Échéance',
+                        DateFormat(
+                          'd MMM · HH:mm',
+                          'fr_FR',
+                        ).format(current.patientResponseDeadline!),
+                      ),
+                    if (current.proposedSlot != null) ...[
+                      const SizedBox(height: OmniSpacing.sm),
+                      _ProposalSummary(record: current),
+                    ],
+                    if (current.resourceType ==
+                        ScheduledCareResourceType.appointment) ...[
+                      const SizedBox(height: OmniSpacing.lg),
+                      _IntakeSummary(status: current.intakeStatus),
+                    ],
+                    if (current.status ==
+                        DoctorScheduledCareStatus.expired) ...[
+                      const SizedBox(height: OmniSpacing.md),
+                      const _StateNotice(
+                        text:
+                            'Cette demande n’est plus active. Le créneau a été libéré.',
+                      ),
+                    ],
+                    if (current.status ==
+                            DoctorScheduledCareStatus.cancelledByPatient ||
+                        current.status ==
+                            DoctorScheduledCareStatus.cancelledByDoctor ||
+                        current.status ==
+                            DoctorScheduledCareStatus.cancelled) ...[
+                      const SizedBox(height: OmniSpacing.md),
+                      _StateNotice(text: _cancellationDescription(current)),
+                    ],
                     const SizedBox(height: 20),
+                    if (controller.failure != null) ...[
+                      _FailureBanner(
+                        message: controller.failure!.message,
+                        onRetry: () => controller.refreshItem(current),
+                      ),
+                      const SizedBox(height: OmniSpacing.md),
+                    ],
                     AnimatedSwitcher(
                       duration: _motionDuration(context),
                       switchInCurve: Curves.easeOutCubic,
                       switchOutCurve: Curves.easeOutCubic,
                       child: _AppointmentDetailAction(
                         key: ValueKey('agenda-detail-${current.status.name}'),
-                        status: current.status,
-                        onArrived: () => controller.markArrived(current.id),
-                        onScanQr: () => _showQrPlaceholder(context),
+                        record: current,
+                        onAccept: () => unawaited(controller.accept(current)),
+                        onPropose: () =>
+                            _showSlotSelector(context, current, controller),
+                        onDecline: () =>
+                            current.resourceType ==
+                                ScheduledCareResourceType.appointment
+                            ? _askForCancellationReason(
+                                context,
+                                current,
+                                controller,
+                              )
+                            : _askForDeclineReason(
+                                context,
+                                current,
+                                controller,
+                              ),
                       ),
                     ),
                   ],
@@ -691,40 +775,355 @@ Future<void> _showAppointmentDetail(
 class _AppointmentDetailAction extends StatelessWidget {
   const _AppointmentDetailAction({
     super.key,
-    required this.status,
-    required this.onArrived,
-    required this.onScanQr,
+    required this.record,
+    required this.onAccept,
+    required this.onPropose,
+    required this.onDecline,
   });
 
-  final DoctorAppointmentStatus status;
-  final VoidCallback onArrived;
-  final VoidCallback onScanQr;
+  final DoctorScheduledCareItem record;
+  final VoidCallback onAccept;
+  final VoidCallback onPropose;
+  final VoidCallback onDecline;
 
   @override
-  Widget build(BuildContext context) => switch (status) {
-    DoctorAppointmentStatus.scheduled => FilledButton(
-      onPressed: onArrived,
-      child: const Text('Patient arrivé'),
-    ),
-    DoctorAppointmentStatus.arrived => FilledButton(
-      onPressed: onScanQr,
-      child: const Text('Scanner le QR'),
-    ),
-    DoctorAppointmentStatus.completed => const Text(
-      'Consultation terminée\nLe résumé clinique sera disponible après l’implémentation de la consultation.',
-    ),
-    _ => const SizedBox.shrink(),
-  };
+  Widget build(BuildContext context) {
+    if (record.can(ScheduledCareAction.acceptRequest) ||
+        record.can(ScheduledCareAction.proposeNewTime) ||
+        record.can(ScheduledCareAction.declineRequest)) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (record.can(ScheduledCareAction.acceptRequest))
+            FilledButton(onPressed: onAccept, child: const Text('Accepter')),
+          if (record.can(ScheduledCareAction.proposeNewTime)) ...[
+            const SizedBox(height: OmniSpacing.sm),
+            OutlinedButton(
+              onPressed: onPropose,
+              child: const Text('Proposer un autre créneau'),
+            ),
+          ],
+          if (record.can(ScheduledCareAction.declineRequest))
+            TextButton(onPressed: onDecline, child: const Text('Refuser')),
+        ],
+      );
+    }
+    if (record.can(ScheduledCareAction.cancelAppointment)) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextButton(
+            onPressed: onDecline,
+            child: const Text('Annuler le rendez-vous'),
+          ),
+        ],
+      );
+    }
+    if (record.status ==
+        DoctorScheduledCareStatus.pendingPatientTimeConfirmation) {
+      return const _StateNotice(
+        text: 'Le nouveau créneau est réservé en attendant le patient.',
+      );
+    }
+    return const SizedBox.shrink();
+  }
 }
 
-void _showQrPlaceholder(BuildContext context) {
-  showModalBottomSheet<void>(
+class _ProposalSummary extends StatelessWidget {
+  const _ProposalSummary({required this.record});
+
+  final DoctorScheduledCareItem record;
+
+  @override
+  Widget build(BuildContext context) {
+    final proposal = record.proposedSlot!;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(OmniSpacing.md),
+      decoration: BoxDecoration(
+        color: OmniColors.infoBlueSoft,
+        borderRadius: BorderRadius.circular(OmniRadii.field),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Créneau proposé au patient',
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: OmniColors.infoBlue,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: OmniSpacing.xs),
+          Text(
+            DateFormat('EEEE d MMMM · HH:mm', 'fr_FR').format(proposal.start),
+          ),
+          Text(
+            'Demande initiale : ${DateFormat('d MMM · HH:mm', 'fr_FR').format(record.requestedSlot.start)}',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: OmniColors.textSecondary),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _IntakeSummary extends StatelessWidget {
+  const _IntakeSummary({required this.status});
+
+  final String? status;
+
+  @override
+  Widget build(BuildContext context) {
+    if (status == null || status == 'NOT_SUBMITTED') {
+      return const _StateNotice(
+        text: 'Aucune information de préparation envoyée.',
+      );
+    }
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(OmniSpacing.md),
+      decoration: BoxDecoration(
+        color: OmniColors.mintSoft,
+        borderRadius: BorderRadius.circular(OmniRadii.field),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Préparation envoyée par le patient',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: OmniColors.deepTeal,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: OmniSpacing.sm),
+          const Text(
+            'Les informations cliniques seront accessibles dans le dossier médical autorisé.',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StateNotice extends StatelessWidget {
+  const _StateNotice({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(OmniSpacing.md),
+    decoration: BoxDecoration(
+      color: OmniColors.slateSoft,
+      borderRadius: BorderRadius.circular(OmniRadii.field),
+    ),
+    child: Text(
+      text,
+      style: Theme.of(
+        context,
+      ).textTheme.bodyMedium?.copyWith(color: OmniColors.textSecondary),
+    ),
+  );
+}
+
+class _FailureBanner extends StatelessWidget {
+  const _FailureBanner({required this.message, required this.onRetry});
+
+  final String message;
+  final Future<void> Function() onRetry;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(OmniSpacing.md),
+    decoration: BoxDecoration(
+      color: OmniColors.error.withValues(alpha: .08),
+      borderRadius: BorderRadius.circular(OmniRadii.field),
+      border: Border.all(color: OmniColors.error.withValues(alpha: .25)),
+    ),
+    child: Row(
+      children: [
+        const Icon(Icons.error_outline_rounded, color: OmniColors.error),
+        const SizedBox(width: OmniSpacing.sm),
+        Expanded(child: Text(message)),
+        TextButton(onPressed: onRetry, child: const Text('Réessayer')),
+      ],
+    ),
+  );
+}
+
+Future<void> _showSlotSelector(
+  BuildContext context,
+  DoctorScheduledCareItem record,
+  DoctorAgendaController controller,
+) async {
+  await controller.loadProposalAvailability(record);
+  if (!context.mounted) return;
+  record =
+      controller.itemByIdentity(record.resourceType, record.resourceId) ??
+      record;
+  final slots = controller.proposalSlots;
+  await showModalBottomSheet<void>(
     context: context,
+    useSafeArea: true,
     showDragHandle: true,
-    builder: (_) => const Padding(
-      padding: EdgeInsets.all(24),
-      child: Text(
-        'La vérification QR sera ajoutée à l’étape suivante de la démo.',
+    builder: (sheetContext) => SafeArea(
+      top: false,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(
+          OmniSpacing.xl,
+          OmniSpacing.sm,
+          OmniSpacing.xl,
+          OmniSpacing.xxl,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Proposer un autre créneau',
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: OmniSpacing.xs),
+            Text(
+              '${record.cabinet.name} · disponibilités des 21 prochains jours',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: OmniColors.textSecondary),
+            ),
+            const SizedBox(height: OmniSpacing.lg),
+            if (slots.isEmpty)
+              const _StateNotice(
+                text: 'Aucun autre créneau libre dans la période chargée.',
+              )
+            else
+              ...slots.map(
+                (slot) => ListTile(
+                  key: ValueKey(
+                    'doctor-proposal-slot-${slot.start.toIso8601String()}',
+                  ),
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.schedule_rounded),
+                  title: Text(
+                    DateFormat('EEEE d MMMM', 'fr_FR').format(slot.start),
+                  ),
+                  subtitle: Text(
+                    '${DateFormat('HH:mm').format(slot.start)}–${DateFormat('HH:mm').format(slot.end)} · ${slot.durationMinutes} min',
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () async {
+                    final confirmed = await showDialog<bool>(
+                      context: sheetContext,
+                      builder: (dialogContext) => AlertDialog(
+                        title: const Text('Confirmer la proposition'),
+                        content: Text(
+                          '${record.cabinet.name}\n${DateFormat('EEEE d MMMM · HH:mm', 'fr_FR').format(slot.start)}',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () =>
+                                Navigator.pop(dialogContext, false),
+                            child: const Text('Retour'),
+                          ),
+                          FilledButton(
+                            onPressed: () => Navigator.pop(dialogContext, true),
+                            child: const Text('Proposer'),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirmed != true || !sheetContext.mounted) return;
+                    await controller.propose(record, slot);
+                    if (!sheetContext.mounted) return;
+                    Navigator.pop(sheetContext);
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+Future<void> _askForDeclineReason(
+  BuildContext context,
+  DoctorScheduledCareItem record,
+  DoctorAgendaController controller,
+) => _askForControlledReason<DoctorDeclineReason>(
+  context,
+  title: 'Refuser la demande',
+  actionLabel: 'Refuser',
+  values: DoctorDeclineReason.values,
+  label: (reason) => reason.label,
+  onSubmit: (reason) => controller.decline(record, reason),
+);
+
+Future<void> _askForCancellationReason(
+  BuildContext context,
+  DoctorScheduledCareItem record,
+  DoctorAgendaController controller,
+) => _askForControlledReason<DoctorAppointmentCancellationReason>(
+  context,
+  title: 'Annuler le rendez-vous',
+  actionLabel: 'Annuler',
+  values: DoctorAppointmentCancellationReason.values,
+  label: (reason) => reason.label,
+  onSubmit: (reason) => controller.cancel(record, reason),
+);
+
+Future<void> _askForControlledReason<T>(
+  BuildContext context, {
+  required String title,
+  required String actionLabel,
+  required List<T> values,
+  required String Function(T value) label,
+  required Future<bool> Function(T value) onSubmit,
+}) async {
+  var selected = values.first;
+  await showDialog<void>(
+    context: context,
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (context, setDialogState) => AlertDialog(
+        title: Text(title),
+        content: DropdownButtonFormField<T>(
+          key: const ValueKey('doctor-controlled-reason'),
+          initialValue: selected,
+          decoration: const InputDecoration(labelText: 'Motif requis'),
+          items: values
+              .map(
+                (value) => DropdownMenuItem<T>(
+                  value: value,
+                  child: Text(label(value)),
+                ),
+              )
+              .toList(growable: false),
+          onChanged: (value) {
+            if (value != null) setDialogState(() => selected = value);
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Retour'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              final succeeded = await onSubmit(selected);
+              if (succeeded && dialogContext.mounted) {
+                Navigator.pop(dialogContext);
+              }
+            },
+            child: Text(actionLabel),
+          ),
+        ],
       ),
     ),
   );
@@ -761,10 +1160,36 @@ class _DetailLine extends StatelessWidget {
   );
 }
 
-String _statusLabel(DoctorAppointmentStatus status) => switch (status) {
-  DoctorAppointmentStatus.scheduled => 'À venir',
-  DoctorAppointmentStatus.arrived => 'Patient arrivé',
-  DoctorAppointmentStatus.inConsultation => 'En consultation',
-  DoctorAppointmentStatus.completed => 'Terminée',
-  DoctorAppointmentStatus.cancelled => 'Annulée',
+Color _statusColor(DoctorScheduledCareStatus status) => switch (status) {
+  DoctorScheduledCareStatus.pendingDoctor => OmniColors.amber,
+  DoctorScheduledCareStatus.pendingPatientTimeConfirmation =>
+    OmniColors.infoBlue,
+  DoctorScheduledCareStatus.confirmed ||
+  DoctorScheduledCareStatus.inProgress => OmniColors.deepTeal,
+  DoctorScheduledCareStatus.fulfilled ||
+  DoctorScheduledCareStatus.completed => OmniColors.freshMint,
+  DoctorScheduledCareStatus.expired ||
+  DoctorScheduledCareStatus.noShow => OmniColors.slateBlue,
+  DoctorScheduledCareStatus.cancelled ||
+  DoctorScheduledCareStatus.cancelledByPatient ||
+  DoctorScheduledCareStatus.cancelledByDoctor => OmniColors.error,
 };
+
+String _cancellationDescription(DoctorScheduledCareItem record) {
+  final actor = record.status == DoctorScheduledCareStatus.cancelledByDoctor
+      ? 'Annulé par le médecin'
+      : record.status == DoctorScheduledCareStatus.cancelledByPatient
+      ? 'Annulé par le patient'
+      : 'Rendez-vous annulé';
+  final when = record.cancelledAt == null
+      ? ''
+      : ' le ${DateFormat('d MMM à HH:mm', 'fr_FR').format(record.cancelledAt!)}';
+  final reason = record.cancellationReason?.trim();
+  return '$actor$when${reason == null || reason.isEmpty ? '' : ' · $reason'}';
+}
+
+DateTime _displayStart(DoctorScheduledCareItem item) =>
+    displayInTimeZone(item.activeSlot.start, item.cabinet.timezone);
+
+DateTime _displayEnd(DoctorScheduledCareItem item) =>
+    displayInTimeZone(item.activeSlot.end, item.cabinet.timezone);

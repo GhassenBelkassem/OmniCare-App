@@ -2259,6 +2259,9 @@ void main() {
     });
   });
 
+  // Intentionally gated legacy widget journeys: the role-choice LoginScreen
+  // they drive is no longer mounted. The enabled contract/controller tests
+  // below this group cover the authoritative professional-auth behavior.
   group('professional authentication milestone', () {
     testWidgets('patient choice opens the existing language entry', (
       tester,

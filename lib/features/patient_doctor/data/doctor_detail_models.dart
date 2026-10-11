@@ -6,6 +6,7 @@
 /// real bookable time slot parsed from the availability endpoint.
 library;
 
+import 'doctor_directory_models.dart';
 import 'doctor_models.dart';
 
 /// A single available time slot for a specific date.
@@ -62,9 +63,16 @@ class DoctorDayAvailability {
 
 /// Equipment or examination available at a practice location.
 class PracticeEquipment {
-  const PracticeEquipment({required this.label, this.iconCodePoint});
+  const PracticeEquipment({
+    required this.code,
+    required this.label,
+    required this.portable,
+    this.iconCodePoint,
+  });
 
+  final String code;
   final String label;
+  final bool portable;
   final int? iconCodePoint;
 }
 
@@ -84,9 +92,17 @@ class PracticeOpeningHours {
 /// Future-compatible with multiple locations per doctor.
 class PracticeLocation {
   const PracticeLocation({
+    required this.id,
+    required this.type,
     required this.name,
+    required this.governorate,
     required this.address,
     required this.city,
+    required this.latitude,
+    required this.longitude,
+    this.publicPhone,
+    required this.wheelchairAccessible,
+    required this.primary,
     this.distanceKm,
     this.galleryImages = const [],
     this.openingHours = const [],
@@ -96,14 +112,30 @@ class PracticeLocation {
     this.appointmentInstructions,
   });
 
+  final String id;
+
+  final DoctorPracticeLocationType type;
+
   /// Display name (e.g. 'Cabinet Dr. Amine Ben Salah').
   final String name;
+
+  final String governorate;
 
   /// Street address.
   final String address;
 
   /// City.
   final String city;
+
+  final double latitude;
+
+  final double longitude;
+
+  final String? publicPhone;
+
+  final bool wheelchairAccessible;
+
+  final bool primary;
 
   /// Distance from user in km (mock value).
   final double? distanceKm;
@@ -138,6 +170,9 @@ class DoctorDetail {
     this.expertise = const [],
     this.biography,
     this.patientAgeGroups = const [],
+    this.education = const [],
+    this.certifications = const [],
+    this.careCapabilities = const [],
     this.practiceLocations = const [],
     this.availability = const [],
     this.nextAvailableLabel,
@@ -161,6 +196,17 @@ class DoctorDetail {
   /// Patient age groups (e.g. 'Adultes', 'Personnes âgées').
   final List<String> patientAgeGroups;
 
+  /// Structured qualifications returned by the public detail endpoint.
+  /// The locked UI has no presentation surface for these fields yet.
+  final List<DoctorEducation> education;
+
+  /// Structured certifications returned by the public detail endpoint.
+  /// The locked UI has no presentation surface for these fields yet.
+  final List<DoctorCertification> certifications;
+
+  /// Configured care modes. These are capabilities, never live availability.
+  final List<DoctorCareCapability> careCapabilities;
+
   /// Practice locations (one or more).
   final List<PracticeLocation> practiceLocations;
 
@@ -173,14 +219,14 @@ class DoctorDetail {
   /// Convenience accessors forwarded from listItem.
   String get id => listItem.id;
   String get name => listItem.name;
-  String get specialty => listItem.specialty;
+  String get specialty => listItem.displaySpecialty;
   List<String> get subSpecialties => listItem.subSpecialties;
-  int get experienceYears => listItem.experienceYears;
+  int get experienceYears => listItem.experienceYears ?? 0;
   List<String> get languages => listItem.languages;
   bool get acceptingNewPatients => listItem.acceptingNewPatients;
   List<String> get consultationTypes => listItem.consultationTypes;
   List<String> get visitReasons => listItem.visitReasons;
-  String? get imageAssetPath => listItem.imageAssetPath;
+  String? get photoUrl => listItem.photoUrl;
   double? get distanceKm => listItem.distanceKm;
 
   /// Returns a copy with freshly fetched availability data attached.
@@ -196,6 +242,9 @@ class DoctorDetail {
       expertise: expertise,
       biography: biography,
       patientAgeGroups: patientAgeGroups,
+      education: education,
+      certifications: certifications,
+      careCapabilities: careCapabilities,
       practiceLocations: practiceLocations,
       availability: availability ?? this.availability,
       nextAvailableLabel: clearNextAvailableLabel

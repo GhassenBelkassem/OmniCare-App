@@ -21,6 +21,13 @@ class DoctorWorkspaceController extends ChangeNotifier {
       ? const <DoctorCapability>{}
       : deriveDoctorCapabilities(_config!);
 
+  void clearSessionState() {
+    _config = null;
+    _doctorId = null;
+    _isLoading = false;
+    notifyListeners();
+  }
+
   Future<void> load(String doctorId) async {
     _doctorId = doctorId.trim();
     _isLoading = true;

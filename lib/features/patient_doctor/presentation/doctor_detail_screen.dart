@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/theme/omni_theme.dart';
+import '../../patient_clinic/data/patient_clinic_models.dart';
 import '../../patient_clinic/presentation/widgets/clinic_full_screen_gallery.dart';
 import '../../patient_clinic/presentation/clinic_presentation_metadata.dart'
     as clinic;
@@ -9,19 +12,29 @@ import '../../patient_clinic/presentation/widgets/clinic_image_renderer.dart';
 import '../application/doctor_directory_controller.dart';
 import '../data/doctor_detail_models.dart';
 import '../data/doctor_directory_failure.dart';
+import '../../scheduled_care/application/scheduled_care_controller.dart';
+import '../../scheduled_care/domain/scheduled_care_models.dart';
+import '../../scheduled_care_prototype/scheduled_care_controller.dart';
+import '../../scheduled_care_prototype/scheduled_care_models.dart';
 import 'doctor_availability_sheet.dart';
 import 'doctor_presentation_metadata.dart';
 
 /// Doctor detail / profile screen.
 ///
 /// Backend values stay authoritative (identity, verifications, clinical
-/// metadata, availability, practiceCity); presentation-only data comes from
-/// [DoctorPresentationCatalog]. The profile is fed by the shared
+/// metadata and Cabinets). The profile is fed by the shared
 /// [DoctorDirectoryController] via [fetchDetail].
 class DoctorDetailScreen extends StatefulWidget {
-  const DoctorDetailScreen({super.key, required this.doctorId});
+  const DoctorDetailScreen({
+    super.key,
+    required this.doctorId,
+    this.preferredPracticeLocationId,
+    this.scheduledBookingWorkflow = false,
+  });
 
   final String doctorId;
+  final String? preferredPracticeLocationId;
+  final bool scheduledBookingWorkflow;
 
   @override
   State<DoctorDetailScreen> createState() => _DoctorDetailScreenState();
@@ -36,7 +49,10 @@ class _DoctorDetailScreenState extends State<DoctorDetailScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _detailRequested) return;
       _detailRequested = true;
-      context.read<DoctorDirectoryController>().fetchDetail(widget.doctorId);
+      context.read<DoctorDirectoryController>().fetchDetail(
+        widget.doctorId,
+        practiceLocationId: widget.preferredPracticeLocationId,
+      );
     });
   }
 
@@ -54,17 +70,22 @@ class _DoctorDetailScreenState extends State<DoctorDetailScreen> {
         bottom: false,
         child: detail == null
             ? (loading
-                ? const Center(child: CircularProgressIndicator())
-                : _DetailErrorState(
-                    message:
-                        directory.detailError?.message ??
-                        'Impossible de charger ce médecin.',
-                    notFound: directory.isNotFound,
-                    onRetry: () => directory.fetchDetail(widget.doctorId),
-                  ))
+                  ? const Center(child: CircularProgressIndicator())
+                  : _DetailErrorState(
+                      message:
+                          directory.detailError?.message ??
+                          'Impossible de charger ce médecin.',
+                      notFound: directory.isNotFound,
+                      onRetry: () => directory.fetchDetail(
+                        widget.doctorId,
+                        practiceLocationId: widget.preferredPracticeLocationId,
+                      ),
+                    ))
             : _DoctorDetailBody(
                 detail: detail,
                 controller: directory,
+                preferredPracticeLocationId: widget.preferredPracticeLocationId,
+                scheduledBookingWorkflow: widget.scheduledBookingWorkflow,
                 availabilityError: directory.availabilityError,
                 onRetryAvailability: directory.retryFetchAvailability,
               ),
@@ -141,12 +162,16 @@ class _DoctorDetailBody extends StatefulWidget {
   const _DoctorDetailBody({
     required this.detail,
     required this.controller,
+    this.preferredPracticeLocationId,
+    this.scheduledBookingWorkflow = false,
     this.availabilityError,
     required this.onRetryAvailability,
   });
 
   final DoctorDetail detail;
   final DoctorDirectoryController controller;
+  final String? preferredPracticeLocationId;
+  final bool scheduledBookingWorkflow;
   final DoctorDirectoryFailure? availabilityError;
   final VoidCallback onRetryAvailability;
 
@@ -157,36 +182,143 @@ class _DoctorDetailBody extends StatefulWidget {
 class _DoctorDetailBodyState extends State<_DoctorDetailBody> {
   static const _tabLabels = ['À propos', 'Disponibilités', 'Cabinet'];
   int _selectedTab = 0;
+  String? _selectedLocationId;
 
   DoctorDetail get detail => widget.detail;
 
-  PracticeLocation? get location => detail.practiceLocations.isNotEmpty
-      ? detail.practiceLocations.first
-      : null;
+  PracticeLocation? get location {
+    final selectedId = _selectedLocationId;
+    if (selectedId == null) return null;
+    for (final candidate in detail.practiceLocations) {
+      if (candidate.id == selectedId) return candidate;
+    }
+    return null;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedLocationId = _initialLocationId();
+    if (widget.preferredPracticeLocationId == null &&
+        _selectedLocationId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        widget.controller.fetchAvailabilityForPracticeLocation(
+          _selectedLocationId!,
+        );
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _DoctorDetailBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.detail.id != widget.detail.id ||
+        !widget.detail.practiceLocations.any(
+          (candidate) => candidate.id == _selectedLocationId,
+        )) {
+      _selectedLocationId = _initialLocationId();
+    }
+  }
+
+  String? _initialLocationId() {
+    final locations = widget.detail.practiceLocations;
+    final preferred = widget.preferredPracticeLocationId;
+    if (preferred != null &&
+        locations.any((candidate) => candidate.id == preferred)) {
+      return preferred;
+    }
+    if (locations.length == 1) return locations.single.id;
+    return null;
+  }
+
+  void _selectLocation(String id) {
+    if (!detail.practiceLocations.any((candidate) => candidate.id == id)) {
+      return;
+    }
+    setState(() => _selectedLocationId = id);
+    unawaited(widget.controller.fetchAvailabilityForPracticeLocation(id));
+  }
 
   void _openAvailabilitySheet() {
+    final selectedLocation = location;
+    if (selectedLocation == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Choisissez un Cabinet avant de consulter les créneaux.',
+          ),
+        ),
+      );
+      return;
+    }
+    final scheduledCare = widget.scheduledBookingWorkflow
+        ? context.read<ScheduledCareController?>()
+        : null;
+    final prototype = widget.scheduledBookingWorkflow && scheduledCare == null
+        ? context.read<ScheduledCarePrototypeController?>()
+        : null;
+    final cabinet = ScheduledCareCabinet(
+      practiceLocationId: selectedLocation.id,
+      name: selectedLocation.name,
+      address: selectedLocation.address,
+      city: selectedLocation.city,
+      governorate: selectedLocation.governorate,
+      timezone: 'Africa/Tunis',
+    );
+    if (scheduledCare != null) {
+      scheduledCare.selectDoctorAndCabinet(
+        doctorId: detail.id,
+        doctorName: detail.name,
+        doctorSpecialty: detail.specialty,
+        consultationPriceTnd: detail.listItem.consultationPriceTnd,
+        cabinet: cabinet,
+      );
+    }
+    if (prototype != null) {
+      prototype.selectDoctorAndCabinet(
+        doctorId: detail.id,
+        doctorName: detail.name,
+        doctorSpecialty: detail.specialty,
+        consultationPriceTnd: detail.listItem.consultationPriceTnd,
+        cabinet: CabinetPrototype(
+          id: selectedLocation.id,
+          name: selectedLocation.name,
+          address: selectedLocation.address,
+          city: selectedLocation.city,
+        ),
+      );
+    }
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       builder: (_) => DoctorAvailabilitySheet(
         detail: detail,
-        controller: widget.controller,
+        cabinet: cabinet,
+        scheduledCareController: scheduledCare,
+        prototypeController: prototype,
       ),
-    );
+    ).whenComplete(() {
+      if (!mounted) return;
+      unawaited(
+        widget.controller.fetchAvailabilityForPracticeLocation(
+          selectedLocation.id,
+        ),
+      );
+    });
   }
 
   Widget _tabContent() {
-    final metadata = DoctorPresentationCatalog.forDoctor(detail.id);
     return switch (_selectedTab) {
       0 => _AboutTab(detail: detail),
       1 => _AvailabilityTab(
-          detail: detail,
-          availabilityError: widget.availabilityError,
-          onRetryAvailability: widget.onRetryAvailability,
-          onSeeAll: _openAvailabilitySheet,
-        ),
-      2 => _CabinetTab(location: location, metadata: metadata),
+        detail: detail,
+        availabilityError: widget.availabilityError,
+        onRetryAvailability: widget.onRetryAvailability,
+        onSeeAll: _openAvailabilitySheet,
+      ),
+      2 => _CabinetTab(location: location),
       _ => _AboutTab(detail: detail),
     };
   }
@@ -202,11 +334,13 @@ class _DoctorDetailBodyState extends State<_DoctorDetailBody> {
             child: Column(
               children: [
                 SizedBox(height: topInset),
-                _DoctorIdentityHeader(
-                  detail: detail,
-                  location: location,
-                  metadata: DoctorPresentationCatalog.forDoctor(detail.id),
-                ),
+                _DoctorIdentityHeader(detail: detail, location: location),
+                if (detail.practiceLocations.length > 1)
+                  _CabinetSelector(
+                    locations: detail.practiceLocations,
+                    selectedId: _selectedLocationId,
+                    onSelected: _selectLocation,
+                  ),
                 _SegmentedTabBar(
                   labels: _tabLabels,
                   selectedIndex: _selectedTab,
@@ -228,16 +362,71 @@ class _DoctorDetailBodyState extends State<_DoctorDetailBody> {
   }
 }
 
-class _DoctorIdentityHeader extends StatelessWidget {
-  const _DoctorIdentityHeader({
-    required this.detail,
-    required this.location,
-    required this.metadata,
+class _CabinetSelector extends StatelessWidget {
+  const _CabinetSelector({
+    required this.locations,
+    required this.selectedId,
+    required this.onSelected,
   });
+
+  final List<PracticeLocation> locations;
+  final String? selectedId;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: OmniColors.surfacePrimary,
+      padding: const EdgeInsets.fromLTRB(
+        OmniSpacing.pageHorizontal,
+        0,
+        OmniSpacing.pageHorizontal,
+        OmniSpacing.sm,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Choisissez le Cabinet',
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: OmniColors.textPrimary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: OmniSpacing.xs),
+          DropdownButtonFormField<String>(
+            key: const ValueKey('doctor-cabinet-selector'),
+            initialValue: selectedId,
+            hint: const Text('Sélectionner un Cabinet'),
+            isExpanded: true,
+            items: locations
+                .map(
+                  (candidate) => DropdownMenuItem(
+                    value: candidate.id,
+                    child: Text(
+                      '${candidate.name} · ${candidate.city}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                )
+                .toList(growable: false),
+            onChanged: (value) {
+              if (value != null) onSelected(value);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DoctorIdentityHeader extends StatelessWidget {
+  const _DoctorIdentityHeader({required this.detail, required this.location});
 
   final DoctorDetail detail;
   final PracticeLocation? location;
-  final DoctorPresentationMetadata metadata;
 
   @override
   Widget build(BuildContext context) {
@@ -262,7 +451,9 @@ class _DoctorIdentityHeader extends StatelessWidget {
                 children: [
                   _DoctorPortrait(
                     name: detail.name,
-                    image: metadata.portrait,
+                    image: detail.photoUrl == null
+                        ? const DoctorPresentationImage.asset('')
+                        : DoctorPresentationImage.network(detail.photoUrl!),
                     size: portraitSize,
                   ),
                   const SizedBox(width: OmniSpacing.md),
@@ -410,6 +601,7 @@ class _DoctorPortrait extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasAsset = image.isAsset && image.value.trim().isNotEmpty;
+    final hasNetworkImage = image.isNetwork && image.value.trim().isNotEmpty;
     return Container(
       width: size,
       height: size,
@@ -421,6 +613,12 @@ class _DoctorPortrait extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: hasAsset
           ? Image.asset(
+              image.value,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => _InitialsFallback(name: name),
+            )
+          : hasNetworkImage
+          ? Image.network(
               image.value,
               fit: BoxFit.cover,
               errorBuilder: (_, _, _) => _InitialsFallback(name: name),
@@ -1074,10 +1272,9 @@ class _AvailabilityDayPreview extends StatelessWidget {
 }
 
 class _CabinetTab extends StatelessWidget {
-  const _CabinetTab({required this.location, required this.metadata});
+  const _CabinetTab({required this.location});
 
   final PracticeLocation? location;
-  final DoctorPresentationMetadata metadata;
 
   @override
   Widget build(BuildContext context) {
@@ -1088,12 +1285,10 @@ class _CabinetTab extends StatelessWidget {
       );
     }
 
-    final gallery = cabinet.galleryImages.isNotEmpty
-        ? [
-            for (final path in cabinet.galleryImages)
-              DoctorPresentationImage.asset(path),
-          ]
-        : metadata.cabinetGallery;
+    final gallery = [
+      for (final url in cabinet.galleryImages)
+        DoctorPresentationImage.network(url),
+    ];
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(
@@ -1105,14 +1300,6 @@ class _CabinetTab extends StatelessWidget {
       children: [
         if (gallery.isNotEmpty) ...[
           _CabinetGallery(images: gallery),
-          const SizedBox(height: OmniSpacing.sm),
-          Text(
-            'Images de démonstration du cabinet',
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              fontSize: 11,
-              color: OmniColors.textTertiary,
-            ),
-          ),
           const SizedBox(height: OmniSpacing.lg),
         ],
         const _SectionTitle(title: 'Localisation'),
@@ -1324,18 +1511,24 @@ class _CabinetGalleryState extends State<_CabinetGallery> {
   }
 
   void _openFullScreen(BuildContext context, int initialIndex) {
+    final networkImages = widget.images
+        .where((image) => image.isNetwork && image.value.trim().isNotEmpty)
+        .map((image) => PatientClinicImage(imageUrl: image.value))
+        .toList(growable: false);
     final localAssets = widget.images
         .where((image) => image.isAsset && image.value.trim().isNotEmpty)
         .map((image) => clinic.ClinicPresentationImage.asset(image.value))
         .toList(growable: false);
-    if (localAssets.isEmpty) return;
+    if (networkImages.isEmpty && localAssets.isEmpty) return;
 
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => ClinicFullScreenGallery(
-          images: const [],
+          images: networkImages,
           localAssets: localAssets,
-          initialIndex: initialIndex.clamp(0, localAssets.length - 1).toInt(),
+          initialIndex: initialIndex
+              .clamp(0, networkImages.length + localAssets.length - 1)
+              .toInt(),
         ),
       ),
     );

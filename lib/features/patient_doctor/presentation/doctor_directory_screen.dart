@@ -1,34 +1,65 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/theme/omni_theme.dart';
+import '../application/doctor_discovery_context.dart';
 import '../application/doctor_directory_controller.dart';
+import '../data/doctor_directory_models.dart';
+import '../data/doctor_models.dart';
+import '../../scheduled_care/application/scheduled_care_controller.dart';
+import '../../scheduled_care_prototype/scheduled_care_controller.dart';
 import 'doctor_detail_screen.dart';
-import 'doctor_filter_model.dart';
 import 'widgets/doctor_card.dart';
 import 'widgets/doctor_filter_sheet.dart';
 import 'widgets/doctor_search_field.dart';
 
-/// Patient doctor directory: static mock doctors, search, and local presentation
-/// filters.
-///
-/// Tapping a doctor card navigates to the Doctor Detail screen. Search, filter,
-/// and scroll state are preserved when returning from detail.
-class DoctorDirectoryScreen extends StatefulWidget {
-  const DoctorDirectoryScreen({super.key});
+/// Backend-authoritative, paginated Patient Doctor directory.
+class DoctorDirectoryScreen extends StatelessWidget {
+  const DoctorDirectoryScreen({
+    super.key,
+    this.discoveryContext = DoctorDiscoveryContext.generic,
+    this.scheduledBookingWorkflow = false,
+  });
+
+  final DoctorDiscoveryContext discoveryContext;
+  final bool scheduledBookingWorkflow;
 
   @override
-  State<DoctorDirectoryScreen> createState() => _DoctorDirectoryScreenState();
+  Widget build(BuildContext context) {
+    final inherited = context.read<DoctorDirectoryController>();
+    if (inherited.discoveryContext == discoveryContext) {
+      return _DoctorDirectoryView(
+        scheduledBookingWorkflow: scheduledBookingWorkflow,
+      );
+    }
+    return ChangeNotifierProvider<DoctorDirectoryController>(
+      create: (_) => inherited.forDiscoveryContext(discoveryContext),
+      child: _DoctorDirectoryView(
+        scheduledBookingWorkflow: scheduledBookingWorkflow,
+      ),
+    );
+  }
 }
 
-class _DoctorDirectoryScreenState extends State<DoctorDirectoryScreen> {
+class _DoctorDirectoryView extends StatefulWidget {
+  const _DoctorDirectoryView({required this.scheduledBookingWorkflow});
+
+  final bool scheduledBookingWorkflow;
+
+  @override
+  State<_DoctorDirectoryView> createState() => _DoctorDirectoryViewState();
+}
+
+class _DoctorDirectoryViewState extends State<_DoctorDirectoryView> {
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  DoctorFilterSnapshot _filters = DoctorFilterSnapshot.none;
+  DoctorSearchLocation? _searchLocation;
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_handleScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final controller = context.read<DoctorDirectoryController>();
@@ -40,6 +71,7 @@ class _DoctorDirectoryScreenState extends State<DoctorDirectoryScreen> {
 
   @override
   void dispose() {
+    _scrollController.removeListener(_handleScroll);
     _searchController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -49,27 +81,111 @@ class _DoctorDirectoryScreenState extends State<DoctorDirectoryScreen> {
     final directory = context.read<DoctorDirectoryController>();
     final result = await showDoctorFilterSheet(
       context: context,
-      options: buildDoctorFilterOptions(directory.items),
-      items: directory.items,
-      initial: _filters,
+      initial: directory.filters,
     );
-    if (result != null && result != _filters) {
-      setState(() {
-        _filters = result;
-      });
+    if (!mounted || result == null || result == directory.filters) return;
+
+    var location = _searchLocation;
+    if (result.maxDistanceKm != null && location == null) {
+      location = await _requestSearchLocation();
+      if (!mounted || location == null) return;
+    }
+    if (result.maxDistanceKm == null) location = null;
+    _searchLocation = location;
+    await directory.applyFilters(result, location: location);
+  }
+
+  Future<void> _resetFilters() async {
+    _searchLocation = null;
+    _searchController.clear();
+    await context.read<DoctorDirectoryController>().clearSearchAndFilters();
+  }
+
+  void _handleScroll() {
+    if (!_scrollController.hasClients) return;
+    if (_scrollController.position.extentAfter < 320) {
+      context.read<DoctorDirectoryController>().loadNext();
     }
   }
 
-  void _resetFilters() {
-    setState(() {
-      _filters = DoctorFilterSnapshot.none;
-    });
+  Future<DoctorSearchLocation?> _requestSearchLocation() async {
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        _showLocationMessage(
+          'Activez la localisation pour filtrer les médecins par distance.',
+        );
+        return null;
+      }
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        _showLocationMessage(
+          'Autorisez la localisation pour appliquer ce rayon.',
+        );
+        return null;
+      }
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.medium,
+      );
+      return DoctorSearchLocation(
+        latitude: position.latitude,
+        longitude: position.longitude,
+      );
+    } catch (_) {
+      _showLocationMessage(
+        'Votre position est indisponible. Réessayez ou retirez le rayon.',
+      );
+      return null;
+    }
   }
 
-  void _openDoctorDetail(String doctorId) {
+  void _showLocationMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _openDoctorDetail(DoctorListItem doctor) {
+    final directory = context.read<DoctorDirectoryController>();
+    final scheduledCare = widget.scheduledBookingWorkflow
+        ? context.read<ScheduledCareController?>()
+        : null;
+    final prototypeCare =
+        widget.scheduledBookingWorkflow && scheduledCare == null
+        ? context.read<ScheduledCarePrototypeController?>()
+        : null;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => DoctorDetailScreen(doctorId: doctorId),
+        builder: (_) {
+          Widget detail =
+              ChangeNotifierProvider<DoctorDirectoryController>.value(
+                value: directory,
+                child: DoctorDetailScreen(
+                  doctorId: doctor.id,
+                  preferredPracticeLocationId:
+                      doctor.matchingPracticeLocation?.practiceLocationId,
+                  scheduledBookingWorkflow: widget.scheduledBookingWorkflow,
+                ),
+              );
+          if (scheduledCare != null) {
+            detail = ChangeNotifierProvider<ScheduledCareController>.value(
+              value: scheduledCare,
+              child: detail,
+            );
+          }
+          if (prototypeCare != null) {
+            detail =
+                ChangeNotifierProvider<ScheduledCarePrototypeController>.value(
+                  value: prototypeCare,
+                  child: detail,
+                );
+          }
+          return detail;
+        },
       ),
     );
   }
@@ -130,7 +246,7 @@ class _DoctorDirectoryScreenState extends State<DoctorDirectoryScreen> {
                         ),
                       ),
                       _FilterAction(
-                        activeCount: _filters.activeGroupCount,
+                        activeCount: directory.filters.activeGroupCount,
                         onTap: _openFilters,
                       ),
                     ],
@@ -153,9 +269,9 @@ class _DoctorDirectoryScreenState extends State<DoctorDirectoryScreen> {
             Expanded(
               child: _DirectoryBody(
                 directory: directory,
-                filters: _filters,
                 scrollController: _scrollController,
                 onResetFilters: _resetFilters,
+                onModifyFilters: _openFilters,
                 onSelectDoctor: _openDoctorDetail,
               ),
             ),
@@ -268,22 +384,22 @@ class _FilterAction extends StatelessWidget {
 class _DirectoryBody extends StatelessWidget {
   const _DirectoryBody({
     required this.directory,
-    required this.filters,
     required this.scrollController,
     required this.onResetFilters,
+    required this.onModifyFilters,
     required this.onSelectDoctor,
   });
 
   final DoctorDirectoryController directory;
-  final DoctorFilterSnapshot filters;
   final ScrollController scrollController;
   final VoidCallback onResetFilters;
-  final ValueChanged<String> onSelectDoctor;
+  final VoidCallback onModifyFilters;
+  final ValueChanged<DoctorListItem> onSelectDoctor;
 
   @override
   Widget build(BuildContext context) {
     final status = directory.status;
-    final rawItems = directory.items;
+    final items = directory.items;
 
     if (status == DoctorDirectoryStatus.idle) {
       return const Center(child: CircularProgressIndicator());
@@ -299,21 +415,23 @@ class _DirectoryBody extends StatelessWidget {
     }
 
     if (status == DoctorDirectoryStatus.empty) {
-      if (filters.isActive) {
-        return _FilteredEmptyState(onReset: onResetFilters);
-      }
-      return _EmptyState(hasQuery: directory.query.trim().isNotEmpty);
-    }
-
-    final visible = applyDoctorFilters(items: rawItems, filters: filters);
-
-    if (visible.isEmpty) {
-      return _FilteredEmptyState(onReset: onResetFilters);
+      return _EmptyState(
+        hasCriteria:
+            directory.query.trim().isNotEmpty || directory.filters.isActive,
+        onModifyFilters: onModifyFilters,
+        onReset: onResetFilters,
+      );
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (directory.isReloading) const LinearProgressIndicator(minHeight: 2),
+        if (directory.error != null)
+          _ReloadErrorBanner(
+            message: directory.error!.message,
+            onRetry: directory.refresh,
+          ),
         Padding(
           padding: const EdgeInsets.fromLTRB(
             OmniSpacing.pageHorizontal,
@@ -322,9 +440,11 @@ class _DirectoryBody extends StatelessWidget {
             OmniSpacing.sm,
           ),
           child: Text(
-            visible.length == 1
+            items.length == 1
                 ? '1 médecin trouvé'
-                : '${visible.length} médecins trouvés',
+                : directory.hasNext
+                ? '${items.length} médecins chargés'
+                : '${items.length} médecins trouvés',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
               fontSize: 14,
               fontWeight: FontWeight.w500,
@@ -333,23 +453,46 @@ class _DirectoryBody extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: ListView.separated(
-            controller: scrollController,
-            padding: const EdgeInsets.fromLTRB(
-              OmniSpacing.pageHorizontal,
-              0,
-              OmniSpacing.pageHorizontal,
-              OmniSpacing.pageVertical,
+          child: RefreshIndicator(
+            onRefresh: directory.refresh,
+            child: ListView.separated(
+              controller: scrollController,
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(
+                OmniSpacing.pageHorizontal,
+                0,
+                OmniSpacing.pageHorizontal,
+                OmniSpacing.pageVertical,
+              ),
+              itemCount:
+                  items.length +
+                  ((directory.isLoadingNext || directory.nextPageError != null)
+                      ? 1
+                      : 0),
+              separatorBuilder: (context, index) => const SizedBox(height: 12),
+              itemBuilder: (context, index) {
+                if (index == items.length) {
+                  if (directory.isLoadingNext) {
+                    return const Padding(
+                      padding: EdgeInsets.all(OmniSpacing.base),
+                      child: Center(
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    );
+                  }
+                  return _NextPageError(
+                    message: directory.nextPageError!.message,
+                    onRetry: directory.retryNextPage,
+                  );
+                }
+                final doctor = items[index];
+                return DoctorListCard(
+                  key: ValueKey('doctor-card-${doctor.id}'),
+                  doctor: doctor,
+                  onTap: () => onSelectDoctor(doctor),
+                );
+              },
             ),
-            itemCount: visible.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              final doctor = visible[index];
-              return DoctorListCard(
-                doctor: doctor,
-                onTap: () => onSelectDoctor(doctor.id),
-              );
-            },
           ),
         ),
       ],
@@ -413,9 +556,15 @@ class _DirectoryErrorState extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.hasQuery});
+  const _EmptyState({
+    required this.hasCriteria,
+    required this.onModifyFilters,
+    required this.onReset,
+  });
 
-  final bool hasQuery;
+  final bool hasCriteria;
+  final VoidCallback onModifyFilters;
+  final VoidCallback onReset;
 
   @override
   Widget build(BuildContext context) {
@@ -442,7 +591,9 @@ class _EmptyState extends StatelessWidget {
             ),
             const SizedBox(height: OmniSpacing.base),
             Text(
-              hasQuery ? 'Aucun médecin trouvé' : 'Aucun médecin disponible',
+              hasCriteria
+                  ? 'Aucun médecin ne correspond à vos critères.'
+                  : 'Aucun médecin disponible',
               style: theme.textTheme.titleMedium?.copyWith(
                 fontSize: 17,
                 fontWeight: FontWeight.w700,
@@ -451,8 +602,8 @@ class _EmptyState extends StatelessWidget {
             ),
             const SizedBox(height: OmniSpacing.sm),
             Text(
-              hasQuery
-                  ? 'Essayez une autre recherche.'
+              hasCriteria
+                  ? 'Modifiez votre recherche ou effacez les filtres.'
                   : 'Revenez plus tard pour trouver un médecin.',
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontSize: 14,
@@ -461,6 +612,24 @@ class _EmptyState extends StatelessWidget {
               ),
               textAlign: TextAlign.center,
             ),
+            if (hasCriteria) ...[
+              const SizedBox(height: OmniSpacing.base),
+              Wrap(
+                spacing: OmniSpacing.sm,
+                runSpacing: OmniSpacing.sm,
+                alignment: WrapAlignment.center,
+                children: [
+                  OutlinedButton(
+                    onPressed: onModifyFilters,
+                    child: const Text('Modifier les filtres'),
+                  ),
+                  TextButton(
+                    onPressed: onReset,
+                    child: const Text('Effacer les filtres'),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -468,55 +637,55 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-class _FilteredEmptyState extends StatelessWidget {
-  const _FilteredEmptyState({required this.onReset});
+class _ReloadErrorBanner extends StatelessWidget {
+  const _ReloadErrorBanner({required this.message, required this.onRetry});
 
-  final VoidCallback onReset;
+  final String message;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Center(
+    return Material(
+      color: OmniColors.amberSoft,
       child: Padding(
-        padding: const EdgeInsets.all(OmniSpacing.xxl),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        padding: const EdgeInsets.symmetric(
+          horizontal: OmniSpacing.pageHorizontal,
+          vertical: OmniSpacing.sm,
+        ),
+        child: Row(
           children: [
-            Container(
-              width: 56,
-              height: 56,
-              alignment: Alignment.center,
-              decoration: const BoxDecoration(
-                color: OmniColors.surfaceSecondary,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.filter_alt_outlined,
-                size: 26,
-                color: OmniColors.slateBlue,
-              ),
-            ),
-            const SizedBox(height: OmniSpacing.base),
-            Text(
-              'Aucun médecin ne correspond à ces filtres.',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-                color: OmniColors.textPrimary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: OmniSpacing.base),
-            SizedBox(
-              width: 150,
-              height: 44,
-              child: OutlinedButton(
-                onPressed: onReset,
-                child: const Text('Réinitialiser'),
-              ),
-            ),
+            const Icon(Icons.info_outline, size: 18, color: OmniColors.amber),
+            const SizedBox(width: OmniSpacing.sm),
+            Expanded(child: Text(message, maxLines: 2)),
+            TextButton(onPressed: onRetry, child: const Text('Réessayer')),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _NextPageError extends StatelessWidget {
+  const _NextPageError({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: OmniSpacing.sm),
+      child: Column(
+        children: [
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: OmniColors.textSecondary),
+          ),
+          TextButton(onPressed: onRetry, child: const Text('Réessayer')),
+        ],
       ),
     );
   }

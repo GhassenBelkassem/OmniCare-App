@@ -649,12 +649,14 @@ class _BodyView extends StatefulWidget {
   final bool isFront;
   final List<String> selectedParts;
   final void Function(String) onPartClick;
+  final String Function(String) partLabelBuilder;
 
   const _BodyView({
     super.key,
     required this.isFront,
     required this.selectedParts,
     required this.onPartClick,
+    required this.partLabelBuilder,
   });
 
   @override
@@ -758,7 +760,7 @@ class _BodyViewState extends State<_BodyView> {
                       key: ValueKey(
                         '${widget.isFront ? 'front' : 'back'}-zone-${zone.part}',
                       ),
-                      label: bodyAreaLabel(zone.part),
+                      label: widget.partLabelBuilder(zone.part),
                       button: true,
                       selected: widget.selectedParts.contains(zone.part),
                       onTap: () => widget.onPartClick(zone.part),
@@ -782,12 +784,20 @@ class MuscleAnatomyMap extends StatelessWidget {
   final List<String> selectedParts;
   final void Function(String) onPartClick;
   final bool isFront;
+  final String? frontTitle;
+  final String? backTitle;
+  final String? instruction;
+  final String Function(String)? partLabelBuilder;
 
   const MuscleAnatomyMap({
     super.key,
     required this.selectedParts,
     required this.onPartClick,
     this.isFront = true,
+    this.frontTitle,
+    this.backTitle,
+    this.instruction,
+    this.partLabelBuilder,
   });
 
   @override
@@ -800,7 +810,7 @@ class MuscleAnatomyMap extends StatelessWidget {
         );
         return _buildCard(
           context,
-          isFront ? 'Vue de Face' : 'Vue de Dos',
+          isFront ? frontTitle ?? 'Vue de Face' : backTitle ?? 'Vue de Dos',
           isFront,
           mapWidth,
         );
@@ -847,12 +857,13 @@ class MuscleAnatomyMap extends StatelessWidget {
                 isFront: isFront,
                 selectedParts: selectedParts,
                 onPartClick: onPartClick,
+                partLabelBuilder: partLabelBuilder ?? bodyAreaLabel,
               ),
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            'Touchez une zone affectée',
+            instruction ?? 'Touchez une zone affectée',
             style: Theme.of(
               context,
             ).textTheme.bodySmall?.copyWith(color: OmniColors.textSecondary),

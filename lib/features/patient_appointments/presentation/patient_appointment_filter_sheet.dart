@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/omni_theme.dart';
+import '../../../core/models/family_models.dart';
 import '../data/patient_appointment_models.dart';
 
 Future<PatientAppointmentFilters?> showPatientAppointmentFilterSheet({
   required BuildContext context,
   required List<PatientAppointment> appointments,
+  List<FamilyMember> familyMembers = const [],
   required PatientAppointmentFilters initial,
 }) {
   return showModalBottomSheet<PatientAppointmentFilters>(
@@ -15,6 +17,7 @@ Future<PatientAppointmentFilters?> showPatientAppointmentFilterSheet({
     showDragHandle: true,
     builder: (_) => PatientAppointmentFilterSheet(
       appointments: appointments,
+      familyMembers: familyMembers,
       initial: initial,
     ),
   );
@@ -24,10 +27,12 @@ class PatientAppointmentFilterSheet extends StatefulWidget {
   const PatientAppointmentFilterSheet({
     super.key,
     required this.appointments,
+    this.familyMembers = const [],
     required this.initial,
   });
 
   final List<PatientAppointment> appointments;
+  final List<FamilyMember> familyMembers;
   final PatientAppointmentFilters initial;
 
   @override
@@ -39,17 +44,27 @@ class _PatientAppointmentFilterSheetState
     extends State<PatientAppointmentFilterSheet> {
   late PatientAppointmentFilters _draft = widget.initial;
 
-  List<String> get _subjects =>
-      widget.appointments
-          .where(
-            (appointment) =>
-                appointment.subjectType ==
-                PatientAppointmentSubjectType.familyMember,
-          )
-          .map((appointment) => appointment.subjectDisplayName)
-          .toSet()
+  List<({String? id, String label})> get _subjects {
+    if (widget.familyMembers.isNotEmpty) {
+      return widget.familyMembers
+          .map((member) => (id: member.id, label: member.fullName))
           .toList()
-        ..sort();
+        ..sort((left, right) => left.label.compareTo(right.label));
+    }
+    return widget.appointments
+        .where(
+          (appointment) =>
+              appointment.subjectType ==
+              PatientAppointmentSubjectType.familyMember,
+        )
+        .map(
+          (appointment) =>
+              (id: null as String?, label: appointment.subjectDisplayName),
+        )
+        .toSet()
+        .toList()
+      ..sort((left, right) => left.label.compareTo(right.label));
+  }
 
   List<String> get _cities =>
       widget.appointments
@@ -144,18 +159,23 @@ class _PatientAppointmentFilterSheetState
                           () => _draft = _draft.copyWith(
                             subjectType: PatientAppointmentSubjectType.self,
                             clearSubjectDisplayName: true,
+                            clearSubjectFamilyMemberId: true,
                           ),
                         ),
                       ),
                       for (final subject in _subjects)
                         _choice(
-                          label: subject,
-                          selected: _draft.subjectDisplayName == subject,
+                          label: subject.label,
+                          selected: subject.id != null
+                              ? _draft.subjectFamilyMemberId == subject.id
+                              : _draft.subjectDisplayName == subject.label,
                           onSelected: () => setState(
                             () => _draft = _draft.copyWith(
                               subjectType:
                                   PatientAppointmentSubjectType.familyMember,
-                              subjectDisplayName: subject,
+                              subjectDisplayName: subject.label,
+                              subjectFamilyMemberId: subject.id,
+                              clearSubjectFamilyMemberId: subject.id == null,
                             ),
                           ),
                         ),

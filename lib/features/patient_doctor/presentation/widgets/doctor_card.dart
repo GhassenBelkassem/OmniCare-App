@@ -1,13 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/omni_theme.dart';
+import '../../application/doctor_directory_filters.dart';
 import '../../data/doctor_models.dart';
 
-/// Compact horizontal doctor result card in the patient directory.
-///
-/// Follows the same scannable row pattern as [ClinicListCard]: avatar on the
-/// left, key information on the right. Uses a circular avatar with optional
-/// asset image and graceful initials fallback.
 class DoctorListCard extends StatelessWidget {
   const DoctorListCard({super.key, required this.doctor, required this.onTap});
 
@@ -17,14 +13,13 @@ class DoctorListCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
     return Semantics(
       button: true,
-      enabled: true,
       label: _semanticLabel(doctor),
-      child: GestureDetector(
+      child: InkWell(
         onTap: onTap,
-        child: Container(
+        borderRadius: BorderRadius.circular(OmniRadii.card),
+        child: Ink(
           decoration: BoxDecoration(
             color: OmniColors.surfacePrimary,
             borderRadius: BorderRadius.circular(OmniRadii.card),
@@ -36,54 +31,95 @@ class DoctorListCard extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _DoctorAvatar(
-                  name: doctor.name,
-                  imageAssetPath: doctor.imageAssetPath,
-                ),
+                _DoctorAvatar(name: doctor.name, photoUrl: doctor.photoUrl),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        doctor.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontSize: 17,
-                          height: 1.2,
-                          fontWeight: FontWeight.w700,
-                          color: OmniColors.textPrimary,
-                          letterSpacing: -0.2,
-                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              doctor.name,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontSize: 17,
+                                height: 1.2,
+                                fontWeight: FontWeight.w700,
+                                color: OmniColors.textPrimary,
+                              ),
+                            ),
+                          ),
+                          const Icon(
+                            Icons.chevron_right_rounded,
+                            size: 22,
+                            color: OmniColors.textTertiary,
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 4),
-                      _SpecialtyRow(specialty: doctor.specialty),
-                      if (doctor.experienceLabel.isNotEmpty) ...[
+                      Text(
+                        doctor.displaySpecialty,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: doctor.specialty == null
+                              ? OmniColors.textTertiary
+                              : OmniColors.violet,
+                        ),
+                      ),
+                      if (doctor.experienceLabel.isNotEmpty ||
+                          doctor.consultationPriceTnd != null) ...[
                         const SizedBox(height: 6),
-                        _ProfileMetaRow(
-                          experienceLabel: doctor.experienceLabel,
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 4,
+                          children: [
+                            if (doctor.experienceLabel.isNotEmpty)
+                              _Meta(
+                                icon: Icons.work_outline_rounded,
+                                label: doctor.experienceLabel,
+                              ),
+                            if (doctor.consultationPriceTnd case final price?)
+                              _Meta(
+                                icon: Icons.payments_outlined,
+                                label: '${_formatPrice(price)} TND',
+                              ),
+                          ],
                         ),
                       ],
-                      const SizedBox(height: 6),
-                      _LocationRow(
-                        address: doctor.address,
-                        distanceKm: doctor.distanceKm,
-                      ),
-                      if (!doctor.acceptingNewPatients) ...[
-                        const SizedBox(height: 6),
-                        _CompletBadge(),
+                      if (doctor.matchingPracticeLocation != null ||
+                          doctor.distanceKm != null) ...[
+                        const SizedBox(height: 7),
+                        _MatchingLocation(doctor: doctor),
+                      ],
+                      if (doctor.careCapabilities.isNotEmpty ||
+                          !doctor.acceptingNewPatients) ...[
+                        const SizedBox(height: 9),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            for (final capability
+                                in doctor.careCapabilities.take(2))
+                              _Badge(
+                                label: doctorCapabilityLabel(capability),
+                                color: OmniColors.infoBlue,
+                                background: OmniColors.infoBlueSoft,
+                              ),
+                            if (!doctor.acceptingNewPatients)
+                              const _Badge(
+                                label: 'Nouveaux patients non acceptés',
+                                color: OmniColors.amber,
+                                background: OmniColors.amberSoft,
+                              ),
+                          ],
+                        ),
                       ],
                     ],
-                  ),
-                ),
-                const Padding(
-                  padding: EdgeInsets.only(top: 2),
-                  child: Icon(
-                    Icons.chevron_right_rounded,
-                    size: 22,
-                    color: OmniColors.textTertiary,
                   ),
                 ),
               ],
@@ -96,42 +132,43 @@ class DoctorListCard extends StatelessWidget {
 }
 
 String _semanticLabel(DoctorListItem doctor) {
-  final parts = <String>[
+  final location = doctor.matchingPracticeLocation;
+  return [
     doctor.name,
-    doctor.specialty,
-    if (doctor.distanceKm != null) '${doctor.distanceKm} km',
-  ];
-  return parts.join(', ');
+    doctor.displaySpecialty,
+    if (location != null) location.name,
+    if (doctor.distanceKm != null)
+      '${doctor.distanceKm!.toStringAsFixed(1)} kilomètres',
+  ].join(', ');
+}
+
+String _formatPrice(double value) {
+  return value == value.roundToDouble()
+      ? value.toStringAsFixed(0)
+      : value.toStringAsFixed(2);
 }
 
 class _DoctorAvatar extends StatelessWidget {
-  const _DoctorAvatar({required this.name, this.imageAssetPath});
+  const _DoctorAvatar({required this.name, this.photoUrl});
 
   final String name;
-  final String? imageAssetPath;
+  final String? photoUrl;
 
   @override
   Widget build(BuildContext context) {
-    final hasImage =
-        imageAssetPath != null && imageAssetPath!.trim().isNotEmpty;
-
+    final url = photoUrl?.trim();
     return SizedBox(
       width: 72,
       height: 72,
-      child: Container(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: hasImage ? Colors.transparent : OmniColors.violetSoft,
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: hasImage
-            ? Image.asset(
-                imageAssetPath!,
+      child: ClipOval(
+        child: url == null || url.isEmpty
+            ? _InitialsFallback(name: name)
+            : Image.network(
+                url,
+                key: const ValueKey('doctor-network-photo'),
                 fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) =>
-                    _InitialsFallback(name: name),
-              )
-            : _InitialsFallback(name: name),
+                errorBuilder: (_, _, _) => _InitialsFallback(name: name),
+              ),
       ),
     );
   }
@@ -144,15 +181,16 @@ class _InitialsFallback extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        _initials(name),
-        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-          fontSize: 24,
-          height: 1,
-          fontWeight: FontWeight.w700,
-          color: OmniColors.slateBlue,
-          letterSpacing: -0.5,
+    return ColoredBox(
+      key: const ValueKey('doctor-photo-fallback'),
+      color: OmniColors.violetSoft,
+      child: Center(
+        child: Text(
+          _initials(name),
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+            color: OmniColors.slateBlue,
+          ),
         ),
       ),
     );
@@ -160,165 +198,129 @@ class _InitialsFallback extends StatelessWidget {
 }
 
 String _initials(String name) {
-  final cleaned = name.trim();
-  if (cleaned.isEmpty) return '?';
-
-  final withoutPrefix = cleaned.replaceFirst(RegExp(r'^Dr\.\s*'), '');
-  final parts = withoutPrefix
+  final parts = name
+      .trim()
+      .replaceFirst(RegExp(r'^Dr\.?\s*', caseSensitive: false), '')
       .split(RegExp(r'\s+'))
-      .where((p) => p.isNotEmpty)
+      .where((part) => part.isNotEmpty)
       .toList();
-
   if (parts.isEmpty) return '?';
-  if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
-  return '${parts.first.substring(0, 1)}${parts.last.substring(0, 1)}'
-      .toUpperCase();
+  if (parts.length == 1) return parts.first[0].toUpperCase();
+  return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
 }
 
-class _SpecialtyRow extends StatelessWidget {
-  const _SpecialtyRow({required this.specialty});
-
-  final String specialty;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Icon(
-          Icons.local_hospital_outlined,
-          size: 13,
-          color: OmniColors.violet,
-        ),
-        const SizedBox(width: 4),
-        Flexible(
-          child: Text(
-            specialty,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              fontSize: 13,
-              height: 1.3,
-              fontWeight: FontWeight.w600,
-              color: OmniColors.violet,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ProfileMetaRow extends StatelessWidget {
-  const _ProfileMetaRow({required this.experienceLabel});
-
-  final String experienceLabel;
-
-  @override
-  Widget build(BuildContext context) {
-    if (experienceLabel.isEmpty) return const SizedBox.shrink();
-    return Wrap(
-      spacing: 10,
-      runSpacing: 4,
-      children: [
-        _CardMetaItem(
-          icon: Icons.work_outline_rounded,
-          label: experienceLabel,
-        ),
-      ],
-    );
-  }
-}
-
-class _CardMetaItem extends StatelessWidget {
-  const _CardMetaItem({required this.icon, required this.label});
+class _Meta extends StatelessWidget {
+  const _Meta({required this.icon, required this.label});
 
   final IconData icon;
   final String label;
 
-  static const _color = OmniColors.textTertiary;
-
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 13, color: _color),
+        Icon(icon, size: 13, color: OmniColors.textTertiary),
         const SizedBox(width: 3),
         Text(
           label,
-          style: Theme.of(
-            context,
-          ).textTheme.bodySmall?.copyWith(fontSize: 12, color: _color),
-        ),
-      ],
-    );
-  }
-}
-
-class _LocationRow extends StatelessWidget {
-  const _LocationRow({required this.address, required this.distanceKm});
-
-  final String? address;
-  final double? distanceKm;
-
-  @override
-  Widget build(BuildContext context) {
-    final displayText = _buildDisplayText();
-    if (displayText == null) return const SizedBox.shrink();
-
-    return Row(
-      children: [
-        const Icon(
-          Icons.location_on_outlined,
-          size: 13,
-          color: OmniColors.infoBlue,
-        ),
-        const SizedBox(width: 4),
-        Flexible(
-          child: Text(
-            displayText,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              fontSize: 12,
-              color: OmniColors.textSecondary,
-            ),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            fontSize: 12,
+            color: OmniColors.textTertiary,
           ),
         ),
       ],
     );
   }
+}
 
-  String? _buildDisplayText() {
-    if (distanceKm != null && address != null) {
-      return '$address · ${distanceKm!.toStringAsFixed(1)} km';
+class _MatchingLocation extends StatelessWidget {
+  const _MatchingLocation({required this.doctor});
+
+  final DoctorListItem doctor;
+
+  @override
+  Widget build(BuildContext context) {
+    final location = doctor.matchingPracticeLocation;
+    final placeParts = <String>[];
+    if (location?.city case final city?) placeParts.add(city);
+    if (location?.governorate case final governorate?) {
+      placeParts.add(governorate);
     }
-    if (distanceKm != null) {
-      return '${distanceKm!.toStringAsFixed(1)} km';
-    }
-    return address;
+    final place = placeParts.join(', ');
+    final distance = location?.distanceKm ?? doctor.distanceKm;
+    final detail = [
+      if (place.isNotEmpty) place,
+      if (distance != null) '${distance.toStringAsFixed(1)} km',
+    ].join(' · ');
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(top: 2),
+          child: Icon(
+            Icons.location_on_outlined,
+            size: 14,
+            color: OmniColors.infoBlue,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (location != null)
+                Text(
+                  location.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: OmniColors.textSecondary,
+                  ),
+                ),
+              if (detail.isNotEmpty)
+                Text(
+                  detail,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: OmniColors.textTertiary,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }
 
-class _CompletBadge extends StatelessWidget {
+class _Badge extends StatelessWidget {
+  const _Badge({
+    required this.label,
+    required this.color,
+    required this.background,
+  });
+
+  final String label;
+  final Color color;
+  final Color background;
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: OmniSpacing.sm,
-        vertical: 2,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: OmniColors.amberSoft,
+        color: background,
         borderRadius: BorderRadius.circular(OmniRadii.pill),
       ),
       child: Text(
-        'Complet',
+        label,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: FontWeight.w600,
-          color: OmniColors.amber,
+          color: color,
         ),
       ),
     );

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../request_core/application/request_submission_controller.dart';
 import '../../request_core/domain/request_vocabulary.dart';
+import '../../patient_doctor/application/doctor_discovery_context.dart';
 import 'who_needs_care_screen.dart';
 
 /// Entry point of the Doctor Cabinet request flow.
@@ -26,10 +27,15 @@ class _DoctorCabinetEntryScreenState extends State<DoctorCabinetEntryScreen> {
   @override
   void initState() {
     super.initState();
-    context.read<RequestSubmissionController>().beginNewRequest();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<RequestSubmissionController>().beginNewRequest();
+    });
   }
 
   @override
-  Widget build(BuildContext context) =>
-      const WhoNeedsCareScreen(requestKind: RequestKind.doctor);
+  Widget build(BuildContext context) => const WhoNeedsCareScreen(
+    requestKind: RequestKind.doctor,
+    doctorDiscoveryContext: DoctorDiscoveryContext.cabinetNewPatient,
+  );
 }

@@ -6,7 +6,11 @@ import '../../../core/theme/omni_theme.dart';
 import '../../../features/home/add_family_member_screen.dart';
 import '../../../features/patient_clinic/presentation/clinic_directory_screen.dart';
 import '../../../features/patient_doctor/presentation/doctor_directory_screen.dart';
+import '../../../features/patient_doctor/application/doctor_discovery_context.dart';
 import '../../../providers/family_provider.dart';
+import '../../../providers/user_provider.dart';
+import '../../scheduled_care/application/scheduled_care_controller.dart';
+import '../../scheduled_care_prototype/scheduled_care_controller.dart';
 import '../../request_core/application/request_submission_controller.dart';
 import '../../request_core/domain/request_vocabulary.dart';
 import '../widgets/care_subject_card.dart';
@@ -19,9 +23,14 @@ import '../widgets/care_subject_card.dart';
 /// - "Add family member" tile completes the grid
 /// - Selection is local; Continue commits the choice
 class WhoNeedsCareScreen extends StatefulWidget {
-  const WhoNeedsCareScreen({super.key, this.requestKind = RequestKind.clinic});
+  const WhoNeedsCareScreen({
+    super.key,
+    this.requestKind = RequestKind.clinic,
+    this.doctorDiscoveryContext = DoctorDiscoveryContext.generic,
+  });
 
   final RequestKind requestKind;
+  final DoctorDiscoveryContext doctorDiscoveryContext;
 
   @override
   State<WhoNeedsCareScreen> createState() => _WhoNeedsCareScreenState();
@@ -44,6 +53,15 @@ class _WhoNeedsCareScreenState extends State<WhoNeedsCareScreen> {
 
   void _continue() {
     final request = context.read<RequestSubmissionController>();
+    final isScheduledDoctorFlow = widget.requestKind == RequestKind.doctor;
+    var selfDisplayName = 'Moi';
+    try {
+      selfDisplayName =
+          context.read<UserProvider>().profile?.displayName ?? selfDisplayName;
+    } on ProviderNotFoundException {
+      // The reusable flow can be hosted without the signed-in profile in tests
+      // and isolated prototype previews.
+    }
 
     if (_selectedMember == null) {
       request.selectSelfSubject();
@@ -51,10 +69,52 @@ class _WhoNeedsCareScreenState extends State<WhoNeedsCareScreen> {
       request.selectFamilyMemberSubject(_selectedMember!);
     }
 
-    if (widget.requestKind == RequestKind.doctor) {
-      Navigator.of(
-        context,
-      ).push(MaterialPageRoute(builder: (_) => const DoctorDirectoryScreen()));
+    if (isScheduledDoctorFlow) {
+      final selectedMember = _selectedMember;
+      final controller = context.read<ScheduledCareController?>();
+      if (controller != null) {
+        if (selectedMember == null) {
+          controller.selectSelf(displayName: selfDisplayName);
+        } else {
+          controller.selectFamilyMember(
+            familyMemberId: selectedMember.id,
+            displayName: selectedMember.fullName,
+            relationshipLabel: FamilyRelationships.frenchLabel(
+              selectedMember.relationship,
+            ),
+          );
+        }
+        controller.connectRealtime();
+      }
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) {
+            final screen = DoctorDirectoryScreen(
+              discoveryContext: widget.doctorDiscoveryContext,
+              scheduledBookingWorkflow: true,
+            );
+            if (controller != null) return screen;
+            return ChangeNotifierProvider(
+              create: (_) {
+                final fallback = ScheduledCarePrototypeController();
+                if (selectedMember == null) {
+                  fallback.selectSelf(displayName: selfDisplayName);
+                } else {
+                  fallback.selectFamilyMember(
+                    familyMemberId: selectedMember.id,
+                    displayName: selectedMember.fullName,
+                    relationshipLabel: FamilyRelationships.frenchLabel(
+                      selectedMember.relationship,
+                    ),
+                  );
+                }
+                return fallback;
+              },
+              child: screen,
+            );
+          },
+        ),
+      );
     } else {
       Navigator.of(
         context,

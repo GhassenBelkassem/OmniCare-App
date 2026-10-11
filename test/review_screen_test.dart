@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'package:omnicare_mobile/core/api/family_api.dart';
 import 'package:omnicare_mobile/core/models/family_models.dart';
+import 'package:omnicare_mobile/core/storage/secure_token_store.dart';
 import 'package:omnicare_mobile/core/theme/omni_theme.dart';
 import 'package:omnicare_mobile/features/patient_clinic/application/patient_clinic_directory_controller.dart';
 import 'package:omnicare_mobile/features/patient_clinic/data/patient_clinic_models.dart';
@@ -16,26 +15,32 @@ import 'package:omnicare_mobile/features/request_core/data/request_models.dart';
 import 'package:omnicare_mobile/features/request_core/data/request_repository.dart';
 import 'package:omnicare_mobile/features/request_core/domain/clinic_request_intent.dart';
 import 'package:omnicare_mobile/features/request_core/domain/request_vocabulary.dart';
+import 'package:omnicare_mobile/features/request_core/identity/in_flight_request_store.dart';
 import 'package:omnicare_mobile/features/request_core/identity/request_operation_id.dart';
 import 'package:omnicare_mobile/features/request_flow/screens/review_screen.dart';
 import 'package:omnicare_mobile/providers/family_provider.dart';
 import 'package:omnicare_mobile/repositories/family_repository.dart';
 
 // ---------------------------------------------------------------------------
-// Fake HTTP overrides to prevent CachedNetworkImage from hanging
-// ---------------------------------------------------------------------------
-
-class _FakeHttpOverrides extends HttpOverrides {
-  @override
-  HttpClient createHttpClient(SecurityContext? context) {
-    return super.createHttpClient(context)
-      ..badCertificateCallback = (_, __, ___) => true;
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Fakes
 // ---------------------------------------------------------------------------
+
+class _MemorySecureBackend implements SecureTokenStorageBackend {
+  final Map<String, String> _values = {};
+
+  @override
+  Future<String?> read({required String key}) async => _values[key];
+
+  @override
+  Future<void> write({required String key, required String value}) async {
+    _values[key] = value;
+  }
+
+  @override
+  Future<void> delete({required String key}) async {
+    _values.remove(key);
+  }
+}
 
 class _FakeRequestRepository implements RequestRepository {
   @override
@@ -43,8 +48,7 @@ class _FakeRequestRepository implements RequestRepository {
     required RequestOperationId requestId,
     required ClinicRequestIntent intent,
     CancelToken? cancelToken,
-  }) async =>
-      throw UnimplementedError();
+  }) async => throw UnimplementedError();
 
   @override
   Future<PatientRequestPage> listRequests({
@@ -52,32 +56,34 @@ class _FakeRequestRepository implements RequestRepository {
     int? pageSize,
     PatientRequestListFilter? filter,
     CancelToken? cancelToken,
-  }) async =>
-      throw UnimplementedError();
+  }) async => throw UnimplementedError();
 
   @override
   Future<PatientRequest> getRequest(
     RequestOperationId requestId, {
     CancelToken? cancelToken,
-  }) async =>
-      throw UnimplementedError();
+  }) async => throw UnimplementedError();
 
   @override
   Future<PatientRequest> cancelRequest({
     required RequestOperationId requestId,
     required int expectedVersion,
     CancelToken? cancelToken,
-  }) async =>
-      throw UnimplementedError();
+  }) async => throw UnimplementedError();
 
   @override
   Future<PatientRequest> respondToInformationRequest({
     required RequestOperationId requestId,
     required PatientInformationResponsePayload payload,
     CancelToken? cancelToken,
-  }) async =>
-      throw UnimplementedError();
+  }) async => throw UnimplementedError();
 }
+
+RequestSubmissionController _newRequestController() =>
+    RequestSubmissionController(
+      repository: _FakeRequestRepository(),
+      inFlightStore: InFlightRequestStore(backend: _MemorySecureBackend()),
+    );
 
 class _FakePatientClinicRepository implements PatientClinicRepository {
   @override
@@ -87,28 +93,25 @@ class _FakePatientClinicRepository implements PatientClinicRepository {
     int? page,
     int? pageSize,
     CancelToken? cancelToken,
-  }) async =>
-      throw UnimplementedError();
+  }) async => throw UnimplementedError();
 
   @override
   Future<PatientClinicDetail> getClinic(
     String clinicId, {
     CancelToken? cancelToken,
-  }) async =>
-      PatientClinicDetail(
-        clinicId: clinicId,
-        displayName: 'Clinique Les Oliviers',
-        about: 'A test clinic.',
-        city: 'Tunis',
-        governorate: 'Bardo',
-        gallery: const [],
-        acceptingRequests: true,
-      );
+  }) async => PatientClinicDetail(
+    clinicId: clinicId,
+    displayName: 'Clinique Les Oliviers',
+    about: 'A test clinic.',
+    city: 'Tunis',
+    governorate: 'Bardo',
+    gallery: const [],
+    acceptingRequests: true,
+  );
 }
 
 class _FakeFamilyRepository extends FamilyRepository {
-  _FakeFamilyRepository({this.members = const []})
-      : super(api: _stubApi);
+  _FakeFamilyRepository({this.members = const []}) : super(api: _stubApi);
 
   static final _stubApi = FamilyApi();
   final List<FamilyMember> members;
@@ -156,13 +159,14 @@ Future<void> _pumpReviewScreen(
   FamilyProvider? familyProvider,
   List<FamilyMember>? members,
 }) async {
-  final requestController =
-      request ?? RequestSubmissionController(repository: _FakeRequestRepository());
+  final requestController = request ?? _newRequestController();
   final directoryController = directory ?? await _buildDirectory();
-  final fp = familyProvider ??
-      FamilyProvider(
-        repository: _FakeFamilyRepository(members: members ?? []),
-      );
+  final fp =
+      familyProvider ??
+      FamilyProvider(repository: _FakeFamilyRepository(members: members ?? []));
+  if (members != null && !fp.hasMembers) {
+    await fp.loadFamilyMembers();
+  }
 
   await tester.pumpWidget(
     MultiProvider(
@@ -175,10 +179,7 @@ Future<void> _pumpReviewScreen(
         ),
         ChangeNotifierProvider<FamilyProvider>.value(value: fp),
       ],
-      child: MaterialApp(
-        theme: buildOmniTheme(),
-        home: const ReviewScreen(),
-      ),
+      child: MaterialApp(theme: buildOmniTheme(), home: const ReviewScreen()),
     ),
   );
   await tester.pump();
@@ -190,9 +191,7 @@ Future<RequestSubmissionController> _buildReadyRequest({
   RequestSituation situation = RequestSituation.appointment,
   String clinicId = 'clinic-001',
 }) async {
-  final controller = RequestSubmissionController(
-    repository: _FakeRequestRepository(),
-  );
+  final controller = _newRequestController();
   await controller.beginNewRequest();
   controller.selectClinic(clinicId);
   controller.selectSituation(situation);
@@ -233,8 +232,9 @@ void main() {
       expect(decoration.borderRadius, isNotNull);
     });
 
-    testWidgets('old separate PATIENT/CLINIC/SITUATION cards are removed',
-        (tester) async {
+    testWidgets('old separate PATIENT/CLINIC/SITUATION cards are removed', (
+      tester,
+    ) async {
       await _pumpReviewScreen(tester);
       // Old uppercase section labels should not appear
       expect(find.text('PATIENT'), findsNothing);
@@ -249,8 +249,9 @@ void main() {
       expect(find.textContaining('Tunis'), findsOneWidget);
     });
 
-    testWidgets('clinic accepting state renders when available',
-        (tester) async {
+    testWidgets('clinic accepting state renders when available', (
+      tester,
+    ) async {
       final request = await _buildReadyRequest();
       await _pumpReviewScreen(tester, request: request);
       expect(find.text('Accepting requests'), findsOneWidget);
@@ -266,11 +267,7 @@ void main() {
       final member = _member();
       final request = await _buildReadyRequest();
       request.selectFamilyMemberSubject(member);
-      await _pumpReviewScreen(
-        tester,
-        request: request,
-        members: [member],
-      );
+      await _pumpReviewScreen(tester, request: request, members: [member]);
       expect(find.text('Aicha Mechergui'), findsOneWidget);
     });
 
@@ -299,9 +296,7 @@ void main() {
     });
 
     testWidgets('Planned/Appointment mapping is correct', (tester) async {
-      final controller = RequestSubmissionController(
-        repository: _FakeRequestRepository(),
-      );
+      final controller = _newRequestController();
       await controller.beginNewRequest();
       controller.selectClinic('clinic-001');
       controller.selectSituation(RequestSituation.appointment);
@@ -311,9 +306,7 @@ void main() {
     });
 
     testWidgets('Urgent mapping is correct', (tester) async {
-      final controller = RequestSubmissionController(
-        repository: _FakeRequestRepository(),
-      );
+      final controller = _newRequestController();
       await controller.beginNewRequest();
       controller.selectClinic('clinic-001');
       controller.selectSituation(RequestSituation.urgent);
@@ -323,9 +316,7 @@ void main() {
     });
 
     testWidgets('Transport mapping is correct', (tester) async {
-      final controller = RequestSubmissionController(
-        repository: _FakeRequestRepository(),
-      );
+      final controller = _newRequestController();
       await controller.beginNewRequest();
       controller.selectClinic('clinic-001');
       controller.selectSituation(RequestSituation.ambulance);
@@ -334,8 +325,9 @@ void main() {
       expect(find.text('Medical transport'), findsOneWidget);
     });
 
-    testWidgets('Change patient action retains existing behavior',
-        (tester) async {
+    testWidgets('Change patient action retains existing behavior', (
+      tester,
+    ) async {
       await _pumpReviewScreen(tester);
       // Tap the Change button next to Patient
       final changeButtons = find.text('Change');
@@ -347,8 +339,9 @@ void main() {
       expect(find.text('Who needs care?'), findsOneWidget);
     });
 
-    testWidgets('Change clinic action retains existing behavior',
-        (tester) async {
+    testWidgets('Change clinic action retains existing behavior', (
+      tester,
+    ) async {
       await _pumpReviewScreen(tester);
       final changeButtons = find.text('Change');
       // Clinic Change should be the second one (first is Patient, but clinic
@@ -358,8 +351,9 @@ void main() {
       expect(changeButtons, findsWidgets);
     });
 
-    testWidgets('Change care-type action retains existing behavior',
-        (tester) async {
+    testWidgets('Change care-type action retains existing behavior', (
+      tester,
+    ) async {
       await _pumpReviewScreen(tester);
       final changeButtons = find.text('Change');
       // Care type Change is the second Change button (after Patient)
@@ -368,40 +362,28 @@ void main() {
       await tester.tap(changeButtons.at(1));
       await tester.pumpAndSettle();
       // Should navigate to SituationScreen
-      expect(
-        find.text('What kind of care do you need?'),
-        findsOneWidget,
-      );
+      expect(find.text('What kind of care do you need?'), findsOneWidget);
     });
 
     testWidgets('Change semantics are target-specific', (tester) async {
       await _pumpReviewScreen(tester);
       // Check semantic labels for Change actions
       final patientChange = find.byWidgetPredicate(
-        (w) =>
-            w is Semantics &&
-            w.properties.label == 'Change patient',
+        (w) => w is Semantics && w.properties.label == 'Change patient',
       );
       expect(patientChange, findsOneWidget);
 
       final careTypeChange = find.byWidgetPredicate(
-        (w) =>
-            w is Semantics &&
-            w.properties.label == 'Change care type',
+        (w) => w is Semantics && w.properties.label == 'Change care type',
       );
       expect(careTypeChange, findsOneWidget);
     });
 
     testWidgets('What happens after you send renders', (tester) async {
       await _pumpReviewScreen(tester);
+      expect(find.text('What happens after you send?'), findsOneWidget);
       expect(
-        find.text('What happens after you send?'),
-        findsOneWidget,
-      );
-      expect(
-        find.textContaining(
-          'The clinic reviews your request',
-        ),
+        find.textContaining('The clinic reviews your request'),
         findsOneWidget,
       );
     });
@@ -429,7 +411,10 @@ void main() {
       // inside the ListView
       final listView = tester.widget<ListView>(find.byType(ListView));
       // ListView should have only 1 child (the review container)
-      expect((listView.childrenDelegate as SliverChildListDelegate).children.length, 1);
+      expect(
+        (listView.childrenDelegate as SliverChildListDelegate).children.length,
+        1,
+      );
     });
 
     testWidgets('old Review request title is removed', (tester) async {
@@ -449,9 +434,7 @@ void main() {
     });
 
     testWidgets('pickup location renders for ambulance', (tester) async {
-      final controller = RequestSubmissionController(
-        repository: _FakeRequestRepository(),
-      );
+      final controller = _newRequestController();
       await controller.beginNewRequest();
       controller.selectClinic('clinic-001');
       controller.selectSituation(RequestSituation.ambulance);

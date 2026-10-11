@@ -126,7 +126,9 @@ void main() {
 
         expect(find.text('Request received'), findsWidgets);
         expect(
-          find.text('The clinic has received your request.'),
+          find.text(
+            'The clinic has received your request and will review it shortly.',
+          ),
           findsWidgets,
         );
 
@@ -177,7 +179,9 @@ void main() {
 
         expect(find.text('Under review'), findsWidgets);
         expect(
-          find.text('The clinic is reviewing your request.'),
+          find.text(
+            'The clinic has received your request and will review it shortly.',
+          ),
           findsWidgets,
         );
 
@@ -259,42 +263,36 @@ void main() {
 
     // ── 4. SCHEDULING_IN_PROGRESS ────────────────────────────────────
 
-    testWidgets(
-      'SCHEDULING_IN_PROGRESS — label, blue accent',
-      (tester) async {
-        final gateway = _Gateway()
-          ..detail = _request(status: PatientRequestStatus.schedulingInProgress);
-        final controller = PatientRequestsController(repository: gateway);
-        await controller.loadDetail(_requestId);
+    testWidgets('SCHEDULING_IN_PROGRESS — label, blue accent', (tester) async {
+      final gateway = _Gateway()
+        ..detail = _request(status: PatientRequestStatus.schedulingInProgress);
+      final controller = PatientRequestsController(repository: gateway);
+      await controller.loadDetail(_requestId);
 
-        await tester.pumpWidget(
-          _host(controller, PatientRequestDetailScreen(requestId: _requestId)),
-        );
-        await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        _host(controller, PatientRequestDetailScreen(requestId: _requestId)),
+      );
+      await tester.pumpAndSettle();
 
-        expect(find.text('Scheduling'), findsWidgets);
-        expect(
-          find.text('The clinic is arranging the next step.'),
-          findsWidgets,
-        );
+      expect(find.text('Scheduling'), findsWidgets);
+      expect(find.text('The clinic is arranging the next step.'), findsWidgets);
 
-        final journey = PatientRequestJourneyMapper.fromStatus(
-          PatientRequestStatus.schedulingInProgress,
-        );
-        expect(
-          journey.stages.any(
-            (s) =>
-                s.stage == PatientRequestJourneyStage.scheduling &&
-                s.state == PatientRequestJourneyStageState.current,
-          ),
-          isTrue,
-        );
-        expect(journey.terminal, isNull);
+      final journey = PatientRequestJourneyMapper.fromStatus(
+        PatientRequestStatus.schedulingInProgress,
+      );
+      expect(
+        journey.stages.any(
+          (s) =>
+              s.stage == PatientRequestJourneyStage.scheduling &&
+              s.state == PatientRequestJourneyStageState.current,
+        ),
+        isTrue,
+      );
+      expect(journey.terminal, isNull);
 
-        await tester.pumpWidget(const SizedBox());
-        controller.dispose();
-      },
-    );
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+    });
 
     // ── 5. WAITING_FOR_CONFIRMATION ──────────────────────────────────
 
@@ -359,10 +357,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('Confirmed'), findsWidgets);
-        expect(
-          find.text('Your request has been confirmed.'),
-          findsWidgets,
-        );
+        expect(find.text('Your request has been confirmed.'), findsWidgets);
 
         final journey = PatientRequestJourneyMapper.fromStatus(
           PatientRequestStatus.confirmed,
@@ -384,42 +379,36 @@ void main() {
 
     // ── 7. CARE_IN_PROGRESS ──────────────────────────────────────────
 
-    testWidgets(
-      'CARE_IN_PROGRESS — label, cyan accent',
-      (tester) async {
-        final gateway = _Gateway()
-          ..detail = _request(status: PatientRequestStatus.careInProgress);
-        final controller = PatientRequestsController(repository: gateway);
-        await controller.loadDetail(_requestId);
+    testWidgets('CARE_IN_PROGRESS — label, cyan accent', (tester) async {
+      final gateway = _Gateway()
+        ..detail = _request(status: PatientRequestStatus.careInProgress);
+      final controller = PatientRequestsController(repository: gateway);
+      await controller.loadDetail(_requestId);
 
-        await tester.pumpWidget(
-          _host(controller, PatientRequestDetailScreen(requestId: _requestId)),
-        );
-        await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        _host(controller, PatientRequestDetailScreen(requestId: _requestId)),
+      );
+      await tester.pumpAndSettle();
 
-        expect(find.text('Care in progress'), findsWidgets);
-        expect(
-          find.text('Your care is currently in progress.'),
-          findsWidgets,
-        );
+      expect(find.text('Care in progress'), findsWidgets);
+      expect(find.text('Your care is currently in progress.'), findsWidgets);
 
-        final journey = PatientRequestJourneyMapper.fromStatus(
-          PatientRequestStatus.careInProgress,
-        );
-        expect(
-          journey.stages.any(
-            (s) =>
-                s.stage == PatientRequestJourneyStage.care &&
-                s.state == PatientRequestJourneyStageState.current,
-          ),
-          isTrue,
-        );
-        expect(journey.terminal, isNull);
+      final journey = PatientRequestJourneyMapper.fromStatus(
+        PatientRequestStatus.careInProgress,
+      );
+      expect(
+        journey.stages.any(
+          (s) =>
+              s.stage == PatientRequestJourneyStage.care &&
+              s.state == PatientRequestJourneyStageState.current,
+        ),
+        isTrue,
+      );
+      expect(journey.terminal, isNull);
 
-        await tester.pumpWidget(const SizedBox());
-        controller.dispose();
-      },
-    );
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+    });
 
     // ── 8. COMPLETED — terminal ──────────────────────────────────────
 
@@ -440,10 +429,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('Completed'), findsWidgets);
-        expect(
-          find.text('This request has been completed.'),
-          findsWidgets,
-        );
+        expect(find.text('This request has been completed.'), findsWidgets);
 
         final journey = PatientRequestJourneyMapper.fromStatus(
           PatientRequestStatus.completed,
@@ -452,14 +438,22 @@ void main() {
         expect(journey.stages.length, 6);
         expect(
           journey.stages.every(
-            (s) =>
-                s.state == PatientRequestJourneyStageState.completed,
+            (s) => s.state == PatientRequestJourneyStageState.completed,
           ),
           isTrue,
         );
 
-        expect(find.widgetWithText(OutlinedButton, 'Cancel request'), findsNothing);
-        expect(find.text('Request completed'), findsOneWidget);
+        expect(
+          find.widgetWithText(OutlinedButton, 'Cancel request'),
+          findsNothing,
+        );
+        expect(
+          find.descendant(
+            of: find.byType(PatientRequestJourneyWidget),
+            matching: find.text('Request completed'),
+          ),
+          findsOneWidget,
+        );
 
         await tester.pumpWidget(const SizedBox());
         controller.dispose();
@@ -501,7 +495,10 @@ void main() {
           PatientRequestJourneyStageState.completed,
         );
 
-        expect(find.widgetWithText(OutlinedButton, 'Cancel request'), findsNothing);
+        expect(
+          find.widgetWithText(OutlinedButton, 'Cancel request'),
+          findsNothing,
+        );
         expect(find.text('Request declined'), findsWidgets);
 
         await tester.pumpWidget(const SizedBox());
@@ -528,10 +525,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('Cancelled'), findsWidgets);
-        expect(
-          find.text('This request has been cancelled.'),
-          findsWidgets,
-        );
+        expect(find.text('This request has been cancelled.'), findsWidgets);
 
         final journey = PatientRequestJourneyMapper.fromStatus(
           PatientRequestStatus.cancelled,
@@ -544,8 +538,17 @@ void main() {
           PatientRequestJourneyStageState.completed,
         );
 
-        expect(find.widgetWithText(OutlinedButton, 'Cancel request'), findsNothing);
-        expect(find.text('Request cancelled'), findsOneWidget);
+        expect(
+          find.widgetWithText(OutlinedButton, 'Cancel request'),
+          findsNothing,
+        );
+        expect(
+          find.descendant(
+            of: find.byType(PatientRequestJourneyWidget),
+            matching: find.text('Request cancelled'),
+          ),
+          findsOneWidget,
+        );
 
         await tester.pumpWidget(const SizedBox());
         controller.dispose();
@@ -554,42 +557,41 @@ void main() {
 
     // ── 11. UNKNOWN ──────────────────────────────────────────────────
 
-    testWidgets(
-      'UNKNOWN — shows "Status updated" label, slateBlue accent',
-      (tester) async {
-        final gateway = _Gateway()
-          ..detail = _request(
-            status: PatientRequestStatus.unknown,
-            canCancel: false,
-          );
-        final controller = PatientRequestsController(repository: gateway);
-        await controller.loadDetail(_requestId);
-
-        await tester.pumpWidget(
-          _host(controller, PatientRequestDetailScreen(requestId: _requestId)),
+    testWidgets('UNKNOWN — shows "Status updated" label, slateBlue accent', (
+      tester,
+    ) async {
+      final gateway = _Gateway()
+        ..detail = _request(
+          status: PatientRequestStatus.unknown,
+          canCancel: false,
         );
-        await tester.pumpAndSettle();
+      final controller = PatientRequestsController(repository: gateway);
+      await controller.loadDetail(_requestId);
 
-        expect(find.text('Status updated'), findsOneWidget);
-        expect(
-          find.text('Check back for the latest request update.'),
-          findsOneWidget,
-        );
+      await tester.pumpWidget(
+        _host(controller, PatientRequestDetailScreen(requestId: _requestId)),
+      );
+      await tester.pumpAndSettle();
 
-        final journey = PatientRequestJourneyMapper.fromStatus(
-          PatientRequestStatus.unknown,
-        );
-        expect(journey.isUnknown, isTrue);
-        expect(journey.stages, isEmpty);
+      expect(find.text('Status updated'), findsOneWidget);
+      expect(
+        find.text('Check back for the latest request update.'),
+        findsOneWidget,
+      );
 
-        expect(
-          find.text('Request updated. Refresh for the latest status.'),
-          findsOneWidget,
-        );
+      final journey = PatientRequestJourneyMapper.fromStatus(
+        PatientRequestStatus.unknown,
+      );
+      expect(journey.isUnknown, isTrue);
+      expect(journey.stages, isEmpty);
 
-        await tester.pumpWidget(const SizedBox());
-        controller.dispose();
-      },
-    );
+      expect(
+        find.text('Request updated. Refresh for the latest status.'),
+        findsOneWidget,
+      );
+
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+    });
   });
 }

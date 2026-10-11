@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme/omni_theme.dart';
-import '../agenda/doctor_demo_appointment.dart';
+import '../../scheduled_care/data/scheduled_care_failure.dart';
 import '../demo/doctor_demo_profile.dart';
+import '../scheduled_care/doctor_scheduled_care_models.dart';
 import '../workspace/doctor_workspace_config.dart';
 import '../urgent/doctor_urgent_controller.dart';
 import 'doctor_home_demo_state.dart';
@@ -30,6 +31,12 @@ class DoctorHomeScreen extends StatelessWidget {
     this.workspaceConfig,
     this.demoState = DoctorHomeDemoState.normalDay,
     this.agendaNextAppointment,
+    this.useAgendaAuthority = false,
+    this.pendingScheduledRequests = const [],
+    this.pendingScheduledRequestCount,
+    this.scheduledCareFailure,
+    this.scheduledCareLoading = false,
+    this.onRetryScheduledCare,
     this.onOpenAgenda,
     this.onOpenUrgencies,
     this.urgentController,
@@ -39,7 +46,13 @@ class DoctorHomeScreen extends StatelessWidget {
   final Set<DoctorCapability> capabilities;
   final DoctorWorkspaceConfig? workspaceConfig;
   final DoctorHomeDemoState demoState;
-  final DoctorDemoAppointment? agendaNextAppointment;
+  final DoctorScheduledCareItem? agendaNextAppointment;
+  final bool useAgendaAuthority;
+  final List<DoctorScheduledCareItem> pendingScheduledRequests;
+  final int? pendingScheduledRequestCount;
+  final ScheduledCareFailure? scheduledCareFailure;
+  final bool scheduledCareLoading;
+  final VoidCallback? onRetryScheduledCare;
   final VoidCallback? onOpenAgenda;
   final VoidCallback? onOpenUrgencies;
   final DoctorUrgentController? urgentController;
@@ -51,19 +64,29 @@ class DoctorHomeScreen extends StatelessWidget {
       DoctorCapability.urgentRequests,
     );
     final hasHomeVisits = capabilities.contains(DoctorCapability.homeVisits);
+    final attentionItems = demoState.attentionItems.where(
+      (item) => item.kind != DoctorHomeAttentionKind.appointmentRequest,
+    );
     final hasAttention =
         capabilities.contains(DoctorCapability.workQueue) &&
-        demoState.attentionItems.isNotEmpty;
+        attentionItems.isNotEmpty;
     final nextAppointment = agendaNextAppointment == null
-        ? demoState.nextAppointment
+        ? (useAgendaAuthority ? null : demoState.nextAppointment)
         : DoctorHomeAppointment(
-            time: DateFormat('HH:mm').format(agendaNextAppointment!.dateTime),
-            patientName: agendaNextAppointment!.patientName,
-            reason: agendaNextAppointment!.reason,
-            location: agendaNextAppointment!.locationName,
-            relativeTime: 'Dans 45 min',
+            time: DateFormat(
+              'HH:mm',
+            ).format(agendaNextAppointment!.activeSlot.start),
+            patientName: agendaNextAppointment!.patientDisplayName,
+            reason: 'Rendez-vous confirmé',
+            location: agendaNextAppointment!.cabinet.name,
+            relativeTime: _relativeAppointmentLabel(
+              agendaNextAppointment!.activeSlot.start,
+              DateTime.now(),
+            ),
           );
     final hasNextAppointment = hasAgenda && nextAppointment != null;
+    final hasPendingScheduled =
+        hasAgenda && pendingScheduledRequests.isNotEmpty;
     final urgentStatus = urgentController == null
         ? demoState.urgentStatus
         : _homeUrgentStatus(urgentController!.state);
@@ -73,6 +96,7 @@ class DoctorHomeScreen extends StatelessWidget {
     final isQuietDay =
         !hasActiveConsultation &&
         !hasAttention &&
+        !hasPendingScheduled &&
         !hasNextAppointment &&
         !hasUrgentStatus;
 
@@ -91,6 +115,36 @@ class DoctorHomeScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _Greeting(profile: profile),
+              if (scheduledCareFailure != null) ...[
+                const SizedBox(height: OmniSpacing.md),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(OmniSpacing.md),
+                  decoration: BoxDecoration(
+                    color: OmniColors.error.withValues(alpha: .08),
+                    borderRadius: BorderRadius.circular(OmniRadii.field),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.error_outline_rounded,
+                        color: OmniColors.error,
+                      ),
+                      const SizedBox(width: OmniSpacing.sm),
+                      Expanded(child: Text(scheduledCareFailure!.message)),
+                      if (onRetryScheduledCare != null)
+                        TextButton(
+                          onPressed: onRetryScheduledCare,
+                          child: const Text('Réessayer'),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+              if (scheduledCareLoading) ...[
+                const SizedBox(height: OmniSpacing.sm),
+                const LinearProgressIndicator(),
+              ],
               if (hasActiveConsultation) ...[
                 const SizedBox(height: OmniSpacing.xl),
                 _ActiveConsultationBanner(
@@ -109,10 +163,9 @@ class DoctorHomeScreen extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Semantics(
-                        label:
-                            '${demoState.attentionItems.length} actions à traiter',
+                        label: '${attentionItems.length} actions à traiter',
                         child: Text(
-                          '${demoState.attentionItems.length}',
+                          '${attentionItems.length}',
                           style: Theme.of(context).textTheme.labelLarge
                               ?.copyWith(
                                 color: OmniColors.textSecondary,
@@ -131,7 +184,7 @@ class DoctorHomeScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: OmniSpacing.md),
-                _AttentionPreview(items: demoState.attentionItems.take(3)),
+                _AttentionPreview(items: attentionItems.take(3)),
               ],
               if (hasNextAppointment) ...[
                 const SizedBox(height: OmniSpacing.xxl),
@@ -139,6 +192,28 @@ class DoctorHomeScreen extends StatelessWidget {
                 const SizedBox(height: OmniSpacing.md),
                 _NextAppointmentCard(
                   appointment: nextAppointment,
+                  onOpenAgenda: onOpenAgenda,
+                ),
+              ],
+              if (hasPendingScheduled) ...[
+                const SizedBox(height: OmniSpacing.xxl),
+                _SectionHeader(
+                  title: 'Demandes de rendez-vous',
+                  trailing: Semantics(
+                    label:
+                        '${pendingScheduledRequestCount ?? pendingScheduledRequests.length} demandes en attente',
+                    child: Text(
+                      '${pendingScheduledRequestCount ?? pendingScheduledRequests.length}',
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: OmniColors.amber,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: OmniSpacing.md),
+                _ScheduledRequestCard(
+                  request: pendingScheduledRequests.first,
                   onOpenAgenda: onOpenAgenda,
                 ),
               ],
@@ -485,6 +560,66 @@ class _NextAppointmentCard extends StatelessWidget {
   );
 }
 
+class _ScheduledRequestCard extends StatelessWidget {
+  const _ScheduledRequestCard({
+    required this.request,
+    required this.onOpenAgenda,
+  });
+
+  final DoctorScheduledCareItem request;
+  final VoidCallback? onOpenAgenda;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    key: const ValueKey('doctor-home-pending-request'),
+    width: double.infinity,
+    padding: const EdgeInsets.all(OmniSpacing.base),
+    decoration: BoxDecoration(
+      color: OmniColors.amberSoft,
+      borderRadius: BorderRadius.circular(OmniRadii.card),
+      border: Border.all(color: OmniColors.amber.withValues(alpha: .3)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Réponse médecin attendue',
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+            color: OmniColors.amber,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: OmniSpacing.xs),
+        Text(
+          request.patientDisplayName,
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+        ),
+        Text(
+          '${request.relationshipLabel} · ${request.cabinet.name}',
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: OmniColors.textSecondary),
+        ),
+        const SizedBox(height: OmniSpacing.xs),
+        Text(
+          '${DateFormat('dd/MM · HH:mm').format(request.activeSlot.start)} · ${request.activeSlot.durationMinutes} min',
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: OmniSpacing.md),
+        TextButton.icon(
+          onPressed: onOpenAgenda,
+          icon: const Icon(Icons.calendar_month_rounded, size: 18),
+          label: const Text('Traiter dans l’agenda'),
+        ),
+      ],
+    ),
+  );
+}
+
 class _UrgentAvailabilityCard extends StatelessWidget {
   const _UrgentAvailabilityCard({
     required this.status,
@@ -721,3 +856,18 @@ class _IconCircle extends StatelessWidget {
     color: OmniColors.slateBlue,
   ),
 };
+
+String? _relativeAppointmentLabel(DateTime start, DateTime now) {
+  final difference = start.difference(now);
+  if (difference.isNegative) return null;
+  if (DateUtils.isSameDay(start, now)) {
+    final minutes = difference.inMinutes;
+    if (minutes < 60) return 'Dans $minutes min';
+    final hours = difference.inHours;
+    return 'Dans $hours h';
+  }
+  if (DateUtils.isSameDay(start, now.add(const Duration(days: 1)))) {
+    return 'Demain';
+  }
+  return DateFormat('dd/MM').format(start);
+}

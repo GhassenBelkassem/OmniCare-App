@@ -22,6 +22,7 @@ import 'qr_code_modal.dart';
 import 'patient_home_feed.dart';
 import '../profile/patient_profile_screen.dart';
 import '../patient_appointments/presentation/patient_appointments_screen.dart';
+import '../notifications/application/notification_controller.dart';
 import '../security/account_security_screen.dart';
 import '../security/device_management_screen.dart';
 import '../security/login_history_screen.dart';
@@ -34,21 +35,9 @@ import '../request_flow/screens/pickup_screen.dart';
 import '../request_flow/screens/review_screen.dart';
 import '../request_flow/screens/request_received_screen.dart';
 import '../patient_clinic/presentation/clinic_directory_screen.dart';
-import '../patient_doctor/presentation/doctor_directory_screen.dart';
-import '../patient_doctor/presentation/doctor_detail_screen.dart';
 import '../patient_passport/presentation/patient_passport_screen.dart';
 import '../request_history/presentation/my_requests_screen.dart';
-import '../emergency/emergency_request_step0.dart';
-import '../emergency/emergency_request_step1.dart';
-import '../emergency/emergency_request_step2.dart';
-import '../emergency/emergency_request_step3.dart';
-import '../emergency/emergency_review_screen.dart';
-import '../emergency/doctor_selection_screen.dart';
-import '../emergency/review_confirm_screen.dart';
-import '../emergency/doctor_calling_screen.dart';
-import '../emergency/doctor_arriving_screen.dart';
-import '../emergency/consultation_qr_screen.dart';
-import '../emergency/consultation_complete_screen.dart';
+import '../urgent_journey/presentation/p4_urgent_route_owner.dart';
 
 class NewHomeScreen extends StatefulWidget {
   const NewHomeScreen({super.key});
@@ -348,89 +337,21 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
       key: _patientContentNavigatorKey,
       initialRoute: '/patient-home',
       onGenerateRoute: (settings) {
-        // Emergency patient flow — arguments required for step2+.
-        if (settings.name == '/emergency-step2') {
-          final args = settings.arguments as Map<String, dynamic>;
+        final p4UrgentPage = P4UrgentRouteOwner.buildPage(settings);
+        if (p4UrgentPage != null) {
           return _buildPatientPageRoute(
-            builder: (_) => EmergencyRequestStep2(step1Data: args),
+            builder: (_) => p4UrgentPage,
             settings: settings,
           );
         }
-        if (settings.name == '/emergency-step3') {
-          final args = settings.arguments as Map<String, dynamic>;
-          return _buildPatientPageRoute(
-            builder: (_) => EmergencyRequestStep3(previousData: args),
-            settings: settings,
-          );
-        }
-        if (settings.name == '/emergency-review') {
-          final args = settings.arguments as Map<String, dynamic>;
-          return _buildPatientPageRoute(
-            builder: (_) => EmergencyReviewScreen(requestData: args),
-            settings: settings,
-          );
-        }
-        if (settings.name == '/doctor-selection') {
-          final args = settings.arguments as Map<String, dynamic>;
-          return _buildPatientPageRoute(
-            builder: (_) => DoctorSelectionScreen(emergencyData: args),
-            settings: settings,
-          );
-        }
-        if (settings.name == '/review-confirm') {
-          final args = settings.arguments as Map<String, dynamic>;
-          return _buildPatientPageRoute(
-            builder: (_) => ReviewConfirmScreen(requestData: args),
-            settings: settings,
-          );
-        }
-        if (settings.name == '/doctor-calling') {
-          final args = settings.arguments as Map<String, dynamic>;
-          return _buildPatientPageRoute(
-            builder: (_) => DoctorCallingScreen(requestData: args),
-            settings: settings,
-          );
-        }
-        if (settings.name == '/doctor-arriving') {
-          final args = settings.arguments as Map<String, dynamic>;
-          return _buildPatientPageRoute(
-            builder: (_) => DoctorArrivingScreen(requestData: args),
-            settings: settings,
-          );
-        }
-        if (settings.name == '/consultation-qr') {
-          final args = settings.arguments as Map<String, dynamic>;
-          return _buildPatientPageRoute(
-            builder: (_) => ConsultationQRScreen(requestData: args),
-            settings: settings,
-          );
-        }
-        if (settings.name == '/consultation-complete') {
-          final args = settings.arguments as Map<String, dynamic>;
-          return _buildPatientPageRoute(
-            builder: (_) => ConsultationCompleteScreen(requestData: args),
-            settings: settings,
-          );
-        }
-        if (settings.name == '/m05/doctor-detail') {
-          final args = settings.arguments as String;
-          return _buildPatientPageRoute(
-            builder: (_) => DoctorDetailScreen(doctorId: args),
-            settings: settings,
-          );
-        }
-
-        // Static routes — M05 clinic flow, emergency step0/1, and home.
+        // Static routes — M05 scheduled-care flow and home.
         final page = switch (settings.name) {
           '/patient-home' => _buildHomeTab(userName),
           '/provider-selection' => const ProviderSelectionScreen(),
-          '/emergency-step0' => const EmergencyRequestStep0(),
-          '/emergency-step1' => const EmergencyRequestStep1(),
           '/m05/request' => const RequestFlowEntryScreen(),
-          '/doctor/cabinet/who-needs-care' => const DoctorCabinetEntryScreen(),
           '/m05/who-needs-care' => const WhoNeedsCareScreen(),
           '/m05/clinic-directory' => const ClinicDirectoryScreen(),
-          '/m05/doctor-directory' => const DoctorDirectoryScreen(),
+          '/m05/doctor-directory' => const DoctorCabinetEntryScreen(),
           '/m05/situation' => const SituationScreen(),
           '/m05/pickup' => const PickupScreen(),
           '/m05/review' => const ReviewScreen(),
@@ -2508,167 +2429,6 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     );
   }
 
-  Widget _buildNotificationsTab() {
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 24),
-            Text(
-              'Notifications',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 24,
-                fontWeight: FontWeight.w800,
-                color: const Color(0xFF1A202C),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Restez informé de vos rendez-vous et résultats',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 13,
-                color: const Color(0xFF667085),
-              ),
-            ),
-            const SizedBox(height: 24),
-            _buildNotificationCard(
-              icon: Icons.calendar_today,
-              iconColor: const Color(0xFF1FBF9A),
-              title: 'Rendez-vous confirmé',
-              message:
-                  'Votre rendez-vous avec Dr. Ahmed Ben Salem est confirmé pour demain à 10h',
-              time: 'Il y a 2h',
-              isUnread: true,
-            ),
-            _buildNotificationCard(
-              icon: Icons.medication,
-              iconColor: const Color(0xFF0F6F73),
-              title: 'Rappel médicament',
-              message: 'N\'oubliez pas de prendre vos médicaments du soir',
-              time: 'Il y a 5h',
-              isUnread: true,
-            ),
-            _buildNotificationCard(
-              icon: Icons.description,
-              iconColor: const Color(0xFF8B5CF6),
-              title: 'Résultats disponibles',
-              message:
-                  'Vos résultats d\'analyse de sang sont maintenant disponibles',
-              time: 'Hier',
-              isUnread: false,
-            ),
-            _buildNotificationCard(
-              icon: Icons.favorite,
-              iconColor: const Color(0xFFDC2626),
-              title: 'Suivi de santé',
-              message: 'Pensez à mettre à jour votre carnet de santé',
-              time: 'Il y a 2 jours',
-              isUnread: false,
-            ),
-            const SizedBox(height: 100),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNotificationCard({
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String message,
-    required String time,
-    required bool isUnread,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isUnread
-            ? const Color(0xFF1FBF9A).withOpacity(0.05)
-            : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isUnread
-              ? const Color(0xFF1FBF9A).withOpacity(0.2)
-              : const Color(0xFFE2E8F0),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: iconColor, size: 24),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFF1A202C),
-                        ),
-                      ),
-                    ),
-                    if (isUnread)
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF1FBF9A),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  message,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 13,
-                    color: const Color(0xFF667085),
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  time,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 11,
-                    color: const Color(0xFF667085),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildUrgentDoctorModal() {
     return Container(
       decoration: const BoxDecoration(
@@ -2918,6 +2678,8 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
   }
 
   Widget _buildStickyHeader(String userName) {
+    final notificationController = context.watch<NotificationController?>();
+    final unreadCount = notificationController?.unreadCount ?? 0;
     return ClipRect(
       key: const ValueKey('patient-top-bar'),
       child: BackdropFilter(
@@ -2970,10 +2732,12 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                             elevation: 1,
                             child: InkWell(
                               customBorder: const CircleBorder(),
-                              onTap: () => Navigator.pushNamed(
-                                context,
-                                '/notifications',
-                              ),
+                              onTap: notificationController == null
+                                  ? null
+                                  : () => Navigator.pushNamed(
+                                      context,
+                                      '/notifications',
+                                    ),
                               child: const SizedBox(
                                 width: 40,
                                 height: 40,
@@ -2985,32 +2749,33 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                               ),
                             ),
                           ),
-                          Positioned(
-                            right: -3,
-                            top: -4,
-                            child: Container(
-                              width: 18,
-                              height: 18,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFEF4444),
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.white,
-                                  width: 2,
-                                ),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  '2',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 8.5,
-                                    fontWeight: FontWeight.w800,
+                          if (unreadCount > 0)
+                            Positioned(
+                              right: -3,
+                              top: -4,
+                              child: Container(
+                                width: 18,
+                                height: 18,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEF4444),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
                                     color: Colors.white,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    unreadCount > 99 ? '99+' : '$unreadCount',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 8.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.white,
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
-                          ),
                         ],
                       ),
                       const SizedBox(width: 8),

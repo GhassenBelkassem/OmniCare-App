@@ -2,17 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/theme/omni_theme.dart';
+import '../../../providers/family_provider.dart';
 import '../application/patient_appointments_controller.dart';
 import '../data/patient_appointment_models.dart';
 import 'patient_appointment_detail_screen.dart';
 import 'patient_appointment_filter_sheet.dart';
 import 'widgets/appointment_formatters.dart';
 import 'widgets/patient_appointment_card.dart';
+import '../../scheduled_care/application/scheduled_care_controller.dart';
 
 class PatientAppointmentsScreen extends StatefulWidget {
-  const PatientAppointmentsScreen({super.key, this.controller});
+  const PatientAppointmentsScreen({
+    super.key,
+    this.controller,
+    this.prototypeController,
+  });
 
   final PatientAppointmentsController? controller;
+  final Object? prototypeController;
 
   @override
   State<PatientAppointmentsScreen> createState() =>
@@ -27,7 +34,18 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
   void initState() {
     super.initState();
     _ownsController = widget.controller == null;
-    _controller = widget.controller ?? PatientAppointmentsController();
+    final scheduledCare = context.read<ScheduledCareController?>();
+    _controller =
+        widget.controller ??
+        PatientAppointmentsController(
+          scheduledCareController: scheduledCare,
+          prototypeController: scheduledCare == null
+              ? widget.prototypeController
+              : null,
+        );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _controller.load();
+    });
   }
 
   @override
@@ -72,9 +90,11 @@ class _PatientAppointmentsContentState
   }
 
   Future<void> _openFilters(PatientAppointmentsController controller) async {
+    final family = context.read<FamilyProvider?>();
     final filters = await showPatientAppointmentFilterSheet(
       context: context,
       appointments: controller.appointments,
+      familyMembers: family?.members ?? const [],
       initial: controller.filters,
     );
     if (filters != null && mounted) controller.setFilters(filters);
@@ -84,10 +104,11 @@ class _PatientAppointmentsContentState
     PatientAppointment appointment,
     PatientAppointmentsController controller,
   ) {
+    controller.loadDetail(appointment);
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => PatientAppointmentDetailScreen(
-          appointmentId: appointment.appointmentId,
+          appointmentId: appointment.resourceId,
           controller: controller,
         ),
       ),
@@ -150,7 +171,9 @@ class _PatientAppointmentsContentState
             ),
           ),
           Expanded(
-            child: appointments.isEmpty
+            child: controller.isLoading && appointments.isEmpty
+                ? const Center(child: CircularProgressIndicator())
+                : appointments.isEmpty
                 ? _EmptyAppointments(
                     tab: controller.tab,
                     filtersActive:
@@ -163,6 +186,9 @@ class _PatientAppointmentsContentState
                     tab: controller.tab,
                     onTap: (appointment) =>
                         _openDetail(appointment, controller),
+                    onLoadMore: controller.canLoadMore
+                        ? controller.loadMore
+                        : null,
                   ),
           ),
         ],
@@ -293,11 +319,13 @@ class _AppointmentsList extends StatelessWidget {
     required this.appointments,
     required this.tab,
     required this.onTap,
+    this.onLoadMore,
   });
 
   final List<PatientAppointment> appointments;
   final PatientAppointmentTab tab;
   final ValueChanged<PatientAppointment> onTap;
+  final VoidCallback? onLoadMore;
 
   @override
   Widget build(BuildContext context) {
@@ -342,17 +370,23 @@ class _AppointmentsList extends StatelessWidget {
         }
       }
     }
-    return ListView.separated(
-      key: PageStorageKey<String>('appointments-${tab.name}'),
-      padding: const EdgeInsets.fromLTRB(
-        OmniSpacing.pageHorizontal,
-        0,
-        OmniSpacing.pageHorizontal,
-        OmniSpacing.xxl,
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notification) {
+        if (notification.metrics.extentAfter < 240) onLoadMore?.call();
+        return false;
+      },
+      child: ListView.separated(
+        key: PageStorageKey<String>('appointments-${tab.name}'),
+        padding: const EdgeInsets.fromLTRB(
+          OmniSpacing.pageHorizontal,
+          0,
+          OmniSpacing.pageHorizontal,
+          OmniSpacing.xxl,
+        ),
+        itemCount: children.length,
+        separatorBuilder: (_, _) => const SizedBox(height: OmniSpacing.sm),
+        itemBuilder: (_, index) => children[index],
       ),
-      itemCount: children.length,
-      separatorBuilder: (_, _) => const SizedBox(height: OmniSpacing.sm),
-      itemBuilder: (_, index) => children[index],
     );
   }
 }

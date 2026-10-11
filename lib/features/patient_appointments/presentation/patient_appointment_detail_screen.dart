@@ -13,10 +13,12 @@ class PatientAppointmentDetailScreen extends StatelessWidget {
     super.key,
     required this.appointmentId,
     this.controller,
+    this.prototypeController,
   });
 
   final String appointmentId;
   final PatientAppointmentsController? controller;
+  final Object? prototypeController;
 
   @override
   Widget build(BuildContext context) {
@@ -65,12 +67,45 @@ class PatientAppointmentDetailScreen extends StatelessWidget {
               _datePanel(appointment),
               const SizedBox(height: OmniSpacing.base),
               _informationPanel(appointment),
+              if (appointment.status ==
+                      PatientAppointmentStatus.pendingPatientTimeConfirmation &&
+                  appointment.requestedStartAt != null) ...[
+                const SizedBox(height: OmniSpacing.base),
+                _PreparationPanel(
+                  text:
+                      'Demande initiale : ${formatAppointmentDate(appointment.requestedStartAt!)} · ${formatAppointmentTimeRange(appointment.requestedStartAt!, appointment.requestedEndAt!)}\nLe nouveau créneau attend votre confirmation.',
+                ),
+              ],
               if (appointment.preparationInstructions != null) ...[
                 const SizedBox(height: OmniSpacing.base),
                 _PreparationPanel(text: appointment.preparationInstructions!),
               ],
-              if (appointment.status == PatientAppointmentStatus.confirmed &&
-                  appointment.canCancel) ...[
+              if (appointment.status ==
+                  PatientAppointmentStatus.pendingPatientTimeConfirmation) ...[
+                const SizedBox(height: OmniSpacing.lg),
+                FilledButton(
+                  key: const ValueKey('appointment-accept-counterproposal'),
+                  onPressed: () => appointmentsController.acceptCounterproposal(
+                    appointment.resourceId,
+                  ),
+                  child: const Text('ACCEPTER CE CRÉNEAU'),
+                ),
+                const SizedBox(height: OmniSpacing.sm),
+                OutlinedButton(
+                  key: const ValueKey('appointment-decline-counterproposal'),
+                  onPressed: () => appointmentsController
+                      .declineCounterproposal(appointment.resourceId),
+                  child: const Text('Refuser'),
+                ),
+              ],
+              if (appointment.cancelledAt != null) ...[
+                const SizedBox(height: OmniSpacing.base),
+                _PreparationPanel(
+                  text:
+                      '${appointment.cancellationReason ?? 'Rendez-vous annulé'}${appointment.lateCancellation ? '\nAnnulation à moins de 24 h, sans pénalité financière.' : ''}',
+                ),
+              ],
+              if (appointment.canCancel) ...[
                 const SizedBox(height: OmniSpacing.lg),
                 OutlinedButton.icon(
                   key: const ValueKey('cancel-appointment'),
@@ -103,15 +138,22 @@ class PatientAppointmentDetailScreen extends StatelessWidget {
   }
 
   Widget _statusHeader(PatientAppointment appointment) {
+    final title = switch (appointment.status) {
+      PatientAppointmentStatus.pendingDoctor =>
+        'En attente de confirmation du médecin',
+      PatientAppointmentStatus.pendingPatientTimeConfirmation =>
+        'Nouveau créneau proposé',
+      PatientAppointmentStatus.confirmed => 'Rendez-vous confirmé',
+      PatientAppointmentStatus.completed => 'Rendez-vous terminé',
+      PatientAppointmentStatus.cancelledByPatient ||
+      PatientAppointmentStatus.cancelledByDoctor => 'Rendez-vous annulé',
+      PatientAppointmentStatus.expired => 'Demande expirée',
+    };
     return Row(
       children: [
         Expanded(
           child: Text(
-            appointment.status == PatientAppointmentStatus.confirmed
-                ? 'Rendez-vous confirmé'
-                : appointment.status == PatientAppointmentStatus.completed
-                ? 'Rendez-vous terminé'
-                : 'Rendez-vous annulé',
+            title,
             style: const TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w800,
@@ -236,12 +278,30 @@ class PatientAppointmentDetailScreen extends StatelessWidget {
     PatientAppointmentsController appointmentsController,
     PatientAppointment appointment,
   ) async {
+    var reason = '';
     final accepted = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Annuler ce rendez-vous ?'),
-        content: Text(
-          '${appointment.providerDisplayName}\n${formatAppointmentDate(appointment.startAt)} · ${formatAppointmentTimeRange(appointment.startAt, appointment.endAt)}\n\nCette action annulera votre rendez-vous.',
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${appointment.providerDisplayName}\n${formatAppointmentDate(appointment.startAt)} · ${formatAppointmentTimeRange(appointment.startAt, appointment.endAt)}\n\n${appointment.startAt.difference(DateTime.now()) < const Duration(hours: 24) ? 'Ce rendez-vous commence dans moins de 24 h. Vous pouvez toujours annuler, sans pénalité financière.' : 'Cette action libérera le créneau.'}',
+              ),
+              const SizedBox(height: OmniSpacing.base),
+              TextField(
+                key: const ValueKey('patient-cancellation-reason'),
+                onChanged: (value) => reason = value,
+                maxLines: 2,
+                decoration: const InputDecoration(
+                  labelText: 'Motif (facultatif)',
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -257,9 +317,19 @@ class PatientAppointmentDetailScreen extends StatelessWidget {
       ),
     );
     if (accepted == true && context.mounted) {
-      appointmentsController.cancelAppointment(appointment.appointmentId);
+      final cancelled = await appointmentsController.cancelAppointment(
+        appointment.resourceId,
+        reason: reason.trim().isEmpty ? null : reason.trim(),
+      );
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Rendez-vous annulé dans cette démo.')),
+        SnackBar(
+          content: Text(
+            cancelled
+                ? 'Rendez-vous annulé.'
+                : 'Impossible d’annuler. Les informations ont été actualisées.',
+          ),
+        ),
       );
     }
   }

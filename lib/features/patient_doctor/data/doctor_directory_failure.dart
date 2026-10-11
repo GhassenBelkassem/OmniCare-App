@@ -7,6 +7,7 @@ enum DoctorDirectoryFailureKind {
   network,
   timeout,
   contract,
+  validation,
   sessionExpired,
   notFound,
   server,
@@ -28,11 +29,12 @@ class DoctorDirectoryFailure implements Exception {
   final String message;
   final String diagnosticCode;
 
-  static const DoctorDirectoryFailure networkUnavailable = DoctorDirectoryFailure(
-    kind: DoctorDirectoryFailureKind.network,
-    message: 'Connection unavailable. Check your network and try again.',
-    diagnosticCode: 'DOCTOR_NETWORK_UNAVAILABLE',
-  );
+  static const DoctorDirectoryFailure networkUnavailable =
+      DoctorDirectoryFailure(
+        kind: DoctorDirectoryFailureKind.network,
+        message: 'Connection unavailable. Check your network and try again.',
+        diagnosticCode: 'DOCTOR_NETWORK_UNAVAILABLE',
+      );
 
   static const DoctorDirectoryFailure timedOut = DoctorDirectoryFailure(
     kind: DoctorDirectoryFailureKind.timeout,
@@ -44,6 +46,13 @@ class DoctorDirectoryFailure implements Exception {
     kind: DoctorDirectoryFailureKind.contract,
     message: 'The doctor directory could not be read safely. Please try again.',
     diagnosticCode: 'DOCTOR_RESPONSE_INVALID',
+  );
+
+  static const DoctorDirectoryFailure invalidSearch = DoctorDirectoryFailure(
+    kind: DoctorDirectoryFailureKind.validation,
+    message:
+        'Certains filtres ne peuvent pas être appliqués. Modifiez-les et réessayez.',
+    diagnosticCode: 'DOCTOR_SEARCH_INVALID',
   );
 
   static const DoctorDirectoryFailure sessionExpired = DoctorDirectoryFailure(
@@ -58,9 +67,11 @@ class DoctorDirectoryFailure implements Exception {
     diagnosticCode: 'DOCTOR_NOT_FOUND',
   );
 
-  static const DoctorDirectoryFailure serverUnavailable = DoctorDirectoryFailure(
+  static const DoctorDirectoryFailure
+  serverUnavailable = DoctorDirectoryFailure(
     kind: DoctorDirectoryFailureKind.server,
-    message: 'The doctor directory is temporarily unavailable. Please try again.',
+    message:
+        'The doctor directory is temporarily unavailable. Please try again.',
     diagnosticCode: 'DOCTOR_SERVER_ERROR',
   );
 
@@ -90,8 +101,9 @@ class DoctorDirectoryFailure implements Exception {
         return networkUnavailable;
       case DioExceptionType.badResponse:
         final status = error.response?.statusCode ?? 0;
-        if (status == 401) return sessionExpired;
+        if (status == 401 || status == 403) return sessionExpired;
         if (status == 404) return notFound;
+        if (status == 400 || status == 422) return invalidSearch;
         if (status >= 500) return serverUnavailable;
         return invalidResponse;
       case DioExceptionType.badCertificate:
@@ -101,7 +113,8 @@ class DoctorDirectoryFailure implements Exception {
   }
 
   bool get isNotFound => kind == DoctorDirectoryFailureKind.notFound;
-  bool get isSessionExpired => kind == DoctorDirectoryFailureKind.sessionExpired;
+  bool get isSessionExpired =>
+      kind == DoctorDirectoryFailureKind.sessionExpired;
 
   @override
   String toString() => 'DoctorDirectoryFailure(${kind.name}, $diagnosticCode)';

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -21,9 +23,13 @@ class _RequestFlowEntryScreenState extends State<RequestFlowEntryScreen> {
   @override
   void initState() {
     super.initState();
-    // Synchronous part of beginNewRequest mints the operation id; the async
-    // store clear may complete a moment later and is harmless.
-    context.read<RequestSubmissionController>().beginNewRequest();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      // beginNewRequest updates observable state synchronously, so it must run
+      // after the initial build has finished. Store cleanup is best-effort and
+      // handles its own failures.
+      unawaited(context.read<RequestSubmissionController>().beginNewRequest());
+    });
   }
 
   @override

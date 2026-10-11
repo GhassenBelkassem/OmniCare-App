@@ -11,6 +11,18 @@ class AppointmentStatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, icon, color, background) = switch (status) {
+      PatientAppointmentStatus.pendingDoctor => (
+        'Médecin à confirmer',
+        Icons.schedule_rounded,
+        OmniColors.amber,
+        OmniColors.warningSubtle,
+      ),
+      PatientAppointmentStatus.pendingPatientTimeConfirmation => (
+        'Votre réponse',
+        Icons.event_repeat_rounded,
+        OmniColors.violet,
+        OmniColors.violetSoft,
+      ),
       PatientAppointmentStatus.confirmed => (
         'Confirmé',
         Icons.check_circle_outline_rounded,
@@ -23,11 +35,23 @@ class AppointmentStatusChip extends StatelessWidget {
         OmniColors.slateBlue,
         OmniColors.slateSoft,
       ),
-      PatientAppointmentStatus.cancelled => (
-        'Annulé',
+      PatientAppointmentStatus.cancelledByPatient => (
+        'Annulé par vous',
         Icons.cancel_outlined,
         OmniColors.error,
         OmniColors.errorSoft,
+      ),
+      PatientAppointmentStatus.cancelledByDoctor => (
+        'Annulé par le médecin',
+        Icons.cancel_outlined,
+        OmniColors.error,
+        OmniColors.errorSoft,
+      ),
+      PatientAppointmentStatus.expired => (
+        'Expiré',
+        Icons.timer_off_outlined,
+        OmniColors.textSecondary,
+        OmniColors.surfaceSecondary,
       ),
     };
     return Semantics(

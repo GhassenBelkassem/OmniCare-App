@@ -125,6 +125,12 @@ typedef EmergencyMapBuilder =
       required VoidCallback onCameraIdle,
     });
 
+typedef EmergencyLocationConfirmed =
+    void Function(
+      SelectedConsultationLocation location,
+      String arrivalInstructions,
+    );
+
 class AndroidEmergencyPlacesGateway extends EmergencyPlacesGateway {
   const AndroidEmergencyPlacesGateway();
 
@@ -357,6 +363,8 @@ class EmergencyRequestStep3 extends StatefulWidget {
     this.mapsEnabled = true,
     this.mapBuilder,
     this.flowMode = UrgentFlowMode.create,
+    this.onBack,
+    this.onContinue,
   });
 
   final Map<String, dynamic> previousData;
@@ -365,6 +373,8 @@ class EmergencyRequestStep3 extends StatefulWidget {
   final bool mapsEnabled;
   final EmergencyMapBuilder? mapBuilder;
   final UrgentFlowMode flowMode;
+  final VoidCallback? onBack;
+  final EmergencyLocationConfirmed? onContinue;
 
   @override
   State<EmergencyRequestStep3> createState() => _EmergencyRequestStep3State();
@@ -514,8 +524,14 @@ class _EmergencyRequestStep3State extends State<EmergencyRequestStep3> {
   void _continue() {
     final location = _location;
     if (location == null || !location.canContinue) return;
+    final arrivalInstructions = _arrivalInstructions.text.trim();
+    final onContinue = widget.onContinue;
+    if (onContinue != null) {
+      onContinue(location, arrivalInstructions);
+      return;
+    }
     final locationPayload = location.toPayload(
-      arrivalInstructions: _arrivalInstructions.text.trim(),
+      arrivalInstructions: arrivalInstructions,
     );
     final data = {
       ...widget.previousData,
@@ -537,7 +553,9 @@ class _EmergencyRequestStep3State extends State<EmergencyRequestStep3> {
       onTap: () => FocusScope.of(context).unfocus(),
       child: Column(
         children: [
-          _StepHeader(onBack: () => Navigator.maybePop(context)),
+          _StepHeader(
+            onBack: widget.onBack ?? () => Navigator.maybePop(context),
+          ),
           Expanded(
             child: SingleChildScrollView(
               key: const ValueKey('emergency-step3-scroll'),

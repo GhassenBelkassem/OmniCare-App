@@ -10,14 +10,7 @@ import '../request_flow/widgets/care_subject_card.dart';
 import 'urgent_flow_mode.dart';
 
 class PatientOption {
-  final String id;
-  final String name;
-  final String type; // 'me', 'family', 'other'
-  final int? age;
-  final String? relationship;
-  final String? avatar;
-
-  PatientOption({
+  const PatientOption({
     required this.id,
     required this.name,
     required this.type,
@@ -25,6 +18,13 @@ class PatientOption {
     this.relationship,
     this.avatar,
   });
+
+  final String id;
+  final String name;
+  final String type; // 'me', 'family', 'other'
+  final int? age;
+  final String? relationship;
+  final String? avatar;
 }
 
 class EmergencyRequestStep1 extends StatefulWidget {
@@ -32,10 +32,31 @@ class EmergencyRequestStep1 extends StatefulWidget {
     super.key,
     this.flowMode = UrgentFlowMode.create,
     this.initialData,
+    this.patientOptions,
+    this.initialSelectedPatientId,
+    this.onClose,
+    this.onContinue,
+    this.onSelectionChanged,
+    this.onAddPerson,
+    this.errorText,
   });
 
   final UrgentFlowMode flowMode;
   final Map<String, dynamic>? initialData;
+
+  /// Optional presentation-only subject choices.
+  ///
+  /// When provided, this screen never reads [UserProvider] or
+  /// [FamilyProvider] and never treats an application Patient identifier as
+  /// journey authority. The P4 coordinator uses this seam with opaque,
+  /// synthetic subject references while preserving the approved screen.
+  final List<PatientOption>? patientOptions;
+  final String? initialSelectedPatientId;
+  final VoidCallback? onClose;
+  final ValueChanged<PatientOption>? onContinue;
+  final ValueChanged<PatientOption?>? onSelectionChanged;
+  final VoidCallback? onAddPerson;
+  final String? errorText;
 
   @override
   State<EmergencyRequestStep1> createState() => _EmergencyRequestStep1State();
@@ -47,7 +68,10 @@ class _EmergencyRequestStep1State extends State<EmergencyRequestStep1> {
   @override
   void initState() {
     super.initState();
-    _selectedPatientId = widget.initialData?['patientId'] as String?;
+    _selectedPatientId =
+        widget.initialSelectedPatientId ??
+        widget.initialData?['patientId'] as String?;
+    if (widget.patientOptions != null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final family = context.read<FamilyProvider>();
@@ -56,6 +80,9 @@ class _EmergencyRequestStep1State extends State<EmergencyRequestStep1> {
   }
 
   List<PatientOption> _patientOptions() {
+    final injected = widget.patientOptions;
+    if (injected != null) return List<PatientOption>.unmodifiable(injected);
+
     final user = context.read<UserProvider>().user;
     final family = context.read<FamilyProvider>();
 
@@ -93,6 +120,12 @@ class _EmergencyRequestStep1State extends State<EmergencyRequestStep1> {
     final selectedOption = _patientOptions().firstWhere(
       (option) => option.id == _selectedPatientId,
     );
+    final onContinue = widget.onContinue;
+    if (onContinue != null) {
+      onContinue(selectedOption);
+      return;
+    }
+
     final routeArgs =
         ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     final providerType =
@@ -136,12 +169,13 @@ class _EmergencyRequestStep1State extends State<EmergencyRequestStep1> {
 
   @override
   Widget build(BuildContext context) {
-    context.watch<FamilyProvider>();
+    if (widget.patientOptions == null) context.watch<FamilyProvider>();
     final options = _patientOptions();
     final canProceed = _canProceed();
     final textTheme = Theme.of(context).textTheme;
 
     return GestureDetector(
+      key: const ValueKey('emergency-step1-page-surface'),
       onTap: () => FocusScope.of(context).unfocus(),
       child: Column(
         children: [
@@ -152,7 +186,7 @@ class _EmergencyRequestStep1State extends State<EmergencyRequestStep1> {
                 IconButton(
                   tooltip: 'Fermer',
                   icon: const Icon(Icons.close, color: OmniColors.textPrimary),
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: widget.onClose ?? () => Navigator.pop(context),
                 ),
                 Expanded(
                   child: Text(
@@ -205,6 +239,17 @@ class _EmergencyRequestStep1State extends State<EmergencyRequestStep1> {
                     child: _buildPatientOptionCard(option),
                   ),
                 ),
+                if (widget.errorText?.isNotEmpty == true) ...[
+                  const SizedBox(height: OmniSpacing.sm),
+                  Text(
+                    widget.errorText!,
+                    key: const ValueKey('emergency-subject-safe-error'),
+                    style: textTheme.bodySmall?.copyWith(
+                      color: OmniColors.error,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: OmniSpacing.md),
               ],
             ),
@@ -223,13 +268,17 @@ class _EmergencyRequestStep1State extends State<EmergencyRequestStep1> {
     };
 
     return CareSubjectCard(
+      key: ValueKey('emergency-subject-${option.id}'),
       compact: true,
       title: option.name,
       subtitle: subtitle,
       selected: _selectedPatientId == option.id,
       onTap: option.type == 'other'
           ? _openFamilyMemberCreation
-          : () => setState(() => _selectedPatientId = option.id),
+          : () => setState(() {
+              _selectedPatientId = option.id;
+              widget.onSelectionChanged?.call(option);
+            }),
       avatarId: option.id,
       photoUrl: option.avatar,
       isSelf: option.type == 'me',
@@ -247,6 +296,13 @@ class _EmergencyRequestStep1State extends State<EmergencyRequestStep1> {
   }
 
   Future<void> _openFamilyMemberCreation() async {
+    final onAddPerson = widget.onAddPerson;
+    if (onAddPerson != null) {
+      onAddPerson();
+      return;
+    }
+    if (widget.patientOptions != null) return;
+
     final family = context.read<FamilyProvider>();
     final existingIds = family.members.map((member) => member.id).toSet();
     final created = await showModalBottomSheet<bool>(
@@ -309,6 +365,7 @@ class _ContinueFooter extends StatelessWidget {
             width: double.infinity,
             height: 50,
             child: ElevatedButton(
+              key: const ValueKey('emergency-subject-continue'),
               onPressed: onPressed,
               child: const Text('Continuer'),
             ),

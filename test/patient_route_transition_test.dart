@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:omnicare_mobile/features/home/new_home_screen.dart';
 import 'package:omnicare_mobile/features/emergency/emergency_request_step0.dart';
-import 'package:omnicare_mobile/features/emergency/emergency_request_step1.dart';
 import 'package:omnicare_mobile/features/request/provider_selection_screen.dart';
 import 'package:omnicare_mobile/features/request_flow/screens/who_needs_care_screen.dart';
 import 'package:omnicare_mobile/features/request_core/application/request_submission_controller.dart';
@@ -121,9 +120,7 @@ void main() {
         await tester.pump();
         await tester.pump();
 
-        // Consume the pre-existing framework assertion from
-        // RequestFlowEntryScreen.initState (notifyListeners during build).
-        tester.takeException();
+        expect(tester.takeException(), isNull);
 
         await tester.pumpAndSettle();
 

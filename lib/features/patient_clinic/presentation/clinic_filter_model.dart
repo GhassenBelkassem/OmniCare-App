@@ -193,9 +193,9 @@ List<PatientClinicPresentationItem> applyClinicFilters({
   switch (filters.sortOrder) {
     case ClinicSortOrder.alphabetical:
       indexed.sort((a, b) {
-        final byName = a.$2.displayName
-            .toLowerCase()
-            .compareTo(b.$2.displayName.toLowerCase());
+        final byName = a.$2.displayName.toLowerCase().compareTo(
+          b.$2.displayName.toLowerCase(),
+        );
         return byName != 0 ? byName : a.$1.compareTo(b.$1);
       });
     case ClinicSortOrder.acceptingFirst:
@@ -260,11 +260,12 @@ bool _matchesCareNeeds(
   PatientClinicPresentationItem item,
   Set<String> careNeeds,
 ) {
-  final allText = [
+  final searchableValues = [
     ...item.specialties,
     ...item.services,
     item.clinicType,
-  ].join(' ').toLowerCase();
+  ].map((value) => value.toLowerCase()).toList(growable: false);
+  final allText = searchableValues.join(' ');
 
   for (final need in careNeeds) {
     final needle = need.toLowerCase();
@@ -272,7 +273,11 @@ bool _matchesCareNeeds(
 
     // Keyword expansion for presentation-only matching.
     if (needle == 'general consultation' &&
-        allText.contains('general')) {
+        searchableValues.any(
+          (value) =>
+              value == 'general medicine' ||
+              value.contains('general consultation'),
+        )) {
       return true;
     }
     if (needle == 'specialist consultation' &&

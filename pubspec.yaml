@@ -65,6 +65,8 @@ dependencies:
   local_auth: ^3.0.2
   cryptography: ^2.9.0
   table_calendar: 3.2.1
+  stomp_dart_client: ^3.0.1
+  timezone: ^0.9.4
 
 dev_dependencies:
   flutter_test:

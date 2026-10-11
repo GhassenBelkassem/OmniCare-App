@@ -8,11 +8,15 @@ import 'package:omnicare_mobile/features/doctor/shell/doctor_app_shell.dart';
 import 'package:omnicare_mobile/features/doctor/urgent/doctor_urgent_controller.dart';
 import 'package:omnicare_mobile/features/doctor/workspace/doctor_workspace_config.dart';
 
+import 'support/doctor_scheduled_care_test_support.dart';
+
 void main() {
   Widget buildSubject({
     Future<void> Function()? onLogout,
     DoctorUrgentController? urgentController,
   }) {
+    final scheduledCare = DoctorScheduledCareTestHarness(withFixtures: false);
+    addTearDown(scheduledCare.dispose);
     return MaterialApp(
       theme: buildOmniTheme(),
       home: DoctorAppShell(
@@ -20,6 +24,7 @@ void main() {
         onLogout: onLogout ?? () async {},
         workspaceConfig: _hybridWorkspace(),
         urgentController: urgentController,
+        scheduledCare: scheduledCare.coordinator,
       ),
     );
   }

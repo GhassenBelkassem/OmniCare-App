@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:omnicare_mobile/features/home/new_home_screen.dart';
 import 'package:omnicare_mobile/features/emergency/emergency_request_step0.dart';
 import 'package:omnicare_mobile/features/emergency/emergency_request_step1.dart';
+import 'package:omnicare_mobile/features/urgent_journey/presentation/p4_urgent_journey_coordinator.dart';
 import 'package:omnicare_mobile/features/request_core/application/request_submission_controller.dart';
 import 'package:omnicare_mobile/features/request_core/data/request_repository.dart';
 import 'package:omnicare_mobile/core/models/patient_profile.dart';
@@ -58,6 +59,7 @@ void main() {
         await tester.pumpAndSettle();
 
         // EmergencyRequestStep0 must be rendered — not another home tab.
+        expect(find.byType(P4UrgentJourneyCoordinator), findsOneWidget);
         expect(find.byType(EmergencyRequestStep0), findsOneWidget);
         expect(
           find.text('Comment souhaitez-vous\nconsulter ?'),
@@ -67,7 +69,7 @@ void main() {
     );
 
     testWidgets(
-      'from EmergencyRequestStep0, home consultation navigates to EmergencyRequestStep1',
+      'from urgent entry, HOME restores the approved subject presentation',
       (tester) async {
         await tester.binding.setSurfaceSize(const Size(390, 844));
         addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -111,8 +113,13 @@ void main() {
         await tester.tap(find.text('Consultation à domicile'));
         await tester.pumpAndSettle();
 
-        // EmergencyRequestStep1 must be rendered.
+        // The typed P4 coordinator owns state while the approved original
+        // subject-selection presentation is restored.
         expect(find.byType(EmergencyRequestStep1), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('emergency-step1-page-surface')),
+          findsOneWidget,
+        );
       },
     );
 
@@ -158,9 +165,7 @@ void main() {
         await tester.pump();
         await tester.pump();
 
-        // Consume the pre-existing framework assertion from
-        // RequestFlowEntryScreen.initState (notifyListeners during build).
-        tester.takeException();
+        expect(tester.takeException(), isNull);
 
         await tester.pumpAndSettle();
 

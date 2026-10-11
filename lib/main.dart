@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:timezone/data/latest.dart' as tz;
 import 'features/auth/splash_screen.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/reset_password_screen.dart';
@@ -12,17 +15,7 @@ import 'features/profile/medications_screen.dart';
 import 'features/profile/medical_documents_screen.dart';
 import 'features/onboarding/conversational_onboarding_screen.dart';
 import 'features/home/new_home_screen.dart';
-import 'features/emergency/emergency_request_step0.dart';
-import 'features/emergency/emergency_request_step1.dart';
-import 'features/emergency/emergency_request_step2.dart';
-import 'features/emergency/emergency_request_step3.dart';
-import 'features/emergency/emergency_review_screen.dart';
-import 'features/emergency/doctor_selection_screen.dart';
-import 'features/emergency/review_confirm_screen.dart';
-import 'features/emergency/doctor_calling_screen.dart';
-import 'features/emergency/doctor_arriving_screen.dart';
-import 'features/emergency/consultation_qr_screen.dart';
-import 'features/emergency/consultation_complete_screen.dart';
+import 'features/urgent_journey/presentation/p4_urgent_route_owner.dart';
 import 'features/doctor/doctor_auth_shell_screen.dart';
 import 'features/request/provider_selection_screen.dart';
 import 'features/request/consultation_type_screen.dart';
@@ -56,7 +49,6 @@ import 'features/patient_clinic/application/patient_clinic_directory_controller.
 import 'features/patient_clinic/data/patient_clinic_api.dart';
 import 'features/patient_clinic/data/patient_clinic_repository.dart';
 import 'features/patient_clinic/presentation/clinic_directory_screen.dart';
-import 'features/patient_doctor/presentation/doctor_directory_screen.dart';
 import 'features/patient_doctor/application/doctor_directory_controller.dart';
 import 'features/patient_doctor/data/doctor_directory_api.dart';
 import 'features/patient_doctor/data/doctor_directory_repository.dart';
@@ -81,9 +73,20 @@ import 'features/security/account_security_provider.dart';
 import 'features/security/app_lock_gate.dart';
 import 'features/security/app_lock_service.dart';
 import 'features/security/phone_change_reversal_screen.dart';
+import 'features/scheduled_care/application/scheduled_care_controller.dart';
+import 'features/scheduled_care/data/scheduled_care_api.dart';
+import 'features/scheduled_care/data/scheduled_care_repository.dart';
+import 'features/scheduled_care/realtime/scheduled_care_realtime.dart';
+import 'features/doctor/scheduled_care/doctor_scheduled_care_api.dart';
+import 'features/doctor/scheduled_care/doctor_scheduled_care_repository.dart';
+import 'features/doctor/scheduled_care/doctor_session_access.dart';
+import 'features/notifications/application/notification_controller.dart';
+import 'features/notifications/data/notification_api.dart';
+import 'features/notifications/data/notification_repository.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  tz.initializeTimeZones();
   await dotenv.load(fileName: '.env');
   await NotificationService().initialize();
 
@@ -106,6 +109,7 @@ void main() async {
     OmniCareApp(
       authController: authController,
       httpClient: httpClient,
+      tokenStore: tokenStore,
       appLockService: appLockService,
     ),
   );
@@ -116,20 +120,51 @@ class OmniCareApp extends StatelessWidget {
     super.key,
     required this.authController,
     this.httpClient,
+    this.tokenStore,
     this.appLockService,
   });
 
   final AuthController authController;
   final AppHttpClient? httpClient;
+  final SecureTokenStore? tokenStore;
   final AppLockService? appLockService;
 
   @override
   Widget build(BuildContext context) {
+    final resolvedTokenStore = tokenStore ?? SecureTokenStore();
     final resolvedHttpClient =
-        httpClient ?? AppHttpClient(tokenStore: SecureTokenStore());
+        httpClient ?? AppHttpClient(tokenStore: resolvedTokenStore);
     final clinicRepository = ClinicRepository(ClinicApi(resolvedHttpClient));
+    final scheduledCareRealtime = StompScheduledCareRealtime(
+      tokenStore: resolvedTokenStore,
+    );
+    final scheduledCareRepository = ScheduledCareRepository(
+      ScheduledCareApi(resolvedHttpClient),
+    );
+    final doctorSessionAccess = DoctorSessionAccess(
+      tokenStore: resolvedTokenStore,
+      isAuthenticated: () => authController.isAuthenticated,
+      currentUserId: () => authController.currentUser?.id,
+      currentRole: () => authController.currentUser?.role,
+      reconcilePersistedSession: authController.reconcilePersistedSession,
+      invalidateSession: authController.handleSessionInvalidated,
+    );
+    final doctorScheduledCareRepository =
+        SessionGuardedDoctorScheduledCareRepository(
+          delegate: ApiDoctorScheduledCareRepository(
+            DoctorScheduledCareApi(resolvedHttpClient),
+          ),
+          sessionAccess: doctorSessionAccess,
+        );
     return MultiProvider(
       providers: [
+        Provider<AppHttpClient>.value(value: resolvedHttpClient),
+        Provider<SecureTokenStore>.value(value: resolvedTokenStore),
+        Provider<ScheduledCareRealtime>.value(value: scheduledCareRealtime),
+        Provider<ScheduledCareRepository>.value(value: scheduledCareRepository),
+        Provider<DoctorScheduledCareRepository>.value(
+          value: doctorScheduledCareRepository,
+        ),
         ChangeNotifierProvider<AuthController>.value(value: authController),
         ChangeNotifierProvider(create: (_) => UserOnboardingProvider()),
         ChangeNotifierProvider(
@@ -188,12 +223,26 @@ class OmniCareApp extends StatelessWidget {
           ),
         ),
         // Real patient doctor directory. Same shared client; the controller
-        // owns debounced, cancel-safe search over the plain /doctors array.
+        // owns debounced, cancel-safe search and backend Slice pagination.
         ChangeNotifierProvider(
           create: (_) => DoctorDirectoryController(
             repository: DoctorDirectoryRepository(
               DoctorDirectoryApi(resolvedHttpClient),
             ),
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => ScheduledCareController(
+            repository: scheduledCareRepository,
+            realtime: scheduledCareRealtime,
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => NotificationController(
+            repository: NotificationRepository(
+              NotificationApi(resolvedHttpClient),
+            ),
+            realtime: scheduledCareRealtime,
           ),
         ),
         ChangeNotifierProvider(create: (_) => ReservationProvider()),
@@ -259,21 +308,17 @@ class OmniCareApp extends StatelessWidget {
                   const ResetPasswordScreen(),
               '/home': (context) => const NewHomeScreen(),
               '/doctor-dashboard': (context) => const DoctorAuthShellScreen(),
-              '/emergency-step0': (context) => const EmergencyRequestStep0(),
-              '/emergency-step1': (context) => const EmergencyRequestStep1(),
               '/request-care': (context) => const ProviderSelectionScreen(),
               '/provider-selection': (context) =>
                   const ProviderSelectionScreen(),
               '/clinic-request': (context) => const ClinicRequestScreen(),
               '/notifications': (context) => const NotificationsScreen(),
               '/m05/request': (context) => const RequestFlowEntryScreen(),
-              '/doctor/cabinet/who-needs-care': (context) =>
-                  const DoctorCabinetEntryScreen(),
               '/m05/who-needs-care': (context) => const WhoNeedsCareScreen(),
               '/m05/clinic-directory': (context) =>
                   const ClinicDirectoryScreen(),
               '/m05/doctor-directory': (context) =>
-                  const DoctorDirectoryScreen(),
+                  const DoctorCabinetEntryScreen(),
               '/m05/situation': (context) => const SituationScreen(),
               '/m05/pickup': (context) => const PickupScreen(),
               '/m05/review': (context) => const ReviewScreen(),
@@ -293,49 +338,11 @@ class OmniCareApp extends StatelessWidget {
                   ),
                 );
               }
-              if (settings.name == '/emergency-step2') {
-                final args = settings.arguments as Map<String, dynamic>;
+              final p4UrgentPage = P4UrgentRouteOwner.buildPage(settings);
+              if (p4UrgentPage != null) {
                 return MaterialPageRoute(
-                  builder: (context) => EmergencyRequestStep2(step1Data: args),
-                );
-              }
-              if (settings.name == '/emergency-step3') {
-                final args = settings.arguments as Map<String, dynamic>;
-                return MaterialPageRoute(
-                  builder: (context) =>
-                      EmergencyRequestStep3(previousData: args),
-                );
-              }
-              if (settings.name == '/emergency-review') {
-                final args = settings.arguments as Map<String, dynamic>;
-                return MaterialPageRoute(
-                  builder: (context) =>
-                      EmergencyReviewScreen(requestData: args),
-                );
-              }
-              if (settings.name == '/doctor-selection') {
-                final args = settings.arguments as Map<String, dynamic>;
-                return MaterialPageRoute(
-                  builder: (context) =>
-                      DoctorSelectionScreen(emergencyData: args),
-                );
-              }
-              if (settings.name == '/review-confirm') {
-                final args = settings.arguments as Map<String, dynamic>;
-                return MaterialPageRoute(
-                  builder: (context) => ReviewConfirmScreen(requestData: args),
-                );
-              }
-              if (settings.name == '/doctor-calling') {
-                final args = settings.arguments as Map<String, dynamic>;
-                return MaterialPageRoute(
-                  builder: (context) => DoctorCallingScreen(requestData: args),
-                );
-              }
-              if (settings.name == '/doctor-arriving') {
-                final args = settings.arguments as Map<String, dynamic>;
-                return MaterialPageRoute(
-                  builder: (context) => DoctorArrivingScreen(requestData: args),
+                  settings: settings,
+                  builder: (context) => p4UrgentPage,
                 );
               }
               if (settings.name == '/consultation-type') {
@@ -354,19 +361,6 @@ class OmniCareApp extends StatelessWidget {
                     initialVisitType: args['visitType']?.toString(),
                     initialIsEmergency: args['isEmergency'] == true,
                   ),
-                );
-              }
-              if (settings.name == '/consultation-qr') {
-                final args = settings.arguments as Map<String, dynamic>;
-                return MaterialPageRoute(
-                  builder: (context) => ConsultationQRScreen(requestData: args),
-                );
-              }
-              if (settings.name == '/consultation-complete') {
-                final args = settings.arguments as Map<String, dynamic>;
-                return MaterialPageRoute(
-                  builder: (context) =>
-                      ConsultationCompleteScreen(requestData: args),
                 );
               }
               if (settings.name == '/appointment-confirmation') {
@@ -423,6 +417,9 @@ class _AuthStateListenerState extends State<_AuthStateListener> {
     if (auth.isAuthenticated) {
       _wasAuthenticated = true;
       _handledUnauthenticatedTransition = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(context.read<NotificationController>().start());
+      });
     } else if (auth.status == AuthStatus.unauthenticated &&
         !_handledUnauthenticatedTransition &&
         (_wasAuthenticated || auth.errorCode == 'AUTH_SESSION_INVALID')) {
@@ -434,6 +431,8 @@ class _AuthStateListenerState extends State<_AuthStateListener> {
         await context.read<UserProvider>().logout();
         if (!context.mounted) return;
         context.read<FamilyProvider>().clear();
+        context.read<ScheduledCareController>().clearSessionState();
+        context.read<NotificationController>().clearSessionState();
         // Clinic context is scoped to the authenticated session.
         await context.read<ClinicContextController>().clear();
         if (!context.mounted) return;

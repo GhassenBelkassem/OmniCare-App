@@ -92,6 +92,36 @@ class AuthController extends ChangeNotifier {
     });
   }
 
+  /// Revalidates the origin-wide persisted session without exposing a
+  /// transient unauthenticated frame. On Flutter Web this is required when
+  /// another same-origin tab replaces the single account.
+  Future<void> reconcilePersistedSession() {
+    final current = _initializationFuture;
+    if (current != null) return current;
+
+    final started = _reconcilePersistedSession();
+    _initializationFuture = started;
+    return started.whenComplete(() {
+      _initializationFuture = null;
+    });
+  }
+
+  Future<void> _reconcilePersistedSession() async {
+    try {
+      final restored = await _repository.restoreSession();
+      if (restored == null) {
+        _setUnauthenticated();
+      } else {
+        _setAuthenticated(restored);
+      }
+    } catch (error) {
+      _setFailure(error);
+    } finally {
+      _initializationCompleted = true;
+      _notify();
+    }
+  }
+
   Future<void> _initialize() async {
     _setInitializing();
     try {

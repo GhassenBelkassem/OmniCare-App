@@ -14,37 +14,25 @@ class DoctorDirectoryApi {
   final AppHttpClient _httpClient;
 
   static const String doctorsBasePath = '/doctors';
+  static const String doctorSearchPath = '/doctors/search';
   static const String availabilitySlotsPath =
       '/appointments/availability/slots';
-  static const String appointmentsPath = '/appointments';
 
-  /// `GET /doctors`.
-  Future<List<DoctorDirectoryListItem>> listDoctors({
-    String? query,
+  /// `GET /doctors/search` using the certified P1-06 slice contract.
+  Future<DoctorSearchPage> searchDoctors({
+    required DoctorSearchCriteria criteria,
     CancelToken? cancelToken,
   }) async {
-    final queryParameters = <String, dynamic>{
-      if (query != null && query.trim().isNotEmpty) 'q': query.trim(),
-    };
     final response = await _httpClient.dio.get<dynamic>(
-      doctorsBasePath,
-      queryParameters: queryParameters,
+      doctorSearchPath,
+      queryParameters: criteria.toQueryParameters(),
       cancelToken: cancelToken,
     );
     final data = response.data;
-    if (data is! List) {
-      throw const DoctorContractException('Expected a JSON array.');
+    if (data is! Map) {
+      throw const DoctorContractException('Expected a JSON object.');
     }
-    final items = <DoctorDirectoryListItem>[];
-    for (final element in data) {
-      if (element is! Map) {
-        throw const DoctorContractException('Doctor list entry is malformed.');
-      }
-      items.add(
-        DoctorDirectoryListItem.fromJson(element.cast<String, dynamic>()),
-      );
-    }
-    return List.unmodifiable(items);
+    return DoctorSearchPage.fromJson(data.cast<String, dynamic>());
   }
 
   /// `GET /doctors/{doctorId}`.
@@ -54,9 +42,7 @@ class DoctorDirectoryApi {
   }) async {
     final id = doctorId.trim();
     if (id.isEmpty) {
-      throw const DoctorContractException(
-        'Doctor identifier is required.',
-      );
+      throw const DoctorContractException('Doctor identifier is required.');
     }
     final response = await _httpClient.dio.get<dynamic>(
       '$doctorsBasePath/$id',
@@ -72,12 +58,14 @@ class DoctorDirectoryApi {
   /// `GET /appointments/availability/slots`.
   Future<List<AvailabilitySlotDto>> getSlots({
     required String doctorId,
+    required String practiceLocationId,
     required DateTime from,
     required DateTime to,
     CancelToken? cancelToken,
   }) async {
     final queryParameters = <String, dynamic>{
       'doctorId': doctorId.trim(),
+      'practiceLocationId': practiceLocationId.trim(),
       'from': from.toUtc().toIso8601String(),
       'to': to.toUtc().toIso8601String(),
     };
@@ -87,47 +75,19 @@ class DoctorDirectoryApi {
       cancelToken: cancelToken,
     );
     final data = response.data;
-    if (data is! List) {
-      throw const DoctorContractException('Expected a JSON array.');
+    if (data is! Map || data['slots'] is! List) {
+      throw const DoctorContractException(
+        'Expected a Cabinet-scoped availability response.',
+      );
     }
+    final rawSlots = data['slots'] as List;
     final slots = <AvailabilitySlotDto>[];
-    for (final element in data) {
+    for (final element in rawSlots) {
       if (element is! Map) {
         throw const DoctorContractException('Slot entry is malformed.');
       }
       slots.add(AvailabilitySlotDto.fromJson(element.cast<String, dynamic>()));
     }
     return List.unmodifiable(slots);
-  }
-
-  /// `POST /appointments`.
-  ///
-  /// `startTime`/`endTime` are the exact slot `start`/`end` values from
-  /// [AvailabilitySlotDto]; the backend re-validates against the live slot
-  /// window (exact-match rule).
-  Future<AppointmentBooking> bookAppointment({
-    required String doctorId,
-    required String startTime,
-    required String endTime,
-    String? notes,
-    CancelToken? cancelToken,
-  }) async {
-    final payload = <String, dynamic>{
-      'doctorId': doctorId.trim(),
-      'startTime': startTime,
-      'endTime': endTime,
-      if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
-    };
-    final response = await _httpClient.dio.post<dynamic>(
-      appointmentsPath,
-      data: payload,
-      cancelToken: cancelToken,
-      options: Options(contentType: Headers.jsonContentType),
-    );
-    final data = response.data;
-    if (data is! Map) {
-      throw const DoctorContractException('Expected a JSON object.');
-    }
-    return AppointmentBooking.fromJson(data.cast<String, dynamic>());
   }
 }
