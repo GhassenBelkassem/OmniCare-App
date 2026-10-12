@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
@@ -42,6 +44,7 @@ import 'core/nav/app_nav.dart';
 import 'core/theme/omni_theme.dart';
 import 'core/device/device_identity_service.dart';
 import 'core/network/app_http_client.dart';
+import 'core/realtime/authenticated_realtime_transport.dart';
 import 'core/storage/secure_token_store.dart';
 import 'features/auth/application/auth_controller.dart';
 import 'features/clinic/application/clinic_context_controller.dart';
@@ -60,6 +63,15 @@ import 'features/patient_doctor/presentation/doctor_directory_screen.dart';
 import 'features/patient_doctor/application/doctor_directory_controller.dart';
 import 'features/patient_doctor/data/doctor_directory_api.dart';
 import 'features/patient_doctor/data/doctor_directory_repository.dart';
+import 'features/scheduled_care/application/patient_booking_controller.dart';
+import 'features/scheduled_care/application/patient_scheduled_care_controller.dart';
+import 'features/scheduled_care/data/scheduled_care_api.dart';
+import 'features/scheduled_care/data/scheduled_care_repository.dart';
+import 'features/scheduled_care/realtime/scheduled_care_realtime_coordinator.dart';
+import 'features/notifications/application/notification_center_controller.dart';
+import 'features/notifications/data/notification_api.dart';
+import 'features/notifications/data/notification_repository.dart';
+import 'features/notifications/realtime/notification_realtime_coordinator.dart';
 import 'features/request_flow/screens/request_flow_entry_screen.dart';
 import 'features/request_flow/screens/doctor_cabinet_entry_screen.dart';
 import 'features/request_flow/screens/who_needs_care_screen.dart';
@@ -98,6 +110,21 @@ void main() async {
   );
   authController = AuthController(repository: authRepository);
   httpClient.onSessionInvalidated = authController.handleSessionInvalidated;
+  final realtimeTransport = AuthenticatedRealtimeTransport(
+    tokenStore: tokenStore,
+  );
+  final realtimeCoordinator = ScheduledCareRealtimeCoordinator(
+    transport: realtimeTransport,
+  );
+  final notificationController = NotificationCenterController(
+    repository: NotificationRepository(NotificationApi(httpClient)),
+  );
+  final notificationRealtimeCoordinator = NotificationRealtimeCoordinator(
+    transport: realtimeTransport,
+    controller: notificationController,
+  );
+  httpClient.refreshCoordinator.onSessionRefreshed = (_) =>
+      realtimeCoordinator.credentialsChanged();
 
   await authController.initialize();
   final appLockService = AppLockService();
@@ -107,6 +134,9 @@ void main() async {
       authController: authController,
       httpClient: httpClient,
       appLockService: appLockService,
+      realtimeCoordinator: realtimeCoordinator,
+      notificationController: notificationController,
+      notificationRealtimeCoordinator: notificationRealtimeCoordinator,
     ),
   );
 }
@@ -117,20 +147,54 @@ class OmniCareApp extends StatelessWidget {
     required this.authController,
     this.httpClient,
     this.appLockService,
+    this.realtimeCoordinator,
+    this.notificationController,
+    this.notificationRealtimeCoordinator,
   });
 
   final AuthController authController;
   final AppHttpClient? httpClient;
   final AppLockService? appLockService;
+  final ScheduledCareRealtimeCoordinator? realtimeCoordinator;
+  final NotificationCenterController? notificationController;
+  final NotificationRealtimeCoordinator? notificationRealtimeCoordinator;
 
   @override
   Widget build(BuildContext context) {
     final resolvedHttpClient =
         httpClient ?? AppHttpClient(tokenStore: SecureTokenStore());
     final clinicRepository = ClinicRepository(ClinicApi(resolvedHttpClient));
+    final scheduledCareRepository = ScheduledCareRepository(
+      ScheduledCareApi(resolvedHttpClient),
+      patientScheduledCareApi: PatientScheduledCareApi(resolvedHttpClient),
+      appointmentCancellationApi: ScheduledAppointmentCancellationApi(
+        resolvedHttpClient,
+      ),
+    );
     return MultiProvider(
       providers: [
+        if (realtimeCoordinator != null)
+          Provider<ScheduledCareRealtimeCoordinator>.value(
+            value: realtimeCoordinator!,
+          ),
+        if (notificationRealtimeCoordinator != null)
+          Provider<NotificationRealtimeCoordinator>.value(
+            value: notificationRealtimeCoordinator!,
+          ),
+        Provider<AppHttpClient>.value(value: resolvedHttpClient),
         ChangeNotifierProvider<AuthController>.value(value: authController),
+        if (notificationController != null)
+          ChangeNotifierProvider<NotificationCenterController>.value(
+            value: notificationController!,
+          )
+        else
+          ChangeNotifierProvider(
+            create: (_) => NotificationCenterController(
+              repository: NotificationRepository(
+                NotificationApi(resolvedHttpClient),
+              ),
+            ),
+          ),
         ChangeNotifierProvider(create: (_) => UserOnboardingProvider()),
         ChangeNotifierProvider(
           create: (_) => UserProvider(
@@ -194,6 +258,15 @@ class OmniCareApp extends StatelessWidget {
             repository: DoctorDirectoryRepository(
               DoctorDirectoryApi(resolvedHttpClient),
             ),
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (_) =>
+              PatientBookingController(repository: scheduledCareRepository),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => PatientScheduledCareController(
+            repository: scheduledCareRepository,
           ),
         ),
         ChangeNotifierProvider(create: (_) => ReservationProvider()),
@@ -413,14 +486,109 @@ class _AuthStateListener extends StatefulWidget {
   State<_AuthStateListener> createState() => _AuthStateListenerState();
 }
 
-class _AuthStateListenerState extends State<_AuthStateListener> {
+class _AuthStateListenerState extends State<_AuthStateListener>
+    with WidgetsBindingObserver {
   bool _wasAuthenticated = false;
   bool _handledUnauthenticatedTransition = false;
+  String? _scheduledCareOwnerUserId;
+  String? _realtimeOwnerKey;
+  ScheduledCareRealtimeCoordinator? _realtimeCoordinator;
+  NotificationRealtimeCoordinator? _notificationRealtimeCoordinator;
+  PatientScheduledCareRealtimeTarget? _patientRealtimeTarget;
+  VoidCallback? _unregisterPatientRealtimeTarget;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _notificationRealtimeCoordinator = context
+        .read<NotificationRealtimeCoordinator?>();
+    final coordinator = context.read<ScheduledCareRealtimeCoordinator?>();
+    if (identical(coordinator, _realtimeCoordinator)) return;
+    _unregisterPatientRealtimeTarget?.call();
+    _patientRealtimeTarget?.dispose();
+    _realtimeCoordinator = coordinator;
+    if (coordinator != null) {
+      final target = PatientScheduledCareRealtimeTarget(
+        bookingController: context.read<PatientBookingController>(),
+        listController: context.read<PatientScheduledCareController>(),
+      );
+      _patientRealtimeTarget = target;
+      _unregisterPatientRealtimeTarget = coordinator.registerTarget(target);
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_realtimeCoordinator?.foregroundResync());
+      unawaited(_notificationRealtimeCoordinator?.foregroundResync());
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _unregisterPatientRealtimeTarget?.call();
+    _patientRealtimeTarget?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
     if (auth.isAuthenticated) {
+      final nextUserId = auth.currentUser?.id;
+      final nextRole = auth.globalRole;
+      final previousUserId = _scheduledCareOwnerUserId;
+      _scheduledCareOwnerUserId = nextUserId;
+      final nextRealtimeOwnerKey = nextUserId != null && nextRole != null
+          ? '$nextUserId::$nextRole'
+          : null;
+      if (nextRealtimeOwnerKey != null &&
+          nextRealtimeOwnerKey != _realtimeOwnerKey &&
+          (nextRole == 'PATIENT' || nextRole == 'DOCTOR')) {
+        final realtimeUserId = nextUserId!;
+        final realtimeRole = nextRole!;
+        _realtimeOwnerKey = nextRealtimeOwnerKey;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || _realtimeOwnerKey != nextRealtimeOwnerKey) return;
+          unawaited(
+            context.read<NotificationCenterController>().startSession(
+              nextRealtimeOwnerKey,
+            ),
+          );
+          _notificationRealtimeCoordinator?.startSession();
+          unawaited(
+            _realtimeCoordinator?.startSession(
+              RealtimeSessionOwner(userId: realtimeUserId, role: realtimeRole),
+            ),
+          );
+        });
+      } else if ((nextRole != 'PATIENT' && nextRole != 'DOCTOR') &&
+          _realtimeOwnerKey != null) {
+        _realtimeOwnerKey = null;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _notificationRealtimeCoordinator?.stopSession();
+          context.read<NotificationCenterController>().clearForSession();
+          unawaited(_realtimeCoordinator?.stopSession());
+        });
+      }
+      if (previousUserId != null &&
+          nextUserId != null &&
+          previousUserId != nextUserId) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          context.read<PatientBookingController>().clear();
+          context.read<PatientScheduledCareController>().clear();
+        });
+      }
       _wasAuthenticated = true;
       _handledUnauthenticatedTransition = false;
     } else if (auth.status == AuthStatus.unauthenticated &&
@@ -428,8 +596,14 @@ class _AuthStateListenerState extends State<_AuthStateListener> {
         (_wasAuthenticated || auth.errorCode == 'AUTH_SESSION_INVALID')) {
       _handledUnauthenticatedTransition = true;
       _wasAuthenticated = false;
+      _scheduledCareOwnerUserId = null;
+      _realtimeOwnerKey = null;
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted) return;
+        _notificationRealtimeCoordinator?.stopSession();
+        context.read<NotificationCenterController>().clearForSession();
+        await _realtimeCoordinator?.stopSession();
+        if (!context.mounted) return;
         final stayOnPublicSecurityRoute = AppNav.isOnPublicSecurityRoute;
         await context.read<UserProvider>().logout();
         if (!context.mounted) return;
@@ -442,6 +616,10 @@ class _AuthStateListenerState extends State<_AuthStateListener> {
         // A patient's in-flight care request, its operation id and its
         // persisted retry record must not survive into the next session.
         await context.read<RequestSubmissionController>().clear();
+        if (!context.mounted) return;
+        context.read<PatientBookingController>().clear();
+        if (!context.mounted) return;
+        context.read<PatientScheduledCareController>().clear();
         if (!context.mounted) return;
         if (stayOnPublicSecurityRoute) return;
         AppNav.navigatorKey.currentState?.pushNamedAndRemoveUntil(

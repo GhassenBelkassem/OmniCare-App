@@ -49,6 +49,8 @@ import '../emergency/doctor_calling_screen.dart';
 import '../emergency/doctor_arriving_screen.dart';
 import '../emergency/consultation_qr_screen.dart';
 import '../emergency/consultation_complete_screen.dart';
+import '../notifications/application/notification_center_controller.dart';
+import '../notifications/presentation/notification_badge.dart';
 
 class NewHomeScreen extends StatefulWidget {
   const NewHomeScreen({super.key});
@@ -2508,167 +2510,6 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     );
   }
 
-  Widget _buildNotificationsTab() {
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 24),
-            Text(
-              'Notifications',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 24,
-                fontWeight: FontWeight.w800,
-                color: const Color(0xFF1A202C),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Restez informé de vos rendez-vous et résultats',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 13,
-                color: const Color(0xFF667085),
-              ),
-            ),
-            const SizedBox(height: 24),
-            _buildNotificationCard(
-              icon: Icons.calendar_today,
-              iconColor: const Color(0xFF1FBF9A),
-              title: 'Rendez-vous confirmé',
-              message:
-                  'Votre rendez-vous avec Dr. Ahmed Ben Salem est confirmé pour demain à 10h',
-              time: 'Il y a 2h',
-              isUnread: true,
-            ),
-            _buildNotificationCard(
-              icon: Icons.medication,
-              iconColor: const Color(0xFF0F6F73),
-              title: 'Rappel médicament',
-              message: 'N\'oubliez pas de prendre vos médicaments du soir',
-              time: 'Il y a 5h',
-              isUnread: true,
-            ),
-            _buildNotificationCard(
-              icon: Icons.description,
-              iconColor: const Color(0xFF8B5CF6),
-              title: 'Résultats disponibles',
-              message:
-                  'Vos résultats d\'analyse de sang sont maintenant disponibles',
-              time: 'Hier',
-              isUnread: false,
-            ),
-            _buildNotificationCard(
-              icon: Icons.favorite,
-              iconColor: const Color(0xFFDC2626),
-              title: 'Suivi de santé',
-              message: 'Pensez à mettre à jour votre carnet de santé',
-              time: 'Il y a 2 jours',
-              isUnread: false,
-            ),
-            const SizedBox(height: 100),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNotificationCard({
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String message,
-    required String time,
-    required bool isUnread,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isUnread
-            ? const Color(0xFF1FBF9A).withOpacity(0.05)
-            : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isUnread
-              ? const Color(0xFF1FBF9A).withOpacity(0.2)
-              : const Color(0xFFE2E8F0),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: iconColor, size: 24),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFF1A202C),
-                        ),
-                      ),
-                    ),
-                    if (isUnread)
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF1FBF9A),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  message,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 13,
-                    color: const Color(0xFF667085),
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  time,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 11,
-                    color: const Color(0xFF667085),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildUrgentDoctorModal() {
     return Container(
       decoration: const BoxDecoration(
@@ -2918,6 +2759,8 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
   }
 
   Widget _buildStickyHeader(String userName) {
+    final unreadCount =
+        context.watch<NotificationCenterController?>()?.unreadCount ?? 0;
     return ClipRect(
       key: const ValueKey('patient-top-bar'),
       child: BackdropFilter(
@@ -2959,59 +2802,10 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                           ),
                         ),
                       ),
-                      Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          Material(
-                            color: Colors.white.withValues(alpha: 0.86),
-                            shape: const CircleBorder(
-                              side: BorderSide(color: Color(0xFFD8DEDD)),
-                            ),
-                            elevation: 1,
-                            child: InkWell(
-                              customBorder: const CircleBorder(),
-                              onTap: () => Navigator.pushNamed(
-                                context,
-                                '/notifications',
-                              ),
-                              child: const SizedBox(
-                                width: 40,
-                                height: 40,
-                                child: Icon(
-                                  Icons.notifications_none_rounded,
-                                  color: Color(0xFF172033),
-                                  size: 21,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            right: -3,
-                            top: -4,
-                            child: Container(
-                              width: 18,
-                              height: 18,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFEF4444),
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.white,
-                                  width: 2,
-                                ),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  '2',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 8.5,
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                      NotificationBadge(
+                        count: unreadCount,
+                        onTap: () =>
+                            Navigator.pushNamed(context, '/notifications'),
                       ),
                       const SizedBox(width: 8),
                       IconButton(

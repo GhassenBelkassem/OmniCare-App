@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../../core/theme/omni_theme.dart';
 import '../application/doctor_directory_controller.dart';
 import '../data/doctor_detail_models.dart';
-import '../data/doctor_directory_models.dart';
-import '../data/doctor_directory_repository.dart';
+import '../data/doctor_directory_mapper.dart';
+import '../../scheduled_care/application/patient_booking_controller.dart';
+import '../../scheduled_care/presentation/booking_review_screen.dart';
 
 /// Large modal bottom sheet showing doctor availability.
 ///
@@ -18,10 +22,7 @@ import '../data/doctor_directory_repository.dart';
 /// - Time slots grouped by Matin / Après-midi / Soir
 /// - Sticky Continue CTA at bottom (enabled only after slot selection)
 ///
-/// Booking goes through [DoctorDirectoryController.bookSlot]: success swaps the
-/// sheet content for a confirmation view, a 409 conflict keeps the picker open
-/// with a patient-safe message (choose another slot), any other failure shows
-/// an inline error.
+/// Continue opens a truthful request review. No Appointment is created here.
 class DoctorAvailabilitySheet extends StatefulWidget {
   const DoctorAvailabilitySheet({
     super.key,
@@ -41,21 +42,21 @@ class _DoctorAvailabilitySheetState extends State<DoctorAvailabilitySheet> {
   late DateTime _currentMonth;
   DateTime? _selectedDate;
   DoctorAvailabilitySlot? _selectedSlot;
-  bool _isBooking = false;
   String? _bookingError;
-  AppointmentBooking? _confirmation;
+
+  DoctorDetail get _detail => widget.controller.detail ?? widget.detail;
 
   @override
   void initState() {
     super.initState();
-    final now = DateTime.now();
+    final now = toTunisWallClock(DateTime.now());
     _currentMonth = DateTime(now.year, now.month);
     _selectedDate = _findNextAvailableDate();
   }
 
   DateTime? _findNextAvailableDate() {
-    final now = DateTime.now();
-    for (final day in widget.detail.availability) {
+    final now = toTunisWallClock(DateTime.now());
+    for (final day in _detail.availability) {
       if (day.date.isAfter(now.subtract(const Duration(days: 1))) &&
           day.hasSlots) {
         return day.date;
@@ -65,7 +66,7 @@ class _DoctorAvailabilitySheetState extends State<DoctorAvailabilitySheet> {
   }
 
   List<DoctorDayAvailability> get _visibleDays {
-    return widget.detail.availability.where((day) {
+    return _detail.availability.where((day) {
       return day.date.year == _currentMonth.year &&
           day.date.month == _currentMonth.month;
     }).toList();
@@ -73,7 +74,7 @@ class _DoctorAvailabilitySheetState extends State<DoctorAvailabilitySheet> {
 
   DoctorDayAvailability? get _selectedDayAvailability {
     if (_selectedDate == null) return null;
-    for (final day in widget.detail.availability) {
+    for (final day in _detail.availability) {
       if (day.date.year == _selectedDate!.year &&
           day.date.month == _selectedDate!.month &&
           day.date.day == _selectedDate!.day) {
@@ -90,6 +91,7 @@ class _DoctorAvailabilitySheetState extends State<DoctorAvailabilitySheet> {
       _selectedSlot = null;
       _bookingError = null;
     });
+    unawaited(widget.controller.fetchAvailabilityForMonth(_currentMonth));
   }
 
   void _nextMonth() {
@@ -99,6 +101,7 @@ class _DoctorAvailabilitySheetState extends State<DoctorAvailabilitySheet> {
       _selectedSlot = null;
       _bookingError = null;
     });
+    unawaited(widget.controller.fetchAvailabilityForMonth(_currentMonth));
   }
 
   void _selectDate(DateTime date) {
@@ -136,217 +139,202 @@ class _DoctorAvailabilitySheetState extends State<DoctorAvailabilitySheet> {
 
   @override
   Widget build(BuildContext context) {
+    context.watch<DoctorDirectoryController>();
     final screenHeight = MediaQuery.sizeOf(context).height;
     final sheetHeight = screenHeight * 0.50;
 
     return SizedBox(
       height: sheetHeight,
-      child: _confirmation != null
-          ? _BookingConfirmationView(booking: _confirmation!)
-          : Column(
+      child: Column(
+        children: [
+          // Header
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              OmniSpacing.pageHorizontal,
+              OmniSpacing.xs,
+              OmniSpacing.pageHorizontal,
+              0,
+            ),
+            child: Column(
               children: [
-                // Header
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    OmniSpacing.pageHorizontal,
-                    OmniSpacing.xs,
-                    OmniSpacing.pageHorizontal,
-                    0,
-                  ),
-                  child: Column(
-                    children: [
-                      // Title
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Disponibilités',
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: OmniColors.textPrimary,
-                                  ),
+                // Title
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Disponibilités',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: OmniColors.textPrimary,
                             ),
-                          ),
-                          IconButton(
-                            onPressed: () => Navigator.of(context).pop(),
-                            icon: const Icon(Icons.close_rounded, size: 20),
-                            color: OmniColors.textSecondary,
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(
-                              minWidth: 36,
-                              minHeight: 36,
-                            ),
-                          ),
-                        ],
                       ),
-                      const SizedBox(height: 2),
-                      // Doctor name
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          widget.detail.name,
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                fontSize: 11,
-                                color: OmniColors.textSecondary,
-                              ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: OmniSpacing.xs),
-
-                // Month navigation
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: OmniSpacing.pageHorizontal,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      IconButton(
-                        onPressed: _previousMonth,
-                        icon: const Icon(Icons.chevron_left_rounded, size: 24),
-                        color: OmniColors.textPrimary,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(
-                          minWidth: 30,
-                          minHeight: 30,
-                        ),
-                      ),
-                      Text(
-                        _monthLabel(),
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: OmniColors.textPrimary,
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: _nextMonth,
-                        icon: const Icon(Icons.chevron_right_rounded, size: 24),
-                        color: OmniColors.textPrimary,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(
-                          minWidth: 30,
-                          minHeight: 30,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: OmniSpacing.xs),
-
-                // Day strip
-                SizedBox(
-                  height: 56,
-                  child: _visibleDays.isEmpty
-                      ? Center(
-                          child: Text(
-                            'Aucune disponibilité ce mois-ci',
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(
-                                  fontSize: 12,
-                                  color: OmniColors.textTertiary,
-                                ),
-                          ),
-                        )
-                      : ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: OmniSpacing.pageHorizontal,
-                          ),
-                          itemCount: _visibleDays.length,
-                          separatorBuilder: (_, _) =>
-                              const SizedBox(width: OmniSpacing.sm),
-                          itemBuilder: (context, index) {
-                            final day = _visibleDays[index];
-                            final isSelected =
-                                _selectedDate?.year == day.date.year &&
-                                _selectedDate?.month == day.date.month &&
-                                _selectedDate?.day == day.date.day;
-                            return _DayChip(
-                              date: day.date,
-                              isSelected: isSelected,
-                              hasSlots: day.hasSlots,
-                              onTap: () => _selectDate(day.date),
-                            );
-                          },
-                        ),
-                ),
-
-                const SizedBox(height: OmniSpacing.xs),
-
-                // Slots section
-                Expanded(
-                  child: _selectedDate == null
-                      ? Center(
-                          child: Text(
-                            'Sélectionnez une date pour voir les créneaux',
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(
-                                  fontSize: 12,
-                                  color: OmniColors.textTertiary,
-                                ),
-                          ),
-                        )
-                      : _buildSlotsContent(),
-                ),
-
-                if (_bookingError != null)
-                  _BookingErrorBanner(message: _bookingError!),
-
-                if (_selectedSlot != null && _bookingError == null)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      OmniSpacing.pageHorizontal,
-                      2,
-                      OmniSpacing.pageHorizontal,
-                      0,
                     ),
-                    child: _SlotBookingNotice(
-                      doctorName: widget.detail.name,
-                    ),
-                  ),
-
-                // Continue CTA
-                SafeArea(
-                  top: false,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      OmniSpacing.pageHorizontal,
-                      OmniSpacing.xs,
-                      OmniSpacing.pageHorizontal,
-                      OmniSpacing.xs,
-                    ),
-                    child: SizedBox(
-                      width: double.infinity,
-                      height: 38,
-                      child: ElevatedButton(
-                        onPressed:
-                            _selectedSlot != null && !_isBooking
-                                ? _onContinue
-                                : null,
-                        child: _isBooking
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Text('Continuer'),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close_rounded, size: 20),
+                      color: OmniColors.textSecondary,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 36,
+                        minHeight: 36,
                       ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                // Doctor name
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    _detail.name,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontSize: 11,
+                      color: OmniColors.textSecondary,
                     ),
                   ),
                 ),
               ],
             ),
+          ),
+
+          const SizedBox(height: OmniSpacing.xs),
+
+          // Month navigation
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: OmniSpacing.pageHorizontal,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  onPressed: _previousMonth,
+                  icon: const Icon(Icons.chevron_left_rounded, size: 24),
+                  color: OmniColors.textPrimary,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minWidth: 30,
+                    minHeight: 30,
+                  ),
+                ),
+                Text(
+                  _monthLabel(),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: OmniColors.textPrimary,
+                  ),
+                ),
+                IconButton(
+                  onPressed: _nextMonth,
+                  icon: const Icon(Icons.chevron_right_rounded, size: 24),
+                  color: OmniColors.textPrimary,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minWidth: 30,
+                    minHeight: 30,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: OmniSpacing.xs),
+
+          // Day strip
+          SizedBox(
+            height: 56,
+            child: _visibleDays.isEmpty
+                ? Center(
+                    child: Text(
+                      'Aucune disponibilité ce mois-ci',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontSize: 12,
+                        color: OmniColors.textTertiary,
+                      ),
+                    ),
+                  )
+                : ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: OmniSpacing.pageHorizontal,
+                    ),
+                    itemCount: _visibleDays.length,
+                    separatorBuilder: (_, _) =>
+                        const SizedBox(width: OmniSpacing.sm),
+                    itemBuilder: (context, index) {
+                      final day = _visibleDays[index];
+                      final isSelected =
+                          _selectedDate?.year == day.date.year &&
+                          _selectedDate?.month == day.date.month &&
+                          _selectedDate?.day == day.date.day;
+                      return _DayChip(
+                        date: day.date,
+                        isSelected: isSelected,
+                        hasSlots: day.hasSlots,
+                        onTap: () => _selectDate(day.date),
+                      );
+                    },
+                  ),
+          ),
+
+          const SizedBox(height: OmniSpacing.xs),
+
+          // Slots section
+          Expanded(
+            child: widget.controller.isLoadingAvailability
+                ? const Center(child: CircularProgressIndicator())
+                : _selectedDate == null
+                ? Center(
+                    child: Text(
+                      'Sélectionnez une date pour voir les créneaux',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontSize: 12,
+                        color: OmniColors.textTertiary,
+                      ),
+                    ),
+                  )
+                : _buildSlotsContent(),
+          ),
+
+          if (_bookingError != null)
+            _BookingErrorBanner(message: _bookingError!),
+
+          if (_selectedSlot != null && _bookingError == null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                OmniSpacing.pageHorizontal,
+                2,
+                OmniSpacing.pageHorizontal,
+                0,
+              ),
+              child: _SlotBookingNotice(doctorName: _detail.name),
+            ),
+
+          // Continue CTA
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                OmniSpacing.pageHorizontal,
+                OmniSpacing.xs,
+                OmniSpacing.pageHorizontal,
+                OmniSpacing.xs,
+              ),
+              child: SizedBox(
+                width: double.infinity,
+                height: 38,
+                child: ElevatedButton(
+                  onPressed: _selectedSlot != null ? _onContinue : null,
+                  child: const Text('Continuer'),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -435,27 +423,16 @@ class _DoctorAvailabilitySheetState extends State<DoctorAvailabilitySheet> {
   Future<void> _onContinue() async {
     final slot = _selectedSlot;
     if (slot == null) return;
-    setState(() {
-      _isBooking = true;
-      _bookingError = null;
-    });
-    final result = await widget.controller.bookSlot(
-      doctorId: widget.detail.id,
-      slot: slot,
+    final booking = context.read<PatientBookingController?>();
+    final cabinet = widget.controller.selectedPracticeLocation;
+    if (booking == null || cabinet == null) {
+      setState(() => _bookingError = 'Ce Cabinet n’est pas disponible.');
+      return;
+    }
+    booking.prepareIntent(doctor: _detail, cabinet: cabinet, slot: slot);
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => const BookingReviewScreen()),
     );
-    if (!mounted) return;
-    setState(() {
-      _isBooking = false;
-      switch (result.status) {
-        case DoctorBookingStatus.success:
-          _confirmation = result.booking;
-          _bookingError = null;
-        case DoctorBookingStatus.conflict:
-          _bookingError = result.conflictMessage;
-        case DoctorBookingStatus.failure:
-          _bookingError = result.failure?.message ?? '';
-      }
-    });
   }
 }
 
@@ -509,113 +486,6 @@ class _BookingErrorBanner extends StatelessWidget {
   }
 }
 
-/// In-sheet confirmation after a successful booking.
-class _BookingConfirmationView extends StatelessWidget {
-  const _BookingConfirmationView({required this.booking});
-
-  final AppointmentBooking booking;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return SafeArea(
-      top: false,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(OmniSpacing.xxl),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 64,
-              height: 64,
-              alignment: Alignment.center,
-              decoration: const BoxDecoration(
-                color: OmniColors.mintSoft,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.check_rounded,
-                size: 32,
-                color: OmniColors.deepTeal,
-              ),
-            ),
-            const SizedBox(height: OmniSpacing.md),
-            Text(
-              'Rendez-vous confirmé',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                color: OmniColors.textPrimary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: OmniSpacing.sm),
-            Text(
-              'Votre demande de rendez-vous a bien été enregistrée. '
-              'Vous la retrouverez dans votre messagerie et vos '
-              'rendez-vous.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontSize: 13,
-                height: 1.5,
-                color: OmniColors.textSecondary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: OmniSpacing.base),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(
-                horizontal: OmniSpacing.base,
-                vertical: OmniSpacing.sm,
-              ),
-              decoration: BoxDecoration(
-                color: OmniColors.surfaceSecondary,
-                borderRadius: BorderRadius.circular(OmniRadii.field),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.event_outlined,
-                        size: 16,
-                        color: OmniColors.textTertiary,
-                      ),
-                      const SizedBox(width: OmniSpacing.sm),
-                      Expanded(
-                        child: Text(
-                          booking.status == 'CONFIRMED' ||
-                                  booking.status == 'PENDING'
-                              ? 'Demande de rendez-vous'
-                              : booking.status,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: OmniColors.textPrimary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: OmniSpacing.lg),
-            SizedBox(
-              width: double.infinity,
-              height: 46,
-              child: ElevatedButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Fermer'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _SlotBookingNotice extends StatelessWidget {
   const _SlotBookingNotice({required this.doctorName});
 
@@ -645,7 +515,7 @@ class _SlotBookingNotice extends StatelessWidget {
           const SizedBox(width: OmniSpacing.xs),
           Expanded(
             child: Text(
-              'En continuant, vous réservez ce créneau avec $doctorName.',
+              'En continuant, vous demandez ce créneau à $doctorName.',
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(

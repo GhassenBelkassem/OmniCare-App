@@ -82,8 +82,9 @@ class DoctorDirectoryRepository {
     }
   }
 
-  Future<List<AvailabilitySlotDto>> getSlots({
+  Future<AvailabilitySlotsDto> getSlots({
     required String doctorId,
+    required String practiceLocationId,
     required DateTime from,
     required DateTime to,
     CancelToken? cancelToken,
@@ -91,6 +92,7 @@ class DoctorDirectoryRepository {
     try {
       return await _api.getSlots(
         doctorId: doctorId,
+        practiceLocationId: practiceLocationId,
         from: from,
         to: to,
         cancelToken: cancelToken,
@@ -103,6 +105,7 @@ class DoctorDirectoryRepository {
   /// Books a slot. A 409 conflict (the slot was just taken) is a normal,
   /// recoverable outcome — the picker stays open so the patient can choose
   /// another slot. Everything else maps to a [DoctorDirectoryFailure].
+  @Deprecated('Compatibility only. Scheduled patient care creates a request.')
   Future<DoctorBookingResult> bookAppointment({
     required String doctorId,
     required String startTime,

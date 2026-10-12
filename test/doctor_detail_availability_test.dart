@@ -12,6 +12,10 @@ import 'package:omnicare_mobile/features/patient_doctor/presentation/doctor_dire
 import 'package:omnicare_mobile/features/patient_doctor/presentation/doctor_detail_screen.dart';
 import 'package:omnicare_mobile/features/patient_doctor/presentation/doctor_availability_sheet.dart';
 import 'package:omnicare_mobile/features/patient_doctor/presentation/widgets/doctor_filter_sheet.dart';
+import 'package:omnicare_mobile/features/scheduled_care/application/patient_booking_controller.dart';
+import 'package:omnicare_mobile/features/scheduled_care/data/scheduled_care_repository.dart';
+import 'package:omnicare_mobile/features/scheduled_care/domain/scheduled_care_models.dart';
+import 'package:omnicare_mobile/features/scheduled_care/presentation/booking_review_screen.dart';
 
 class _FakeDoctorRepository implements DoctorDirectoryRepository {
   _FakeDoctorRepository({
@@ -54,15 +58,22 @@ class _FakeDoctorRepository implements DoctorDirectoryRepository {
   }
 
   @override
-  Future<List<AvailabilitySlotDto>> getSlots({
+  Future<AvailabilitySlotsDto> getSlots({
     required String doctorId,
+    required String practiceLocationId,
     required DateTime from,
     required DateTime to,
     CancelToken? cancelToken,
   }) async {
     final failure = slotsFailure;
     if (failure != null) throw failure;
-    return slots;
+    return AvailabilitySlotsDto(
+      doctorId: doctorId,
+      practiceLocationId: practiceLocationId,
+      timezone: 'Africa/Tunis',
+      generatedAt: DateTime.now().toUtc().toIso8601String(),
+      slots: slots,
+    );
   }
 
   @override
@@ -92,6 +103,15 @@ final _conflictResult = DoctorBookingResult.conflict(
   'Veuillez en choisir un autre.',
 );
 
+class _UnusedScheduledCareRepository
+    implements ScheduledCareRepositoryContract {
+  @override
+  Future<PatientBookingRequestDetail> createOrReconcile(
+    CreateBookingRequestCommand command, {
+    CancelToken? cancelToken,
+  }) async => throw UnimplementedError();
+}
+
 const _sarahDetail = DoctorDirectoryDetail(
   doctorId: 'doc-1',
   displayName: 'Dr. Sarah Mansour',
@@ -111,6 +131,19 @@ const _sarahDetail = DoctorDirectoryDetail(
       'Le Dr. Sarah Mansour est médecin généraliste à Tunis. Elle accompagne '
       'ses patients tout au long de leur parcours de soins, avec une écoute '
       'attentive et une approche préventive.',
+  practiceLocations: [
+    DoctorPracticeLocationDto(
+      id: 'cabinet-1',
+      name: 'Cabinet Dr. Sarah Mansour',
+      governorate: 'Tunis',
+      city: 'Tunis',
+      address: '10 avenue de Tunis',
+      primary: true,
+      equipment: [
+        DoctorEquipmentDto(code: 'ECG', displayName: 'ECG', portable: false),
+      ],
+    ),
+  ],
 );
 
 const _nadiaDetail = DoctorDirectoryDetail(
@@ -121,6 +154,16 @@ const _nadiaDetail = DoctorDirectoryDetail(
   experienceYears: 8,
   practiceCity: 'Tunis',
   acceptingNewPatients: true,
+  practiceLocations: [
+    DoctorPracticeLocationDto(
+      id: 'cabinet-2',
+      name: 'Cabinet Dr. Nadia Cherif',
+      governorate: 'Tunis',
+      city: 'Tunis',
+      address: '20 avenue de Tunis',
+      primary: true,
+    ),
+  ],
 );
 
 List<DoctorDirectoryListItem> _directoryItems() {
@@ -171,10 +214,7 @@ List<DoctorDirectoryListItem> _directoryItems() {
 }
 
 Map<String, DoctorDirectoryDetail> _detailMap() {
-  return const {
-    'doc-1': _sarahDetail,
-    'doc-2': _nadiaDetail,
-  };
+  return const {'doc-1': _sarahDetail, 'doc-2': _nadiaDetail};
 }
 
 List<AvailabilitySlotDto> _buildSlots() {
@@ -223,10 +263,20 @@ Widget _buildDetailApp({
   TextScaler? textScaler,
   _FakeDoctorRepository? repository,
 }) {
-  return ChangeNotifierProvider<DoctorDirectoryController>(
-    create: (_) => DoctorDirectoryController(
-      repository: repository ?? _FakeDoctorRepository(),
-    ),
+  return MultiProvider(
+    providers: [
+      ChangeNotifierProvider<DoctorDirectoryController>(
+        create: (_) => DoctorDirectoryController(
+          repository: repository ?? _FakeDoctorRepository(),
+        ),
+      ),
+      ChangeNotifierProvider<PatientBookingController>(
+        create: (_) => PatientBookingController(
+          repository: _UnusedScheduledCareRepository(),
+          requestIdFactory: () => 'request-1',
+        ),
+      ),
+    ],
     child: MaterialApp(
       theme: buildOmniTheme(),
       builder: (context, child) {
@@ -657,8 +707,10 @@ void main() {
 
       expect(find.byType(DoctorAvailabilitySheet), findsOneWidget);
       expect(
-        find.text('En continuant, vous réservez ce créneau avec '
-            'Dr. Sarah Mansour.'),
+        find.text(
+          'En continuant, vous demandez ce créneau à '
+          'Dr. Sarah Mansour.',
+        ),
         findsOneWidget,
       );
       expect(
@@ -674,11 +726,11 @@ void main() {
       await tester.pumpAndSettle();
 
       await _openAvailabilitySheet(tester);
-      expect(find.textContaining('En continuant, vous réservez'), findsNothing);
+      expect(find.textContaining('En continuant, vous demandez'), findsNothing);
 
       await _selectAvailabilityTime(tester, '15:30');
       expect(
-        find.textContaining('En continuant, vous réservez'),
+        find.textContaining('En continuant, vous demandez'),
         findsOneWidget,
       );
     });
@@ -701,9 +753,7 @@ void main() {
       );
     });
 
-    testWidgets('Continuer books and shows in-sheet confirmation', (
-      tester,
-    ) async {
+    testWidgets('Continuer opens booking-request review', (tester) async {
       await tester.pumpWidget(_buildDetailApp());
       await tester.pumpAndSettle();
 
@@ -712,15 +762,12 @@ void main() {
       await tester.tap(find.widgetWithText(ElevatedButton, 'Continuer'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Rendez-vous confirmé'), findsOneWidget);
-      expect(find.text('Fermer'), findsOneWidget);
-
-      await tester.tap(find.text('Fermer'));
-      await tester.pumpAndSettle();
-      expect(find.byType(DoctorAvailabilitySheet), findsNothing);
+      expect(find.byType(BookingReviewScreen), findsOneWidget);
+      expect(find.text('Vérifier la demande'), findsOneWidget);
+      expect(find.text('Rendez-vous confirmé'), findsNothing);
     });
 
-    testWidgets('conflict keeps picker open with patient-safe message', (
+    testWidgets('legacy booking result is not consulted by patient flow', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -735,12 +782,12 @@ void main() {
       await tester.tap(find.widgetWithText(ElevatedButton, 'Continuer'));
       await tester.pumpAndSettle();
 
-      expect(find.byType(DoctorAvailabilitySheet), findsOneWidget);
+      expect(find.byType(BookingReviewScreen), findsOneWidget);
       expect(find.text('Rendez-vous confirmé'), findsNothing);
-      expect(find.textContaining('vient d\'être réservé'), findsOneWidget);
+      expect(find.textContaining('vient d\'être réservé'), findsNothing);
     });
 
-    testWidgets('booking failure shows inline error and stays open', (
+    testWidgets('legacy booking failure is not consulted by patient flow', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -759,9 +806,9 @@ void main() {
       await tester.tap(find.widgetWithText(ElevatedButton, 'Continuer'));
       await tester.pumpAndSettle();
 
-      expect(find.byType(DoctorAvailabilitySheet), findsOneWidget);
+      expect(find.byType(BookingReviewScreen), findsOneWidget);
       expect(find.text('Rendez-vous confirmé'), findsNothing);
-      expect(find.textContaining('temporarily unavailable'), findsOneWidget);
+      expect(find.textContaining('temporarily unavailable'), findsNothing);
     });
 
     testWidgets('no price rendered in sheet', (tester) async {

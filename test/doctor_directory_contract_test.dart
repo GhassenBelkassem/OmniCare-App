@@ -45,6 +45,25 @@ const _detailJson = <String, dynamic>{
   'patientAgeGroups': ['Adultes', 'Personnes âgées'],
   'consultationTypes': ['En cabinet', 'Téléconsultation'],
   'biography': 'Une brève biographie.',
+  'practiceLocations': [
+    {
+      'id': 'cabinet-1',
+      'type': 'CABINET',
+      'name': 'Cabinet Dr. Sarah Mansour',
+      'governorate': 'Tunis',
+      'city': 'Tunis',
+      'address': '10 avenue de Tunis',
+      'latitude': 36.8,
+      'longitude': 10.1,
+      'publicPhone': '+216 98 000 000',
+      'wheelchairAccessible': true,
+      'patientInstructions': null,
+      'primary': true,
+      'equipment': [
+        {'code': 'ECG', 'displayName': 'ECG', 'portable': false},
+      ],
+    },
+  ],
 };
 
 const _appointmentJson = <String, dynamic>{
@@ -98,41 +117,35 @@ void main() {
     });
 
     test('accepts a minimal payload', () {
-      final item = DoctorDirectoryListItem.fromJson(
-        const <String, dynamic>{
-          'doctorId': 'doc-2',
-          'displayName': 'Dr. Nadia Cherif',
-          'availableForUrgent': false,
-          'isActive': true,
-        },
-      );
+      final item = DoctorDirectoryListItem.fromJson(const <String, dynamic>{
+        'doctorId': 'doc-2',
+        'displayName': 'Dr. Nadia Cherif',
+        'availableForUrgent': false,
+        'isActive': true,
+      });
       expect(item.doctorId, 'doc-2');
       expect(item.specialty, isNull);
     });
 
     test('rejects a missing required identifier', () {
       expect(
-        () => DoctorDirectoryListItem.fromJson(
-          const <String, dynamic>{
-            'displayName': 'Dr. X',
-            'availableForUrgent': false,
-            'isActive': true,
-          },
-        ),
+        () => DoctorDirectoryListItem.fromJson(const <String, dynamic>{
+          'displayName': 'Dr. X',
+          'availableForUrgent': false,
+          'isActive': true,
+        }),
         throwsA(isA<DoctorContractException>()),
       );
     });
 
     test('rejects a non-boolean availableForUrgent', () {
       expect(
-        () => DoctorDirectoryListItem.fromJson(
-          const <String, dynamic>{
-            'doctorId': 'doc-2',
-            'displayName': 'Dr. X',
-            'availableForUrgent': 'yes',
-            'isActive': true,
-          },
-        ),
+        () => DoctorDirectoryListItem.fromJson(const <String, dynamic>{
+          'doctorId': 'doc-2',
+          'displayName': 'Dr. X',
+          'availableForUrgent': 'yes',
+          'isActive': true,
+        }),
         throwsA(isA<DoctorContractException>()),
       );
     });
@@ -149,52 +162,52 @@ void main() {
       expect(detail.languages, ['Français', 'Arabe']);
       expect(detail.acceptingNewPatients, isTrue);
       expect(detail.areasOfCare, ['Bilan général', 'Hypertension']);
-      expect(detail.expertise, ['Médecine préventive', 'Coordination des soins']);
-      expect(detail.visitReasons, ['Bilan de santé', 'Suivi de maladie chronique']);
+      expect(detail.expertise, [
+        'Médecine préventive',
+        'Coordination des soins',
+      ]);
+      expect(detail.visitReasons, [
+        'Bilan de santé',
+        'Suivi de maladie chronique',
+      ]);
       expect(detail.patientAgeGroups, ['Adultes', 'Personnes âgées']);
       expect(detail.consultationTypes, ['En cabinet', 'Téléconsultation']);
       expect(detail.biography, 'Une brève biographie.');
     });
 
     test('defaults acceptingNewPatients to true when absent', () {
-      final detail = DoctorDirectoryDetail.fromJson(
-        const <String, dynamic>{
-          'doctorId': 'doc-1',
-          'displayName': 'Dr. X',
-          'availableForUrgent': false,
-          'isActive': true,
-          'verified': false,
-        },
-      );
+      final detail = DoctorDirectoryDetail.fromJson(const <String, dynamic>{
+        'doctorId': 'doc-1',
+        'displayName': 'Dr. X',
+        'availableForUrgent': false,
+        'isActive': true,
+        'verified': false,
+      });
       expect(detail.acceptingNewPatients, isTrue);
     });
 
     test('acceptingNewPatients false is honored', () {
-      final detail = DoctorDirectoryDetail.fromJson(
-        const <String, dynamic>{
-          'doctorId': 'doc-1',
-          'displayName': 'Dr. X',
-          'availableForUrgent': false,
-          'isActive': true,
-          'verified': false,
-          'acceptingNewPatients': false,
-        },
-      );
+      final detail = DoctorDirectoryDetail.fromJson(const <String, dynamic>{
+        'doctorId': 'doc-1',
+        'displayName': 'Dr. X',
+        'availableForUrgent': false,
+        'isActive': true,
+        'verified': false,
+        'acceptingNewPatients': false,
+      });
       expect(detail.acceptingNewPatients, isFalse);
     });
 
     test('rejects a string list carrying a non-string element', () {
       expect(
-        () => DoctorDirectoryDetail.fromJson(
-          const <String, dynamic>{
-            'doctorId': 'doc-1',
-            'displayName': 'Dr. X',
-            'availableForUrgent': false,
-            'isActive': true,
-            'verified': false,
-            'subSpecialties': ['ok', 42],
-          },
-        ),
+        () => DoctorDirectoryDetail.fromJson(const <String, dynamic>{
+          'doctorId': 'doc-1',
+          'displayName': 'Dr. X',
+          'availableForUrgent': false,
+          'isActive': true,
+          'verified': false,
+          'subSpecialties': ['ok', 42],
+        }),
         throwsA(isA<DoctorContractException>()),
       );
     });
@@ -202,21 +215,19 @@ void main() {
 
   group('DTO parsing — slots and booking', () {
     test('parses an availability slot', () {
-      final slot = AvailabilitySlotDto.fromJson(
-        const <String, dynamic>{
-          'start': '2026-09-24T09:00:00Z',
-          'end': '2026-09-24T09:30:00Z',
-        },
-      );
+      final slot = AvailabilitySlotDto.fromJson(const <String, dynamic>{
+        'start': '2026-09-24T09:00:00Z',
+        'end': '2026-09-24T09:30:00Z',
+      });
       expect(slot.start, '2026-09-24T09:00:00Z');
       expect(slot.end, '2026-09-24T09:30:00Z');
     });
 
     test('rejects a slot missing its window', () {
       expect(
-        () => AvailabilitySlotDto.fromJson(
-          const <String, dynamic>{'end': '2026-09-24T09:30:00Z'},
-        ),
+        () => AvailabilitySlotDto.fromJson(const <String, dynamic>{
+          'end': '2026-09-24T09:30:00Z',
+        }),
         throwsA(isA<DoctorContractException>()),
       );
     });
@@ -268,14 +279,13 @@ void main() {
       expect(detail.consultationTypes, ['En cabinet', 'Téléconsultation']);
       expect(detail.practiceLocations, isNotEmpty);
       expect(detail.practiceLocations.single.city, 'Tunis');
+      expect(detail.practiceLocations.single.practiceLocationId, 'cabinet-1');
     });
 
-    test('practice locations are empty when practiceCity is absent', () {
+    test('practice locations do not derive from practiceCity', () {
       final json = Map<String, dynamic>.from(_detailJson)
-        ..['practiceCity'] = null;
-      final detail = buildDoctorDetail(
-        DoctorDirectoryDetail.fromJson(json),
-      );
+        ..['practiceLocations'] = const [];
+      final detail = buildDoctorDetail(DoctorDirectoryDetail.fromJson(json));
       expect(detail.practiceLocations, isEmpty);
     });
 
@@ -299,17 +309,17 @@ void main() {
       });
 
       test('evening slots are mapped to Soir', () {
-        final days = groupAvailabilitySlots([_slotUtc(DateTime(2026, 9, 24, 19, 0))]);
+        final days = groupAvailabilitySlots([
+          _slotUtc(DateTime(2026, 9, 24, 19, 0)),
+        ]);
         expect(days.single.slots.single.timeOfDay, 'Soir');
       });
 
       test('throws on an unparseable instant', () {
         expect(
-          () => groupAvailabilitySlots(
-            const [
-              AvailabilitySlotDto(start: 'nope', end: '2026-09-24T09:30:00Z'),
-            ],
-          ),
+          () => groupAvailabilitySlots(const [
+            AvailabilitySlotDto(start: 'nope', end: '2026-09-24T09:30:00Z'),
+          ]),
           throwsA(isA<DoctorContractException>()),
         );
       });
@@ -421,45 +431,53 @@ void main() {
   });
 
   group('Repository', () {
-    test('list, detail and slots failures become DoctorDirectoryFailure', () async {
-      final api = _FakeApi(
-        listError: _badResponse(401),
-        detailError: _badResponse(404),
-        slotsError: _dio(type: DioExceptionType.connectionError),
-      );
-      final repository = DoctorDirectoryRepository(api);
+    test(
+      'list, detail and slots failures become DoctorDirectoryFailure',
+      () async {
+        final api = _FakeApi(
+          listError: _badResponse(401),
+          detailError: _badResponse(404),
+          slotsError: _dio(type: DioExceptionType.connectionError),
+        );
+        final repository = DoctorDirectoryRepository(api);
 
-      await expectLater(
-        repository.listDoctors(),
-        throwsA(
-          isA<DoctorDirectoryFailure>().having(
-            (f) => f.kind,
-            'kind',
-            DoctorDirectoryFailureKind.sessionExpired,
+        await expectLater(
+          repository.listDoctors(),
+          throwsA(
+            isA<DoctorDirectoryFailure>().having(
+              (f) => f.kind,
+              'kind',
+              DoctorDirectoryFailureKind.sessionExpired,
+            ),
           ),
-        ),
-      );
-      await expectLater(
-        repository.getDoctor('doc-1'),
-        throwsA(
-          isA<DoctorDirectoryFailure>().having((f) => f.isNotFound, 'notFound', true),
-        ),
-      );
-      await expectLater(
-        repository.getSlots(
-          doctorId: 'doc-1',
-          from: DateTime.now(),
-          to: DateTime.now().add(const Duration(days: 1)),
-        ),
-        throwsA(
-          isA<DoctorDirectoryFailure>().having(
-            (f) => f.kind,
-            'kind',
-            DoctorDirectoryFailureKind.network,
+        );
+        await expectLater(
+          repository.getDoctor('doc-1'),
+          throwsA(
+            isA<DoctorDirectoryFailure>().having(
+              (f) => f.isNotFound,
+              'notFound',
+              true,
+            ),
           ),
-        ),
-      );
-    });
+        );
+        await expectLater(
+          repository.getSlots(
+            doctorId: 'doc-1',
+            practiceLocationId: 'cabinet-1',
+            from: DateTime.now(),
+            to: DateTime.now().add(const Duration(days: 1)),
+          ),
+          throwsA(
+            isA<DoctorDirectoryFailure>().having(
+              (f) => f.kind,
+              'kind',
+              DoctorDirectoryFailureKind.network,
+            ),
+          ),
+        );
+      },
+    );
 
     test('successful booking returns a success result', () async {
       final booking = AppointmentBooking.fromJson(_appointmentJson);
@@ -519,7 +537,11 @@ AvailabilitySlotDto _slotUtc(DateTime local) {
   );
 }
 
-DoctorDayAvailability _day(DateTime date, List<String> times, List<String> periods) {
+DoctorDayAvailability _day(
+  DateTime date,
+  List<String> times,
+  List<String> periods,
+) {
   assert(times.length == periods.length);
   return DoctorDayAvailability(
     date: DateTime(date.year, date.month, date.day),
@@ -532,6 +554,7 @@ DoctorDayAvailability _day(DateTime date, List<String> times, List<String> perio
           endIso: '2026-09-24T${times[i]}:30Z',
           start: DateTime(date.year, date.month, date.day, 9),
           end: DateTime(date.year, date.month, date.day, 9, 30),
+          durationMinutes: 30,
         ),
     ]),
   );
@@ -573,15 +596,22 @@ class _FakeApi implements DoctorDirectoryApi {
   }
 
   @override
-  Future<List<AvailabilitySlotDto>> getSlots({
+  Future<AvailabilitySlotsDto> getSlots({
     required String doctorId,
+    required String practiceLocationId,
     required DateTime from,
     required DateTime to,
     CancelToken? cancelToken,
   }) async {
     final error = slotsError;
     if (error != null) throw error;
-    return const [];
+    return AvailabilitySlotsDto(
+      doctorId: doctorId,
+      practiceLocationId: practiceLocationId,
+      timezone: 'Africa/Tunis',
+      generatedAt: DateTime.now().toUtc().toIso8601String(),
+      slots: const [],
+    );
   }
 
   @override

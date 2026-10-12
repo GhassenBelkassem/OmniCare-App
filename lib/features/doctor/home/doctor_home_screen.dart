@@ -3,7 +3,10 @@ import 'package:intl/intl.dart';
 
 import '../../../core/theme/omni_theme.dart';
 import '../agenda/doctor_demo_appointment.dart';
-import '../demo/doctor_demo_profile.dart';
+import '../../scheduled_care/domain/patient_scheduled_care_models.dart';
+import '../../scheduled_care/presentation/booking_review_screen.dart';
+import '../profile/doctor_display_profile.dart';
+import '../scheduled_care/application/doctor_home_controller.dart';
 import '../workspace/doctor_workspace_config.dart';
 import '../urgent/doctor_urgent_controller.dart';
 import 'doctor_home_demo_state.dart';
@@ -33,9 +36,11 @@ class DoctorHomeScreen extends StatelessWidget {
     this.onOpenAgenda,
     this.onOpenUrgencies,
     this.urgentController,
+    this.homeController,
+    this.onOpenBookingRequest,
   });
 
-  final DoctorDemoProfile profile;
+  final DoctorDisplayProfile profile;
   final Set<DoctorCapability> capabilities;
   final DoctorWorkspaceConfig? workspaceConfig;
   final DoctorHomeDemoState demoState;
@@ -43,9 +48,25 @@ class DoctorHomeScreen extends StatelessWidget {
   final VoidCallback? onOpenAgenda;
   final VoidCallback? onOpenUrgencies;
   final DoctorUrgentController? urgentController;
+  final DoctorHomeController? homeController;
+  final ValueChanged<String>? onOpenBookingRequest;
 
   @override
   Widget build(BuildContext context) {
+    final realController = homeController;
+    if (realController != null) {
+      if (realController.state == DoctorHomeLoadState.initial) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (realController.state == DoctorHomeLoadState.initial) {
+            realController.load();
+          }
+        });
+      }
+      return AnimatedBuilder(
+        animation: realController,
+        builder: (context, _) => _buildReal(context, realController),
+      );
+    }
     final hasAgenda = capabilities.contains(DoctorCapability.agenda);
     final hasUrgentRequests = capabilities.contains(
       DoctorCapability.urgentRequests,
@@ -168,6 +189,133 @@ class DoctorHomeScreen extends StatelessWidget {
       ),
     );
   }
+
+  Widget _buildReal(BuildContext context, DoctorHomeController controller) {
+    final summary = controller.summary;
+    final nextRequest = summary?.nextPendingRequest;
+    final nextAppointment = summary?.nextConfirmedAppointment;
+    final hasUrgentRequests = capabilities.contains(
+      DoctorCapability.urgentRequests,
+    );
+    final urgentStatus = urgentController == null
+        ? null
+        : _homeUrgentStatus(urgentController!.state);
+    return RefreshIndicator(
+      onRefresh: controller.refresh,
+      child: SingleChildScrollView(
+        key: const ValueKey('doctor-home-scroll'),
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(
+          OmniSpacing.pageHorizontal,
+          OmniSpacing.pageVertical,
+          OmniSpacing.pageHorizontal,
+          OmniSpacing.xxl,
+        ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 720),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _Greeting(profile: profile),
+                if (controller.state == DoctorHomeLoadState.loading &&
+                    summary == null) ...[
+                  const SizedBox(height: OmniSpacing.xxl),
+                  const Center(child: CircularProgressIndicator()),
+                ] else if (controller.state == DoctorHomeLoadState.failed &&
+                    summary == null) ...[
+                  const SizedBox(height: OmniSpacing.xxl),
+                  _HomeFailure(
+                    message:
+                        controller.failure?.message ??
+                        'Le résumé est momentanément indisponible.',
+                    onRetry: controller.refresh,
+                  ),
+                ] else ...[
+                  const SizedBox(height: OmniSpacing.xxl),
+                  _SectionHeader(
+                    title: 'À traiter',
+                    trailing: Semantics(
+                      label:
+                          '${summary?.pendingRequestCount ?? 0} demandes à traiter',
+                      child: Text(
+                        '${summary?.pendingRequestCount ?? 0}',
+                        key: const ValueKey('doctor-pending-request-count'),
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: OmniColors.textSecondary,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: OmniSpacing.md),
+                  if (nextRequest == null)
+                    const _HomeNeutralCard(
+                      key: ValueKey('doctor-no-pending-request'),
+                      icon: Icons.check_circle_outline_rounded,
+                      message: 'Aucune demande en attente.',
+                    )
+                  else
+                    _ScheduledRequestCard(
+                      request: nextRequest,
+                      onTap: nextRequest.requestId == null
+                          ? null
+                          : () => onOpenBookingRequest?.call(
+                              nextRequest.requestId!,
+                            ),
+                    ),
+                  const SizedBox(height: OmniSpacing.xxl),
+                  const _SectionHeader(title: 'Prochain rendez-vous'),
+                  const SizedBox(height: OmniSpacing.md),
+                  if (nextAppointment == null)
+                    const _HomeNeutralCard(
+                      key: ValueKey('doctor-no-next-appointment'),
+                      icon: Icons.event_available_outlined,
+                      message: 'Aucun rendez-vous confirmé à venir.',
+                    )
+                  else
+                    _NextAppointmentCard(
+                      appointment: DoctorHomeAppointment(
+                        time: DateFormat('HH:mm').format(
+                          schedulingWallClock(
+                            nextAppointment.start,
+                            timezone: nextAppointment.timezone,
+                          ),
+                        ),
+                        patientName: nextAppointment.subject.displayName,
+                        reason: 'Rendez-vous confirmé',
+                        location: nextAppointment.cabinet.name,
+                      ),
+                      onOpenAgenda: onOpenAgenda,
+                    ),
+                  if (controller.failure != null) ...[
+                    const SizedBox(height: OmniSpacing.md),
+                    _HomeFailure(
+                      message: controller.failure!.message,
+                      onRetry: controller.refresh,
+                    ),
+                  ],
+                ],
+                if (hasUrgentRequests && urgentStatus != null) ...[
+                  const SizedBox(height: OmniSpacing.xxl),
+                  const _SectionHeader(title: 'Urgences à domicile'),
+                  const SizedBox(height: OmniSpacing.md),
+                  _UrgentAvailabilityCard(
+                    status: urgentStatus,
+                    onOpenUrgencies: onOpenUrgencies,
+                  ),
+                ],
+                if (workspaceConfig != null) ...[
+                  const SizedBox(height: OmniSpacing.xxl),
+                  _ActivitySummary(config: workspaceConfig!),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 void _showUpcomingFeatureSheet(BuildContext context, String message) {
@@ -198,7 +346,7 @@ void _showUpcomingFeatureSheet(BuildContext context, String message) {
 class _Greeting extends StatelessWidget {
   const _Greeting({required this.profile});
 
-  final DoctorDemoProfile profile;
+  final DoctorDisplayProfile profile;
 
   @override
   Widget build(BuildContext context) {
@@ -480,6 +628,131 @@ class _NextAppointmentCard extends StatelessWidget {
             label: const Text('Voir dans l’agenda'),
           ),
         ],
+      ],
+    ),
+  );
+}
+
+class _ScheduledRequestCard extends StatelessWidget {
+  const _ScheduledRequestCard({required this.request, this.onTap});
+
+  final PatientScheduledCareItem request;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: OmniColors.surfacePrimary,
+    borderRadius: BorderRadius.circular(OmniRadii.card),
+    child: InkWell(
+      key: const ValueKey('doctor-next-pending-request'),
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(OmniRadii.card),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(OmniSpacing.base),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(OmniRadii.card),
+          border: Border.all(color: OmniColors.borderLight),
+          boxShadow: const [OmniColors.shadowSm],
+        ),
+        child: Row(
+          children: [
+            const _IconCircle(
+              icon: Icons.calendar_month_outlined,
+              background: OmniColors.infoBlueSoft,
+              color: OmniColors.infoBlue,
+            ),
+            const SizedBox(width: OmniSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Demande de rendez-vous',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    request.subject.displayName,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: OmniColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${DateFormat('dd/MM/yyyy').format(schedulingWallClock(request.start, timezone: request.timezone))} · '
+                    '${DateFormat('HH:mm').format(schedulingWallClock(request.start, timezone: request.timezone))}',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: OmniColors.infoBlue,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _HomeNeutralCard extends StatelessWidget {
+  const _HomeNeutralCard({
+    super.key,
+    required this.icon,
+    required this.message,
+  });
+
+  final IconData icon;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(OmniSpacing.base),
+    decoration: BoxDecoration(
+      color: OmniColors.slateSoft,
+      borderRadius: BorderRadius.circular(OmniRadii.card),
+      border: Border.all(color: OmniColors.borderLight),
+    ),
+    child: Row(
+      children: [
+        Icon(icon, color: OmniColors.deepTeal),
+        const SizedBox(width: OmniSpacing.md),
+        Expanded(child: Text(message)),
+      ],
+    ),
+  );
+}
+
+class _HomeFailure extends StatelessWidget {
+  const _HomeFailure({required this.message, required this.onRetry});
+
+  final String message;
+  final Future<void> Function() onRetry;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(OmniSpacing.base),
+    decoration: BoxDecoration(
+      color: OmniColors.urgentCoralSoft,
+      borderRadius: BorderRadius.circular(OmniRadii.card),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(message),
+        const SizedBox(height: OmniSpacing.sm),
+        TextButton(
+          key: const ValueKey('doctor-home-retry'),
+          onPressed: onRetry,
+          child: const Text('Réessayer'),
+        ),
       ],
     ),
   );

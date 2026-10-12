@@ -8,6 +8,14 @@ library;
 
 import 'doctor_models.dart';
 
+/// Scheduling timezone mandated by the current Tunisia doctor contract.
+///
+/// This is applied by the backend-to-presentation mapper while the doctor
+/// detail projection has no timezone field. It is deliberately not a default
+/// on [PracticeLocation], so future location contracts must supply their own
+/// authoritative IANA timezone.
+const String doctorSchedulingTimezone = 'Africa/Tunis';
+
 /// A single available time slot for a specific date.
 class DoctorAvailabilitySlot {
   const DoctorAvailabilitySlot({
@@ -17,6 +25,7 @@ class DoctorAvailabilitySlot {
     required this.endIso,
     required this.start,
     required this.end,
+    required this.durationMinutes,
   });
 
   /// The time label (e.g. '09:00', '14:30').
@@ -36,6 +45,9 @@ class DoctorAvailabilitySlot {
 
   /// Parsed local end ([endIso] in local time).
   final DateTime end;
+
+  /// Backend-provided duration; never inferred as a scheduling rule.
+  final int durationMinutes;
 }
 
 /// Date-level availability: which day has which slots.
@@ -84,9 +96,18 @@ class PracticeOpeningHours {
 /// Future-compatible with multiple locations per doctor.
 class PracticeLocation {
   const PracticeLocation({
+    required this.practiceLocationId,
     required this.name,
     required this.address,
     required this.city,
+    required this.governorate,
+    required this.timezone,
+    this.type,
+    this.latitude,
+    this.longitude,
+    this.publicPhone,
+    this.wheelchairAccessible = false,
+    this.primary = false,
     this.distanceKm,
     this.galleryImages = const [],
     this.openingHours = const [],
@@ -96,6 +117,9 @@ class PracticeLocation {
     this.appointmentInstructions,
   });
 
+  /// Persisted backend Cabinet identity used for availability and creation.
+  final String practiceLocationId;
+
   /// Display name (e.g. 'Cabinet Dr. Amine Ben Salah').
   final String name;
 
@@ -104,6 +128,18 @@ class PracticeLocation {
 
   /// City.
   final String city;
+
+  final String governorate;
+
+  /// IANA scheduling timezone retained with the Cabinet.
+  final String timezone;
+
+  final String? type;
+  final double? latitude;
+  final double? longitude;
+  final String? publicPhone;
+  final bool wheelchairAccessible;
+  final bool primary;
 
   /// Distance from user in km (mock value).
   final double? distanceKm;
@@ -141,6 +177,7 @@ class DoctorDetail {
     this.practiceLocations = const [],
     this.availability = const [],
     this.nextAvailableLabel,
+    this.consultationPriceTnd,
   });
 
   /// The base list item data (name, specialty, etc.).
@@ -169,6 +206,9 @@ class DoctorDetail {
 
   /// Human-readable label for next availability (e.g. 'Aujourd\'hui · 16:30').
   final String? nextAvailableLabel;
+
+  /// Authoritative pre-submit price from doctor detail, when present.
+  final double? consultationPriceTnd;
 
   /// Convenience accessors forwarded from listItem.
   String get id => listItem.id;
@@ -201,6 +241,7 @@ class DoctorDetail {
       nextAvailableLabel: clearNextAvailableLabel
           ? null
           : nextAvailableLabel ?? this.nextAvailableLabel,
+      consultationPriceTnd: consultationPriceTnd,
     );
   }
 }

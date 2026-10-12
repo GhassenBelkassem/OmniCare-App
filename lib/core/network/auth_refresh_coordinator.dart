@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import '../storage/secure_token_store.dart';
 
 typedef SessionInvalidatedCallback = Future<void> Function();
+typedef SessionRefreshedCallback = Future<void> Function(StoredSession session);
 
 class AuthRefreshCoordinator {
   AuthRefreshCoordinator({
@@ -16,6 +17,7 @@ class AuthRefreshCoordinator {
   final Dio _refreshDio;
   final SecureTokenStore _tokenStore;
   final SessionInvalidatedCallback? _onSessionInvalidated;
+  SessionRefreshedCallback? onSessionRefreshed;
 
   Future<StoredSession?>? _refreshInFlight;
   Future<void>? _invalidationInFlight;
@@ -88,6 +90,7 @@ class AuthRefreshCoordinator {
         sessionId: existing.sessionId,
       );
       await _tokenStore.saveSession(refreshed);
+      await onSessionRefreshed?.call(refreshed);
       return refreshed;
     } catch (_) {
       await invalidateSession();

@@ -6,6 +6,7 @@ import '../application/patient_appointments_controller.dart';
 import '../data/patient_appointment_models.dart';
 import 'patient_appointment_detail_screen.dart';
 import 'patient_appointment_filter_sheet.dart';
+import '../../scheduled_care/presentation/patient_scheduled_care_screen.dart';
 import 'widgets/appointment_formatters.dart';
 import 'widgets/patient_appointment_card.dart';
 
@@ -20,26 +21,20 @@ class PatientAppointmentsScreen extends StatefulWidget {
 }
 
 class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
-  late final PatientAppointmentsController _controller;
-  late final bool _ownsController;
+  PatientAppointmentsController? _controller;
 
   @override
   void initState() {
     super.initState();
-    _ownsController = widget.controller == null;
-    _controller = widget.controller ?? PatientAppointmentsController();
-  }
-
-  @override
-  void dispose() {
-    if (_ownsController) _controller.dispose();
-    super.dispose();
+    _controller = widget.controller;
   }
 
   @override
   Widget build(BuildContext context) {
+    final controller = _controller;
+    if (controller == null) return const PatientScheduledCareScreen();
     return ChangeNotifierProvider<PatientAppointmentsController>.value(
-      value: _controller,
+      value: controller,
       child: const _PatientAppointmentsContent(),
     );
   }

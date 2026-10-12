@@ -21,6 +21,10 @@ import 'package:omnicare_mobile/features/patient_doctor/application/doctor_direc
 import 'package:omnicare_mobile/features/patient_doctor/data/doctor_directory_models.dart';
 import 'package:omnicare_mobile/features/patient_doctor/data/doctor_directory_repository.dart';
 import 'package:omnicare_mobile/features/request_flow/screens/who_needs_care_screen.dart';
+import 'package:omnicare_mobile/features/request_flow/screens/doctor_cabinet_entry_screen.dart';
+import 'package:omnicare_mobile/features/scheduled_care/application/patient_booking_controller.dart';
+import 'package:omnicare_mobile/features/scheduled_care/data/scheduled_care_repository.dart';
+import 'package:omnicare_mobile/features/scheduled_care/domain/scheduled_care_models.dart';
 import 'package:omnicare_mobile/providers/family_provider.dart';
 import 'package:omnicare_mobile/repositories/family_repository.dart';
 
@@ -72,7 +76,7 @@ class _FakeRequestRepository implements RequestRepository {
 
 class _FakeDoctorRepository implements DoctorDirectoryRepository {
   _FakeDoctorRepository({List<DoctorDirectoryListItem> doctors = const []})
-      : doctors = List.unmodifiable(doctors);
+    : doctors = List.unmodifiable(doctors);
 
   final List<DoctorDirectoryListItem> doctors;
 
@@ -80,24 +84,28 @@ class _FakeDoctorRepository implements DoctorDirectoryRepository {
   Future<List<DoctorDirectoryListItem>> listDoctors({
     String? query,
     CancelToken? cancelToken,
-  }) async =>
-      doctors;
+  }) async => doctors;
 
   @override
   Future<DoctorDirectoryDetail> getDoctor(
     String doctorId, {
     CancelToken? cancelToken,
-  }) async =>
-      throw UnimplementedError();
+  }) async => throw UnimplementedError();
 
   @override
-  Future<List<AvailabilitySlotDto>> getSlots({
+  Future<AvailabilitySlotsDto> getSlots({
     required String doctorId,
+    required String practiceLocationId,
     required DateTime from,
     required DateTime to,
     CancelToken? cancelToken,
-  }) async =>
-      const [];
+  }) async => AvailabilitySlotsDto(
+    doctorId: doctorId,
+    practiceLocationId: practiceLocationId,
+    timezone: 'Africa/Tunis',
+    generatedAt: DateTime.now().toUtc().toIso8601String(),
+    slots: const [],
+  );
 
   @override
   Future<DoctorBookingResult> bookAppointment({
@@ -106,8 +114,15 @@ class _FakeDoctorRepository implements DoctorDirectoryRepository {
     required String endTime,
     String? notes,
     CancelToken? cancelToken,
-  }) async =>
-      throw UnimplementedError();
+  }) async => throw UnimplementedError();
+}
+
+class _FakeScheduledCareRepository implements ScheduledCareRepositoryContract {
+  @override
+  Future<PatientBookingRequestDetail> createOrReconcile(
+    CreateBookingRequestCommand command, {
+    CancelToken? cancelToken,
+  }) async => throw UnimplementedError();
 }
 
 class _FakeClinicRepository implements PatientClinicRepository {
@@ -161,6 +176,7 @@ Widget _buildApp({
   RequestKind requestKind = RequestKind.clinic,
   List<FamilyMember>? members,
   RequestSubmissionController? requestController,
+  Widget? home,
 }) {
   final fp = FamilyProvider(
     repository: _FakeFamilyRepository(members: members ?? []),
@@ -178,20 +194,34 @@ Widget _buildApp({
       ChangeNotifierProvider<RequestSubmissionController>.value(value: rc),
       ChangeNotifierProvider<PatientClinicDirectoryController>.value(value: dc),
       ChangeNotifierProvider<DoctorDirectoryController>(
-        create: (_) => DoctorDirectoryController(
-          repository: _FakeDoctorRepository(),
+        create: (_) =>
+            DoctorDirectoryController(repository: _FakeDoctorRepository()),
+      ),
+      ChangeNotifierProvider<PatientBookingController>(
+        create: (_) => PatientBookingController(
+          repository: _FakeScheduledCareRepository(),
         ),
       ),
     ],
     child: MaterialApp(
       theme: buildOmniTheme(),
-      home: WhoNeedsCareScreen(requestKind: requestKind),
+      home: home ?? WhoNeedsCareScreen(requestKind: requestKind),
     ),
   );
 }
 
 void main() {
   group('Doctor Cabinet navigation', () {
+    testWidgets('entry initialization is deferred beyond the build phase', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _buildApp(home: const DoctorCabinetEntryScreen()),
+      );
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets(
       'Continue with RequestKind.doctor navigates to DoctorDirectoryScreen',
       (tester) async {

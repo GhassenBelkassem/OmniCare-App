@@ -54,9 +54,7 @@ class DoctorDirectoryApi {
   }) async {
     final id = doctorId.trim();
     if (id.isEmpty) {
-      throw const DoctorContractException(
-        'Doctor identifier is required.',
-      );
+      throw const DoctorContractException('Doctor identifier is required.');
     }
     final response = await _httpClient.dio.get<dynamic>(
       '$doctorsBasePath/$id',
@@ -70,16 +68,33 @@ class DoctorDirectoryApi {
   }
 
   /// `GET /appointments/availability/slots`.
-  Future<List<AvailabilitySlotDto>> getSlots({
+  Future<AvailabilitySlotsDto> getSlots({
     required String doctorId,
+    required String practiceLocationId,
     required DateTime from,
     required DateTime to,
     CancelToken? cancelToken,
   }) async {
+    final normalizedDoctorId = doctorId.trim();
+    final normalizedPracticeLocationId = practiceLocationId.trim();
+    final utcFrom = from.toUtc();
+    final utcTo = to.toUtc();
+    if (normalizedDoctorId.isEmpty || normalizedPracticeLocationId.isEmpty) {
+      throw const DoctorContractException(
+        'Doctor and practice location identifiers are required.',
+      );
+    }
+    if (!utcFrom.isBefore(utcTo) ||
+        utcTo.difference(utcFrom) > const Duration(days: 31)) {
+      throw const DoctorContractException(
+        'Availability range must be increasing and at most 31 days.',
+      );
+    }
     final queryParameters = <String, dynamic>{
-      'doctorId': doctorId.trim(),
-      'from': from.toUtc().toIso8601String(),
-      'to': to.toUtc().toIso8601String(),
+      'doctorId': normalizedDoctorId,
+      'practiceLocationId': normalizedPracticeLocationId,
+      'from': utcFrom.toIso8601String(),
+      'to': utcTo.toIso8601String(),
     };
     final response = await _httpClient.dio.get<dynamic>(
       availabilitySlotsPath,
@@ -87,17 +102,10 @@ class DoctorDirectoryApi {
       cancelToken: cancelToken,
     );
     final data = response.data;
-    if (data is! List) {
-      throw const DoctorContractException('Expected a JSON array.');
+    if (data is! Map) {
+      throw const DoctorContractException('Expected a JSON object.');
     }
-    final slots = <AvailabilitySlotDto>[];
-    for (final element in data) {
-      if (element is! Map) {
-        throw const DoctorContractException('Slot entry is malformed.');
-      }
-      slots.add(AvailabilitySlotDto.fromJson(element.cast<String, dynamic>()));
-    }
-    return List.unmodifiable(slots);
+    return AvailabilitySlotsDto.fromJson(data.cast<String, dynamic>());
   }
 
   /// `POST /appointments`.
@@ -105,6 +113,7 @@ class DoctorDirectoryApi {
   /// `startTime`/`endTime` are the exact slot `start`/`end` values from
   /// [AvailabilitySlotDto]; the backend re-validates against the live slot
   /// window (exact-match rule).
+  @Deprecated('Compatibility only. Scheduled patient care creates a request.')
   Future<AppointmentBooking> bookAppointment({
     required String doctorId,
     required String startTime,

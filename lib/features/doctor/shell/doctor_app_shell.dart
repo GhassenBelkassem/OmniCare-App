@@ -1,7 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../../core/theme/omni_theme.dart';
-import '../demo/doctor_demo_profile.dart';
+import '../../auth/application/auth_role_family.dart';
+import '../../notifications/application/notification_center_controller.dart';
+import '../../notifications/notifications_screen.dart';
+import '../../notifications/presentation/notification_badge.dart';
+import '../profile/doctor_display_profile.dart';
+import '../scheduled_care/application/doctor_booking_request_controller.dart';
+import '../scheduled_care/application/doctor_appointment_controller.dart';
+import '../scheduled_care/application/doctor_home_controller.dart';
+import '../scheduled_care/application/doctor_proposal_controller.dart';
+import '../scheduled_care/presentation/doctor_appointment_detail_sheet.dart';
+import '../scheduled_care/presentation/doctor_booking_request_screen.dart';
 import '../agenda/doctor_agenda_controller.dart';
 import '../agenda/doctor_agenda_screen.dart';
 import '../home/doctor_home_screen.dart';
@@ -26,15 +37,25 @@ class DoctorAppShell extends StatefulWidget {
     this.workspaceConfig,
     this.onResetDemo,
     this.urgentController,
+    this.homeController,
+    this.bookingRequestController,
+    this.proposalController,
+    this.agendaController,
+    this.appointmentController,
   });
 
   static const profileTabKey = ValueKey('doctor-tab-profile');
 
-  final DoctorDemoProfile profile;
+  final DoctorDisplayProfile profile;
   final Future<void> Function() onLogout;
   final DoctorWorkspaceConfig? workspaceConfig;
   final Future<void> Function()? onResetDemo;
   final DoctorUrgentController? urgentController;
+  final DoctorHomeController? homeController;
+  final DoctorBookingRequestController? bookingRequestController;
+  final DoctorProposalController? proposalController;
+  final DoctorAgendaController? agendaController;
+  final DoctorAppointmentController? appointmentController;
 
   @override
   State<DoctorAppShell> createState() => _DoctorAppShellState();
@@ -46,13 +67,20 @@ class _DoctorAppShellState extends State<DoctorAppShell> {
   bool _isLoggingOut = false;
   _DoctorUrgentWorkflow _urgentWorkflow = _DoctorUrgentWorkflow.urgent;
   late final DoctorAgendaController _agendaController =
-      DoctorAgendaController();
+      widget.agendaController ?? DoctorAgendaController.preview();
   late final DoctorUrgentController _urgentController =
       widget.urgentController ?? DoctorUrgentController();
 
   @override
+  void initState() {
+    super.initState();
+    widget.homeController?.setRealtimeActive(true);
+  }
+
+  @override
   void dispose() {
-    _agendaController.dispose();
+    widget.homeController?.setRealtimeActive(false);
+    if (widget.agendaController == null) _agendaController.dispose();
     if (widget.urgentController == null) {
       _urgentController.dispose();
     }
@@ -69,6 +97,12 @@ class _DoctorAppShellState extends State<DoctorAppShell> {
   @override
   void didUpdateWidget(covariant DoctorAppShell oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.homeController, widget.homeController)) {
+      oldWidget.homeController?.setRealtimeActive(false);
+      widget.homeController?.setRealtimeActive(
+        _selectedDestination == DoctorNavigationDestinationId.home,
+      );
+    }
     if (!_destinations.any(
       (destination) => destination.id == _selectedDestination,
     )) {
@@ -91,6 +125,9 @@ class _DoctorAppShellState extends State<DoctorAppShell> {
         _selectedDestination == destination) {
       return;
     }
+    widget.homeController?.setRealtimeActive(
+      destination == DoctorNavigationDestinationId.home,
+    );
     setState(() {
       _selectedDestination = destination;
       if (destination != DoctorNavigationDestinationId.urgent) {
@@ -120,7 +157,10 @@ class _DoctorAppShellState extends State<DoctorAppShell> {
         bottom: false,
         child: Column(
           children: [
-            _DoctorTopBar(profile: widget.profile),
+            _DoctorTopBar(
+              profile: widget.profile,
+              onNotifications: _openNotifications,
+            ),
             Expanded(child: _selectedContent(selectedDestination.id)),
           ],
         ),
@@ -139,8 +179,9 @@ class _DoctorAppShellState extends State<DoctorAppShell> {
         profile: widget.profile,
         capabilities: _capabilities,
         workspaceConfig: widget.workspaceConfig,
-        agendaNextAppointment: _agendaController.nextAppointment,
         urgentController: _urgentController,
+        homeController: widget.homeController,
+        onOpenBookingRequest: _openBookingRequest,
         onOpenAgenda: () =>
             _selectDestination(DoctorNavigationDestinationId.agenda),
         onOpenUrgencies: () =>
@@ -148,6 +189,8 @@ class _DoctorAppShellState extends State<DoctorAppShell> {
       ),
       DoctorNavigationDestinationId.agenda => DoctorAgendaScreen(
         controller: _agendaController,
+        onOpenBookingRequest: _openBookingRequest,
+        onOpenAppointment: _openAppointment,
       ),
       DoctorNavigationDestinationId.urgent => _UrgentWorkflowContent(
         workflow: _urgentWorkflow,
@@ -182,6 +225,42 @@ class _DoctorAppShellState extends State<DoctorAppShell> {
         ),
       ),
     };
+  }
+
+  void _openBookingRequest(String requestId) {
+    final controller = widget.bookingRequestController;
+    if (controller == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => DoctorBookingRequestScreen(
+          requestId: requestId,
+          controller: controller,
+          proposalController: widget.proposalController,
+        ),
+      ),
+    );
+  }
+
+  void _openAppointment(String appointmentId) {
+    final controller = widget.appointmentController;
+    if (controller == null) return;
+    showDoctorAppointmentDetail(
+      context,
+      appointmentId: appointmentId,
+      controller: controller,
+    );
+  }
+
+  void _openNotifications() {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => NotificationsScreen(
+          role: AuthRoleFamily.doctor,
+          onOpenDoctorRequest: _openBookingRequest,
+          onOpenDoctorAppointment: _openAppointment,
+        ),
+      ),
+    );
   }
 }
 
@@ -228,13 +307,16 @@ class _UrgentWorkflowContent extends StatelessWidget {
 }
 
 class _DoctorTopBar extends StatelessWidget {
-  const _DoctorTopBar({required this.profile});
+  const _DoctorTopBar({required this.profile, required this.onNotifications});
 
-  final DoctorDemoProfile profile;
+  final DoctorDisplayProfile profile;
+  final VoidCallback onNotifications;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final unreadCount =
+        context.watch<NotificationCenterController?>()?.unreadCount ?? 0;
     return Container(
       key: const ValueKey('doctor-top-bar'),
       height: 72,
@@ -275,6 +357,8 @@ class _DoctorTopBar extends StatelessWidget {
                     ],
                   ),
                 ),
+                NotificationBadge(count: unreadCount, onTap: onNotifications),
+                const SizedBox(width: OmniSpacing.sm),
                 Semantics(
                   label: 'Profil de ${profile.fullName}',
                   child: Container(

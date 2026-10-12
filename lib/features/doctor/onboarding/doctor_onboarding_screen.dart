@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/omni_theme.dart';
-import '../demo/doctor_demo_profile.dart';
+import '../profile/doctor_display_profile.dart';
 import '../workspace/doctor_workspace_config.dart';
 
 /// Five-step, local-only setup for a Doctor's D1 workspace.
@@ -14,7 +14,7 @@ class DoctorOnboardingScreen extends StatefulWidget {
   });
 
   final String doctorId;
-  final DoctorDemoProfile profile;
+  final DoctorDisplayProfile profile;
   final Future<void> Function(DoctorWorkspaceConfig config) onCompleted;
 
   @override

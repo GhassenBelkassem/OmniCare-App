@@ -9,6 +9,8 @@ import '../../../features/patient_doctor/presentation/doctor_directory_screen.da
 import '../../../providers/family_provider.dart';
 import '../../request_core/application/request_submission_controller.dart';
 import '../../request_core/domain/request_vocabulary.dart';
+import '../../scheduled_care/application/patient_booking_controller.dart';
+import '../../scheduled_care/domain/scheduled_care_models.dart';
 import '../widgets/care_subject_card.dart';
 
 /// Step 1 — Who needs care?
@@ -52,6 +54,19 @@ class _WhoNeedsCareScreenState extends State<WhoNeedsCareScreen> {
     }
 
     if (widget.requestKind == RequestKind.doctor) {
+      final scheduledCare = context.read<PatientBookingController?>();
+      if (scheduledCare != null) {
+        final member = _selectedMember;
+        scheduledCare.selectSubject(
+          member == null
+              ? const CareSubject.self(displayName: 'Moi')
+              : CareSubject.familyMember(
+                  familyMemberId: member.id,
+                  displayName: member.fullName,
+                  relationship: member.relationship,
+                ),
+        );
+      }
       Navigator.of(
         context,
       ).push(MaterialPageRoute(builder: (_) => const DoctorDirectoryScreen()));

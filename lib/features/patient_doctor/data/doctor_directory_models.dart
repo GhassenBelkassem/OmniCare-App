@@ -5,7 +5,7 @@
 ///
 /// - `GET /api/v1/doctors` → [DoctorDirectoryListItem] (11 fields).
 /// - `GET /api/v1/doctors/{id}` → [DoctorDirectoryDetail] (22 fields).
-/// - `GET /api/v1/appointments/availability/slots` → [AvailabilitySlotDto].
+/// - `GET /api/v1/appointments/availability/slots` → [AvailabilitySlotsDto].
 /// - `POST /api/v1/appointments` → [AppointmentBooking] (AppointmentResponse).
 ///
 /// No field is invented: absent data stays `null` / empty list, exactly like
@@ -86,6 +86,7 @@ class DoctorDirectoryDetail {
     this.patientAgeGroups = const [],
     this.consultationTypes = const [],
     this.biography,
+    this.practiceLocations = const [],
   });
 
   final String doctorId;
@@ -110,6 +111,7 @@ class DoctorDirectoryDetail {
   final List<String> patientAgeGroups;
   final List<String> consultationTypes;
   final String? biography;
+  final List<DoctorPracticeLocationDto> practiceLocations;
 
   factory DoctorDirectoryDetail.fromJson(Map<String, dynamic> json) {
     return DoctorDirectoryDetail(
@@ -137,6 +139,10 @@ class DoctorDirectoryDetail {
       patientAgeGroups: _optionalStringList(json['patientAgeGroups']),
       consultationTypes: _optionalStringList(json['consultationTypes']),
       biography: _optionalString(json['biography']),
+      practiceLocations: _optionalObjectList(
+        json['practiceLocations'],
+        DoctorPracticeLocationDto.fromJson,
+      ),
     );
   }
 
@@ -145,28 +151,132 @@ class DoctorDirectoryDetail {
   String toString() => 'DoctorDirectoryDetail(<redacted>)';
 }
 
+class DoctorPracticeLocationDto {
+  const DoctorPracticeLocationDto({
+    required this.id,
+    required this.name,
+    required this.governorate,
+    required this.city,
+    required this.address,
+    required this.primary,
+    this.type,
+    this.latitude,
+    this.longitude,
+    this.publicPhone,
+    this.wheelchairAccessible = false,
+    this.patientInstructions,
+    this.equipment = const [],
+  });
+
+  final String id;
+  final String? type;
+  final String name;
+  final String governorate;
+  final String city;
+  final String address;
+  final double? latitude;
+  final double? longitude;
+  final String? publicPhone;
+  final bool wheelchairAccessible;
+  final String? patientInstructions;
+  final bool primary;
+  final List<DoctorEquipmentDto> equipment;
+
+  factory DoctorPracticeLocationDto.fromJson(Map<String, dynamic> json) =>
+      DoctorPracticeLocationDto(
+        id: _requiredString(json, 'id'),
+        type: _optionalString(json['type']),
+        name: _requiredString(json, 'name'),
+        governorate: _requiredString(json, 'governorate'),
+        city: _requiredString(json, 'city'),
+        address: _requiredString(json, 'address'),
+        latitude: _optionalDouble(json['latitude']),
+        longitude: _optionalDouble(json['longitude']),
+        publicPhone: _optionalString(json['publicPhone']),
+        wheelchairAccessible: json['wheelchairAccessible'] is bool
+            ? json['wheelchairAccessible'] as bool
+            : false,
+        patientInstructions: _optionalString(json['patientInstructions']),
+        primary: _requiredBool(json, 'primary'),
+        equipment: _optionalObjectList(
+          json['equipment'],
+          DoctorEquipmentDto.fromJson,
+        ),
+      );
+}
+
+class DoctorEquipmentDto {
+  const DoctorEquipmentDto({
+    required this.code,
+    required this.displayName,
+    required this.portable,
+  });
+
+  final String code;
+  final String displayName;
+  final bool portable;
+
+  factory DoctorEquipmentDto.fromJson(Map<String, dynamic> json) =>
+      DoctorEquipmentDto(
+        code: _requiredString(json, 'code'),
+        displayName: _requiredString(json, 'displayName'),
+        portable: _requiredBool(json, 'portable'),
+      );
+}
+
 /// A single computable open window (GET availability slots).
 ///
-/// Patients book by matching the `POST /api/v1/appointments` body exactly
-/// against one of these `start`/`end` values.
+/// Patients request a booking by carrying these exact `start`/`end` values
+/// into `POST /api/v1/doctor-booking-requests`.
 class AvailabilitySlotDto {
-  const AvailabilitySlotDto({required this.start, required this.end});
+  const AvailabilitySlotDto({
+    required this.start,
+    required this.end,
+    this.durationMinutes,
+  });
 
   /// ISO 8601 instant, e.g. `2026-09-24T09:00:00Z`.
   final String start;
 
   /// ISO 8601 instant, e.g. `2026-09-24T09:30:00Z`.
   final String end;
+  final int? durationMinutes;
 
   factory AvailabilitySlotDto.fromJson(Map<String, dynamic> json) {
     return AvailabilitySlotDto(
       start: _requiredString(json, 'start'),
       end: _requiredString(json, 'end'),
+      durationMinutes: _optionalInt(json['durationMinutes']),
     );
   }
 
   @override
   String toString() => 'AvailabilitySlotDto($start -> $end)';
+}
+
+class AvailabilitySlotsDto {
+  const AvailabilitySlotsDto({
+    required this.doctorId,
+    required this.practiceLocationId,
+    required this.timezone,
+    required this.generatedAt,
+    required this.slots,
+  });
+
+  final String doctorId;
+  final String practiceLocationId;
+  final String timezone;
+  final String generatedAt;
+  final List<AvailabilitySlotDto> slots;
+
+  factory AvailabilitySlotsDto.fromJson(Map<String, dynamic> json) =>
+      AvailabilitySlotsDto(
+        doctorId: _requiredString(json, 'doctorId'),
+        practiceLocationId: _requiredString(json, 'practiceLocationId'),
+        timezone: _requiredString(json, 'timezone'),
+        generatedAt: _requiredString(json, 'generatedAt'),
+        slots: _optionalObjectList(json['slots'], AvailabilitySlotDto.fromJson),
+      );
 }
 
 /// The patient-facing appointment confirmation returned by the booking write.
@@ -270,6 +380,24 @@ List<String> _optionalStringList(Object? value) {
     );
   }
   throw const DoctorContractException('Expected a string array.');
+}
+
+List<T> _optionalObjectList<T>(
+  Object? value,
+  T Function(Map<String, dynamic>) parser,
+) {
+  if (value == null) return const [];
+  if (value is! List) {
+    throw const DoctorContractException('Expected an object array.');
+  }
+  return List.unmodifiable(
+    value.map((element) {
+      if (element is! Map) {
+        throw const DoctorContractException('Object array entry is malformed.');
+      }
+      return parser(element.cast<String, dynamic>());
+    }),
+  );
 }
 
 /// Thrown when a doctor directory payload cannot be trusted.

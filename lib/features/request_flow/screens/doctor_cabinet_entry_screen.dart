@@ -26,7 +26,10 @@ class _DoctorCabinetEntryScreenState extends State<DoctorCabinetEntryScreen> {
   @override
   void initState() {
     super.initState();
-    context.read<RequestSubmissionController>().beginNewRequest();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<RequestSubmissionController>().beginNewRequest();
+    });
   }
 
   @override

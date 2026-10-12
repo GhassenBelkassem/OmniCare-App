@@ -6,9 +6,7 @@ import 'doctor_models.dart';
 /// ([DoctorListItem], [DoctorDetail], [DoctorDayAvailability]).
 ///
 /// Real values stay authoritative (name, specialty, price, verifications,
-/// arrays, biography, availability, practiceCity). Only the **Cabinet tab**
-/// content is presentation-only and uses [practiceLocationFallback] — the
-/// backend has no cabinet tables (explicit v1.1 out of scope).
+/// arrays, biography, availability and exact practice locations).
 
 /// Maps a directory list entry onto the presentation list model.
 DoctorListItem toDoctorListItem(DoctorDirectoryListItem dto) {
@@ -47,7 +45,7 @@ DoctorListItem toDoctorListItem(DoctorDirectoryListItem dto) {
 /// Builds the presentation [DoctorDetail] from the real detail DTO.
 ///
 /// Availability is not part of the detail endpoint; it is attached afterwards
-/// via [attachAvailability]. Cabinet data falls back to [practiceLocationFallback].
+/// via [attachAvailability].
 DoctorDetail buildDoctorDetail(DoctorDirectoryDetail dto) {
   final listItem = DoctorListItem(
     id: dto.doctorId,
@@ -87,10 +85,9 @@ DoctorDetail buildDoctorDetail(DoctorDirectoryDetail dto) {
     expertise: dto.expertise,
     biography: dto.biography,
     patientAgeGroups: dto.patientAgeGroups,
-    practiceLocations: dto.practiceCity == null
-        ? const []
-        : [practiceLocationFallback(dto.displayName, dto.practiceCity!)],
+    practiceLocations: dto.practiceLocations.map(_toPracticeLocation).toList(),
     availability: const [],
+    consultationPriceTnd: dto.consultationPriceTnd,
   );
 }
 
@@ -107,19 +104,23 @@ List<DoctorDayAvailability> groupAvailabilitySlots(
         'Slot carries an unparseable instant.',
       );
     }
-    final start = startUtc.toLocal();
-    final end = endUtc.toLocal();
+    final start = toTunisWallClock(startUtc);
+    final end = toTunisWallClock(endUtc);
     final date = DateTime(start.year, start.month, start.day);
-    byDay.putIfAbsent(date, () => []).add(
-      DoctorAvailabilitySlot(
-        time: _formatTime(start),
-        timeOfDay: _periodFor(start),
-        startIso: dto.start,
-        endIso: dto.end,
-        start: start,
-        end: end,
-      ),
-    );
+    byDay
+        .putIfAbsent(date, () => [])
+        .add(
+          DoctorAvailabilitySlot(
+            time: _formatTime(start),
+            timeOfDay: _periodFor(start),
+            startIso: dto.start,
+            endIso: dto.end,
+            start: start,
+            end: end,
+            durationMinutes:
+                dto.durationMinutes ?? endUtc.difference(startUtc).inMinutes,
+          ),
+        );
   }
 
   final days = byDay.entries.map((entry) {
@@ -129,8 +130,7 @@ List<DoctorDayAvailability> groupAvailabilitySlots(
       date: entry.key,
       slots: List.unmodifiable(slotsOfDay),
     );
-  }).toList()
-    ..sort((a, b) => a.date.compareTo(b.date));
+  }).toList()..sort((a, b) => a.date.compareTo(b.date));
 
   return List.unmodifiable(days);
 }
@@ -152,7 +152,7 @@ DoctorDetail attachAvailability(
 /// "Aujourd\'hui · 09:30" / "Demain · 10:00" / "Mercredi · 14:00" from the
 /// earliest returned slot, or null when there is no availability at all.
 String? nextAvailableLabelFor(List<DoctorDayAvailability> days) {
-  final now = DateTime.now();
+  final now = toTunisWallClock(DateTime.now());
   for (final day in days) {
     if (day.date.isAfter(now.subtract(const Duration(days: 1))) &&
         day.hasSlots) {
@@ -180,33 +180,41 @@ String _dayLabel(DateTime date, DateTime now) {
   return dayNames[(date.weekday - 1).clamp(0, 6)];
 }
 
-/// Presentation-only cabinet data fallback for the (out of scope) Cabinet tab.
-///
-/// The real header location line reads [PracticeLocation.city], which is set
-/// to the real `practice_city`; the remaining cabinet presentation content is
-/// demo data — no backend cabinet tables exist (v1.1 explicit out of scope).
-PracticeLocation practiceLocationFallback(
-  String displayName,
-  String practiceCity,
-) {
+PracticeLocation _toPracticeLocation(DoctorPracticeLocationDto dto) {
   return PracticeLocation(
-    name: 'Cabinet $displayName',
-    address: 'Adresse non renseignée',
-    city: practiceCity,
+    practiceLocationId: dto.id,
+    name: dto.name,
+    address: dto.address,
+    city: dto.city,
+    governorate: dto.governorate,
+    // The current doctor-detail DTO has no timezone property. Apply the
+    // frozen Tunisia scheduling contract here at the adapter boundary.
+    timezone: doctorSchedulingTimezone,
+    type: dto.type,
+    latitude: dto.latitude,
+    longitude: dto.longitude,
+    publicPhone: dto.publicPhone,
+    wheelchairAccessible: dto.wheelchairAccessible,
+    primary: dto.primary,
     distanceKm: null,
-    galleryImages: [],
-    openingHours: [
-      const PracticeOpeningHours(label: 'Lun – Ven', hours: '08:30 – 17:00'),
-      const PracticeOpeningHours(label: 'Sam', hours: '08:30 – 13:00'),
-    ],
-    equipment: const [PracticeEquipment(label: 'ECG')],
-    accessibility: const ['Accessible PMR'],
+    galleryImages: const [],
+    openingHours: const [],
+    equipment: dto.equipment
+        .map((item) => PracticeEquipment(label: item.displayName))
+        .toList(growable: false),
+    accessibility: dto.wheelchairAccessible
+        ? const ['Accessible PMR']
+        : const [],
     coverage: const [],
-    appointmentInstructions:
-        'Apportez vos anciens résultats d\'analyses et votre carnet de '
-        'santé si disponible.',
+    appointmentInstructions: dto.patientInstructions,
   );
 }
+
+/// Africa/Tunis has been UTC+01:00 without DST throughout the supported
+/// scheduling horizon. This conversion is intentionally centralized so the
+/// device timezone never influences Cabinet slot grouping or labels.
+DateTime toTunisWallClock(DateTime instant) =>
+    instant.toUtc().add(const Duration(hours: 1));
 
 String _formatTime(DateTime value) {
   final hour = value.hour.toString().padLeft(2, '0');

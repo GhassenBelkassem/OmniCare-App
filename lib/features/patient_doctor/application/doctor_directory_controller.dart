@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import '../data/doctor_detail_models.dart';
 import '../data/doctor_directory_failure.dart';
 import '../data/doctor_directory_mapper.dart';
+import '../data/doctor_directory_models.dart';
 import '../data/doctor_directory_repository.dart';
 import '../data/doctor_models.dart';
 
@@ -28,7 +29,7 @@ enum DoctorDirectoryStatus {
 }
 
 /// Owns the patient doctor directory: the real list, search, doctor detail,
-/// availability slots, and slot booking.
+/// Cabinet-scoped availability slots, and legacy booking compatibility.
 ///
 /// The list endpoint (`GET /doctors`) is not paginated, so there is no
 /// "load more" path (unlike clinics). Search is debounced and cancel-safe with
@@ -42,8 +43,6 @@ class DoctorDirectoryController extends ChangeNotifier {
   final DoctorDirectoryRepository _repository;
 
   final Duration debounce;
-
-  static const Duration availabilityWindow = Duration(days: 14);
 
   // ── Directory list state ─────────────────────────────────────────────
   List<DoctorListItem> _items = const [];
@@ -80,6 +79,9 @@ class DoctorDirectoryController extends ChangeNotifier {
   DoctorDirectoryFailure? _detailError;
   DoctorDirectoryFailure? _availabilityError;
   DoctorBookingResult? _lastBookingResult;
+  PracticeLocation? _selectedPracticeLocation;
+  DateTime? _availabilityMonth;
+  bool _isLoadingAvailability = false;
 
   DoctorDetail? get detail => _detail;
   bool get isLoadingDetail => _isLoadingDetail;
@@ -88,11 +90,16 @@ class DoctorDirectoryController extends ChangeNotifier {
   DoctorDirectoryFailure? get availabilityError => _availabilityError;
   bool get hasAvailabilityError => _availabilityError != null;
   DoctorBookingResult? get lastBookingResult => _lastBookingResult;
+  PracticeLocation? get selectedPracticeLocation => _selectedPracticeLocation;
+  DateTime? get availabilityMonth => _availabilityMonth;
+  bool get isLoadingAvailability => _isLoadingAvailability;
 
   Timer? _debounceTimer;
   CancelToken? _directoryToken;
   CancelToken? _detailToken;
+  CancelToken? _availabilityToken;
   int _directoryGeneration = 0;
+  int _availabilityGeneration = 0;
 
   /// Loads the first doctor list for [query], replacing any current list.
   Future<void> loadFirst({String? query}) async {
@@ -109,14 +116,18 @@ class DoctorDirectoryController extends ChangeNotifier {
         query: normalized.isEmpty ? null : normalized,
         cancelToken: token,
       );
-      if (token.isCancelled || _disposed || generation != _directoryGeneration) {
+      if (token.isCancelled ||
+          _disposed ||
+          generation != _directoryGeneration) {
         return;
       }
       _items = List.unmodifiable(page.map(toDoctorListItem));
       _hasCompletedFirstLoad = true;
       _error = null;
     } on DoctorDirectoryFailure catch (failure) {
-      if (token.isCancelled || _disposed || generation != _directoryGeneration) {
+      if (token.isCancelled ||
+          _disposed ||
+          generation != _directoryGeneration) {
         return;
       }
       _error = failure;
@@ -150,27 +161,35 @@ class DoctorDirectoryController extends ChangeNotifier {
   Future<void> fetchDetail(String doctorId) async {
     if (_disposed) return;
     _detailToken?.cancel('doctor-detail-superseded');
+    _availabilityToken?.cancel('doctor-detail-superseded');
+    _availabilityGeneration++;
     final token = _detailToken = CancelToken();
     _isLoadingDetail = true;
     _isNotFound = false;
     _detailError = null;
     _availabilityError = null;
     _detail = null;
+    _selectedPracticeLocation = null;
+    _availabilityMonth = null;
     _lastBookingResult = null;
     _notify();
     try {
       final dto = await _repository.getDoctor(doctorId, cancelToken: token);
       if (token.isCancelled || _disposed || token != _detailToken) return;
       _detail = buildDoctorDetail(dto);
-      await _loadSlotsIntoDetail(doctorId, token);
+      final locations = _detail!.practiceLocations;
+      if (locations.isNotEmpty) {
+        _selectedPracticeLocation = locations.firstWhere(
+          (location) => location.primary,
+          orElse: () => locations.first,
+        );
+        await fetchAvailabilityForMonth(tunisCalendarMonth(DateTime.now()));
+      }
     } on DoctorDirectoryFailure catch (failure) {
       if (token.isCancelled || _disposed || token != _detailToken) return;
       if (_detail == null) {
         if (failure.isNotFound) _isNotFound = true;
         _detailError = failure;
-      } else {
-        // The profile loaded; only the availability window failed.
-        _availabilityError = failure;
       }
     } finally {
       if (!token.isCancelled && !_disposed && token == _detailToken) {
@@ -183,38 +202,100 @@ class DoctorDirectoryController extends ChangeNotifier {
   /// Re-fetches only the availability window for the already-loaded doctor.
   /// Used by the Disponibilités tab / sheet retry path.
   Future<void> retryFetchAvailability() async {
-    final doctorId = _detail?.id;
-    if (doctorId == null || _disposed) return;
-    _detailToken?.cancel('doctor-availability-superseded');
-    final token = _detailToken = CancelToken();
+    await fetchAvailabilityForMonth(
+      _availabilityMonth ?? tunisCalendarMonth(DateTime.now()),
+    );
+  }
+
+  /// Selects an exact backend Cabinet and refreshes the visible month.
+  Future<void> selectPracticeLocation(PracticeLocation location) async {
+    final detail = _detail;
+    if (_disposed || detail == null) return;
+    final authoritative = detail.practiceLocations.where(
+      (candidate) =>
+          candidate.practiceLocationId == location.practiceLocationId,
+    );
+    if (authoritative.isEmpty) return;
+    _selectedPracticeLocation = authoritative.single;
+    _detail = attachAvailability(detail, const []);
+    _notify();
+    await fetchAvailabilityForMonth(
+      _availabilityMonth ?? tunisCalendarMonth(DateTime.now()),
+    );
+  }
+
+  /// Fetches exactly the displayed Africa/Tunis calendar month. A generation
+  /// guard prevents a slow older month from replacing the active month.
+  Future<void> fetchAvailabilityForMonth(
+    DateTime month, {
+    DateTime? now,
+  }) async {
+    final detail = _detail;
+    final location = _selectedPracticeLocation;
+    if (_disposed || detail == null || location == null) return;
+
+    final requestedMonth = DateTime(month.year, month.month);
+    final range = availabilityRangeForMonth(
+      requestedMonth,
+      now: now ?? DateTime.now().toUtc(),
+    );
+    final generation = ++_availabilityGeneration;
+    _availabilityToken?.cancel('doctor-availability-superseded');
+    final token = _availabilityToken = CancelToken();
+    _availabilityMonth = requestedMonth;
+    _isLoadingAvailability = true;
     _availabilityError = null;
     _notify();
     try {
-      await _loadSlotsIntoDetail(doctorId, token);
+      final response = await _repository.getSlots(
+        doctorId: detail.id,
+        practiceLocationId: location.practiceLocationId,
+        from: range.from,
+        to: range.to,
+        cancelToken: token,
+      );
+      if (token.isCancelled ||
+          _disposed ||
+          generation != _availabilityGeneration) {
+        return;
+      }
+      if (response.doctorId != detail.id ||
+          response.practiceLocationId != location.practiceLocationId ||
+          response.timezone != location.timezone) {
+        throw const DoctorContractException(
+          'Availability context does not match the selected Cabinet.',
+        );
+      }
+      _detail = attachAvailability(
+        _detail!,
+        groupAvailabilitySlots(response.slots),
+      );
     } on DoctorDirectoryFailure catch (failure) {
-      if (token.isCancelled || _disposed || token != _detailToken) return;
+      if (token.isCancelled ||
+          _disposed ||
+          generation != _availabilityGeneration) {
+        return;
+      }
       _availabilityError = failure;
+    } on DoctorContractException catch (error) {
+      if (token.isCancelled ||
+          _disposed ||
+          generation != _availabilityGeneration) {
+        return;
+      }
+      _availabilityError = DoctorDirectoryFailure.from(error);
     } finally {
-      if (!token.isCancelled && !_disposed && token == _detailToken) {
+      if (!token.isCancelled &&
+          !_disposed &&
+          generation == _availabilityGeneration) {
+        _isLoadingAvailability = false;
         _notify();
       }
     }
   }
 
-  Future<void> _loadSlotsIntoDetail(String doctorId, CancelToken token) async {
-    final now = DateTime.now();
-    final slots = await _repository.getSlots(
-      doctorId: doctorId,
-      from: now,
-      to: now.add(availabilityWindow),
-      cancelToken: token,
-    );
-    if (token.isCancelled || _disposed || token != _detailToken) return;
-    final days = groupAvailabilitySlots(slots);
-    _detail = attachAvailability(_detail!, days);
-  }
-
   /// Books a slot using the exact backend start/end instants.
+  @Deprecated('Compatibility only. Scheduled patient care creates a request.')
   Future<DoctorBookingResult> bookSlot({
     required String doctorId,
     required DoctorAvailabilitySlot slot,
@@ -248,6 +329,48 @@ class DoctorDirectoryController extends ChangeNotifier {
     _debounceTimer?.cancel();
     _directoryToken?.cancel('doctor-directory-disposed');
     _detailToken?.cancel('doctor-directory-disposed');
+    _availabilityToken?.cancel('doctor-directory-disposed');
     super.dispose();
   }
+}
+
+class AvailabilityRange {
+  const AvailabilityRange({required this.from, required this.to});
+
+  final DateTime from;
+  final DateTime to;
+}
+
+/// Builds an absolute request range from Africa/Tunis month boundaries.
+/// Tunisia's scheduling horizon uses UTC+01:00; the backend remains the final
+/// authority for all slot and minimum-notice validation.
+AvailabilityRange availabilityRangeForMonth(
+  DateTime displayedMonth, {
+  required DateTime now,
+}) {
+  final utcNow = now.toUtc();
+  final tunisNow = utcNow.add(const Duration(hours: 1));
+  final isCurrent =
+      displayedMonth.year == tunisNow.year &&
+      displayedMonth.month == tunisNow.month;
+  final monthStart = DateTime.utc(
+    displayedMonth.year,
+    displayedMonth.month,
+  ).subtract(const Duration(hours: 1));
+  final nextMonth = DateTime.utc(
+    displayedMonth.year,
+    displayedMonth.month + 1,
+  ).subtract(const Duration(hours: 1));
+  final from = isCurrent ? utcNow : monthStart;
+  final maximumTo = from.add(const Duration(days: 31));
+  final to = nextMonth.isAfter(maximumTo) ? maximumTo : nextMonth;
+  if (!from.isBefore(to)) {
+    throw const DoctorContractException('Availability range is empty.');
+  }
+  return AvailabilityRange(from: from, to: to);
+}
+
+DateTime tunisCalendarMonth(DateTime instant) {
+  final tunis = instant.toUtc().add(const Duration(hours: 1));
+  return DateTime(tunis.year, tunis.month);
 }
