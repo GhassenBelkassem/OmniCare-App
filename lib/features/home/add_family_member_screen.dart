@@ -6,9 +6,18 @@ import '../../core/models/family_models.dart';
 import '../../providers/family_provider.dart';
 
 class AddFamilyMemberScreen extends StatefulWidget {
-  const AddFamilyMemberScreen({super.key, this.member});
+  const AddFamilyMemberScreen({
+    super.key,
+    this.member,
+    this.title,
+    this.submitLabel,
+    this.modal = false,
+  });
 
   final FamilyMember? member;
+  final String? title;
+  final String? submitLabel;
+  final bool modal;
 
   bool get isEditing => member != null;
 
@@ -148,290 +157,314 @@ class _AddFamilyMemberScreenState extends State<AddFamilyMemberScreen> {
   Widget build(BuildContext context) {
     final provider = context.watch<FamilyProvider>();
     final disabled = _submitting || provider.isSaving;
-    return Scaffold(
-      backgroundColor: const Color(0xFFF7F9F8),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          tooltip: 'Retour',
-          onPressed: disabled ? null : () => Navigator.of(context).pop(),
-          icon: const Icon(Icons.arrow_back_rounded),
-        ),
-        title: Text(
-          widget.isEditing ? 'Modifier le membre' : 'Ajouter un membre',
-          style: const TextStyle(
-            color: _ink,
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ),
-      body: SafeArea(
-        top: false,
-        child: LayoutBuilder(
-          builder: (context, viewport) {
-            final horizontalPadding = viewport.maxWidth > 720
-                ? ((viewport.maxWidth - 720) / 2) + 24
-                : 20.0;
-            return Form(
-              key: _formKey,
-              autovalidateMode: _validationEnabled
-                  ? AutovalidateMode.onUserInteraction
-                  : AutovalidateMode.disabled,
-              child: ListView(
-                keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
-                padding: EdgeInsets.fromLTRB(
-                  horizontalPadding,
-                  20,
-                  horizontalPadding,
-                  32,
+    return PopScope(
+      canPop: !disabled,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF7F9F8),
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.white,
+          elevation: 0,
+          centerTitle: widget.modal,
+          leading: widget.modal
+              ? IconButton(
+                  tooltip: 'Fermer',
+                  onPressed: disabled
+                      ? null
+                      : () => Navigator.of(context).pop(false),
+                  icon: const Icon(Icons.close_rounded),
+                )
+              : IconButton(
+                  tooltip: 'Retour',
+                  onPressed: disabled
+                      ? null
+                      : () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.arrow_back_rounded),
                 ),
-                children: [
-                  _AvatarPreview(
-                    name:
-                        '${_firstNameController.text} ${_lastNameController.text}',
-                    photoUrl: widget.member?.photoUrl,
+          title: Text(
+            widget.title ??
+                (widget.isEditing ? 'Modifier le membre' : 'Ajouter un membre'),
+            style: const TextStyle(
+              color: _ink,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          actions: widget.modal
+              ? const [SizedBox(width: kToolbarHeight)]
+              : null,
+        ),
+        body: SafeArea(
+          top: false,
+          child: LayoutBuilder(
+            builder: (context, viewport) {
+              final horizontalPadding = viewport.maxWidth > 720
+                  ? ((viewport.maxWidth - 720) / 2) + 24
+                  : 20.0;
+              return Form(
+                key: _formKey,
+                autovalidateMode: _validationEnabled
+                    ? AutovalidateMode.onUserInteraction
+                    : AutovalidateMode.disabled,
+                child: ListView(
+                  key: const ValueKey('family-member-form-scroll'),
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: EdgeInsets.fromLTRB(
+                    horizontalPadding,
+                    20,
+                    horizontalPadding,
+                    32,
                   ),
-                  const SizedBox(height: 28),
-                  const _SectionTitle(
-                    title: 'Informations personnelles',
-                    subtitle:
-                        'Ces informations identifient ce membre du foyer.',
-                  ),
-                  const SizedBox(height: 16),
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final firstName = _buildNameField(
-                        controller: _firstNameController,
-                        label: 'Prénom',
-                        validationLabel: 'prénom',
-                        icon: Icons.person_outline_rounded,
-                        field: 'firstName',
-                        enabled: !disabled,
-                        textInputAction: TextInputAction.next,
-                      );
-                      final lastName = _buildNameField(
-                        controller: _lastNameController,
-                        label: 'Nom',
-                        validationLabel: 'nom',
-                        icon: Icons.badge_outlined,
-                        field: 'lastName',
-                        enabled: !disabled,
-                        textInputAction: TextInputAction.done,
-                      );
-                      if (constraints.maxWidth < 520) {
-                        return Column(
+                  children: [
+                    _AvatarPreview(
+                      name:
+                          '${_firstNameController.text} ${_lastNameController.text}',
+                      photoUrl: widget.member?.photoUrl,
+                    ),
+                    const SizedBox(height: 28),
+                    const _SectionTitle(
+                      title: 'Informations personnelles',
+                      subtitle:
+                          'Ces informations identifient ce membre du foyer.',
+                    ),
+                    const SizedBox(height: 16),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final firstName = _buildNameField(
+                          controller: _firstNameController,
+                          label: 'Prénom',
+                          validationLabel: 'prénom',
+                          icon: Icons.person_outline_rounded,
+                          field: 'firstName',
+                          enabled: !disabled,
+                          textInputAction: TextInputAction.next,
+                        );
+                        final lastName = _buildNameField(
+                          controller: _lastNameController,
+                          label: 'Nom',
+                          validationLabel: 'nom',
+                          icon: Icons.badge_outlined,
+                          field: 'lastName',
+                          enabled: !disabled,
+                          textInputAction: TextInputAction.done,
+                        );
+                        if (constraints.maxWidth < 520) {
+                          return Column(
+                            children: [
+                              firstName,
+                              const SizedBox(height: 12),
+                              lastName,
+                            ],
+                          );
+                        }
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            firstName,
-                            const SizedBox(height: 12),
-                            lastName,
+                            Expanded(child: firstName),
+                            const SizedBox(width: 12),
+                            Expanded(child: lastName),
                           ],
                         );
-                      }
-                      return Row(
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    FormField<DateTime>(
+                      key: _dateFieldKey,
+                      initialValue: _dateOfBirth,
+                      autovalidateMode: _validationEnabled
+                          ? AutovalidateMode.onUserInteraction
+                          : AutovalidateMode.disabled,
+                      validator: (_) {
+                        if (_serverErrors['dateOfBirth'] != null) {
+                          return _serverErrors['dateOfBirth'];
+                        }
+                        if (_dateOfBirth == null) {
+                          return 'Sélectionnez la date de naissance.';
+                        }
+                        return null;
+                      },
+                      builder: (field) => InkWell(
+                        onTap: disabled ? null : _pickDate,
+                        borderRadius: BorderRadius.circular(10),
+                        child: InputDecorator(
+                          decoration: _inputDecoration(
+                            label: 'Date de naissance',
+                            icon: Icons.calendar_today_outlined,
+                            errorText: field.errorText,
+                          ),
+                          child: Text(
+                            _dateOfBirth == null
+                                ? 'Choisir une date'
+                                : _displayDate(_dateOfBirth!),
+                            style: TextStyle(
+                              color: _dateOfBirth == null ? _muted : _ink,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    const _SectionTitle(
+                      title: 'Genre',
+                      subtitle: 'Utilisé uniquement pour l’identité du membre.',
+                    ),
+                    const SizedBox(height: 12),
+                    FormField<String>(
+                      initialValue: _gender,
+                      autovalidateMode: _validationEnabled
+                          ? AutovalidateMode.onUserInteraction
+                          : AutovalidateMode.disabled,
+                      validator: (_) {
+                        return _serverErrors['gender'] ??
+                            (_gender == null ? 'Sélectionnez le genre.' : null);
+                      },
+                      builder: (field) => Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(child: firstName),
-                          const SizedBox(width: 12),
-                          Expanded(child: lastName),
+                          SizedBox(
+                            width: double.infinity,
+                            child: SegmentedButton<String>(
+                              segments: const [
+                                ButtonSegment(value: 'F', label: Text('Femme')),
+                                ButtonSegment(value: 'M', label: Text('Homme')),
+                                ButtonSegment(
+                                  value: 'autre',
+                                  label: Text('Autre'),
+                                ),
+                              ],
+                              selected: _gender == null ? const {} : {_gender!},
+                              emptySelectionAllowed: true,
+                              onSelectionChanged: disabled
+                                  ? null
+                                  : (selection) {
+                                      setState(() {
+                                        _gender = selection.isEmpty
+                                            ? null
+                                            : selection.first;
+                                      });
+                                      _clearServerError('gender');
+                                      field.didChange(_gender);
+                                    },
+                              style: ButtonStyle(
+                                visualDensity: VisualDensity.standard,
+                                foregroundColor:
+                                    WidgetStateProperty.resolveWith(
+                                      (states) =>
+                                          states.contains(WidgetState.selected)
+                                          ? Colors.white
+                                          : _ink,
+                                    ),
+                                backgroundColor:
+                                    WidgetStateProperty.resolveWith(
+                                      (states) =>
+                                          states.contains(WidgetState.selected)
+                                          ? _teal
+                                          : Colors.white,
+                                    ),
+                              ),
+                            ),
+                          ),
+                          if (field.errorText != null) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              field.errorText!,
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.error,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
                         ],
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  FormField<DateTime>(
-                    key: _dateFieldKey,
-                    initialValue: _dateOfBirth,
-                    autovalidateMode: _validationEnabled
-                        ? AutovalidateMode.onUserInteraction
-                        : AutovalidateMode.disabled,
-                    validator: (_) {
-                      if (_serverErrors['dateOfBirth'] != null) {
-                        return _serverErrors['dateOfBirth'];
-                      }
-                      if (_dateOfBirth == null) {
-                        return 'Sélectionnez la date de naissance.';
-                      }
-                      return null;
-                    },
-                    builder: (field) => InkWell(
-                      onTap: disabled ? null : _pickDate,
-                      borderRadius: BorderRadius.circular(10),
-                      child: InputDecorator(
-                        decoration: _inputDecoration(
-                          label: 'Date de naissance',
-                          icon: Icons.calendar_today_outlined,
-                          errorText: field.errorText,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    const _SectionTitle(
+                      title: 'Lien familial',
+                      subtitle:
+                          'Choisissez la relation avec le titulaire du compte.',
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: _relationship,
+                      autovalidateMode: _validationEnabled
+                          ? AutovalidateMode.onUserInteraction
+                          : AutovalidateMode.disabled,
+                      isExpanded: true,
+                      decoration: _inputDecoration(
+                        label: 'Relation',
+                        icon: Icons.family_restroom_rounded,
+                        errorText: _serverErrors['relationship'],
+                      ),
+                      items: FamilyRelationships.values
+                          .map(
+                            (value) => DropdownMenuItem(
+                              value: value,
+                              child: Text(
+                                FamilyRelationships.frenchLabel(value),
+                              ),
+                            ),
+                          )
+                          .toList(growable: false),
+                      validator: (value) => value == null
+                          ? 'Sélectionnez le lien familial.'
+                          : null,
+                      onChanged: disabled
+                          ? null
+                          : (value) {
+                              setState(() {
+                                _relationship = value;
+                              });
+                              _clearServerError('relationship');
+                            },
+                    ),
+                    if (provider.mutationError != null &&
+                        _serverErrors.isEmpty) ...[
+                      const SizedBox(height: 16),
+                      _ErrorBanner(message: provider.mutationError!),
+                    ],
+                    const SizedBox(height: 28),
+                    SizedBox(
+                      height: 52,
+                      child: FilledButton.icon(
+                        onPressed: disabled ? null : _submit,
+                        icon: disabled
+                            ? const SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Icon(
+                                widget.isEditing
+                                    ? Icons.save_outlined
+                                    : Icons.person_add_alt_1_rounded,
+                              ),
+                        label: Text(
+                          widget.isEditing
+                              ? 'Enregistrer les modifications'
+                              : (widget.submitLabel ?? 'Ajouter le membre'),
                         ),
-                        child: Text(
-                          _dateOfBirth == null
-                              ? 'Choisir une date'
-                              : _displayDate(_dateOfBirth!),
-                          style: TextStyle(
-                            color: _dateOfBirth == null ? _muted : _ink,
-                            fontWeight: FontWeight.w600,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: _teal,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          textStyle: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                  const _SectionTitle(
-                    title: 'Genre',
-                    subtitle: 'Utilisé uniquement pour l’identité du membre.',
-                  ),
-                  const SizedBox(height: 12),
-                  FormField<String>(
-                    initialValue: _gender,
-                    autovalidateMode: _validationEnabled
-                        ? AutovalidateMode.onUserInteraction
-                        : AutovalidateMode.disabled,
-                    validator: (_) {
-                      return _serverErrors['gender'] ??
-                          (_gender == null ? 'Sélectionnez le genre.' : null);
-                    },
-                    builder: (field) => Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SizedBox(
-                          width: double.infinity,
-                          child: SegmentedButton<String>(
-                            segments: const [
-                              ButtonSegment(value: 'F', label: Text('Femme')),
-                              ButtonSegment(value: 'M', label: Text('Homme')),
-                              ButtonSegment(
-                                value: 'autre',
-                                label: Text('Autre'),
-                              ),
-                            ],
-                            selected: _gender == null ? const {} : {_gender!},
-                            emptySelectionAllowed: true,
-                            onSelectionChanged: disabled
-                                ? null
-                                : (selection) {
-                                    setState(() {
-                                      _gender = selection.isEmpty
-                                          ? null
-                                          : selection.first;
-                                    });
-                                    _clearServerError('gender');
-                                    field.didChange(_gender);
-                                  },
-                            style: ButtonStyle(
-                              visualDensity: VisualDensity.standard,
-                              foregroundColor: WidgetStateProperty.resolveWith(
-                                (states) =>
-                                    states.contains(WidgetState.selected)
-                                    ? Colors.white
-                                    : _ink,
-                              ),
-                              backgroundColor: WidgetStateProperty.resolveWith(
-                                (states) =>
-                                    states.contains(WidgetState.selected)
-                                    ? _teal
-                                    : Colors.white,
-                              ),
-                            ),
-                          ),
-                        ),
-                        if (field.errorText != null) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            field.errorText!,
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.error,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  const _SectionTitle(
-                    title: 'Lien familial',
-                    subtitle:
-                        'Choisissez la relation avec le titulaire du compte.',
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: _relationship,
-                    autovalidateMode: _validationEnabled
-                        ? AutovalidateMode.onUserInteraction
-                        : AutovalidateMode.disabled,
-                    isExpanded: true,
-                    decoration: _inputDecoration(
-                      label: 'Relation',
-                      icon: Icons.family_restroom_rounded,
-                      errorText: _serverErrors['relationship'],
-                    ),
-                    items: FamilyRelationships.values
-                        .map(
-                          (value) => DropdownMenuItem(
-                            value: value,
-                            child: Text(FamilyRelationships.frenchLabel(value)),
-                          ),
-                        )
-                        .toList(growable: false),
-                    validator: (value) =>
-                        value == null ? 'Sélectionnez le lien familial.' : null,
-                    onChanged: disabled
-                        ? null
-                        : (value) {
-                            setState(() {
-                              _relationship = value;
-                            });
-                            _clearServerError('relationship');
-                          },
-                  ),
-                  if (provider.mutationError != null &&
-                      _serverErrors.isEmpty) ...[
-                    const SizedBox(height: 16),
-                    _ErrorBanner(message: provider.mutationError!),
                   ],
-                  const SizedBox(height: 28),
-                  SizedBox(
-                    height: 52,
-                    child: FilledButton.icon(
-                      onPressed: disabled ? null : _submit,
-                      icon: disabled
-                          ? const SizedBox.square(
-                              dimension: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : Icon(
-                              widget.isEditing
-                                  ? Icons.save_outlined
-                                  : Icons.person_add_alt_1_rounded,
-                            ),
-                      label: Text(
-                        widget.isEditing
-                            ? 'Enregistrer les modifications'
-                            : 'Ajouter le membre',
-                      ),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: _teal,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        textStyle: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
+                ),
+              );
+            },
+          ),
         ),
       ),
     );
@@ -447,6 +480,7 @@ class _AddFamilyMemberScreenState extends State<AddFamilyMemberScreen> {
     required TextInputAction textInputAction,
   }) {
     return TextFormField(
+      key: ValueKey('family-$field'),
       controller: controller,
       enabled: enabled,
       autovalidateMode: _validationEnabled

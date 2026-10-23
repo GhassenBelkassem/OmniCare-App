@@ -3,10 +3,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:lottie/lottie.dart';
-import 'doctor_selection_screen.dart';
+import 'doctor_matching.dart';
 import '../../core/api/consultations_api.dart';
 import '../../core/api/api_error_utils.dart';
-import '../../core/models/consultation.dart';
 import '../../services/notification_service.dart';
 import '../../core/utils/console_log.dart';
 
@@ -172,43 +171,37 @@ class _DoctorArrivingScreenState extends State<DoctorArrivingScreen>
   Widget build(BuildContext context) {
     final doctor = widget.requestData['doctor'] as Doctor?;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF4F5F7),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(),
-            if (_isCompleting)
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 8,
-                ),
-                child: Text(
-                  'Finalizing consultation...',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF667085),
-                  ),
-                ),
-              ),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    _buildAnimationCard(),
-                    const SizedBox(height: 20),
-                    _buildDoctorCard(doctor),
-                    const SizedBox(height: 20),
-                    _buildActionButtons(doctor),
-                  ],
+    return SafeArea(
+      child: Column(
+        children: [
+          _buildHeader(),
+          if (_isCompleting)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: Text(
+                'Finalizing consultation...',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF667085),
                 ),
               ),
             ),
-          ],
-        ),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  _buildAnimationCard(),
+                  const SizedBox(height: 20),
+                  _buildDoctorCard(doctor),
+                  const SizedBox(height: 20),
+                  _buildActionButtons(doctor),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

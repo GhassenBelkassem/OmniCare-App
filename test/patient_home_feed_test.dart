@@ -58,7 +58,7 @@ void main() {
       matchesGoldenFile('goldens/patient_home_feed_top.png'),
     );
 
-    await tester.tap(find.text('Rechercher'));
+    await tester.tap(find.bySemanticsLabel('Rechercher dans OmniCare'));
     await tester.pumpAndSettle();
 
     expect(find.text('Que souhaitez-vous faire ?'), findsOneWidget);

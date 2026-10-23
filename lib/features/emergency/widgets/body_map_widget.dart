@@ -1,5 +1,10 @@
+import 'dart:math' as math;
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+
+import '../../../core/theme/omni_theme.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DATA - French labels
@@ -61,6 +66,28 @@ const Map<String, String> muscleParts = {
   'back-foot-left': 'Pied Gauche',
   'back-foot-right': 'Pied Droit',
 };
+
+/// Patient-facing copy only. Stable anatomical IDs remain unchanged.
+String bodyAreaLabel(String id) {
+  const overrides = {
+    'front-chest-pectoral-left': 'Poitrine gauche',
+    'front-chest-pectoral-right': 'Poitrine droite',
+    'front-serratus-left': 'Côtes gauches',
+    'front-serratus-right': 'Côtes droites',
+    'front-thigh-quad-left': 'Cuisse gauche (face)',
+    'front-thigh-quad-right': 'Cuisse droite (face)',
+    'back-thigh-hamstring-left': 'Cuisse gauche (dos)',
+    'back-thigh-hamstring-right': 'Cuisse droite (dos)',
+  };
+  if (overrides.containsKey(id)) return overrides[id]!;
+  final label = muscleParts[id];
+  if (label == null) return 'Zone sélectionnée';
+  final duplicate =
+      muscleParts.values.where((value) => value == label).length > 1;
+  return duplicate
+      ? '$label (${id.startsWith('back-') ? 'dos' : 'face'})'
+      : label;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TAP ZONE MODEL
@@ -563,11 +590,11 @@ class _HighlightPainter extends CustomPainter {
   final List<String> selectedParts;
   final String? hoveredPart;
 
-  const _HighlightPainter({
+  _HighlightPainter({
     required this.zones,
-    required this.selectedParts,
+    required List<String> selectedParts,
     required this.hoveredPart,
-  });
+  }) : selectedParts = List<String>.unmodifiable(selectedParts);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -578,14 +605,14 @@ class _HighlightPainter extends CustomPainter {
 
       final fillPaint = Paint()
         ..color = isSelected
-            ? const Color(0xFF6BE3B2).withOpacity(0.45)
-            : const Color(0xFF1FBF9A).withOpacity(0.20)
+            ? OmniColors.freshMint.withValues(alpha: 0.40)
+            : OmniColors.freshMint.withValues(alpha: 0.20)
         ..style = PaintingStyle.fill;
 
       final strokePaint = Paint()
         ..color = isSelected
-            ? const Color(0xFF1FBF9A)
-            : const Color(0xFF1FBF9A).withOpacity(0.7)
+            ? OmniColors.deepTeal
+            : OmniColors.freshMint.withValues(alpha: 0.7)
         ..style = PaintingStyle.stroke
         ..strokeWidth = isSelected ? 2.5 : 1.5;
 
@@ -609,7 +636,9 @@ class _HighlightPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_HighlightPainter old) =>
-      old.selectedParts != selectedParts || old.hoveredPart != hoveredPart;
+      !listEquals(old.selectedParts, selectedParts) ||
+      old.hoveredPart != hoveredPart ||
+      old.zones != zones;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -622,6 +651,7 @@ class _BodyView extends StatefulWidget {
   final void Function(String) onPartClick;
 
   const _BodyView({
+    super.key,
     required this.isFront,
     required this.selectedParts,
     required this.onPartClick,
@@ -644,6 +674,32 @@ class _BodyViewState extends State<_BodyView> {
     return null;
   }
 
+  String? _tapHit(Offset position, Size size) {
+    final exact = _hitTest(position.dx / size.width, position.dy / size.height);
+    if (exact != null) return exact;
+    // Only extend into otherwise empty space; preserve precise zone priority.
+    double nearestDistance = 6;
+    String? nearest;
+    for (final zone in _zones.reversed) {
+      final rect = Rect.fromLTWH(
+        zone.left * size.width,
+        zone.top * size.height,
+        zone.width * size.width,
+        zone.height * size.height,
+      );
+      final closest = Offset(
+        position.dx.clamp(rect.left, rect.right),
+        position.dy.clamp(rect.top, rect.bottom),
+      );
+      final distance = (position - closest).distance;
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearest = zone.part;
+      }
+    }
+    return nearest;
+  }
+
   @override
   Widget build(BuildContext context) {
     final svgAsset = widget.isFront
@@ -656,6 +712,9 @@ class _BodyViewState extends State<_BodyView> {
         final h = constraints.maxHeight;
 
         return MouseRegion(
+          cursor: _hoveredPart == null
+              ? SystemMouseCursors.basic
+              : SystemMouseCursors.click,
           onHover: (e) {
             final hit = _hitTest(
               e.localPosition.dx / w,
@@ -665,25 +724,47 @@ class _BodyViewState extends State<_BodyView> {
           },
           onExit: (_) => setState(() => _hoveredPart = null),
           child: GestureDetector(
+            excludeFromSemantics: true,
             behavior: HitTestBehavior.opaque,
             onTapUp: (e) {
-              final hit = _hitTest(
-                e.localPosition.dx / w,
-                e.localPosition.dy / h,
-              );
+              final hit = _tapHit(e.localPosition, Size(w, h));
               if (hit != null) widget.onPartClick(hit);
             },
             child: Stack(
               fit: StackFit.expand,
               children: [
-                SvgPicture.asset(svgAsset, fit: BoxFit.fill),
+                SvgPicture.asset(
+                  svgAsset,
+                  fit: BoxFit.contain,
+                  excludeFromSemantics: true,
+                ),
                 CustomPaint(
+                  key: ValueKey(
+                    widget.isFront ? 'front-highlights' : 'back-highlights',
+                  ),
                   painter: _HighlightPainter(
                     zones: _zones,
                     selectedParts: widget.selectedParts,
                     hoveredPart: _hoveredPart,
                   ),
                 ),
+                for (final zone in _zones)
+                  Positioned(
+                    left: zone.left * w,
+                    top: zone.top * h,
+                    width: zone.width * w,
+                    height: zone.height * h,
+                    child: Semantics(
+                      key: ValueKey(
+                        '${widget.isFront ? 'front' : 'back'}-zone-${zone.part}',
+                      ),
+                      label: bodyAreaLabel(zone.part),
+                      button: true,
+                      selected: widget.selectedParts.contains(zone.part),
+                      onTap: () => widget.onPartClick(zone.part),
+                      child: const SizedBox.expand(),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -700,109 +781,81 @@ class _BodyViewState extends State<_BodyView> {
 class MuscleAnatomyMap extends StatelessWidget {
   final List<String> selectedParts;
   final void Function(String) onPartClick;
-  final VoidCallback? onReset;
+  final bool isFront;
 
   const MuscleAnatomyMap({
     super.key,
     required this.selectedParts,
     required this.onPartClick,
-    this.onReset,
+    this.isFront = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Body views
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final isWide = constraints.maxWidth >= 700;
-            if (isWide) {
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: _buildCard(
-                      'Vue de Face',
-                      true,
-                      const Color(0xFF1FBF9A),
-                    ),
-                  ),
-                  const SizedBox(width: 24),
-                  Expanded(
-                    child: _buildCard(
-                      'Vue de Dos',
-                      false,
-                      const Color(0xFF3B82F6),
-                    ),
-                  ),
-                ],
-              );
-            }
-            return Column(
-              children: [
-                _buildCard('Vue de Face', true, const Color(0xFF1FBF9A)),
-                const SizedBox(height: 24),
-                _buildCard('Vue de Dos', false, const Color(0xFF3B82F6)),
-              ],
-            );
-          },
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mapWidth = math.min(
+          math.max(0.0, constraints.maxWidth - 32),
+          340.0,
+        );
+        return _buildCard(
+          context,
+          isFront ? 'Vue de Face' : 'Vue de Dos',
+          isFront,
+          mapWidth,
+        );
+      },
     );
   }
 
-  Widget _buildCard(String title, bool isFront, Color accent) {
+  Widget _buildCard(
+    BuildContext context,
+    String title,
+    bool isFront,
+    double mapWidth,
+  ) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        color: OmniColors.surfacePrimary,
+        borderRadius: BorderRadius.circular(OmniRadii.card),
+        border: Border.all(color: OmniColors.borderLight),
       ),
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(OmniSpacing.base),
       child: Column(
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: accent.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
+          Align(
+            alignment: Alignment.centerLeft,
             child: Text(
               title,
-              style: TextStyle(
-                fontSize: 17,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: OmniColors.textPrimary,
+                fontSize: 16,
                 fontWeight: FontWeight.w700,
-                color: accent,
               ),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 8),
           // AspectRatio matches SVG viewBox 300:650
-          AspectRatio(
-            aspectRatio: 300 / 650,
-            child: _BodyView(
-              isFront: isFront,
-              selectedParts: selectedParts,
-              onPartClick: onPartClick,
+          SizedBox(
+            width: mapWidth,
+            child: AspectRatio(
+              aspectRatio: 300 / 650,
+              child: _BodyView(
+                key: ValueKey(
+                  isFront ? 'emergency-body-front' : 'emergency-body-back',
+                ),
+                isFront: isFront,
+                selectedParts: selectedParts,
+                onPartClick: onPartClick,
+              ),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Text(
-            'Cliquez sur les zones affectées',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey.shade500,
-              fontStyle: FontStyle.italic,
-            ),
+            'Touchez une zone affectée',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: OmniColors.textSecondary),
           ),
         ],
       ),

@@ -1,0 +1,326 @@
+import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
+
+import 'package:omnicare_mobile/core/api/family_api.dart';
+import 'package:omnicare_mobile/core/models/family_models.dart';
+import 'package:omnicare_mobile/core/theme/omni_theme.dart';
+import 'package:omnicare_mobile/features/patient_clinic/application/patient_clinic_directory_controller.dart';
+import 'package:omnicare_mobile/features/patient_clinic/data/patient_clinic_models.dart';
+import 'package:omnicare_mobile/features/patient_clinic/data/patient_clinic_repository.dart';
+import 'package:omnicare_mobile/features/patient_clinic/presentation/clinic_directory_screen.dart';
+import 'package:omnicare_mobile/features/patient_doctor/presentation/doctor_directory_screen.dart';
+import 'package:omnicare_mobile/features/request_core/application/request_submission_controller.dart';
+import 'package:omnicare_mobile/features/request_core/data/request_models.dart';
+import 'package:omnicare_mobile/features/request_core/data/request_repository.dart';
+import 'package:omnicare_mobile/features/request_core/domain/clinic_request_intent.dart';
+import 'package:omnicare_mobile/features/request_core/domain/request_vocabulary.dart';
+import 'package:omnicare_mobile/features/request_core/identity/request_operation_id.dart';
+import 'package:omnicare_mobile/features/patient_doctor/application/doctor_directory_controller.dart';
+import 'package:omnicare_mobile/features/patient_doctor/data/doctor_directory_models.dart';
+import 'package:omnicare_mobile/features/patient_doctor/data/doctor_directory_repository.dart';
+import 'package:omnicare_mobile/features/request_flow/screens/who_needs_care_screen.dart';
+import 'package:omnicare_mobile/features/request_flow/screens/doctor_cabinet_entry_screen.dart';
+import 'package:omnicare_mobile/features/scheduled_care/application/patient_booking_controller.dart';
+import 'package:omnicare_mobile/features/scheduled_care/data/scheduled_care_repository.dart';
+import 'package:omnicare_mobile/features/scheduled_care/domain/scheduled_care_models.dart';
+import 'package:omnicare_mobile/providers/family_provider.dart';
+import 'package:omnicare_mobile/repositories/family_repository.dart';
+
+class _FakeFamilyRepository extends FamilyRepository {
+  _FakeFamilyRepository({this.members = const []}) : super(api: _stubApi);
+  static final _stubApi = FamilyApi();
+  final List<FamilyMember> members;
+
+  @override
+  Future<List<FamilyMember>> getFamilyMembers() async => members;
+}
+
+class _FakeRequestRepository implements RequestRepository {
+  @override
+  Future<SubmitClinicRequestResult> submitClinicRequest({
+    required RequestOperationId requestId,
+    required ClinicRequestIntent intent,
+    CancelToken? cancelToken,
+  }) async => throw UnimplementedError();
+
+  @override
+  Future<PatientRequestPage> listRequests({
+    int? page,
+    int? pageSize,
+    PatientRequestListFilter? filter,
+    CancelToken? cancelToken,
+  }) async => throw UnimplementedError();
+
+  @override
+  Future<PatientRequest> getRequest(
+    RequestOperationId requestId, {
+    CancelToken? cancelToken,
+  }) async => throw UnimplementedError();
+
+  @override
+  Future<PatientRequest> cancelRequest({
+    required RequestOperationId requestId,
+    required int expectedVersion,
+    CancelToken? cancelToken,
+  }) async => throw UnimplementedError();
+
+  @override
+  Future<PatientRequest> respondToInformationRequest({
+    required RequestOperationId requestId,
+    required PatientInformationResponsePayload payload,
+    CancelToken? cancelToken,
+  }) async => throw UnimplementedError();
+}
+
+class _FakeDoctorRepository implements DoctorDirectoryRepository {
+  _FakeDoctorRepository({List<DoctorDirectoryListItem> doctors = const []})
+    : doctors = List.unmodifiable(doctors);
+
+  final List<DoctorDirectoryListItem> doctors;
+
+  @override
+  Future<List<DoctorDirectoryListItem>> listDoctors({
+    String? query,
+    CancelToken? cancelToken,
+  }) async => doctors;
+
+  @override
+  Future<DoctorDirectoryDetail> getDoctor(
+    String doctorId, {
+    CancelToken? cancelToken,
+  }) async => throw UnimplementedError();
+
+  @override
+  Future<AvailabilitySlotsDto> getSlots({
+    required String doctorId,
+    required String practiceLocationId,
+    required DateTime from,
+    required DateTime to,
+    CancelToken? cancelToken,
+  }) async => AvailabilitySlotsDto(
+    doctorId: doctorId,
+    practiceLocationId: practiceLocationId,
+    timezone: 'Africa/Tunis',
+    generatedAt: DateTime.now().toUtc().toIso8601String(),
+    slots: const [],
+  );
+
+  @override
+  Future<DoctorBookingResult> bookAppointment({
+    required String doctorId,
+    required String startTime,
+    required String endTime,
+    String? notes,
+    CancelToken? cancelToken,
+  }) async => throw UnimplementedError();
+}
+
+class _FakeScheduledCareRepository implements ScheduledCareRepositoryContract {
+  @override
+  Future<PatientBookingRequestDetail> createOrReconcile(
+    CreateBookingRequestCommand command, {
+    CancelToken? cancelToken,
+  }) async => throw UnimplementedError();
+}
+
+class _FakeClinicRepository implements PatientClinicRepository {
+  @override
+  Future<PatientClinicDirectoryPage> listClinics({
+    String? query,
+    String? city,
+    int? page,
+    int? pageSize,
+    CancelToken? cancelToken,
+  }) async => PatientClinicDirectoryPage(
+    contractVersion: '1.0',
+    items: const [],
+    page: page ?? 0,
+    pageSize: pageSize ?? 20,
+    hasNext: false,
+  );
+
+  @override
+  Future<PatientClinicDetail> getClinic(
+    String clinicId, {
+    CancelToken? cancelToken,
+  }) async => PatientClinicDetail(
+    clinicId: clinicId,
+    displayName: 'Test clinic',
+    about: 'About',
+    gallery: const [],
+    acceptingRequests: true,
+  );
+}
+
+FamilyMember _member({
+  String id = '1',
+  String firstName = 'Aicha',
+  String lastName = 'Ben Ali',
+  String relationship = 'parent',
+}) {
+  return FamilyMember(
+    id: id,
+    accountHolderId: 'holder',
+    firstName: firstName,
+    lastName: lastName,
+    dateOfBirth: DateTime(1990, 6, 15),
+    gender: 'F',
+    relationship: relationship,
+    graduated: false,
+  );
+}
+
+Widget _buildApp({
+  RequestKind requestKind = RequestKind.clinic,
+  List<FamilyMember>? members,
+  RequestSubmissionController? requestController,
+  Widget? home,
+}) {
+  final fp = FamilyProvider(
+    repository: _FakeFamilyRepository(members: members ?? []),
+  );
+  final rc =
+      requestController ??
+      RequestSubmissionController(repository: _FakeRequestRepository());
+  final dc = PatientClinicDirectoryController(
+    repository: _FakeClinicRepository(),
+  );
+
+  return MultiProvider(
+    providers: [
+      ChangeNotifierProvider<FamilyProvider>.value(value: fp),
+      ChangeNotifierProvider<RequestSubmissionController>.value(value: rc),
+      ChangeNotifierProvider<PatientClinicDirectoryController>.value(value: dc),
+      ChangeNotifierProvider<DoctorDirectoryController>(
+        create: (_) =>
+            DoctorDirectoryController(repository: _FakeDoctorRepository()),
+      ),
+      ChangeNotifierProvider<PatientBookingController>(
+        create: (_) => PatientBookingController(
+          repository: _FakeScheduledCareRepository(),
+        ),
+      ),
+    ],
+    child: MaterialApp(
+      theme: buildOmniTheme(),
+      home: home ?? WhoNeedsCareScreen(requestKind: requestKind),
+    ),
+  );
+}
+
+void main() {
+  group('Doctor Cabinet navigation', () {
+    testWidgets('entry initialization is deferred beyond the build phase', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _buildApp(home: const DoctorCabinetEntryScreen()),
+      );
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+      'Continue with RequestKind.doctor navigates to DoctorDirectoryScreen',
+      (tester) async {
+        await tester.pumpWidget(_buildApp(requestKind: RequestKind.doctor));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Continue'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(DoctorDirectoryScreen), findsOneWidget);
+        expect(find.byType(ClinicDirectoryScreen), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'Continue with RequestKind.clinic navigates to ClinicDirectoryScreen',
+      (tester) async {
+        await tester.pumpWidget(_buildApp(requestKind: RequestKind.clinic));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Continue'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(ClinicDirectoryScreen), findsOneWidget);
+        expect(find.byType(DoctorDirectoryScreen), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'Family member with RequestKind.doctor navigates to DoctorDirectoryScreen',
+      (tester) async {
+        final member = _member(id: 'test-id');
+        final request = RequestSubmissionController(
+          repository: _FakeRequestRepository(),
+        );
+        await tester.pumpWidget(
+          _buildApp(
+            requestKind: RequestKind.doctor,
+            members: [member],
+            requestController: request,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Aicha Ben Ali'));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Continue'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(DoctorDirectoryScreen), findsOneWidget);
+        expect(find.byType(ClinicDirectoryScreen), findsNothing);
+        expect(request.subject.isSelf, isFalse);
+        expect(request.subject.familyMemberId, 'test-id');
+      },
+    );
+
+    testWidgets('SELF selection commits correctly with RequestKind.doctor', (
+      tester,
+    ) async {
+      final request = RequestSubmissionController(
+        repository: _FakeRequestRepository(),
+      );
+      await tester.pumpWidget(
+        _buildApp(requestKind: RequestKind.doctor, requestController: request),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+
+      expect(request.subject.isSelf, isTrue);
+    });
+
+    testWidgets('WhoNeedsCareScreen renders with RequestKind.doctor', (
+      tester,
+    ) async {
+      final member = _member();
+      await tester.pumpWidget(
+        _buildApp(requestKind: RequestKind.doctor, members: [member]),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Who needs care?'), findsOneWidget);
+      expect(find.text('Choose who this request is for.'), findsOneWidget);
+      expect(find.text('Me'), findsOneWidget);
+      expect(find.text('Aicha Ben Ali'), findsOneWidget);
+      expect(find.text('Continue'), findsOneWidget);
+    });
+
+    testWidgets('Default requestKind is clinic', (tester) async {
+      await tester.pumpWidget(_buildApp());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ClinicDirectoryScreen), findsOneWidget);
+      expect(find.byType(DoctorDirectoryScreen), findsNothing);
+    });
+  });
+}

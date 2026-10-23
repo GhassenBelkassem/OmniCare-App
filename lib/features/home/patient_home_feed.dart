@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'add_family_member_screen.dart';
+import 'patient_care_destinations.dart';
 
 const _ink = Color(0xFF111827);
 const _muted = Color(0xFF667085);
@@ -631,32 +632,7 @@ class _PatientHomeFeedState extends State<PatientHomeFeed> {
   }
 
   Widget _buildCareSection() {
-    const services = <_CareService>[
-      _CareService(
-        'Médecin',
-        'Consultation à domicile ou rendez-vous',
-        Icons.medical_services_outlined,
-        'doctor',
-      ),
-      _CareService(
-        'Kinésithérapeute',
-        'Demande et suivi de rééducation',
-        Icons.accessibility_new_rounded,
-        'kine',
-      ),
-      _CareService(
-        'Infirmier',
-        'Soins infirmiers à domicile',
-        Icons.vaccines_outlined,
-        'nurse',
-      ),
-      _CareService(
-        'Clinique',
-        'Envoyer une demande à une clinique',
-        Icons.local_hospital_outlined,
-        'clinic',
-      ),
-    ];
+    const services = patientCareDestinations;
 
     return Container(
       decoration: BoxDecoration(
@@ -716,18 +692,60 @@ class _PatientHomeFeedState extends State<PatientHomeFeed> {
               itemBuilder: (context, index) => _buildCareTile(services[index]),
             ),
           ),
+          const Divider(height: 1, color: _line),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              key: const ValueKey('my-requests-entry'),
+              onTap: () => _navigateNamed('/m05/requests'),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 15, 16, 15),
+                child: Row(
+                  children: [
+                    const Icon(Icons.receipt_long_outlined, color: _teal),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Mes demandes',
+                            style: _text(
+                              size: 14,
+                              weight: FontWeight.w800,
+                              color: _ink,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Suivre mes demandes de soins',
+                            style: _text(
+                              size: 12,
+                              weight: FontWeight.w500,
+                              color: _muted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right_rounded, color: _muted),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildCareTile(_CareService service) {
+  Widget _buildCareTile(PatientCareDestination service) {
     return Material(
       color: const Color(0xFFFCFDFD),
       borderRadius: BorderRadius.circular(20),
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
-        onTap: () => _openCare(service.type),
+        onTap: () => _openCare(service),
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
@@ -740,7 +758,7 @@ class _PatientHomeFeedState extends State<PatientHomeFeed> {
               _iconBox(service.icon, size: 48),
               const SizedBox(height: 13),
               Text(
-                service.title,
+                service.label,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: _text(
@@ -753,7 +771,7 @@ class _PatientHomeFeedState extends State<PatientHomeFeed> {
               const SizedBox(height: 7),
               Expanded(
                 child: Text(
-                  service.description,
+                  service.subtitle,
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                   style: _text(
@@ -1859,7 +1877,7 @@ class _PatientHomeFeedState extends State<PatientHomeFeed> {
       Icons.medical_services_outlined,
       'docteur domicile rendez-vous',
       false,
-      () => _openCare('doctor'),
+      () => _openCare(patientCareDestination(PatientCareType.doctor)),
     ),
     _SearchItem(
       'Actions',
@@ -1868,7 +1886,7 @@ class _PatientHomeFeedState extends State<PatientHomeFeed> {
       Icons.vaccines_outlined,
       'pansement injection domicile',
       false,
-      () => _openCare('nurse'),
+      () => _openCare(patientCareDestination(PatientCareType.nurse)),
     ),
     _SearchItem(
       'Dans OmniCare',
@@ -1999,16 +2017,16 @@ class _PatientHomeFeedState extends State<PatientHomeFeed> {
     setState(() => _searchOpen = false);
   }
 
-  void _openCare(String type) {
-    if (type == 'clinic') {
-      _navigateNamed('/clinic-request');
+  void _openCare(PatientCareDestination destination) {
+    if (destination.isClinic) {
+      _navigateNamed(destination.route);
       return;
     }
     _closeSearchIfNeeded();
     Navigator.pushNamed(
       context,
       '/emergency-step0',
-      arguments: {'providerType': type},
+      arguments: {'providerType': destination.type.name},
     );
   }
 
@@ -2231,15 +2249,6 @@ class _HealthHighlight {
   final String title;
   final String description;
   final IconData icon;
-}
-
-class _CareService {
-  const _CareService(this.title, this.description, this.icon, this.type);
-
-  final String title;
-  final String description;
-  final IconData icon;
-  final String type;
 }
 
 class _SearchItem {

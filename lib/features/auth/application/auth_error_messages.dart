@@ -1,4 +1,5 @@
 import '../../../core/network/api_exception.dart';
+import 'auth_flow_models.dart';
 import 'tunisian_phone_number.dart';
 
 class AuthErrorPresentation {
@@ -18,6 +19,10 @@ class AuthErrorMessages {
 
   static AuthErrorPresentation fromObject(Object error) {
     if (error is PhoneNumberFormatException) {
+      return AuthErrorPresentation(message: error.message);
+    }
+
+    if (error is AuthFlowException) {
       return AuthErrorPresentation(message: error.message);
     }
 
@@ -50,7 +55,8 @@ class AuthErrorMessages {
       'TOO_MANY_REQUESTS' => 'Trop de tentatives. Réessayez plus tard.',
       'VALIDATION_ERROR' => 'Veuillez vérifier les informations saisies.',
       'AUTH_PHONE_ALREADY_USED' => 'Ce numéro est déjà utilisé.',
-      'AUTH_EMAIL_ALREADY_USED' => 'Cette adresse e-mail est déjà utilisée.',
+      'AUTH_EMAIL_ALREADY_USED' =>
+        'Un compte OmniCare existe déjà avec cette adresse. Connectez-vous avec votre mot de passe.',
       'AUTH_PASSWORD_COMPROMISED' =>
         'Ce mot de passe est compromis. Choisissez-en un autre.',
       'INVALID_INPUT' => 'Veuillez choisir un nouveau mot de passe different.',
@@ -58,6 +64,14 @@ class AuthErrorMessages {
         'Session Google expirée. Recommencez avec Google.',
       'AUTH_GOOGLE_SIGNUP_INVALID' =>
         'Session Google invalide. Recommencez avec Google.',
+      'AUTH_GOOGLE_LINK_EXPIRED' => 'Cette tentative d’association a expiré.',
+      'AUTH_GOOGLE_LINK_INVALID' =>
+        'Cette tentative d’association n’est plus valide.',
+      'AUTH_GOOGLE_LINK_PASSWORD_INVALID' => 'Mot de passe incorrect.',
+      'AUTH_GOOGLE_LINK_PASSWORD_UNAVAILABLE' =>
+        'Ce compte ne peut pas être associé avec un mot de passe pour le moment.',
+      'AUTH_GOOGLE_IDENTITY_CONFLICT' =>
+        'Ce compte Google est déjà associé à un autre compte.',
       'DUPLICATE_IDENTITY' => 'Un compte existe déjà avec ces informations.',
       'NETWORK_CONNECTION_TIMEOUT' =>
         'La connexion a expiré. Vérifiez votre réseau.',

@@ -3,6 +3,7 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/network/auth_refresh_coordinator.dart';
 import '../../../core/storage/secure_token_store.dart';
 import '../application/auth_flow_models.dart';
+import '../application/auth_role_family.dart';
 import '../application/tunisian_phone_number.dart';
 import 'auth_api.dart';
 import 'models/auth_dtos.dart';
@@ -15,8 +16,11 @@ abstract class AuthRepositoryContract {
   Future<void> initiateGooglePhoneSignup(String phone);
   Future<void> verifyGooglePhoneSignupOtp(String phone, String otp);
   Future<AuthenticatedPatientSession> completeGoogleSignup({
+    String? phone,
     bool rememberDevice = false,
   });
+  Future<AuthenticatedPatientSession> linkGoogleAccount(String password);
+  void cancelGoogleAccountLink();
   Future<void> initiatePhoneSignup(String phone);
   Future<void> verifyPhoneSignupOtp(String phone, String otp);
   Future<AuthenticatedPatientSession> completePhoneSignup(
@@ -57,6 +61,7 @@ class AuthRepository implements AuthRepositoryContract {
   final DeviceIdentityService _deviceIdentityService;
   final AuthRefreshCoordinator _refreshCoordinator;
   String? _pendingGoogleSignupToken;
+  String? _pendingGoogleLinkChallenge;
 
   @override
   Future<GoogleAuthResult> initiateGoogle(
@@ -85,6 +90,7 @@ class AuthRepository implements AuthRepositoryContract {
           );
         }
         _pendingGoogleSignupToken = null;
+        _pendingGoogleLinkChallenge = null;
         await _saveLoginResponse(login);
         return GoogleAuthResult.authenticated(await loadCurrentProfile());
       case GoogleAuthStatus.requiresPhone:
@@ -96,8 +102,46 @@ class AuthRepository implements AuthRepositoryContract {
           );
         }
         _pendingGoogleSignupToken = signupToken.trim();
+        _pendingGoogleLinkChallenge = null;
         return const GoogleAuthResult.requiresPhone();
+      case GoogleAuthStatus.requiresAccountLink:
+        final challenge = response.linkChallenge;
+        final emailHint = response.emailHint;
+        if (challenge == null ||
+            challenge.trim().isEmpty ||
+            emailHint == null ||
+            emailHint.trim().isEmpty) {
+          throw const ApiException(
+            'Malformed server response.',
+            code: 'MALFORMED_RESPONSE',
+          );
+        }
+        _pendingGoogleSignupToken = null;
+        _pendingGoogleLinkChallenge = challenge.trim();
+        return GoogleAuthResult.requiresAccountLink(emailHint.trim());
     }
+  }
+
+  @override
+  Future<AuthenticatedPatientSession> linkGoogleAccount(String password) async {
+    final challenge = _pendingGoogleLinkChallenge;
+    if (challenge == null || challenge.isEmpty) {
+      throw const ApiException(
+        'Google account linking was not started.',
+        code: 'AUTH_GOOGLE_LINK_INVALID',
+      );
+    }
+    final response = await _api.linkGoogleAccount(
+      GoogleLinkRequestDto(linkChallenge: challenge, password: password),
+    );
+    _pendingGoogleLinkChallenge = null;
+    await _saveLoginResponse(response);
+    return loadCurrentProfile();
+  }
+
+  @override
+  void cancelGoogleAccountLink() {
+    _pendingGoogleLinkChallenge = null;
   }
 
   @override
@@ -127,6 +171,7 @@ class AuthRepository implements AuthRepositoryContract {
 
   @override
   Future<AuthenticatedPatientSession> completeGoogleSignup({
+    String? phone,
     bool rememberDevice = false,
   }) async {
     final signupToken = _requirePendingGoogleSignupToken();
@@ -134,6 +179,7 @@ class AuthRepository implements AuthRepositoryContract {
     final response = await _api.completeGoogleSignup(
       GoogleCompleteRequestDto(
         signupToken: signupToken,
+        phone: phone,
         deviceFingerprint: identity.deviceFingerprint,
         platform: identity.platform,
         deviceLabel: identity.deviceLabel,
@@ -307,7 +353,8 @@ class AuthRepository implements AuthRepositoryContract {
       );
     }
 
-    if (current.role != 'PATIENT') {
+    final roleFamily = AuthRoles.familyOf(current.role);
+    if (roleFamily == AuthRoleFamily.unsupported) {
       await _tokenStore.clearSession();
       throw const ApiException(
         'Unsupported account role.',
@@ -323,7 +370,11 @@ class AuthRepository implements AuthRepositoryContract {
       ),
     );
 
-    final profile = await _api.getPatientProfile();
+    // Only patient accounts own a patient profile. Professional accounts
+    // (doctor and clinic roles) resolve their workspace after authentication.
+    final profile = roleFamily == AuthRoleFamily.patient
+        ? await _api.getPatientProfile()
+        : null;
     return AuthenticatedPatientSession(user: current, profile: profile);
   }
 

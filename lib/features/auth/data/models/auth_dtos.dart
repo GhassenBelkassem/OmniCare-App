@@ -12,7 +12,8 @@ enum ClientPlatform {
 
 enum GoogleAuthStatus {
   authenticated('AUTHENTICATED'),
-  requiresPhone('REQUIRES_PHONE');
+  requiresPhone('REQUIRES_PHONE'),
+  requiresAccountLink('REQUIRES_ACCOUNT_LINK');
 
   const GoogleAuthStatus(this.value);
 
@@ -145,11 +146,15 @@ class GoogleInitiateResponseDto {
   final GoogleAuthStatus status;
   final LoginResponseDto? session;
   final String? signupToken;
+  final String? linkChallenge;
+  final String? emailHint;
 
   const GoogleInitiateResponseDto({
     required this.status,
     required this.session,
     required this.signupToken,
+    required this.linkChallenge,
+    required this.emailHint,
   });
 
   factory GoogleInitiateResponseDto.fromJson(Map<String, dynamic> json) {
@@ -163,6 +168,8 @@ class GoogleInitiateResponseDto {
           ? LoginResponseDto.fromJson(sessionJson.cast<String, dynamic>())
           : null,
       signupToken: signupToken,
+      linkChallenge: _optionalString(json['linkChallenge']),
+      emailHint: _optionalString(json['emailHint']),
     );
   }
 }
@@ -417,6 +424,7 @@ class GooglePhoneVerifyRequestDto {
 
 class GoogleCompleteRequestDto {
   final String signupToken;
+  final String? phone;
   final String deviceFingerprint;
   final ClientPlatform platform;
   final String deviceLabel;
@@ -425,6 +433,7 @@ class GoogleCompleteRequestDto {
 
   const GoogleCompleteRequestDto({
     required this.signupToken,
+    this.phone,
     required this.deviceFingerprint,
     required this.platform,
     required this.deviceLabel,
@@ -435,6 +444,7 @@ class GoogleCompleteRequestDto {
   Map<String, dynamic> toJson() {
     return {
       'signupToken': signupToken,
+      if (phone != null) 'phone': phone,
       'deviceFingerprint': deviceFingerprint,
       'platform': platform.value,
       'deviceLabel': deviceLabel,
@@ -442,6 +452,24 @@ class GoogleCompleteRequestDto {
       'rememberDevice': rememberDevice,
     };
   }
+}
+
+class GoogleLinkRequestDto {
+  final String linkChallenge;
+  final String password;
+
+  const GoogleLinkRequestDto({
+    required this.linkChallenge,
+    required this.password,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {'linkChallenge': linkChallenge, 'password': password};
+  }
+
+  @override
+  String toString() =>
+      'GoogleLinkRequestDto(linkChallenge: <redacted>, password: <redacted>)';
 }
 
 class RefreshTokenRequestDto {

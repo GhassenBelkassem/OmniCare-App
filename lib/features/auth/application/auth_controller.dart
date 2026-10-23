@@ -1,17 +1,22 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../core/config/app_environment.dart';
 import '../../../core/models/patient_profile.dart';
+import '../../clinic/clinic_routes.dart';
 import '../data/auth_repository.dart';
 import '../data/models/auth_dtos.dart';
 import 'auth_error_messages.dart';
 import 'auth_flow_models.dart';
+import 'auth_role_family.dart';
 import 'tunisian_phone_number.dart';
 
 enum AuthStatus {
   initializing,
   unauthenticated,
   submitting,
+  phoneRequired,
   otpRequired,
+  accountLinkRequired,
   authenticated,
   failure,
 }
@@ -30,6 +35,8 @@ class AuthController extends ChangeNotifier {
   String? _pendingPhone;
   PhoneSignupDraft? _pendingSignupDraft;
   bool _pendingGoogleSignup = false;
+  bool _pendingGoogleAccountLink = false;
+  String? _pendingGoogleEmailHint;
   bool _pendingRememberDevice = false;
   String? _errorCode;
   String? _errorMessage;
@@ -46,6 +53,8 @@ class AuthController extends ChangeNotifier {
   AuthFlowMode? get pendingFlow => _pendingFlow;
   String? get pendingPhone => _pendingPhone;
   bool get hasPendingGoogleSignup => _pendingGoogleSignup;
+  bool get hasPendingGoogleAccountLink => _pendingGoogleAccountLink;
+  String? get pendingGoogleEmailHint => _pendingGoogleEmailHint;
   String? get errorCode => _errorCode;
   String? get errorMessage => _errorMessage;
   Map<String, String> get fieldErrors => _fieldErrors;
@@ -53,11 +62,21 @@ class AuthController extends ChangeNotifier {
   bool get isAuthenticated => _status == AuthStatus.authenticated;
   bool get isSubmitting => _submitting;
 
+  /// Authoritative global role of the authenticated account, as returned by
+  /// `GET /auth/me`. Null while unauthenticated.
+  String? get globalRole => AuthRoles.normalize(_currentUser?.role);
+
+  /// Destination family the authenticated account belongs to.
+  AuthRoleFamily get roleFamily => AuthRoles.familyOf(_currentUser?.role);
+
   String? get nextRoute {
     return switch (_routeDecision) {
       AuthRouteDecision.home => '/home',
       AuthRouteDecision.onboarding => '/conversational-onboarding',
       AuthRouteDecision.passwordChangeRequired => '/change-password-required',
+      AuthRouteDecision.doctorWorkspace => '/doctor-dashboard',
+      AuthRouteDecision.clinicWorkspace => ClinicRoutes.entry,
+      AuthRouteDecision.unsupportedRole => null,
       null => null,
     };
   }
@@ -95,6 +114,14 @@ class AuthController extends ChangeNotifier {
     bool rememberDevice = false,
   }) async {
     if (_submitting) return false;
+    if (!AppEnvironment.phoneVerificationEnabled) {
+      _setFailure(
+        const AuthFlowException(
+          'Phone sign-in is temporarily unavailable. Use email or Google instead.',
+        ),
+      );
+      return false;
+    }
     return _runSubmitting(() async {
       final normalized = TunisianPhoneNumber.normalize(phone);
       await _repository.initiatePhoneLogin(normalized);
@@ -129,6 +156,11 @@ class AuthController extends ChangeNotifier {
           _setAuthenticated(session);
           return true;
         case EmailPasswordLoginOutcome.requiresPhoneOtp:
+          if (!AppEnvironment.phoneVerificationEnabled) {
+            throw const AuthFlowException(
+              'Phone verification is disabled, but the server requested an OTP.',
+            );
+          }
           final phone = result.phone;
           if (phone == null || phone.trim().isEmpty) {
             throw const AuthFlowException('Login phone was not returned.');
@@ -168,14 +200,57 @@ class AuthController extends ChangeNotifier {
           _pendingFlow = AuthFlowMode.signup;
           _pendingSignupDraft = null;
           _pendingRememberDevice = rememberDevice;
-          _status = AuthStatus.otpRequired;
+          _status = AppEnvironment.phoneVerificationEnabled
+              ? AuthStatus.otpRequired
+              : AuthStatus.phoneRequired;
+          return true;
+        case GoogleAuthOutcome.requiresAccountLink:
+          final emailHint = result.emailHint;
+          if (emailHint == null || emailHint.isEmpty) {
+            throw const AuthFlowException(
+              'Google account-link details were not returned.',
+            );
+          }
+          _pendingGoogleSignup = false;
+          _pendingGoogleAccountLink = true;
+          _pendingGoogleEmailHint = emailHint;
+          _pendingPhone = null;
+          _pendingFlow = null;
+          _pendingSignupDraft = null;
+          _pendingRememberDevice = rememberDevice;
+          _status = AuthStatus.accountLinkRequired;
           return true;
       }
     });
   }
 
+  Future<bool> linkGoogleAccount(String password) async {
+    if (_submitting || !_pendingGoogleAccountLink) return false;
+    return _runSubmitting(() async {
+      final session = await _repository.linkGoogleAccount(password);
+      _setAuthenticated(session);
+      return true;
+    });
+  }
+
+  void cancelGoogleAccountLink() {
+    if (_submitting || _status == AuthStatus.authenticated) return;
+    _repository.cancelGoogleAccountLink();
+    _pendingGoogleAccountLink = false;
+    _pendingGoogleEmailHint = null;
+    _errorCode = null;
+    _errorMessage = null;
+    _fieldErrors = const {};
+    _status = AuthStatus.unauthenticated;
+    _notify();
+  }
+
   Future<bool> verifyPhoneLoginOtp(String otp) async {
     if (_submitting) return false;
+    if (!AppEnvironment.phoneVerificationEnabled) {
+      _setFailure(const AuthFlowException('Phone verification is disabled.'));
+      return false;
+    }
     final phone = _pendingPhone;
     if (phone == null || _pendingFlow != AuthFlowMode.login) {
       _setFailure(
@@ -204,11 +279,19 @@ class AuthController extends ChangeNotifier {
 
     return _runSubmitting(() async {
       final normalized = TunisianPhoneNumber.normalize(phone);
-      await _repository.initiateGooglePhoneSignup(normalized);
-      _pendingPhone = normalized;
-      _pendingFlow = AuthFlowMode.signup;
-      _pendingSignupDraft = null;
-      _status = AuthStatus.otpRequired;
+      if (AppEnvironment.phoneVerificationEnabled) {
+        await _repository.initiateGooglePhoneSignup(normalized);
+        _pendingPhone = normalized;
+        _pendingFlow = AuthFlowMode.signup;
+        _pendingSignupDraft = null;
+        _status = AuthStatus.otpRequired;
+      } else {
+        final session = await _repository.completeGoogleSignup(
+          phone: normalized,
+          rememberDevice: _pendingRememberDevice,
+        );
+        _setAuthenticated(session);
+      }
       return true;
     });
   }
@@ -221,19 +304,32 @@ class AuthController extends ChangeNotifier {
     if (_submitting) return false;
     return _runSubmitting(() async {
       final normalized = TunisianPhoneNumber.normalize(phone);
-      await _repository.initiatePhoneSignup(normalized);
-      _pendingPhone = normalized;
-      _pendingFlow = AuthFlowMode.signup;
-      _pendingSignupDraft = draft;
-      _pendingGoogleSignup = false;
-      _pendingRememberDevice = rememberDevice;
-      _status = AuthStatus.otpRequired;
+      if (AppEnvironment.phoneVerificationEnabled) {
+        await _repository.initiatePhoneSignup(normalized);
+        _pendingPhone = normalized;
+        _pendingFlow = AuthFlowMode.signup;
+        _pendingSignupDraft = draft;
+        _pendingGoogleSignup = false;
+        _pendingRememberDevice = rememberDevice;
+        _status = AuthStatus.otpRequired;
+      } else {
+        final session = await _repository.completePhoneSignup(
+          draft,
+          normalized,
+          rememberDevice: rememberDevice,
+        );
+        _setAuthenticated(session);
+      }
       return true;
     });
   }
 
   Future<bool> verifyPhoneSignupOtp(String otp) async {
     if (_submitting) return false;
+    if (!AppEnvironment.phoneVerificationEnabled) {
+      _setFailure(const AuthFlowException('Phone verification is disabled.'));
+      return false;
+    }
     final phone = _pendingPhone;
     final draft = _pendingSignupDraft;
     if (phone == null || _pendingFlow != AuthFlowMode.signup) {
@@ -268,6 +364,7 @@ class AuthController extends ChangeNotifier {
 
   Future<bool> resendOtp() async {
     if (_submitting) return false;
+    if (!AppEnvironment.phoneVerificationEnabled) return false;
     final phone = _pendingPhone;
     final flow = _pendingFlow;
     if (phone == null || flow == null) return false;
@@ -336,12 +433,19 @@ class AuthController extends ChangeNotifier {
 
   void cancelPendingFlow() {
     if (_submitting || _status == AuthStatus.authenticated) return;
+    if (_pendingGoogleAccountLink) {
+      _repository.cancelGoogleAccountLink();
+    }
     _pendingFlow = null;
     _pendingPhone = null;
     _pendingSignupDraft = null;
     _pendingGoogleSignup = false;
+    _pendingGoogleAccountLink = false;
+    _pendingGoogleEmailHint = null;
     _pendingRememberDevice = false;
-    if (_status == AuthStatus.otpRequired) {
+    if (_status == AuthStatus.otpRequired ||
+        _status == AuthStatus.phoneRequired ||
+        _status == AuthStatus.accountLinkRequired) {
       _status = AuthStatus.unauthenticated;
     }
     _notify();
@@ -370,6 +474,8 @@ class AuthController extends ChangeNotifier {
     _pendingPhone = null;
     _pendingSignupDraft = null;
     _pendingGoogleSignup = false;
+    _pendingGoogleAccountLink = false;
+    _pendingGoogleEmailHint = null;
     _pendingRememberDevice = false;
     _errorCode = null;
     _errorMessage = null;
@@ -412,6 +518,8 @@ class AuthController extends ChangeNotifier {
     _pendingPhone = null;
     _pendingSignupDraft = null;
     _pendingGoogleSignup = false;
+    _pendingGoogleAccountLink = false;
+    _pendingGoogleEmailHint = null;
     _pendingRememberDevice = false;
     _errorCode = null;
     _errorMessage = null;
@@ -427,13 +535,4 @@ class AuthController extends ChangeNotifier {
     _disposed = true;
     super.dispose();
   }
-}
-
-class AuthFlowException implements Exception {
-  final String message;
-
-  const AuthFlowException(this.message);
-
-  @override
-  String toString() => message;
 }

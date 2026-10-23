@@ -83,6 +83,14 @@ class AuthApi {
     );
   }
 
+  Future<LoginResponseDto> linkGoogleAccount(GoogleLinkRequestDto request) {
+    return _postJson(
+      '/auth/google/link',
+      request.toJson(),
+      LoginResponseDto.fromJson,
+    );
+  }
+
   Future<StoredSession?> refreshSession() {
     return _httpClient.refreshCoordinator.refreshSession();
   }

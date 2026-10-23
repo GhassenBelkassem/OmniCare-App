@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../core/theme/omni_theme.dart';
 import '../../core/api/account_api.dart';
 import '../../core/services/file_picker_service.dart';
 import '../../core/models/family_models.dart' as core_models;
@@ -18,12 +19,38 @@ import 'add_family_member_screen.dart';
 import 'family_member_detail_screen.dart';
 import 'document_viewer_screen.dart';
 import 'qr_code_modal.dart';
-import 'history_tab.dart';
 import 'patient_home_feed.dart';
 import '../profile/patient_profile_screen.dart';
+import '../patient_appointments/presentation/patient_appointments_screen.dart';
 import '../security/account_security_screen.dart';
 import '../security/device_management_screen.dart';
 import '../security/login_history_screen.dart';
+import '../request/provider_selection_screen.dart';
+import '../request_flow/screens/request_flow_entry_screen.dart';
+import '../request_flow/screens/doctor_cabinet_entry_screen.dart';
+import '../request_flow/screens/who_needs_care_screen.dart';
+import '../request_flow/screens/situation_screen.dart';
+import '../request_flow/screens/pickup_screen.dart';
+import '../request_flow/screens/review_screen.dart';
+import '../request_flow/screens/request_received_screen.dart';
+import '../patient_clinic/presentation/clinic_directory_screen.dart';
+import '../patient_doctor/presentation/doctor_directory_screen.dart';
+import '../patient_doctor/presentation/doctor_detail_screen.dart';
+import '../patient_passport/presentation/patient_passport_screen.dart';
+import '../request_history/presentation/my_requests_screen.dart';
+import '../emergency/emergency_request_step0.dart';
+import '../emergency/emergency_request_step1.dart';
+import '../emergency/emergency_request_step2.dart';
+import '../emergency/emergency_request_step3.dart';
+import '../emergency/emergency_review_screen.dart';
+import '../emergency/doctor_selection_screen.dart';
+import '../emergency/review_confirm_screen.dart';
+import '../emergency/doctor_calling_screen.dart';
+import '../emergency/doctor_arriving_screen.dart';
+import '../emergency/consultation_qr_screen.dart';
+import '../emergency/consultation_complete_screen.dart';
+import '../notifications/application/notification_center_controller.dart';
+import '../notifications/presentation/notification_badge.dart';
 
 class NewHomeScreen extends StatefulWidget {
   const NewHomeScreen({super.key});
@@ -34,6 +61,8 @@ class NewHomeScreen extends StatefulWidget {
 
 class _NewHomeScreenState extends State<NewHomeScreen> {
   int _selectedIndex = 0;
+  final GlobalKey<NavigatorState> _patientContentNavigatorKey =
+      GlobalKey<NavigatorState>();
 
   bool _isLoggingOut = false;
   final _filePickerService = FilePickerService();
@@ -59,6 +88,12 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
   Future<void> _openFamilyMemberForm([core_models.FamilyMember? member]) async {
     await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => AddFamilyMemberScreen(member: member)),
+    );
+  }
+
+  void _openPatientAppointments() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const PatientAppointmentsScreen()),
     );
   }
 
@@ -251,14 +286,20 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     );
   }
 
+  void _selectTab(int index) {
+    if (_selectedIndex != index) {
+      setState(() => _selectedIndex = index);
+    }
+  }
+
   Widget _getSelectedTabContent(String userName) {
     switch (_selectedIndex) {
       case 0:
-        return _buildHomeTab(userName);
+        return _buildPatientContentNavigator(userName);
       case 1:
         return _buildHealthTab();
       case 3:
-        return _buildHistoryTab();
+        return const PatientPassportScreen();
       case 4:
         return _buildProfileTab();
       default:
@@ -266,13 +307,150 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     }
   }
 
+  /// Builds a [PageRoute] for all Patient nested-Navigator content routes.
+  ///
+  /// Every patient-content route is wrapped in a full-size opaque
+  /// [ColoredBox] surface so that the outgoing route's detailed content
+  /// never bleeds through during the transition.  A restrained slide-from-
+  /// right animation replaces the default Material zoom to avoid the
+  /// prolonged cross-fade of two detailed page trees.
+  static Route<dynamic> _buildPatientPageRoute({
+    required WidgetBuilder builder,
+    required RouteSettings settings,
+  }) {
+    return PageRouteBuilder(
+      settings: settings,
+      fullscreenDialog: false,
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return ColoredBox(color: OmniColors.slateSoft, child: builder(context));
+      },
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        final tween = Tween<Offset>(
+          begin: const Offset(0.06, 0),
+          end: Offset.zero,
+        ).chain(CurveTween(curve: Curves.easeOutCubic));
+        final fadeTween = Tween<double>(begin: 0, end: 1).chain(
+          CurveTween(curve: const Interval(0.3, 1.0, curve: Curves.easeIn)),
+        );
+        return SlideTransition(
+          position: animation.drive(tween),
+          child: FadeTransition(
+            opacity: animation.drive(fadeTween),
+            child: child,
+          ),
+        );
+      },
+      transitionDuration: const Duration(milliseconds: 250),
+      reverseTransitionDuration: const Duration(milliseconds: 200),
+    );
+  }
+
+  Widget _buildPatientContentNavigator(String userName) {
+    return Navigator(
+      key: _patientContentNavigatorKey,
+      initialRoute: '/patient-home',
+      onGenerateRoute: (settings) {
+        // Emergency patient flow — arguments required for step2+.
+        if (settings.name == '/emergency-step2') {
+          final args = settings.arguments as Map<String, dynamic>;
+          return _buildPatientPageRoute(
+            builder: (_) => EmergencyRequestStep2(step1Data: args),
+            settings: settings,
+          );
+        }
+        if (settings.name == '/emergency-step3') {
+          final args = settings.arguments as Map<String, dynamic>;
+          return _buildPatientPageRoute(
+            builder: (_) => EmergencyRequestStep3(previousData: args),
+            settings: settings,
+          );
+        }
+        if (settings.name == '/emergency-review') {
+          final args = settings.arguments as Map<String, dynamic>;
+          return _buildPatientPageRoute(
+            builder: (_) => EmergencyReviewScreen(requestData: args),
+            settings: settings,
+          );
+        }
+        if (settings.name == '/doctor-selection') {
+          final args = settings.arguments as Map<String, dynamic>;
+          return _buildPatientPageRoute(
+            builder: (_) => DoctorSelectionScreen(emergencyData: args),
+            settings: settings,
+          );
+        }
+        if (settings.name == '/review-confirm') {
+          final args = settings.arguments as Map<String, dynamic>;
+          return _buildPatientPageRoute(
+            builder: (_) => ReviewConfirmScreen(requestData: args),
+            settings: settings,
+          );
+        }
+        if (settings.name == '/doctor-calling') {
+          final args = settings.arguments as Map<String, dynamic>;
+          return _buildPatientPageRoute(
+            builder: (_) => DoctorCallingScreen(requestData: args),
+            settings: settings,
+          );
+        }
+        if (settings.name == '/doctor-arriving') {
+          final args = settings.arguments as Map<String, dynamic>;
+          return _buildPatientPageRoute(
+            builder: (_) => DoctorArrivingScreen(requestData: args),
+            settings: settings,
+          );
+        }
+        if (settings.name == '/consultation-qr') {
+          final args = settings.arguments as Map<String, dynamic>;
+          return _buildPatientPageRoute(
+            builder: (_) => ConsultationQRScreen(requestData: args),
+            settings: settings,
+          );
+        }
+        if (settings.name == '/consultation-complete') {
+          final args = settings.arguments as Map<String, dynamic>;
+          return _buildPatientPageRoute(
+            builder: (_) => ConsultationCompleteScreen(requestData: args),
+            settings: settings,
+          );
+        }
+        if (settings.name == '/m05/doctor-detail') {
+          final args = settings.arguments as String;
+          return _buildPatientPageRoute(
+            builder: (_) => DoctorDetailScreen(doctorId: args),
+            settings: settings,
+          );
+        }
+
+        // Static routes — M05 clinic flow, emergency step0/1, and home.
+        final page = switch (settings.name) {
+          '/patient-home' => _buildHomeTab(userName),
+          '/provider-selection' => const ProviderSelectionScreen(),
+          '/emergency-step0' => const EmergencyRequestStep0(),
+          '/emergency-step1' => const EmergencyRequestStep1(),
+          '/m05/request' => const RequestFlowEntryScreen(),
+          '/doctor/cabinet/who-needs-care' => const DoctorCabinetEntryScreen(),
+          '/m05/who-needs-care' => const WhoNeedsCareScreen(),
+          '/m05/clinic-directory' => const ClinicDirectoryScreen(),
+          '/m05/doctor-directory' => const DoctorDirectoryScreen(),
+          '/m05/situation' => const SituationScreen(),
+          '/m05/pickup' => const PickupScreen(),
+          '/m05/review' => const ReviewScreen(),
+          '/m05/received' => const RequestReceivedScreen(),
+          '/m05/requests' => const MyRequestsScreen(),
+          _ => _buildHomeTab(userName),
+        };
+        return _buildPatientPageRoute(builder: (_) => page, settings: settings);
+      },
+    );
+  }
+
   Widget _buildHomeTab(String userName) {
     return PatientHomeFeed(
       displayName: userName,
-      onOpenHealth: () => setState(() => _selectedIndex = 1),
-      onOpenMedicalRecord: () =>
-          Navigator.pushNamed(context, '/medical-documents'),
-      onOpenProfile: () => setState(() => _selectedIndex = 4),
+      onOpenHealth: () => _selectTab(1),
+      onOpenMedicalRecord: () => _selectTab(3),
+      onOpenProfile: () => _selectTab(4),
     );
   }
 
@@ -1088,6 +1266,8 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
       onOpenLoginHistory: () => Navigator.of(
         context,
       ).push(MaterialPageRoute(builder: (_) => const LoginHistoryScreen())),
+      onOpenAppointments: _openPatientAppointments,
+      onOpenRequests: () => Navigator.of(context).pushNamed('/m05/requests'),
       isLoggingOut: _isLoggingOut,
       onLogout: _handleLogout,
       onAddFamilyMember: () => _openFamilyMemberForm(),
@@ -2330,167 +2510,6 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     );
   }
 
-  Widget _buildNotificationsTab() {
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 24),
-            Text(
-              'Notifications',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 24,
-                fontWeight: FontWeight.w800,
-                color: const Color(0xFF1A202C),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Restez informé de vos rendez-vous et résultats',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 13,
-                color: const Color(0xFF667085),
-              ),
-            ),
-            const SizedBox(height: 24),
-            _buildNotificationCard(
-              icon: Icons.calendar_today,
-              iconColor: const Color(0xFF1FBF9A),
-              title: 'Rendez-vous confirmé',
-              message:
-                  'Votre rendez-vous avec Dr. Ahmed Ben Salem est confirmé pour demain à 10h',
-              time: 'Il y a 2h',
-              isUnread: true,
-            ),
-            _buildNotificationCard(
-              icon: Icons.medication,
-              iconColor: const Color(0xFF0F6F73),
-              title: 'Rappel médicament',
-              message: 'N\'oubliez pas de prendre vos médicaments du soir',
-              time: 'Il y a 5h',
-              isUnread: true,
-            ),
-            _buildNotificationCard(
-              icon: Icons.description,
-              iconColor: const Color(0xFF8B5CF6),
-              title: 'Résultats disponibles',
-              message:
-                  'Vos résultats d\'analyse de sang sont maintenant disponibles',
-              time: 'Hier',
-              isUnread: false,
-            ),
-            _buildNotificationCard(
-              icon: Icons.favorite,
-              iconColor: const Color(0xFFDC2626),
-              title: 'Suivi de santé',
-              message: 'Pensez à mettre à jour votre carnet de santé',
-              time: 'Il y a 2 jours',
-              isUnread: false,
-            ),
-            const SizedBox(height: 100),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNotificationCard({
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String message,
-    required String time,
-    required bool isUnread,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isUnread
-            ? const Color(0xFF1FBF9A).withOpacity(0.05)
-            : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isUnread
-              ? const Color(0xFF1FBF9A).withOpacity(0.2)
-              : const Color(0xFFE2E8F0),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: iconColor, size: 24),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFF1A202C),
-                        ),
-                      ),
-                    ),
-                    if (isUnread)
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF1FBF9A),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  message,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 13,
-                    color: const Color(0xFF667085),
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  time,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 11,
-                    color: const Color(0xFF667085),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildUrgentDoctorModal() {
     return Container(
       decoration: const BoxDecoration(
@@ -2739,12 +2758,11 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     );
   }
 
-  Widget _buildHistoryTab() {
-    return HistoryTab();
-  }
-
   Widget _buildStickyHeader(String userName) {
+    final unreadCount =
+        context.watch<NotificationCenterController?>()?.unreadCount ?? 0;
     return ClipRect(
+      key: const ValueKey('patient-top-bar'),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
         child: Container(
@@ -2784,59 +2802,10 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                           ),
                         ),
                       ),
-                      Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          Material(
-                            color: Colors.white.withValues(alpha: 0.86),
-                            shape: const CircleBorder(
-                              side: BorderSide(color: Color(0xFFD8DEDD)),
-                            ),
-                            elevation: 1,
-                            child: InkWell(
-                              customBorder: const CircleBorder(),
-                              onTap: () => Navigator.pushNamed(
-                                context,
-                                '/notifications',
-                              ),
-                              child: const SizedBox(
-                                width: 40,
-                                height: 40,
-                                child: Icon(
-                                  Icons.notifications_none_rounded,
-                                  color: Color(0xFF172033),
-                                  size: 21,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            right: -3,
-                            top: -4,
-                            child: Container(
-                              width: 18,
-                              height: 18,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFEF4444),
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.white,
-                                  width: 2,
-                                ),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  '2',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 8.5,
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                      NotificationBadge(
+                        count: unreadCount,
+                        onTap: () =>
+                            Navigator.pushNamed(context, '/notifications'),
                       ),
                       const SizedBox(width: 8),
                       IconButton(
@@ -2990,7 +2959,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
         children: [
           Expanded(child: _buildUrgentRequestCard()),
           const SizedBox(width: 16),
-          Expanded(child: _buildBrowseDoctorsCard()),
+          Expanded(child: _buildMyRequestsCard()),
         ],
       ),
     );
@@ -2998,7 +2967,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
 
   Widget _buildUrgentRequestCard() {
     return GestureDetector(
-      onTap: () {},
+      onTap: () => Navigator.pushNamed(context, '/m05/request'),
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
@@ -3056,9 +3025,9 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     );
   }
 
-  Widget _buildBrowseDoctorsCard() {
+  Widget _buildMyRequestsCard() {
     return GestureDetector(
-      onTap: () {},
+      onTap: () => Navigator.pushNamed(context, '/m05/requests'),
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
@@ -3083,14 +3052,14 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(
-                Icons.search,
+                Icons.receipt_long_outlined,
                 color: Color(0xFF1FBF9A),
                 size: 24,
               ),
             ),
             const SizedBox(height: 16),
             Text(
-              'Parcourir les\nMédecins',
+              'Mes\ndemandes',
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -3100,7 +3069,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Trouver un spécialiste',
+              'Suivre mes demandes de soins',
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
@@ -3516,8 +3485,6 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                       label: 'Dossier médical',
                       index: 3,
                       hasNotification: false,
-                      onTap: () =>
-                          Navigator.pushNamed(context, '/medical-documents'),
                     ),
                     _buildNavItem(
                       icon: Icons.account_circle_outlined,
@@ -3538,6 +3505,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
 
   Widget _buildCenterNavItem() {
     return GestureDetector(
+      key: const ValueKey('patient-care-action'),
       onTap: () async {
         final familyProvider = Provider.of<FamilyProvider>(
           context,
@@ -3547,7 +3515,9 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
           await familyProvider.loadFamilyMembers();
         }
         if (!mounted) return;
-        Navigator.pushNamed(context, '/provider-selection');
+        _patientContentNavigatorKey.currentState?.pushNamed(
+          '/provider-selection',
+        );
       },
       child: Container(
         width: 56,
@@ -3601,7 +3571,16 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
         label: label,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: onTap ?? () => setState(() => _selectedIndex = index),
+          onTap:
+              onTap ??
+              () {
+                if (index == 0) {
+                  _patientContentNavigatorKey.currentState?.popUntil(
+                    (route) => route.isFirst,
+                  );
+                }
+                _selectTab(index);
+              },
           child: Center(
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 180),
