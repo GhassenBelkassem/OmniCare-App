@@ -4,16 +4,15 @@ import 'package:google_fonts/google_fonts.dart';
 class ConsultationCompleteScreen extends StatefulWidget {
   final Map<String, dynamic> requestData;
 
-  const ConsultationCompleteScreen({
-    super.key,
-    required this.requestData,
-  });
+  const ConsultationCompleteScreen({super.key, required this.requestData});
 
   @override
-  State<ConsultationCompleteScreen> createState() => _ConsultationCompleteScreenState();
+  State<ConsultationCompleteScreen> createState() =>
+      _ConsultationCompleteScreenState();
 }
 
-class _ConsultationCompleteScreenState extends State<ConsultationCompleteScreen> {
+class _ConsultationCompleteScreenState
+    extends State<ConsultationCompleteScreen> {
   int _rating = 0;
   final TextEditingController _reviewController = TextEditingController();
 
@@ -299,11 +298,7 @@ class _ConsultationCompleteScreenState extends State<ConsultationCompleteScreen>
             true,
           ),
           const SizedBox(height: 12),
-          _buildPharmacyItem(
-            'Pharmacie du Quartier',
-            '0.8 km • Fermée',
-            false,
-          ),
+          _buildPharmacyItem('Pharmacie du Quartier', '0.8 km • Fermée', false),
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,

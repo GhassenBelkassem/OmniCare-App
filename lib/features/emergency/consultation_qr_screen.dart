@@ -10,10 +10,7 @@ import '../../core/utils/console_log.dart';
 class ConsultationQRScreen extends StatefulWidget {
   final Map<String, dynamic> requestData;
 
-  const ConsultationQRScreen({
-    super.key,
-    required this.requestData,
-  });
+  const ConsultationQRScreen({super.key, required this.requestData});
 
   @override
   State<ConsultationQRScreen> createState() => _ConsultationQRScreenState();
@@ -29,10 +26,14 @@ class _ConsultationQRScreenState extends State<ConsultationQRScreen> {
 
     final consultationId = requestData['consultationId']?.toString();
     if (consultationId == null || consultationId.isEmpty) {
-      consoleLog('[ConsultationQR] Missing consultationId; navigating without finalize.');
+      consoleLog(
+        '[ConsultationQR] Missing consultationId; navigating without finalize.',
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Missing consultationId; cannot finalize.')),
+          const SnackBar(
+            content: Text('Missing consultationId; cannot finalize.'),
+          ),
         );
       }
       if (!mounted) return;
@@ -58,7 +59,9 @@ class _ConsultationQRScreenState extends State<ConsultationQRScreen> {
         clinicalNotes: 'Completed from Flutter QR dev flow',
       );
 
-      consoleLog('[ConsultationQR] Auto-complete succeeded. Fetching latest consultation...');
+      consoleLog(
+        '[ConsultationQR] Auto-complete succeeded. Fetching latest consultation...',
+      );
 
       final Consultation latest = await ConsultationsApi().getConsultation(
         consultationId: consultationId,
@@ -97,7 +100,7 @@ class _ConsultationQRScreenState extends State<ConsultationQRScreen> {
     final patientName = requestData['patientName'] ?? 'Patient';
     final patientId = requestData['patientId'] ?? 'unknown';
     final consultationId = requestData['consultationId']?.toString();
-    
+
     // Generate QR data with consultation info (preferred)
     final qrData = (consultationId != null && consultationId.isNotEmpty)
         ? 'OMNICARE_CONSULTATION:$consultationId'
@@ -276,11 +279,7 @@ class _ConsultationQRScreenState extends State<ConsultationQRScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
-                  Icons.person,
-                  color: Color(0xFF0F6F73),
-                  size: 20,
-                ),
+                const Icon(Icons.person, color: Color(0xFF0F6F73), size: 20),
                 const SizedBox(width: 8),
                 Text(
                   patientName,
@@ -303,9 +302,7 @@ class _ConsultationQRScreenState extends State<ConsultationQRScreen> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: const Color(0xFF3B82F6).withOpacity(0.05),
-        border: Border.all(
-          color: const Color(0xFF3B82F6).withOpacity(0.2),
-        ),
+        border: Border.all(color: const Color(0xFF3B82F6).withOpacity(0.2)),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -330,10 +327,7 @@ class _ConsultationQRScreenState extends State<ConsultationQRScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          _buildInstructionItem(
-            '1',
-            'Montrez ce code QR au médecin',
-          ),
+          _buildInstructionItem('1', 'Montrez ce code QR au médecin'),
           _buildInstructionItem(
             '2',
             'Le médecin scannera le code pour accéder à vos informations',

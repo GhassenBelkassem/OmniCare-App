@@ -60,8 +60,10 @@ class _VitalInfoScreenState extends State<VitalInfoScreen> {
         _filteredConditions = availableConditions;
       } else {
         _filteredConditions = availableConditions
-            .where((condition) =>
-                condition.toLowerCase().contains(query.toLowerCase()))
+            .where(
+              (condition) =>
+                  condition.toLowerCase().contains(query.toLowerCase()),
+            )
             .toList();
       }
     });
@@ -237,7 +239,10 @@ class _VitalInfoScreenState extends State<VitalInfoScreen> {
                     fontSize: 16,
                     color: const Color(0xFF9CA3AF),
                   ),
-                  prefixIcon: const Icon(Icons.search, color: Color(0xFF667085)),
+                  prefixIcon: const Icon(
+                    Icons.search,
+                    color: Color(0xFF667085),
+                  ),
                   filled: true,
                   fillColor: Colors.white,
                   border: OutlineInputBorder(
@@ -297,11 +302,13 @@ class _VitalInfoScreenState extends State<VitalInfoScreen> {
                 child: ListView.separated(
                   shrinkWrap: true,
                   itemCount: _filteredConditions.length,
-                  separatorBuilder: (context, index) => const Divider(height: 1),
+                  separatorBuilder: (context, index) =>
+                      const Divider(height: 1),
                   itemBuilder: (context, index) {
                     final condition = _filteredConditions[index];
-                    final isSelected =
-                        provider.chronicConditions.contains(condition);
+                    final isSelected = provider.chronicConditions.contains(
+                      condition,
+                    );
 
                     return ListTile(
                       title: Text(

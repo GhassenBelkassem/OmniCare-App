@@ -82,6 +82,7 @@ import 'features/request_flow/screens/request_received_screen.dart';
 import 'features/request_history/application/patient_requests_controller.dart';
 import 'features/request_history/presentation/my_requests_screen.dart';
 import 'core/api/account_api.dart';
+import 'core/api/documents_api.dart';
 import 'core/api/files_api.dart';
 import 'core/api/family_api.dart';
 import 'features/auth/data/auth_api.dart';
@@ -96,8 +97,15 @@ import 'features/security/phone_change_reversal_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: '.env');
-  await NotificationService().initialize();
+  final appLockService = AppLockService();
+
+  // App-lock state is local and security-sensitive, so resolve it before any
+  // authenticated screen can be displayed. Load dotenv at the same time to
+  // avoid making these independent startup operations wait on each other.
+  await Future.wait<void>([
+    dotenv.load(fileName: '.env'),
+    appLockService.initialize(),
+  ]);
 
   final tokenStore = SecureTokenStore();
   late AuthController authController;
@@ -126,9 +134,6 @@ void main() async {
   httpClient.refreshCoordinator.onSessionRefreshed = (_) =>
       realtimeCoordinator.credentialsChanged();
 
-  await authController.initialize();
-  final appLockService = AppLockService();
-  await appLockService.initialize();
   runApp(
     OmniCareApp(
       authController: authController,
@@ -139,6 +144,24 @@ void main() async {
       notificationRealtimeCoordinator: notificationRealtimeCoordinator,
     ),
   );
+
+  // Authentication can involve token refresh plus backend reads. Start it
+  // after runApp so the Flutter splash screen appears immediately instead of
+  // leaving the native launch screen frozen while the network is slow.
+  unawaited(authController.initialize());
+
+  // Notification setup is not required for the first frame.
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    unawaited(_initializeNotifications());
+  });
+}
+
+Future<void> _initializeNotifications() async {
+  try {
+    await NotificationService().initialize();
+  } catch (error) {
+    debugPrint('Notification initialization failed: ${error.runtimeType}');
+  }
 }
 
 class OmniCareApp extends StatelessWidget {
@@ -325,7 +348,14 @@ class OmniCareApp extends StatelessWidget {
                   ),
               '/medical-profile': (context) => const VitalInfoScreen(),
               '/medications': (context) => const MedicationsScreen(),
-              '/medical-documents': (context) => const MedicalDocumentsScreen(),
+              '/medical-documents': (context) => MedicalDocumentsScreen(
+                documentsApi: DocumentsApi(httpClient: resolvedHttpClient),
+                accountApi: AccountApi(httpClient: resolvedHttpClient),
+                initialPatientId: context
+                    .read<UserProvider>()
+                    .profile
+                    ?.patientId,
+              ),
               '/conversational-onboarding': (context) =>
                   const ConversationalOnboardingScreen(),
               '/change-password-required': (context) =>

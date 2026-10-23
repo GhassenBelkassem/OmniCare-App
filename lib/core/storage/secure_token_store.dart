@@ -131,6 +131,8 @@ class SecureTokenStore {
     : _backend = backend ?? const FlutterSecureTokenStorageBackend();
 
   final SecureTokenStorageBackend _backend;
+  StoredSession? _cachedSession;
+  bool _sessionCacheLoaded = false;
 
   Future<void> saveSession(StoredSession session) async {
     if (!session.hasRequiredValues) {
@@ -141,6 +143,8 @@ class SecureTokenStore {
     try {
       await _backend.write(key: sessionRecordKey, value: jsonRecord);
       await _clearLegacySession();
+      _cachedSession = session;
+      _sessionCacheLoaded = true;
     } catch (_) {
       await clearSession();
       rethrow;
@@ -148,9 +152,13 @@ class SecureTokenStore {
   }
 
   Future<StoredSession?> readSession() async {
+    if (_sessionCacheLoaded) return _cachedSession;
     final raw = await _backend.read(key: sessionRecordKey);
     if (raw == null || raw.trim().isEmpty) {
-      return _readAndMigrateLegacySession();
+      final migrated = await _readAndMigrateLegacySession();
+      _cachedSession = migrated;
+      _sessionCacheLoaded = true;
+      return migrated;
     }
 
     try {
@@ -160,7 +168,10 @@ class SecureTokenStore {
         return null;
       }
 
-      return _sessionFromJson(decoded.cast<String, dynamic>());
+      final session = _sessionFromJson(decoded.cast<String, dynamic>());
+      _cachedSession = session;
+      _sessionCacheLoaded = true;
+      return session;
     } catch (_) {
       await clearSession();
       return null;
@@ -170,6 +181,10 @@ class SecureTokenStore {
   Future<bool> hasCompleteSession() async => (await readSession()) != null;
 
   Future<void> clearSession() async {
+    // Clear memory before awaiting storage so a concurrent request cannot use
+    // a session that is being logged out or invalidated.
+    _cachedSession = null;
+    _sessionCacheLoaded = true;
     await _backend.delete(key: sessionRecordKey);
     await _clearLegacySession();
   }

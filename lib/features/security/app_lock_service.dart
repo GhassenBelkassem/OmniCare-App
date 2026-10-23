@@ -46,8 +46,12 @@ class AppLockService extends ChangeNotifier {
   String? get error => _error;
 
   Future<void> initialize() async {
-    _ownerUserId = await _storage.read(key: _ownerKey);
-    _method = _parseMethod(await _storage.read(key: _methodKey));
+    final values = await Future.wait<String?>([
+      _storage.read(key: _ownerKey),
+      _storage.read(key: _methodKey),
+    ]);
+    _ownerUserId = values[0];
+    _method = _parseMethod(values[1]);
     _locked = enabled;
     _ready = true;
     notifyListeners();

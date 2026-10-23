@@ -38,7 +38,13 @@ class EditMedicalDataScreen extends StatefulWidget {
   final List<String> chronicConditions;
   final List<Medication> medications;
   final List<MedicalDocument> documents;
-  final Future<void> Function(String, List<String>, List<Medication>, List<MedicalDocument>) onSave;
+  final Future<void> Function(
+    String,
+    List<String>,
+    List<Medication>,
+    List<MedicalDocument>,
+  )
+  onSave;
 
   const EditMedicalDataScreen({
     super.key,
@@ -65,7 +71,17 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
 
   bool _isSaving = false;
 
-  final List<String> _bloodTypes = ['-', 'A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
+  final List<String> _bloodTypes = [
+    '-',
+    'A+',
+    'A-',
+    'B+',
+    'B-',
+    'O+',
+    'O-',
+    'AB+',
+    'AB-',
+  ];
   final List<String> _availableConditions = [
     'Diabète Type 2',
     'Diabète Type 1',
@@ -132,7 +148,9 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
 
   void _addMedication() {
     setState(() {
-      _medications.add(Medication(medicationId: null, name: '', dosage: '', frequency: ''));
+      _medications.add(
+        Medication(medicationId: null, name: '', dosage: '', frequency: ''),
+      );
       _medNameControllers.add(TextEditingController());
       _medDosageControllers.add(TextEditingController());
       _medFrequencyControllers.add(TextEditingController());
@@ -150,13 +168,15 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
 
   void _addDocument() {
     setState(() {
-      _documents.add(MedicalDocument(
-        id: 'doc-${DateTime.now().millisecondsSinceEpoch}',
-        name: '',
-        type: 'other',
-        date: '',
-        fileUrl: '',
-      ));
+      _documents.add(
+        MedicalDocument(
+          id: 'doc-${DateTime.now().millisecondsSinceEpoch}',
+          name: '',
+          type: 'other',
+          date: '',
+          fileUrl: '',
+        ),
+      );
     });
   }
 
@@ -185,7 +205,13 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
         }
       }
 
-      final invalid = _medications.where((m) => m.name.trim().isNotEmpty && (m.medicationId == null || m.medicationId!.trim().isEmpty)).toList();
+      final invalid = _medications
+          .where(
+            (m) =>
+                m.name.trim().isNotEmpty &&
+                (m.medicationId == null || m.medicationId!.trim().isEmpty),
+          )
+          .toList();
       if (invalid.isNotEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -201,8 +227,15 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
         return;
       }
 
-      final validMedications = _medications.where((med) => med.name.trim().isNotEmpty).toList();
-      await widget.onSave(_bloodType, _chronicConditions, validMedications, _documents);
+      final validMedications = _medications
+          .where((med) => med.name.trim().isNotEmpty)
+          .toList();
+      await widget.onSave(
+        _bloodType,
+        _chronicConditions,
+        validMedications,
+        _documents,
+      );
       if (!mounted) return;
       Navigator.pop(context);
     } finally {
@@ -282,7 +315,10 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
           child: DropdownButtonFormField<String>(
             initialValue: _bloodTypes.contains(_bloodType) ? _bloodType : '-',
             decoration: const InputDecoration(
-              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 12,
+              ),
               border: InputBorder.none,
             ),
             hint: Text(
@@ -303,7 +339,9 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
             }).toList(),
             onChanged: (value) {
               setState(() {
-                _bloodType = (value == null || value.trim().isEmpty) ? '-' : value;
+                _bloodType = (value == null || value.trim().isEmpty)
+                    ? '-'
+                    : value;
               });
             },
           ),
@@ -341,12 +379,19 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
             return GestureDetector(
               onTap: () => _toggleCondition(condition),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
-                  color: isSelected ? const Color(0xFF0F6F73) : const Color(0xFFF4F5F7),
+                  color: isSelected
+                      ? const Color(0xFF0F6F73)
+                      : const Color(0xFFF4F5F7),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: isSelected ? const Color(0xFF0F6F73) : const Color(0xFFE2E8F0),
+                    color: isSelected
+                        ? const Color(0xFF0F6F73)
+                        : const Color(0xFFE2E8F0),
                   ),
                 ),
                 child: Text(
@@ -393,7 +438,10 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
               ),
               style: TextButton.styleFrom(
                 backgroundColor: const Color(0xFF1FBF9A).withOpacity(0.1),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -408,7 +456,10 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFE2E8F0), style: BorderStyle.solid),
+              border: Border.all(
+                color: const Color(0xFFE2E8F0),
+                style: BorderStyle.solid,
+              ),
             ),
             child: Center(
               child: Text(
@@ -493,21 +544,33 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
                                     fontSize: 13,
                                     color: const Color(0xFF667085),
                                   ),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 10,
+                                  ),
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(8),
-                                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFE2E8F0),
+                                    ),
                                   ),
                                   enabledBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(8),
-                                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFE2E8F0),
+                                    ),
                                   ),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(8),
-                                    borderSide: const BorderSide(color: Color(0xFF1FBF9A), width: 2),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFF1FBF9A),
+                                      width: 2,
+                                    ),
                                   ),
                                 ),
-                                style: GoogleFonts.plusJakartaSans(fontSize: 13),
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13,
+                                ),
                               ),
                             ],
                           ),
@@ -537,21 +600,33 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
                                     fontSize: 13,
                                     color: const Color(0xFF667085),
                                   ),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 10,
+                                  ),
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(8),
-                                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFE2E8F0),
+                                    ),
                                   ),
                                   enabledBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(8),
-                                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFE2E8F0),
+                                    ),
                                   ),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(8),
-                                    borderSide: const BorderSide(color: Color(0xFF1FBF9A), width: 2),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFF1FBF9A),
+                                      width: 2,
+                                    ),
                                   ),
                                 ),
-                                style: GoogleFonts.plusJakartaSans(fontSize: 13),
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13,
+                                ),
                               ),
                             ],
                           ),
@@ -561,7 +636,11 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
                     const SizedBox(height: 12),
                     TextButton.icon(
                       onPressed: () => _removeMedication(index),
-                      icon: const Icon(Icons.delete_outline, size: 16, color: Color(0xFFEF4444)),
+                      icon: const Icon(
+                        Icons.delete_outline,
+                        size: 16,
+                        color: Color(0xFFEF4444),
+                      ),
                       label: Text(
                         'Supprimer ce médicament',
                         style: GoogleFonts.plusJakartaSans(
@@ -608,7 +687,10 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
               ),
               style: TextButton.styleFrom(
                 backgroundColor: const Color(0xFF1FBF9A).withOpacity(0.1),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -623,7 +705,10 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFE2E8F0), style: BorderStyle.solid),
+              border: Border.all(
+                color: const Color(0xFFE2E8F0),
+                style: BorderStyle.solid,
+              ),
             ),
             child: Center(
               child: Text(
@@ -664,7 +749,9 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
                     const SizedBox(height: 8),
                     TextField(
                       controller: TextEditingController(text: doc.name)
-                        ..selection = TextSelection.collapsed(offset: doc.name.length),
+                        ..selection = TextSelection.collapsed(
+                          offset: doc.name.length,
+                        ),
                       onChanged: (value) => doc.name = value,
                       decoration: InputDecoration(
                         hintText: 'Ex: Rapport d\'Analyse de Sang',
@@ -672,18 +759,28 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
                           fontSize: 13,
                           color: const Color(0xFF667085),
                         ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE2E8F0),
+                          ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE2E8F0),
+                          ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Color(0xFF1FBF9A), width: 2),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF1FBF9A),
+                            width: 2,
+                          ),
                         ),
                       ),
                       style: GoogleFonts.plusJakartaSans(fontSize: 13),
@@ -703,16 +800,18 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: const Color(0xFFE2E8F0)),
                       ),
-                      
+
                       // Ensure DropdownButton value is always present in items to avoid assertion crash
-                      
-                      
                       child: DropdownButtonFormField<String>(
-                        initialValue: _documentTypes.any((t) => t['value'] == doc.type)
+                        initialValue:
+                            _documentTypes.any((t) => t['value'] == doc.type)
                             ? doc.type
                             : (_documentTypes.first['value'] as String),
                         decoration: const InputDecoration(
-                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
                           border: InputBorder.none,
                         ),
                         items: _documentTypes.map((type) {
@@ -743,7 +842,9 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
                     const SizedBox(height: 8),
                     TextField(
                       controller: TextEditingController(text: doc.date)
-                        ..selection = TextSelection.collapsed(offset: doc.date.length),
+                        ..selection = TextSelection.collapsed(
+                          offset: doc.date.length,
+                        ),
                       onChanged: (value) => doc.date = value,
                       decoration: InputDecoration(
                         hintText: 'JJ/MM/AAAA',
@@ -751,27 +852,45 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
                           fontSize: 13,
                           color: const Color(0xFF667085),
                         ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE2E8F0),
+                          ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE2E8F0),
+                          ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Color(0xFF1FBF9A), width: 2),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF1FBF9A),
+                            width: 2,
+                          ),
                         ),
-                        suffixIcon: const Icon(Icons.calendar_today, size: 18, color: Color(0xFF667085)),
+                        suffixIcon: const Icon(
+                          Icons.calendar_today,
+                          size: 18,
+                          color: Color(0xFF667085),
+                        ),
                       ),
                       style: GoogleFonts.plusJakartaSans(fontSize: 13),
                     ),
                     const SizedBox(height: 12),
                     TextButton.icon(
                       onPressed: () => _removeDocument(index),
-                      icon: const Icon(Icons.delete_outline, size: 16, color: Color(0xFFEF4444)),
+                      icon: const Icon(
+                        Icons.delete_outline,
+                        size: 16,
+                        color: Color(0xFFEF4444),
+                      ),
                       label: Text(
                         'Supprimer ce document',
                         style: GoogleFonts.plusJakartaSans(
@@ -795,9 +914,7 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border(
-          top: BorderSide(color: const Color(0xFFE2E8F0)),
-        ),
+        border: Border(top: BorderSide(color: const Color(0xFFE2E8F0))),
       ),
       child: SafeArea(
         child: SizedBox(
@@ -820,13 +937,18 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
                   const SizedBox(
                     width: 20,
                     height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
                   )
                 else
                   const Icon(Icons.save, size: 20),
                 const SizedBox(width: 8),
                 Text(
-                  _isSaving ? 'Enregistrement...' : 'Enregistrer les Modifications',
+                  _isSaving
+                      ? 'Enregistrement...'
+                      : 'Enregistrer les Modifications',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,

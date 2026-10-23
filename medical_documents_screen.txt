@@ -1,0 +1,752 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:intl/intl.dart';
+import '../../core/api/account_api.dart';
+import '../../core/api/documents_api.dart';
+import '../../core/network/api_exception.dart';
+
+class MedicalDocumentsScreen extends StatefulWidget {
+  const MedicalDocumentsScreen({
+    super.key,
+    this.documentsApi,
+    this.accountApi,
+    this.initialPatientId,
+    this.pickDocumentFile,
+    this.pollDelay = const Duration(seconds: 2),
+    this.maximumPolls = 6,
+    this.maximumPollDelay = const Duration(minutes: 1),
+    this.maximumAutomaticWatchDuration = const Duration(minutes: 15),
+    this.retryJitterRatio = 0.20,
+    this.randomDouble,
+  }) : assert(retryJitterRatio >= 0 && retryJitterRatio <= 0.50);
+
+  final DocumentsApi? documentsApi;
+  final AccountApi? accountApi;
+
+  // Add this field.
+  final String? initialPatientId;
+
+  final Future<PlatformFile?> Function()? pickDocumentFile;
+  final Duration pollDelay;
+  final int maximumPolls;
+  final Duration maximumPollDelay;
+  final Duration maximumAutomaticWatchDuration;
+  final double retryJitterRatio;
+  final double Function()? randomDouble;
+
+  @override
+  State<MedicalDocumentsScreen> createState() => _MedicalDocumentsScreenState();
+}
+
+class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen> {
+  bool _isLoading = false;
+  bool _pollInFlight = false;
+  late final DocumentsApi _documentsApi = widget.documentsApi ?? DocumentsApi();
+  late final AccountApi _accountApi = widget.accountApi ?? AccountApi();
+  String? _patientId;
+  List<MedicalDocumentRecord> _documents = const [];
+  Timer? _pollTimer;
+  int _pollCount = 0;
+  DocumentUploadOperation? _pendingUpload;
+  final Map<String, DocumentDeleteOperation> _pendingDeletes = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDocuments();
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
+  }
+
+  String _toBackendDocumentType(String uiType) {
+    final v = uiType.trim().toLowerCase();
+    if (v == 'prescription') return 'PRESCRIPTION_DOCUMENT';
+    if (v == 'lab results') return 'LAB_RESULT';
+    if (v == 'scan') return 'IMAGING';
+    return 'OTHER_MEDICAL_DOCUMENT';
+  }
+
+  String _mimeFor(String filename) {
+    final lower = filename.toLowerCase();
+    if (lower.endsWith('.pdf')) return 'application/pdf';
+    if (lower.endsWith('.png')) return 'image/png';
+    return 'image/jpeg';
+  }
+
+  Future<PlatformFile?> _pickDocumentFile() async {
+    final injectedPicker = widget.pickDocumentFile;
+    if (injectedPicker != null) return injectedPicker();
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
+      withData: true,
+    );
+    return result?.files.single;
+  }
+
+  Future<void> _loadDocuments({bool showErrors = true}) async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+    try {
+      final profile = await _accountApi.getPatientProfile();
+      final patientId = profile.patientId;
+      if (patientId == null || patientId.isEmpty) {
+        throw const ApiException('Your patient profile is not ready yet.');
+      }
+
+      // Upload availability must not depend on the initial document-list call.
+      // Keep the valid profile patient ID even if MRS listing is temporarily down.
+      if (!mounted) return;
+      setState(() => _patientId = patientId);
+
+      final page = await _documentsApi.listDocuments(patientId);
+      if (!mounted) return;
+      setState(() => _documents = page.documents);
+      _startPollingIfNeeded();
+    } catch (error) {
+      if (showErrors) _showError(error);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<MedicalDocumentRecord> _uploadDocument({
+    required String documentName,
+    required String documentType,
+    required PlatformFile file,
+  }) async {
+    if (_isLoading) {
+      throw const ApiException('A document operation is already in progress.');
+    }
+    final patientId = _patientId;
+    if (patientId == null) {
+      throw const ApiException('Your patient profile is not ready yet.');
+    }
+    final bytes = file.bytes;
+    if (bytes == null) {
+      throw const ApiException('The selected file could not be read.');
+    }
+    setState(() => _isLoading = true);
+    try {
+      _pendingUpload ??= _documentsApi.startUpload(
+        patientId: patientId,
+        bytes: bytes,
+        filename: file.name,
+        mimeType: _mimeFor(file.name),
+        displayName: documentName,
+        documentType: _toBackendDocumentType(documentType),
+        documentDate: DateTime.now(),
+      );
+      final uploaded = await _documentsApi.upload(_pendingUpload!);
+      _pendingUpload = null;
+      if (!mounted) return uploaded;
+      setState(
+        () => _documents = [
+          uploaded,
+          ..._documents.where((item) => item.id != uploaded.id),
+        ],
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Document status: ${uploaded.status}'),
+          backgroundColor: const Color(0xFF1FBF9A),
+        ),
+      );
+      if (!uploaded.isTerminal) _startPollingIfNeeded();
+      return uploaded;
+    } catch (error) {
+      _showError(error);
+      rethrow;
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _startPollingIfNeeded() {
+    _pollTimer?.cancel();
+    if (!_documents.any((document) => !document.isTerminal)) return;
+    _pollCount = 0;
+    _pollTimer = Timer(widget.pollDelay, _pollPendingDocuments);
+  }
+
+  Future<void> _pollPendingDocuments() async {
+    if (!mounted || _pollInFlight || _pollCount >= widget.maximumPolls) return;
+    final patientId = _patientId;
+    if (patientId == null) return;
+    _pollInFlight = true;
+    _pollCount++;
+    try {
+      final pending = _documents
+          .where((document) => !document.isTerminal)
+          .toList();
+      for (final document in pending) {
+        final updated = await _documentsApi.getStatus(
+          patientId: patientId,
+          documentId: document.id,
+        );
+        if (!mounted) return;
+        setState(
+          () => _documents = _documents
+              .map((item) => item.id == updated.id ? updated : item)
+              .toList(),
+        );
+      }
+      final hasPendingDocuments = _documents.any(
+        (document) => !document.isTerminal,
+      );
+      if (hasPendingDocuments && _pollCount < widget.maximumPolls) {
+        _pollTimer = Timer(widget.pollDelay, _pollPendingDocuments);
+      } else if (hasPendingDocuments) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Document processing is taking longer than expected. Refresh to check again.',
+              ),
+              backgroundColor: Color(0xFF667085),
+            ),
+          );
+        }
+      } else {
+        await _loadDocuments(showErrors: false);
+      }
+    } catch (error) {
+      _showError(error);
+      if (mounted && _pollCount < widget.maximumPolls) {
+        _pollTimer = Timer(widget.pollDelay, _pollPendingDocuments);
+      }
+    } finally {
+      _pollInFlight = false;
+    }
+  }
+
+  Future<void> _deleteDocument(MedicalDocumentRecord document) async {
+    final patientId = _patientId;
+    if (patientId == null || _isLoading) return;
+    setState(() => _isLoading = true);
+    try {
+      final operation = _pendingDeletes.putIfAbsent(
+        document.id,
+        () => _documentsApi.startDelete(
+          patientId: patientId,
+          documentId: document.id,
+        ),
+      );
+      await _documentsApi.delete(operation);
+      _pendingDeletes.remove(document.id);
+      if (mounted) setState(() => _isLoading = false);
+      await _loadDocuments(showErrors: false);
+    } catch (error) {
+      _showError(error);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showError(Object error) {
+    if (!mounted) return;
+    final message = error is ApiException
+        ? error.message
+        : 'The document operation could not be completed. Please try again.';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: const Color(0xFFDC2626),
+      ),
+    );
+  }
+
+  void _showAddDocumentDialog() {
+    _pendingUpload = null;
+    final nameController = TextEditingController();
+    final allowedTypes = [
+      'Prescription',
+      'Report',
+      'Scan',
+      'Lab Results',
+      'Other',
+    ];
+    String documentType = 'Prescription';
+    PlatformFile? selectedFile;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final documentTypeItems = allowedTypes
+                .map(
+                  (type) => DropdownMenuItem(
+                    value: type,
+                    child: Text(
+                      type,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 16,
+                        color: const Color(0xFF1D2939),
+                      ),
+                    ),
+                  ),
+                )
+                .toList();
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: Text(
+                'Add Document',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF0F6F73),
+                ),
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Document Name',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: const Color(0xFF1D2939),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: nameController,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 16,
+                        color: const Color(0xFF1D2939),
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'e.g., Blood Test Results',
+                        hintStyle: GoogleFonts.plusJakartaSans(
+                          fontSize: 16,
+                          color: const Color(0xFF9CA3AF),
+                        ),
+                        filled: true,
+                        fillColor: const Color(0xFFF4F5F7),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE5E7EB),
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE5E7EB),
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF1FBF9A),
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Document Type',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: const Color(0xFF1D2939),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      initialValue:
+                          documentTypeItems.any((i) => i.value == documentType)
+                          ? documentType
+                          : documentTypeItems.first.value,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          documentType = value ?? 'Other';
+                        });
+                      },
+                      items: documentTypeItems,
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: const Color(0xFFF4F5F7),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE5E7EB),
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE5E7EB),
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF1FBF9A),
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'File',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: const Color(0xFF1D2939),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          final file = await _pickDocumentFile();
+                          if (!context.mounted || file == null) return;
+                          if (file.size > 20 * 1024 * 1024) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'The file is larger than the 20 MB limit.',
+                                ),
+                                backgroundColor: Color(0xFFDC2626),
+                              ),
+                            );
+                            return;
+                          }
+                          setDialogState(() {
+                            selectedFile = file;
+                            _pendingUpload = null;
+                          });
+                        },
+                        icon: const Icon(
+                          Icons.attach_file,
+                          color: Color(0xFF1FBF9A),
+                        ),
+                        label: Text(
+                          selectedFile == null
+                              ? 'Choose File'
+                              : 'File selected',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF1FBF9A),
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(double.infinity, 48),
+                          side: const BorderSide(color: Color(0xFF1FBF9A)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(
+                    'Cancel',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF667085),
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Coming soon / Testing mode: upload skipped',
+                        ),
+                        backgroundColor: Color(0xFF667085),
+                      ),
+                    );
+                  },
+                  child: Text(
+                    'Skip for Testing',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF667085),
+                    ),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    if (nameController.text.trim().isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please enter a document name'),
+                          backgroundColor: Color(0xFFDC2626),
+                        ),
+                      );
+                      return;
+                    }
+                    final file = selectedFile;
+                    if (file == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please select a file'),
+                          backgroundColor: Color(0xFFDC2626),
+                        ),
+                      );
+                      return;
+                    }
+
+                    try {
+                      await _uploadDocument(
+                        documentName: nameController.text.trim(),
+                        documentType: documentType,
+                        file: file,
+                      );
+
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                      }
+                    } catch (_) {
+                      // error snackbar already shown
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1FBF9A),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: Text(
+                    'Submit',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF4F5F7),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Color(0xFF1D2939)),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          'Medical Profile',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF1D2939),
+          ),
+        ),
+      ),
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF1FBF9A),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        '3',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Medical Documents',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF0F6F73),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Step 3 of 3',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  color: const Color(0xFF667085),
+                ),
+              ),
+              const SizedBox(height: 32),
+              if (_documents.isEmpty) ...[
+                Container(
+                  padding: const EdgeInsets.all(32),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.folder_outlined,
+                        size: 64,
+                        color: const Color(0xFF667085).withValues(alpha: 0.5),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No documents uploaded yet',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: const Color(0xFF667085),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Upload your medical documents for easy access',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14,
+                          color: const Color(0xFF9CA3AF),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ] else ...[
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _documents.length,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    final document = _documents[index];
+                    return Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFE5E7EB)),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: const Color(
+                                0xFF1FBF9A,
+                              ).withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.description,
+                              color: Color(0xFF1FBF9A),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  document.documentType,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF1D2939),
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '${document.status} • ${DateFormat('MMM dd, yyyy').format(document.createdAt ?? document.updatedAt ?? DateTime.now())}',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 14,
+                                    color: const Color(0xFF667085),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline, size: 20),
+                            color: const Color(0xFFDC2626),
+                            onPressed: () => _deleteDocument(document),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ],
+              const SizedBox(height: 24),
+              OutlinedButton.icon(
+                onPressed: () => _showAddDocumentDialog(),
+                icon: const Icon(Icons.add, color: Color(0xFF1FBF9A)),
+                label: Text(
+                  'Add Document',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF1FBF9A),
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 56),
+                  side: const BorderSide(color: Color(0xFF1FBF9A)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

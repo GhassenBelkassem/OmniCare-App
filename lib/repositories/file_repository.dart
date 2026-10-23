@@ -8,8 +8,8 @@ class FileRepository {
   DocumentsApi? _docsApi;
 
   FileRepository({FilesApi? filesApi, DocumentsApi? docsApi})
-      : _filesApi = filesApi,
-        _docsApi = docsApi;
+    : _filesApi = filesApi,
+      _docsApi = docsApi;
 
   void useMock() {
     _filesApi = null;

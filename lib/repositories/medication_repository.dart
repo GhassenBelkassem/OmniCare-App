@@ -21,7 +21,11 @@ class MedicationRepository {
       final query = q.trim().toLowerCase();
       if (query.isEmpty) return [];
       return createMockMedications()
-          .where((m) => m.name.toLowerCase().contains(query) || (m.dci?.toLowerCase().contains(query) ?? false))
+          .where(
+            (m) =>
+                m.name.toLowerCase().contains(query) ||
+                (m.dci?.toLowerCase().contains(query) ?? false),
+          )
           .take(10)
           .toList();
     }

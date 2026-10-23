@@ -4,15 +4,14 @@ import 'package:google_fonts/google_fonts.dart';
 class ConsultationTypeScreen extends StatelessWidget {
   final String providerType; // 'doctor' or 'kine'
 
-  const ConsultationTypeScreen({
-    super.key,
-    required this.providerType,
-  });
+  const ConsultationTypeScreen({super.key, required this.providerType});
 
   @override
   Widget build(BuildContext context) {
-    final String title = providerType == 'doctor' ? 'Doctor' : 'Physiotherapist';
-    
+    final String title = providerType == 'doctor'
+        ? 'Doctor'
+        : 'Physiotherapist';
+
     return Scaffold(
       backgroundColor: const Color(0xFFF4F5F7),
       appBar: AppBar(
@@ -56,7 +55,7 @@ class ConsultationTypeScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 32),
-              
+
               // Home Consultation Card
               _buildConsultationTypeCard(
                 context: context,
@@ -73,7 +72,7 @@ class ConsultationTypeScreen extends StatelessWidget {
                 },
               ),
               const SizedBox(height: 16),
-              
+
               // Book Appointment Card
               _buildConsultationTypeCard(
                 context: context,
@@ -118,10 +117,7 @@ class ConsultationTypeScreen extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: const Color(0xFFE5E7EB),
-            width: 1,
-          ),
+          border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.04),
@@ -142,15 +138,14 @@ class ConsultationTypeScreen extends StatelessWidget {
                     color: color.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: Icon(
-                    icon,
-                    color: color,
-                    size: 28,
-                  ),
+                  child: Icon(icon, color: color, size: 28),
                 ),
                 const Spacer(),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: badgeColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
@@ -206,11 +201,7 @@ class ConsultationTypeScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Icon(
-                  Icons.arrow_forward,
-                  color: color,
-                  size: 18,
-                ),
+                Icon(Icons.arrow_forward, color: color, size: 18),
               ],
             ),
           ],
