@@ -27,8 +27,8 @@ class PassportMedicationsCard extends StatelessWidget {
             icon: Icons.medication_outlined,
             title: 'Médicaments',
             subtitle: isCurrent
-                ? '3 traitements actifs'
-                : '2 anciens traitements',
+                ? '${medications.length} traitement(s) actif(s)'
+                : '${medications.length} ancien(s) traitement(s)',
             iconColor: OmniColors.infoBlue,
             iconBackground: OmniColors.infoBlueSoft,
           ),

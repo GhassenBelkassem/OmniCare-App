@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../../core/theme/omni_theme.dart';
 import '../../models/patient_passport_view_models.dart';
@@ -7,8 +6,13 @@ import 'passport_card.dart';
 
 class PassportIdentityCard extends StatelessWidget {
   final PatientPassportViewData data;
+  final VoidCallback? onShowSecureQr;
 
-  const PassportIdentityCard({super.key, required this.data});
+  const PassportIdentityCard({
+    super.key,
+    required this.data,
+    required this.onShowSecureQr,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -42,26 +46,62 @@ class PassportIdentityCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Container(
-                    padding: const EdgeInsets.all(7),
-                    decoration: BoxDecoration(
+                  Semantics(
+                    button: onShowSecureQr != null,
+                    enabled: onShowSecureQr != null,
+                    label: onShowSecureQr == null
+                        ? 'QR médical indisponible'
+                        : 'Afficher le QR médical sécurisé',
+                    child: Material(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: OmniColors.freshMint.withValues(alpha: 0.25),
-                      ),
-                    ),
-                    child: QrImageView(
-                      data: 'OMNICARE-PASSPORT-${data.omniCareId}',
-                      version: QrVersions.auto,
-                      size: qrSize,
-                      eyeStyle: const QrEyeStyle(
-                        eyeShape: QrEyeShape.square,
-                        color: OmniColors.deepTeal,
-                      ),
-                      dataModuleStyle: const QrDataModuleStyle(
-                        dataModuleShape: QrDataModuleShape.square,
-                        color: OmniColors.primaryAction,
+                      child: InkWell(
+                        key: const ValueKey('passport-secure-qr-action'),
+                        onTap: onShowSecureQr,
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          width: qrSize + 14,
+                          height: qrSize + 14,
+                          padding: const EdgeInsets.all(7),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: OmniColors.freshMint.withValues(
+                                alpha: 0.25,
+                              ),
+                            ),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                onShowSecureQr == null
+                                    ? Icons.lock_outline_rounded
+                                    : Icons.qr_code_2_rounded,
+                                size: qrSize < 100 ? 36 : 42,
+                                color: onShowSecureQr == null
+                                    ? OmniColors.textSecondary
+                                    : OmniColors.primaryAction,
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                onShowSecureQr == null
+                                    ? 'QR indisponible'
+                                    : 'Afficher le QR',
+                                maxLines: 2,
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context).textTheme.labelSmall
+                                    ?.copyWith(
+                                      color: onShowSecureQr == null
+                                          ? OmniColors.textSecondary
+                                          : OmniColors.deepTeal,
+                                      fontWeight: FontWeight.w700,
+                                      height: 1.1,
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ),

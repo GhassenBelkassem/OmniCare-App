@@ -18,6 +18,7 @@ import 'package:omnicare_mobile/features/auth/application/auth_controller.dart';
 import 'package:omnicare_mobile/features/auth/application/auth_error_messages.dart';
 import 'package:omnicare_mobile/features/auth/application/auth_flow_models.dart';
 import 'package:omnicare_mobile/features/auth/application/auth_role_family.dart';
+import 'package:omnicare_mobile/features/auth/application/google_sign_in_session_contract.dart';
 import 'package:omnicare_mobile/features/auth/login_screen.dart';
 import 'package:omnicare_mobile/features/auth/google_account_link_sheet.dart';
 import 'package:omnicare_mobile/features/auth/professional_access_request_screen.dart';
@@ -133,6 +134,8 @@ class FakeAuthRepository implements AuthRepositoryContract {
   Completer<void>? restoreGate;
   Completer<void>? loginInitiateGate;
   Completer<void>? signupVerifyGate;
+  Completer<void>? logoutGate;
+  Object? logoutError;
 
   @override
   Future<GoogleAuthResult> initiateGoogle(
@@ -261,6 +264,29 @@ class FakeAuthRepository implements AuthRepositoryContract {
   @override
   Future<void> logout() async {
     logoutCalls += 1;
+    await logoutGate?.future;
+    if (logoutError != null) throw logoutError!;
+  }
+}
+
+class FakeGoogleSignInSession implements GoogleSignInSession {
+  int signInCalls = 0;
+  int signOutCalls = 0;
+  String? idToken = 'google-id-token';
+  Completer<void>? signOutGate;
+  Object? signOutError;
+
+  @override
+  Future<String?> signInIdToken() async {
+    signInCalls += 1;
+    return idToken;
+  }
+
+  @override
+  Future<void> signOut() async {
+    signOutCalls += 1;
+    await signOutGate?.future;
+    if (signOutError != null) throw signOutError!;
   }
 }
 
@@ -2257,6 +2283,137 @@ void main() {
       expect(controller.patientProfile, isNull);
       expect(repo.logoutCalls, 1);
     });
+  });
+
+  group('logout lifecycle ownership', () {
+    test('Google token requests use the injected app-owned session', () async {
+      final google = FakeGoogleSignInSession();
+      final controller = AuthController(
+        repository: FakeAuthRepository(),
+        googleSignInSession: google,
+      );
+
+      expect(await controller.requestGoogleIdToken(), 'google-id-token');
+      expect(google.signInCalls, 1);
+    });
+
+    test(
+      'concurrent logout callers share one authoritative operation',
+      () async {
+        final repository = FakeAuthRepository()
+          ..restoreResult = _doctorSession()
+          ..logoutGate = Completer<void>();
+        final google = FakeGoogleSignInSession()
+          ..signOutGate = Completer<void>();
+        final controller = AuthController(
+          repository: repository,
+          googleSignInSession: google,
+        );
+        await controller.initialize();
+
+        final first = controller.logout();
+        final second = controller.logout();
+
+        expect(identical(first, second), isTrue);
+        expect(repository.logoutCalls, 1);
+        repository.logoutGate!.complete();
+        await Future<void>.delayed(Duration.zero);
+
+        expect(controller.status, AuthStatus.unauthenticated);
+        expect(controller.currentUser, isNull);
+        expect(controller.patientProfile, isNull);
+        expect(google.signOutCalls, 1);
+
+        google.signOutGate!.complete();
+        await Future.wait([first, second]);
+      },
+    );
+
+    test('provider sign-out failure cannot preserve OmniCare auth', () async {
+      final repository = FakeAuthRepository()..restoreResult = _doctorSession();
+      final google = FakeGoogleSignInSession()
+        ..signOutError = StateError('provider unavailable');
+      final controller = AuthController(
+        repository: repository,
+        googleSignInSession: google,
+      );
+      await controller.initialize();
+
+      await controller.logout();
+
+      expect(repository.logoutCalls, 1);
+      expect(google.signOutCalls, 1);
+      expect(controller.status, AuthStatus.unauthenticated);
+      expect(controller.currentUser, isNull);
+    });
+
+    test('Doctor to Patient switch does not retain the prior role', () async {
+      final repository = FakeAuthRepository()..restoreResult = _doctorSession();
+      final google = FakeGoogleSignInSession();
+      final controller = AuthController(
+        repository: repository,
+        googleSignInSession: google,
+      );
+      await controller.initialize();
+      expect(controller.roleFamily, AuthRoleFamily.doctor);
+
+      await controller.logout();
+      repository.emailPasswordLoginResult =
+          EmailPasswordLoginResult.authenticated(
+            _authenticated(onboardingCompleted: true),
+          );
+
+      expect(
+        await controller.loginWithEmailPassword(
+          'patient@example.test',
+          'VeryStrongPass123',
+        ),
+        isTrue,
+      );
+      expect(controller.roleFamily, AuthRoleFamily.patient);
+      expect(controller.currentUser?.role, 'PATIENT');
+      expect(google.signOutCalls, 1);
+    });
+
+    test(
+      'logout drains and fences a concurrent refresh before local clear',
+      () async {
+        final store = SecureTokenStore(
+          backend: FakeSecureTokenStorageBackend(),
+        );
+        await store.saveSession(_session());
+        final refreshGate = Completer<void>();
+        final adapter = FakeHttpAdapter({
+          'POST /api/v1/auth/refresh': (_, _) async {
+            await refreshGate.future;
+            return _json(_loginJson(refreshToken: 'stale-refresh-token'), 200);
+          },
+          'POST /api/v1/auth/logout': (_, _) => _empty(204),
+        });
+        final client = _client(store, adapter);
+        final repository = AuthRepository(
+          api: AuthApi(client),
+          tokenStore: store,
+          deviceIdentityService: DeviceIdentityService(tokenStore: store),
+          refreshCoordinator: client.refreshCoordinator,
+        );
+
+        final refresh = client.refreshCoordinator.refreshSession();
+        for (var attempt = 0; attempt < 20; attempt += 1) {
+          if (adapter.counts['POST /api/v1/auth/refresh'] == 1) break;
+          await Future<void>.delayed(const Duration(milliseconds: 1));
+        }
+        final logout = repository.logout();
+
+        expect(adapter.counts['POST /api/v1/auth/refresh'], 1);
+        refreshGate.complete();
+
+        await refresh;
+        await logout;
+        expect(adapter.counts['POST /api/v1/auth/logout'], 1);
+        expect(await store.readSession(), isNull);
+      },
+    );
   });
 
   group('professional authentication milestone', () {

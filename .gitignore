@@ -33,6 +33,10 @@ migrate_working_dir/
 /build/
 /coverage/
 
+# Local Google Maps configuration. Examples remain tracked.
+/config/maps.web.local.json
+/ios/Flutter/MapsConfig.xcconfig
+
 # Symbolication related
 app.*.symbols
 

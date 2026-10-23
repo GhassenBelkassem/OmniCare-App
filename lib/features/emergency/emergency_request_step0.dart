@@ -34,8 +34,9 @@ class EmergencyRequestStep0 extends StatelessWidget {
                 itemBuilder: (context, index) {
                   if (index == 0) {
                     return _ConsultationModeCard(
-                      title: 'Consultation à domicile',
-                      subtitle: 'Un médecin se déplace chez vous.',
+                      title: 'Demande urgente',
+                      subtitle:
+                          'Choisissez une prise en charge urgente à domicile ou au cabinet.',
                       illustration:
                           'assets/illustrations/doctor_consultation/doctor_home_consultation.png',
                       accentColor: OmniColors.freshMint,
@@ -51,11 +52,8 @@ class EmergencyRequestStep0 extends StatelessWidget {
                             routeArgs?['providerType'] as String? ?? 'doctor';
                         Navigator.pushNamed(
                           context,
-                          '/emergency-step1',
-                          arguments: {
-                            'consultationType': 'home',
-                            'providerType': providerType,
-                          },
+                          '/urgent-care-mode-selection',
+                          arguments: {'providerType': providerType},
                         );
                       },
                     );

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/theme/omni_theme.dart';
+import '../../patient_clinic/data/patient_clinic_models.dart';
 import '../../patient_clinic/presentation/widgets/clinic_full_screen_gallery.dart';
 import '../../patient_clinic/presentation/clinic_presentation_metadata.dart'
     as clinic;
@@ -1088,7 +1089,15 @@ class _CabinetTab extends StatelessWidget {
       );
     }
 
-    final gallery = cabinet.galleryImages.isNotEmpty
+    final networkGallery = [
+      for (final media in cabinet.galleryMedia)
+        if (media.url.trim().isNotEmpty)
+          DoctorPresentationImage.network(media.url),
+    ];
+    final hasBackendGallery = networkGallery.isNotEmpty;
+    final gallery = hasBackendGallery
+        ? networkGallery
+        : cabinet.galleryImages.isNotEmpty
         ? [
             for (final path in cabinet.galleryImages)
               DoctorPresentationImage.asset(path),
@@ -1107,7 +1116,9 @@ class _CabinetTab extends StatelessWidget {
           _CabinetGallery(images: gallery),
           const SizedBox(height: OmniSpacing.sm),
           Text(
-            'Images de démonstration du cabinet',
+            hasBackendGallery
+                ? 'Photos du cabinet'
+                : 'Images de démonstration du cabinet',
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
               fontSize: 11,
               color: OmniColors.textTertiary,
@@ -1324,18 +1335,35 @@ class _CabinetGalleryState extends State<_CabinetGallery> {
   }
 
   void _openFullScreen(BuildContext context, int initialIndex) {
+    final networkImages = widget.images
+        .where((image) => image.isNetwork && image.value.trim().isNotEmpty)
+        .map((image) => PatientClinicImage(imageUrl: image.value))
+        .toList(growable: false);
     final localAssets = widget.images
         .where((image) => image.isAsset && image.value.trim().isNotEmpty)
         .map((image) => clinic.ClinicPresentationImage.asset(image.value))
         .toList(growable: false);
-    if (localAssets.isEmpty) return;
+    if (networkImages.isEmpty && localAssets.isEmpty) return;
+
+    final tappedImage = widget.images[initialIndex];
+    final precedingSameSource = widget.images
+        .take(initialIndex)
+        .where(
+          (image) =>
+              image.source == tappedImage.source &&
+              image.value.trim().isNotEmpty,
+        )
+        .length;
+    final fullScreenIndex = tappedImage.isNetwork
+        ? precedingSameSource
+        : networkImages.length + precedingSameSource;
 
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => ClinicFullScreenGallery(
-          images: const [],
+          images: networkImages,
           localAssets: localAssets,
-          initialIndex: initialIndex.clamp(0, localAssets.length - 1).toInt(),
+          initialIndex: fullScreenIndex,
         ),
       ),
     );

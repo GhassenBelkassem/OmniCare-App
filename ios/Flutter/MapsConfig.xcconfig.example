@@ -1,0 +1,3 @@
+// Copy to MapsConfig.xcconfig, which is ignored by Git, or supply
+// MAPS_API_KEY as a protected CI/Xcode build setting.
+MAPS_API_KEY = REPLACE_WITH_RESTRICTED_IOS_MAPS_KEY

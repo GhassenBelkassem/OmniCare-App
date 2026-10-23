@@ -153,6 +153,7 @@ class PatientScheduledCareRealtimeTarget
 
   @override
   Future<void> invalidate(ScheduledCareInvalidationEvent event) async {
+    if (event.resourceType == ScheduledCareResourceType.consultation) return;
     final operations = <Future<void>>[_list.invalidate()];
     switch (event.resourceType) {
       case ScheduledCareResourceType.bookingRequest:
@@ -163,6 +164,8 @@ class PatientScheduledCareRealtimeTarget
         if (_appointmentId()?.toLowerCase() == event.resourceId) {
           operations.add(_appointment.invalidate());
         }
+      case ScheduledCareResourceType.consultation:
+        break;
     }
     await Future.wait(operations);
   }
@@ -268,6 +271,7 @@ class DoctorScheduledCareRealtimeTarget implements ScheduledCareRealtimeTarget {
 
   @override
   Future<void> invalidate(ScheduledCareInvalidationEvent event) async {
+    if (event.resourceType == ScheduledCareResourceType.consultation) return;
     final operations = <Future<void>>[_home.invalidate(), _agenda.invalidate()];
     switch (event.resourceType) {
       case ScheduledCareResourceType.bookingRequest:
@@ -278,6 +282,8 @@ class DoctorScheduledCareRealtimeTarget implements ScheduledCareRealtimeTarget {
         if (_appointmentId()?.toLowerCase() == event.resourceId) {
           operations.add(_appointment.invalidate());
         }
+      case ScheduledCareResourceType.consultation:
+        break;
     }
     await Future.wait(operations);
   }

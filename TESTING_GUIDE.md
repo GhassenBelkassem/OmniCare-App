@@ -37,14 +37,16 @@ If you intentionally hit a protected endpoint without a token, errors should be:
 
 ## 2) Web setup (Maps)
 
-In `web/index.html` you must set a real key:
+Never edit `web/index.html` with a key. For the isolated synthetic Maps smoke
+test, copy `config/maps.web.local.example.json` to the Git-ignored
+`config/maps.web.local.json`, set a Web-restricted key, and run:
 
-- Find:
-  - `https://maps.googleapis.com/maps/api/js?key=%GOOGLE_MAPS_API_KEY%`
-- Replace `%GOOGLE_MAPS_API_KEY%` with your actual key.
+```powershell
+flutter run -d chrome -t lib/main_maps_smoke.dart --dart-define-from-file=config/maps.web.local.json
+```
 
-If Maps isn’t configured, you may see Chrome errors like:
-- `TypeError: Cannot read properties of undefined (reading 'maps')`
+Without a configured key, the harness must show its neutral unavailable state.
+The ordinary application entry point does not expose this developer harness.
 
 ---
 

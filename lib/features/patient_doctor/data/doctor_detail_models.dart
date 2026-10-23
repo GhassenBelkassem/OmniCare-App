@@ -91,6 +91,14 @@ class PracticeOpeningHours {
   final String hours;
 }
 
+/// One public network photograph belonging to a practice location.
+class PracticeLocationMedia {
+  const PracticeLocationMedia({required this.url, this.displayOrder});
+
+  final String url;
+  final int? displayOrder;
+}
+
 /// A practice location where a doctor works.
 ///
 /// Future-compatible with multiple locations per doctor.
@@ -109,6 +117,7 @@ class PracticeLocation {
     this.wheelchairAccessible = false,
     this.primary = false,
     this.distanceKm,
+    this.galleryMedia = const [],
     this.galleryImages = const [],
     this.openingHours = const [],
     this.equipment = const [],
@@ -144,7 +153,10 @@ class PracticeLocation {
   /// Distance from user in km (mock value).
   final double? distanceKm;
 
-  /// Local asset paths for cabinet/gallery photos.
+  /// Public network photographs supplied for this exact backend location.
+  final List<PracticeLocationMedia> galleryMedia;
+
+  /// Presentation-only local asset paths retained for demo compatibility.
   final List<String> galleryImages;
 
   /// Opening hours entries.

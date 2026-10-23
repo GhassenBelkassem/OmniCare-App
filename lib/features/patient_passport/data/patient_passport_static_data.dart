@@ -80,6 +80,7 @@ abstract final class PatientPassportStaticData {
         name: 'Sarah Ben Ahmed',
         relationship: 'Mon passeport',
         avatarAsset: 'assets/images/doctors/sarah_mansour.jpg',
+        isSelf: true,
       ),
       PassportFamilyMember(
         name: 'Mohamed Ben Ahmed',

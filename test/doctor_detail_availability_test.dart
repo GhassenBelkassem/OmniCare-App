@@ -12,6 +12,7 @@ import 'package:omnicare_mobile/features/patient_doctor/presentation/doctor_dire
 import 'package:omnicare_mobile/features/patient_doctor/presentation/doctor_detail_screen.dart';
 import 'package:omnicare_mobile/features/patient_doctor/presentation/doctor_availability_sheet.dart';
 import 'package:omnicare_mobile/features/patient_doctor/presentation/widgets/doctor_filter_sheet.dart';
+import 'package:omnicare_mobile/features/patient_clinic/presentation/widgets/clinic_full_screen_gallery.dart';
 import 'package:omnicare_mobile/features/scheduled_care/application/patient_booking_controller.dart';
 import 'package:omnicare_mobile/features/scheduled_care/data/scheduled_care_repository.dart';
 import 'package:omnicare_mobile/features/scheduled_care/domain/scheduled_care_models.dart';
@@ -162,6 +163,35 @@ const _nadiaDetail = DoctorDirectoryDetail(
       city: 'Tunis',
       address: '20 avenue de Tunis',
       primary: true,
+    ),
+  ],
+);
+
+const _networkDoctorId = '123e4567-e89b-42d3-a456-426614174000';
+
+const _networkGalleryDetail = DoctorDirectoryDetail(
+  doctorId: _networkDoctorId,
+  displayName: 'Dr. Galerie Réelle',
+  specialty: 'Médecin généraliste',
+  verified: true,
+  practiceLocations: [
+    DoctorPracticeLocationDto(
+      id: '123e4567-e89b-42d3-a456-426614174001',
+      name: 'Cabinet Galerie Réelle',
+      governorate: 'Tunis',
+      city: 'Tunis',
+      address: '30 avenue de Tunis',
+      primary: true,
+      gallery: [
+        DoctorPracticeMediaDto(
+          url: 'https://media.example.test/cabinet-one.jpg',
+          displayOrder: 0,
+        ),
+        DoctorPracticeMediaDto(
+          url: 'https://media.example.test/cabinet-two.jpg',
+          displayOrder: 1,
+        ),
+      ],
     ),
   ],
 );
@@ -518,7 +548,81 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(Image), findsWidgets);
+      await tester.scrollUntilVisible(
+        find.text('Images de démonstration du cabinet'),
+        100,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('Images de démonstration du cabinet'), findsOneWidget);
+      expect(
+        tester
+            .widgetList<Image>(find.byType(Image))
+            .any((image) => image.image is AssetImage),
+        isTrue,
+      );
     });
+
+    testWidgets('real UUID detail renders backend gallery as network images', (
+      tester,
+    ) async {
+      final repository = _FakeDoctorRepository(
+        details: const {_networkDoctorId: _networkGalleryDetail},
+      );
+      await tester.pumpWidget(
+        _buildDetailApp(doctorId: _networkDoctorId, repository: repository),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Cabinet'));
+      await tester.pumpAndSettle();
+
+      final networkImages = tester
+          .widgetList<Image>(find.byType(Image))
+          .where((image) => image.image is NetworkImage)
+          .toList(growable: false);
+      final urls = networkImages
+          .map((image) => (image.image as NetworkImage).url)
+          .toSet();
+      expect(urls, {
+        'https://media.example.test/cabinet-one.jpg',
+        'https://media.example.test/cabinet-two.jpg',
+      });
+      await tester.scrollUntilVisible(
+        find.text('Photos du cabinet'),
+        100,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('Photos du cabinet'), findsOneWidget);
+      expect(find.text('Images de démonstration du cabinet'), findsNothing);
+      expect(find.byIcon(Icons.photo_outlined), findsWidgets);
+    });
+
+    testWidgets(
+      'backend network image opens the existing full-screen gallery',
+      (tester) async {
+        final repository = _FakeDoctorRepository(
+          details: const {_networkDoctorId: _networkGalleryDetail},
+        );
+        await tester.pumpWidget(
+          _buildDetailApp(doctorId: _networkDoctorId, repository: repository),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Cabinet'));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byType(PageView));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(ClinicFullScreenGallery), findsOneWidget);
+        expect(
+          tester
+              .widgetList<Image>(find.byType(Image))
+              .where((image) => image.image is NetworkImage)
+              .map((image) => (image.image as NetworkImage).url),
+          contains('https://media.example.test/cabinet-one.jpg'),
+        );
+      },
+    );
 
     testWidgets('cabinet tab shows Itinéraire button', (tester) async {
       await tester.pumpWidget(_buildDetailApp());

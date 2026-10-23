@@ -3,7 +3,10 @@ import 'package:flutter/foundation.dart';
 import 'doctor_workspace_config.dart';
 import 'doctor_workspace_repository.dart';
 
-/// One source of truth for the local Doctor workspace configuration.
+/// Debug-fixture controller for the retired local practice wizard.
+///
+/// The authenticated Doctor shell deliberately does not construct this type;
+/// production navigation is owned by the server bootstrap controller.
 class DoctorWorkspaceController extends ChangeNotifier {
   DoctorWorkspaceController({required DoctorWorkspaceRepository repository})
     : _repository = repository;

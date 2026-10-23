@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/omni_theme.dart';
+import 'emergency_symptom_intake_value.dart';
 import 'widgets/body_map_widget.dart';
 import 'widgets/medical_intake_widgets.dart';
 import 'widgets/specialty_assistant_card.dart';
@@ -11,9 +12,15 @@ class EmergencyRequestStep2 extends StatefulWidget {
     super.key,
     required this.step1Data,
     this.flowMode = UrgentFlowMode.create,
+    this.onCompleted,
+    this.maxDescriptionCharacters,
+    this.requireExplicitPainSelection = false,
   });
   final Map<String, dynamic> step1Data;
   final UrgentFlowMode flowMode;
+  final ValueChanged<EmergencySymptomIntakeValue>? onCompleted;
+  final int? maxDescriptionCharacters;
+  final bool requireExplicitPainSelection;
 
   @override
   State<EmergencyRequestStep2> createState() => _EmergencyRequestStep2State();
@@ -25,11 +32,20 @@ class _EmergencyRequestStep2State extends State<EmergencyRequestStep2>
   final _descriptionController = TextEditingController();
   final _descriptionKey = GlobalKey();
   double _painLevel = 5;
+  bool _painWasExplicitlySelected = false;
   bool _shareMedicalRecord = false;
 
   bool get _canProceed =>
       _selectedBodyParts.isNotEmpty &&
-      _descriptionController.text.trim().isNotEmpty;
+      _descriptionController.text.trim().isNotEmpty &&
+      (!widget.requireExplicitPainSelection || _painWasExplicitlySelected) &&
+      _descriptionWithinLimit;
+
+  bool get _descriptionWithinLimit {
+    final maximum = widget.maxDescriptionCharacters;
+    return maximum == null ||
+        _descriptionController.text.trim().runes.length <= maximum;
+  }
 
   @override
   void initState() {
@@ -42,6 +58,7 @@ class _EmergencyRequestStep2State extends State<EmergencyRequestStep2>
         (widget.step1Data['description'] ?? widget.step1Data['symptoms'] ?? '')
             .toString();
     _painLevel = (widget.step1Data['painLevel'] as num?)?.toDouble() ?? 5;
+    _painWasExplicitlySelected = widget.step1Data['painLevel'] is num;
     _shareMedicalRecord = widget.step1Data['shareMedicalRecord'] == true;
     WidgetsBinding.instance.addObserver(this);
     _descriptionController.addListener(_descriptionChanged);
@@ -91,6 +108,17 @@ class _EmergencyRequestStep2State extends State<EmergencyRequestStep2>
       'voiceMessage': null,
       'shareMedicalRecord': _shareMedicalRecord,
     };
+    final onCompleted = widget.onCompleted;
+    if (onCompleted != null) {
+      onCompleted(
+        EmergencySymptomIntakeValue(
+          rawAnatomicalRegionIds: _selectedBodyParts,
+          painScore: _painLevel.round(),
+          shortDescription: description,
+        ),
+      );
+      return;
+    }
     if (widget.flowMode == UrgentFlowMode.editFromReview) {
       Navigator.pop(context, data);
       return;
@@ -223,8 +251,10 @@ class _EmergencyRequestStep2State extends State<EmergencyRequestStep2>
                         const _SectionDivider(),
                         PainLevelControl(
                           value: _painLevel,
-                          onChanged: (value) =>
-                              setState(() => _painLevel = value),
+                          onChanged: (value) => setState(() {
+                            _painLevel = value;
+                            _painWasExplicitlySelected = true;
+                          }),
                         ),
                         const _SectionDivider(),
                         SymptomDescriptionCard(

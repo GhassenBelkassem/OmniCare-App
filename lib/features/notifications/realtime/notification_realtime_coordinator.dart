@@ -47,16 +47,20 @@ class NotificationRealtimeCoordinator {
   NotificationRealtimeCoordinator({
     required ScheduledCareRealtimeTransport transport,
     required NotificationCenterController controller,
+    this.onForegroundNotification,
   }) : _controller = controller {
     _messageSubscription = transport.notificationMessages.listen(_onMessage);
     _epochSubscription = transport.connectedEpochs.listen(_onReconnect);
   }
 
   final NotificationCenterController _controller;
+  final Future<void> Function(InboxNotification notification)?
+  onForegroundNotification;
   late final StreamSubscription<String> _messageSubscription;
   late final StreamSubscription<int> _epochSubscription;
   int _generation = 0;
   bool _active = false;
+  final Set<String> _alertedNotificationIds = <String>{};
 
   void startSession() {
     _generation++;
@@ -66,14 +70,37 @@ class NotificationRealtimeCoordinator {
   void stopSession() {
     _generation++;
     _active = false;
+    _alertedNotificationIds.clear();
   }
 
   void _onMessage(String body) {
-    if (!_active || NotificationRealtimeInvalidation.tryParse(body) == null) {
+    final invalidation = NotificationRealtimeInvalidation.tryParse(body);
+    if (!_active || invalidation == null) {
       return;
     }
     final generation = _generation;
-    unawaited(_runIfCurrent(generation, _controller.onRealtimeInvalidation));
+    unawaited(_handleNotification(generation, invalidation));
+  }
+
+  Future<void> _handleNotification(
+    int generation,
+    NotificationRealtimeInvalidation invalidation,
+  ) async {
+    if (!_active || generation != _generation) return;
+    final notification = await _controller.onRealtimeNotification(
+      invalidation.notificationId,
+    );
+    if (!_active ||
+        generation != _generation ||
+        notification == null ||
+        notification.isExpired ||
+        !_alertedNotificationIds.add(notification.id)) {
+      return;
+    }
+    if (_alertedNotificationIds.length > 100) {
+      _alertedNotificationIds.remove(_alertedNotificationIds.first);
+    }
+    await onForegroundNotification?.call(notification);
   }
 
   void _onReconnect(int _) {

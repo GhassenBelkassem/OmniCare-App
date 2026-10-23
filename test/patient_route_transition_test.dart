@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:omnicare_mobile/features/home/new_home_screen.dart';
 import 'package:omnicare_mobile/features/emergency/emergency_request_step0.dart';
-import 'package:omnicare_mobile/features/emergency/emergency_request_step1.dart';
 import 'package:omnicare_mobile/features/request/provider_selection_screen.dart';
 import 'package:omnicare_mobile/features/request_flow/screens/who_needs_care_screen.dart';
 import 'package:omnicare_mobile/features/request_core/application/request_submission_controller.dart';
@@ -121,11 +120,9 @@ void main() {
         await tester.pump();
         await tester.pump();
 
-        // Consume the pre-existing framework assertion from
-        // RequestFlowEntryScreen.initState (notifyListeners during build).
-        tester.takeException();
-
         await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
 
         // WhoNeedsCareScreen should render without an extra background
         // ColoredBox wrapper (it was removed in favor of the route surface).
@@ -194,28 +191,26 @@ class _FakeRequestRepository implements RequestRepository {
 }
 
 UserProvider _createTestUserProvider() {
-  return UserProvider()
-    ..setPatientProfile(
-      const PatientProfile(
-        userId: 'patient-user-1',
-        firstName: 'Sarah',
-        lastName: 'Martin',
-        displayName: 'Sarah Martin',
-        dateOfBirth: null,
-        gender: null,
-        photoUrl: null,
-        primaryPhone: VerifiedContact(value: '+21698123456', verified: true),
-        primaryEmail:
-            VerifiedContact(value: 'sarah@example.tn', verified: true),
-        onboardingCompleted: true,
-        onboardingStep: 4,
-        preferredLanguage: 'fr',
-        notifications: ProfileNotificationPreferences(
-          medications: true,
-          appointments: true,
-          passport: true,
-        ),
-        updatedAt: null,
+  return UserProvider()..setPatientProfile(
+    const PatientProfile(
+      userId: 'patient-user-1',
+      firstName: 'Sarah',
+      lastName: 'Martin',
+      displayName: 'Sarah Martin',
+      dateOfBirth: null,
+      gender: null,
+      photoUrl: null,
+      primaryPhone: VerifiedContact(value: '+21698123456', verified: true),
+      primaryEmail: VerifiedContact(value: 'sarah@example.tn', verified: true),
+      onboardingCompleted: true,
+      onboardingStep: 4,
+      preferredLanguage: 'fr',
+      notifications: ProfileNotificationPreferences(
+        medications: true,
+        appointments: true,
+        passport: true,
       ),
-    );
+      updatedAt: null,
+    ),
+  );
 }

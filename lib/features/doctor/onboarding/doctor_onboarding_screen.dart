@@ -5,6 +5,7 @@ import '../profile/doctor_display_profile.dart';
 import '../workspace/doctor_workspace_config.dart';
 
 /// Five-step, local-only setup for a Doctor's D1 workspace.
+/// Explicit local/demo fixture. Authenticated Doctors never enter this wizard.
 class DoctorOnboardingScreen extends StatefulWidget {
   const DoctorOnboardingScreen({
     super.key,
@@ -22,6 +23,13 @@ class DoctorOnboardingScreen extends StatefulWidget {
 }
 
 class _DoctorOnboardingScreenState extends State<DoctorOnboardingScreen> {
+  static const _onboardingPracticeModes = <DoctorPracticeMode>[
+    DoctorPracticeMode.cabinet,
+    DoctorPracticeMode.clinic,
+    DoctorPracticeMode.homeVisit,
+    DoctorPracticeMode.urgentHome,
+  ];
+
   static const _clinicFixtures = <DoctorClinicAffiliation>[
     DoctorClinicAffiliation(id: 'clinique-carthage', name: 'Clinique Carthage'),
     DoctorClinicAffiliation(
@@ -172,21 +180,34 @@ class _DoctorOnboardingScreenState extends State<DoctorOnboardingScreen> {
 
   Widget _buildActivityStep() {
     return Column(
-      children: DoctorPracticeMode.values
-          .map(
-            (mode) => Padding(
-              padding: const EdgeInsets.only(bottom: OmniSpacing.sm),
-              child: _SelectionCard(
-                key: ValueKey('doctor-onboarding-mode-${mode.name}'),
-                label: mode.label,
-                detail: _practiceModeDetail(mode),
-                icon: _practiceModeIcon(mode),
-                selected: _practiceModes.contains(mode),
-                onTap: () => _togglePracticeMode(mode),
-              ),
+      children: [
+        ..._onboardingPracticeModes.map(
+          (mode) => Padding(
+            padding: const EdgeInsets.only(bottom: OmniSpacing.sm),
+            child: _SelectionCard(
+              key: ValueKey('doctor-onboarding-mode-${mode.name}'),
+              label: mode.label,
+              detail: _practiceModeDetail(mode),
+              icon: _practiceModeIcon(mode),
+              selected: _practiceModes.contains(mode),
+              onTap: () => _togglePracticeMode(mode),
             ),
-          )
-          .toList(growable: false),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: OmniSpacing.sm),
+          child: _SelectionCard(
+            key: const ValueKey('doctor-onboarding-urgent-cabinet'),
+            label: 'Urgences au cabinet',
+            detail: 'Recevez des demandes urgentes dans votre cabinet.',
+            icon: Icons.emergency_outlined,
+            selected: _services.contains(
+              DoctorWorkspaceService.urgentCabinetConsultations,
+            ),
+            onTap: _toggleUrgentCabinetActivity,
+          ),
+        ),
+      ],
     );
   }
 
@@ -388,6 +409,15 @@ class _DoctorOnboardingScreenState extends State<DoctorOnboardingScreen> {
             value: clinics.map((clinic) => clinic.name).join(' · '),
           ),
         ],
+        if (_services.contains(
+          DoctorWorkspaceService.urgentCabinetConsultations,
+        )) ...[
+          const SizedBox(height: OmniSpacing.md),
+          const _ReviewCard(
+            title: 'Urgences au cabinet',
+            value: 'Service configuré localement',
+          ),
+        ],
         if (_hasHomeActivity) ...[
           const SizedBox(height: OmniSpacing.md),
           _ReviewCard(
@@ -457,36 +487,57 @@ class _DoctorOnboardingScreenState extends State<DoctorOnboardingScreen> {
 
   void _togglePracticeMode(DoctorPracticeMode mode) {
     setState(() {
-      _practiceModes.contains(mode)
-          ? _practiceModes.remove(mode)
-          : _practiceModes.add(mode);
-      _services
-        ..clear()
-        ..addAll(_availableServices);
+      if (_practiceModes.remove(mode)) {
+        _services.removeAll(_defaultServicesForMode(mode));
+        if (mode == DoctorPracticeMode.cabinet) {
+          _services.remove(DoctorWorkspaceService.urgentCabinetConsultations);
+        }
+      } else {
+        _practiceModes.add(mode);
+        _services.addAll(_defaultServicesForMode(mode));
+      }
       _validationMessage = null;
     });
   }
 
+  void _toggleUrgentCabinetActivity() {
+    setState(() {
+      const urgentCabinet = DoctorWorkspaceService.urgentCabinetConsultations;
+      if (_services.remove(urgentCabinet)) {
+        _validationMessage = null;
+        return;
+      }
+
+      if (_practiceModes.add(DoctorPracticeMode.cabinet)) {
+        _services.addAll(_defaultServicesForMode(DoctorPracticeMode.cabinet));
+      }
+      _services.add(urgentCabinet);
+      _validationMessage = null;
+    });
+  }
+
+  Set<DoctorWorkspaceService> _defaultServicesForMode(
+    DoctorPracticeMode mode,
+  ) => switch (mode) {
+    DoctorPracticeMode.cabinet => {
+      DoctorWorkspaceService.cabinetConsultations,
+      DoctorWorkspaceService.patientFollowUp,
+      DoctorWorkspaceService.appointments,
+    },
+    DoctorPracticeMode.clinic => {DoctorWorkspaceService.clinicWorkspace},
+    DoctorPracticeMode.homeVisit => {DoctorWorkspaceService.homeVisits},
+    DoctorPracticeMode.urgentHome => {DoctorWorkspaceService.urgentHomeVisits},
+    DoctorPracticeMode.teleconsultation => {
+      DoctorWorkspaceService.teleconsultationPreparation,
+    },
+  };
+
   List<DoctorWorkspaceService> get _availableServices {
     final services = <DoctorWorkspaceService>[];
-    if (_practiceModes.contains(DoctorPracticeMode.cabinet)) {
-      services.addAll([
-        DoctorWorkspaceService.cabinetConsultations,
-        DoctorWorkspaceService.patientFollowUp,
-        DoctorWorkspaceService.appointments,
-      ]);
-    }
-    if (_practiceModes.contains(DoctorPracticeMode.homeVisit)) {
-      services.add(DoctorWorkspaceService.homeVisits);
-    }
-    if (_practiceModes.contains(DoctorPracticeMode.urgentHome)) {
-      services.add(DoctorWorkspaceService.urgentHomeVisits);
-    }
-    if (_practiceModes.contains(DoctorPracticeMode.clinic)) {
-      services.add(DoctorWorkspaceService.clinicWorkspace);
-    }
-    if (_practiceModes.contains(DoctorPracticeMode.teleconsultation)) {
-      services.add(DoctorWorkspaceService.teleconsultationPreparation);
+    for (final mode in _onboardingPracticeModes) {
+      if (_practiceModes.contains(mode)) {
+        services.addAll(_defaultServicesForMode(mode));
+      }
     }
     return services;
   }

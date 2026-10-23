@@ -37,6 +37,7 @@ class InboxNotification {
     required this.deepLinkPayload,
     required this.isRead,
     required this.createdAt,
+    this.expiresAt,
   });
 
   final String id;
@@ -52,6 +53,10 @@ class InboxNotification {
   final Map<String, dynamic> deepLinkPayload;
   final bool isRead;
   final DateTime createdAt;
+  final DateTime? expiresAt;
+
+  bool get isExpired =>
+      expiresAt != null && !expiresAt!.isAfter(DateTime.now().toUtc());
 
   InboxNotification copyWith({bool? isRead}) => InboxNotification(
     id: id,
@@ -67,6 +72,7 @@ class InboxNotification {
     deepLinkPayload: deepLinkPayload,
     isRead: isRead ?? this.isRead,
     createdAt: createdAt,
+    expiresAt: expiresAt,
   );
 
   static InboxNotification fromJson(Map<String, dynamic> json) {
@@ -92,6 +98,7 @@ class InboxNotification {
         'Invalid notification deep-link payload.',
       );
     }
+    final expiresAt = _optionalInstant(json['expiresAt'], 'expiresAt');
     return InboxNotification(
       id: id.toLowerCase(),
       type: type,
@@ -108,6 +115,7 @@ class InboxNotification {
       ),
       isRead: read,
       createdAt: createdAt.toUtc(),
+      expiresAt: expiresAt,
     );
   }
 
@@ -225,3 +233,15 @@ String _requiredString(Map<String, dynamic> json, String key) {
 
 String? _optionalString(Object? value) =>
     value is String && value.trim().isNotEmpty ? value.trim() : null;
+
+DateTime? _optionalInstant(Object? value, String field) {
+  if (value == null) return null;
+  if (value is! String || !_hasInstantZone(value)) {
+    throw NotificationContractException('Invalid $field instant.');
+  }
+  final parsed = DateTime.tryParse(value);
+  if (parsed == null) {
+    throw NotificationContractException('Invalid $field instant.');
+  }
+  return parsed.toUtc();
+}

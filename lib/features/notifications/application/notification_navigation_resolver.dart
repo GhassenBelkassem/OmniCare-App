@@ -1,7 +1,11 @@
 import '../../auth/application/auth_role_family.dart';
 import '../domain/notification_models.dart';
 
-enum NotificationNavigationResource { bookingRequest, appointment }
+enum NotificationNavigationResource {
+  bookingRequest,
+  appointment,
+  urgentCabinetRequest,
+}
 
 enum NotificationNavigationStatus { target, noDestination, unavailable }
 
@@ -42,6 +46,13 @@ class NotificationNavigationResolver {
   ) {
     final rule = _rules[notification.type];
     if (rule == null) return NotificationNavigationResolution.noDestination;
+    // A targeted CABINET alert may outlive its five-minute decision window.
+    // Its UUID remains only a lookup reference: the Doctor detail endpoint
+    // reconciles and returns the authoritative terminal state with no actions.
+    if (notification.isExpired &&
+        notification.type != 'URGENT_CABINET_REQUEST_TARGETED') {
+      return NotificationNavigationResolution.unavailable;
+    }
     if (rule.role != role) {
       return NotificationNavigationResolution.noDestination;
     }
@@ -110,6 +121,36 @@ class NotificationNavigationResolver {
       role: AuthRoleFamily.patient,
       resource: NotificationNavigationResource.appointment,
       idKey: 'appointment_id',
+    ),
+    'URGENT_CABINET_REQUEST_TARGETED': _NotificationNavigationRule(
+      role: AuthRoleFamily.doctor,
+      resource: NotificationNavigationResource.urgentCabinetRequest,
+      idKey: 'request_id',
+    ),
+    'URGENT_CABINET_REQUEST_ACCEPTED': _NotificationNavigationRule(
+      role: AuthRoleFamily.patient,
+      resource: NotificationNavigationResource.urgentCabinetRequest,
+      idKey: 'request_id',
+    ),
+    'URGENT_CABINET_REQUEST_DECLINED': _NotificationNavigationRule(
+      role: AuthRoleFamily.patient,
+      resource: NotificationNavigationResource.urgentCabinetRequest,
+      idKey: 'request_id',
+    ),
+    'URGENT_CABINET_REQUEST_EXPIRED': _NotificationNavigationRule(
+      role: AuthRoleFamily.patient,
+      resource: NotificationNavigationResource.urgentCabinetRequest,
+      idKey: 'request_id',
+    ),
+    'URGENT_CABINET_REQUEST_CANCELLED': _NotificationNavigationRule(
+      role: AuthRoleFamily.patient,
+      resource: NotificationNavigationResource.urgentCabinetRequest,
+      idKey: 'request_id',
+    ),
+    'URGENT_CABINET_COMMITMENT_WITHDRAWN': _NotificationNavigationRule(
+      role: AuthRoleFamily.patient,
+      resource: NotificationNavigationResource.urgentCabinetRequest,
+      idKey: 'request_id',
     ),
   };
 }

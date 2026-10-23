@@ -38,6 +38,7 @@ class PassportMedication {
 
 @immutable
 class PassportConsultation {
+  final String? consultationId;
   final String date;
   final String doctor;
   final String doctorType;
@@ -47,8 +48,13 @@ class PassportConsultation {
   final List<PassportConsultationMedication> medications;
   final PassportConsultationStatus status;
   final bool isShareable;
+  final int? sharingVersion;
+  final String? assessment;
+  final List<String> treatmentPlan;
+  final String? notes;
 
   const PassportConsultation({
+    this.consultationId,
     required this.date,
     required this.doctor,
     required this.doctorType,
@@ -58,7 +64,31 @@ class PassportConsultation {
     this.medications = const [],
     required this.status,
     required this.isShareable,
+    this.sharingVersion,
+    this.assessment,
+    this.treatmentPlan = const [],
+    this.notes,
   });
+
+  PassportConsultation copyWithSharing({
+    required bool isShareable,
+    required int sharingVersion,
+  }) => PassportConsultation(
+    consultationId: consultationId,
+    date: date,
+    doctor: doctor,
+    doctorType: doctorType,
+    reason: reason,
+    specialty: specialty,
+    diagnosis: diagnosis,
+    medications: medications,
+    status: status,
+    isShareable: isShareable,
+    sharingVersion: sharingVersion,
+    assessment: assessment,
+    treatmentPlan: treatmentPlan,
+    notes: notes,
+  );
 }
 
 @immutable
@@ -66,11 +96,15 @@ class PassportFamilyMember {
   final String name;
   final String relationship;
   final String avatarAsset;
+  final String? familyMemberId;
+  final bool isSelf;
 
   const PassportFamilyMember({
     required this.name,
     required this.relationship,
     required this.avatarAsset,
+    this.familyMemberId,
+    this.isSelf = false,
   });
 }
 

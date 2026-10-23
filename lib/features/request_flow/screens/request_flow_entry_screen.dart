@@ -21,9 +21,12 @@ class _RequestFlowEntryScreenState extends State<RequestFlowEntryScreen> {
   @override
   void initState() {
     super.initState();
-    // Synchronous part of beginNewRequest mints the operation id; the async
-    // store clear may complete a moment later and is harmless.
-    context.read<RequestSubmissionController>().beginNewRequest();
+    // The controller notifies synchronously, so begin only after the first
+    // frame instead of notifying Provider dependants while this route builds.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<RequestSubmissionController>().beginNewRequest();
+    });
   }
 
   @override

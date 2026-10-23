@@ -71,9 +71,15 @@ void main() {
           DoctorCapability.cabinetAppointments,
           DoctorCapability.homeVisits,
           DoctorCapability.urgentRequests,
+          DoctorCapability.urgentHomeRequests,
+          DoctorCapability.urgentWorkspace,
           DoctorCapability.workQueue,
           DoctorCapability.followUp,
         }),
+      );
+      expect(
+        capabilities,
+        isNot(contains(DoctorCapability.urgentCabinetRequests)),
       );
       expect(capabilities, isNot(contains(DoctorCapability.clinicWorkspace)));
     },
@@ -114,4 +120,98 @@ void main() {
       expect(backend.values, isEmpty);
     },
   );
+
+  test('schema-v1 workspaces keep urgent CABINET disabled by default', () {
+    final homeJson = _config('doctor-home').toJson()
+      ..['practiceModes'] = ['urgentHome']
+      ..['services'] = ['urgentHomeVisits']
+      ..['cabinet'] = null;
+    final cabinetJson = _config('doctor-cabinet').toJson()
+      ..['practiceModes'] = ['cabinet']
+      ..['services'] = ['cabinetConsultations'];
+    final hybridJson = _config('doctor-hybrid').toJson()
+      ..['practiceModes'] = ['cabinet', 'urgentHome']
+      ..['services'] = ['cabinetConsultations', 'urgentHomeVisits'];
+
+    final home = DoctorWorkspaceConfig.fromJson(homeJson);
+    final cabinet = DoctorWorkspaceConfig.fromJson(cabinetJson);
+    final hybrid = DoctorWorkspaceConfig.fromJson(hybridJson);
+
+    expect(
+      deriveDoctorCapabilities(home),
+      containsAll({
+        DoctorCapability.urgentRequests,
+        DoctorCapability.urgentHomeRequests,
+        DoctorCapability.urgentWorkspace,
+      }),
+    );
+    expect(
+      deriveDoctorCapabilities(cabinet),
+      isNot(contains(DoctorCapability.urgentWorkspace)),
+    );
+    expect(
+      deriveDoctorCapabilities(hybrid),
+      isNot(contains(DoctorCapability.urgentCabinetRequests)),
+    );
+  });
+
+  test(
+    'urgent CABINET service round-trips independently of normal cabinet',
+    () {
+      final original = _config('doctor-cabinet');
+      final urgentCabinet = DoctorWorkspaceConfig(
+        doctorId: original.doctorId,
+        onboardingCompleted: original.onboardingCompleted,
+        practiceModes: const {DoctorPracticeMode.cabinet},
+        services: {
+          DoctorWorkspaceService.cabinetConsultations,
+          DoctorWorkspaceService.urgentCabinetConsultations,
+        },
+        cabinet: original.cabinet,
+        clinics: original.clinics,
+        homeVisit: null,
+        availability: original.availability,
+      );
+
+      final decoded = DoctorWorkspaceConfig.fromJson(urgentCabinet.toJson());
+      final capabilities = deriveDoctorCapabilities(decoded);
+
+      expect(
+        decoded.services,
+        contains(DoctorWorkspaceService.urgentCabinetConsultations),
+      );
+      expect(capabilities, contains(DoctorCapability.urgentCabinetRequests));
+      expect(capabilities, contains(DoctorCapability.urgentWorkspace));
+      expect(capabilities, isNot(contains(DoctorCapability.urgentRequests)));
+      expect(
+        capabilities,
+        isNot(contains(DoctorCapability.urgentHomeRequests)),
+      );
+    },
+  );
+
+  test('legacy teleconsultation selections still round-trip', () {
+    final original = _config('doctor-teleconsultation');
+    final legacyTeleconsultation = DoctorWorkspaceConfig(
+      doctorId: original.doctorId,
+      onboardingCompleted: original.onboardingCompleted,
+      practiceModes: const {DoctorPracticeMode.teleconsultation},
+      services: const {DoctorWorkspaceService.teleconsultationPreparation},
+      clinics: const [],
+      availability: original.availability,
+    );
+
+    final decoded = DoctorWorkspaceConfig.fromJson(
+      legacyTeleconsultation.toJson(),
+    );
+
+    expect(
+      decoded.practiceModes,
+      contains(DoctorPracticeMode.teleconsultation),
+    );
+    expect(
+      decoded.services,
+      contains(DoctorWorkspaceService.teleconsultationPreparation),
+    );
+  });
 }

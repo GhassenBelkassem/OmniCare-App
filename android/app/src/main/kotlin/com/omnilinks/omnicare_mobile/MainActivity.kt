@@ -14,6 +14,7 @@ import com.google.android.libraries.places.api.net.PlacesClient
 class MainActivity : FlutterFragmentActivity() {
     private companion object {
         const val CHANNEL = "omnicare/emergency_places"
+        const val MAPS_CONFIGURATION_CHANNEL = "omnicare/maps_configuration"
         const val API_KEY_META_DATA = "com.google.android.geo.API_KEY"
     }
 
@@ -39,6 +40,19 @@ class MainActivity : FlutterFragmentActivity() {
                         sessionToken = null
                         result.success(null)
                     }
+
+                    else -> result.notImplemented()
+                }
+            }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, MAPS_CONFIGURATION_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "status" -> result.success(
+                        mapOf(
+                            "configured" to isConfiguredGoogleMapsKey(readMapsApiKey()),
+                            "platform" to "android",
+                        ),
+                    )
 
                     else -> result.notImplemented()
                 }
@@ -131,11 +145,22 @@ class MainActivity : FlutterFragmentActivity() {
 
     private fun getPlacesClient(): PlacesClient {
         placesClient?.let { return it }
-        val apiKey = applicationInfo.metaData?.getString(API_KEY_META_DATA)
-            ?.takeUnless { it.isBlank() || it.startsWith("$(") }
+        val apiKey = readMapsApiKey()
+            ?.takeIf(::isConfiguredGoogleMapsKey)
             ?: throw IllegalStateException("Maps API key is unavailable")
         Places.initializeWithNewPlacesApiEnabled(applicationContext, apiKey)
         return Places.createClient(this).also { placesClient = it }
+    }
+
+    private fun readMapsApiKey(): String? =
+        applicationInfo.metaData?.getString(API_KEY_META_DATA)
+
+    private fun isConfiguredGoogleMapsKey(value: String?): Boolean {
+        val normalized = value?.trim().orEmpty()
+        return normalized.startsWith("AIza") &&
+            normalized.length >= 30 &&
+            !normalized.contains("$(") &&
+            !normalized.contains('%')
     }
 
     private fun discardSession() {

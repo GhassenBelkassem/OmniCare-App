@@ -8,8 +8,9 @@ import 'package:omnicare_mobile/features/doctor/workspace/doctor_workspace_confi
 
 DoctorWorkspaceConfig _workspace(
   String doctorId,
-  Set<DoctorPracticeMode> modes,
-) {
+  Set<DoctorPracticeMode> modes, {
+  Set<DoctorWorkspaceService> services = const {},
+}) {
   final hasCabinet = modes.contains(DoctorPracticeMode.cabinet);
   final hasHome =
       modes.contains(DoctorPracticeMode.homeVisit) ||
@@ -18,7 +19,7 @@ DoctorWorkspaceConfig _workspace(
     doctorId: doctorId,
     onboardingCompleted: true,
     practiceModes: modes,
-    services: <DoctorWorkspaceService>{},
+    services: services,
     cabinet: hasCabinet
         ? const DoctorCabinetConfig(
             name: 'Cabinet de démonstration',
@@ -69,6 +70,11 @@ void main() {
       DoctorPracticeMode.urgentHome,
     });
     final clinic = _workspace('doctor-d', {DoctorPracticeMode.clinic});
+    final urgentCabinet = _workspace(
+      'doctor-e',
+      {DoctorPracticeMode.cabinet},
+      services: {DoctorWorkspaceService.urgentCabinetConsultations},
+    );
 
     expect(_labels(cabinet), ['Accueil', 'Agenda', 'Patients', 'Profil']);
     expect(_labels(homeUrgent), ['Accueil', 'Urgences', 'Patients', 'Profil']);
@@ -80,12 +86,26 @@ void main() {
       'Profil',
     ]);
     expect(_labels(clinic), ['Accueil', 'Profil']);
+    expect(_labels(urgentCabinet), [
+      'Accueil',
+      'Agenda',
+      'Urgences',
+      'Patients',
+      'Profil',
+    ]);
     expect(
       canAccessDoctorFeature(
         deriveDoctorCapabilities(cabinet),
         DoctorCapability.urgentRequests,
       ),
       isFalse,
+    );
+    expect(
+      canAccessDoctorFeature(
+        deriveDoctorCapabilities(urgentCabinet),
+        DoctorCapability.urgentCabinetRequests,
+      ),
+      isTrue,
     );
   });
 

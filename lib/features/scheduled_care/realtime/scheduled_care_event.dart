@@ -8,10 +8,13 @@ enum ScheduledCareEventType {
   bookingRequestExpired,
   appointmentCreated,
   appointmentCancelled,
+  consultationActivated,
+  consultationUpdated,
+  clinicalAccessChanged,
   unknown,
 }
 
-enum ScheduledCareResourceType { bookingRequest, appointment }
+enum ScheduledCareResourceType { bookingRequest, appointment, consultation }
 
 class ScheduledCareInvalidationEvent {
   const ScheduledCareInvalidationEvent({
@@ -66,6 +69,7 @@ class ScheduledCareInvalidationEvent {
       final resourceType = switch (rawResource) {
         'BOOKING_REQUEST' => ScheduledCareResourceType.bookingRequest,
         'APPOINTMENT' => ScheduledCareResourceType.appointment,
+        'CONSULTATION' => ScheduledCareResourceType.consultation,
         _ => null,
       };
       if (resourceType == null) return null;
@@ -94,6 +98,9 @@ class ScheduledCareInvalidationEvent {
     'BOOKING_REQUEST_EXPIRED' => ScheduledCareEventType.bookingRequestExpired,
     'APPOINTMENT_CREATED' => ScheduledCareEventType.appointmentCreated,
     'APPOINTMENT_CANCELLED' => ScheduledCareEventType.appointmentCancelled,
+    'CONSULTATION_ACTIVATED' => ScheduledCareEventType.consultationActivated,
+    'CONSULTATION_UPDATED' => ScheduledCareEventType.consultationUpdated,
+    'CLINICAL_ACCESS_CHANGED' => ScheduledCareEventType.clinicalAccessChanged,
     _ => ScheduledCareEventType.unknown,
   };
 }

@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 
@@ -134,8 +133,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _signInWithGoogle() async {
     if (kIsWeb) return;
     try {
-      final account = await GoogleSignIn(scopes: const ['email']).signIn();
-      final token = (await account?.authentication)?.idToken;
+      final token = await context.read<AuthController>().requestGoogleIdToken();
       if (token == null || token.isEmpty) {
         throw StateError('No Google ID token');
       }

@@ -21,15 +21,38 @@ class AuthRefreshCoordinator {
 
   Future<StoredSession?>? _refreshInFlight;
   Future<void>? _invalidationInFlight;
+  Future<void>? _sessionEndInFlight;
+  bool _sessionEndStarted = false;
+  int _sessionGeneration = 0;
 
   Future<StoredSession?> refreshSession() {
+    if (_sessionEndStarted) return Future<StoredSession?>.value();
     final current = _refreshInFlight;
     if (current != null) return current;
 
-    final started = _performRefresh();
+    final started = _performRefresh(_sessionGeneration);
     _refreshInFlight = started;
     return started.whenComplete(() {
       _refreshInFlight = null;
+    });
+  }
+
+  /// Fences any refresh already in progress, waits for it to drain, and then
+  /// clears local credentials. New login sessions may start after completion.
+  Future<void> endSession() {
+    final current = _sessionEndInFlight;
+    if (current != null) return current;
+
+    _sessionEndStarted = true;
+    _sessionGeneration += 1;
+    final refreshToDrain = _refreshInFlight;
+    final started = _drainRefreshAndClear(refreshToDrain);
+    _sessionEndInFlight = started;
+    return started.whenComplete(() {
+      if (identical(_sessionEndInFlight, started)) {
+        _sessionEndInFlight = null;
+        _sessionEndStarted = false;
+      }
     });
   }
 
@@ -44,7 +67,7 @@ class AuthRefreshCoordinator {
     });
   }
 
-  Future<StoredSession?> _performRefresh() async {
+  Future<StoredSession?> _performRefresh(int generation) async {
     final existing = await _tokenStore.readSession();
     if (existing == null ||
         !existing.refreshTokenExpiresAt.toUtc().isAfter(
@@ -89,7 +112,9 @@ class AuthRefreshCoordinator {
         userRole: userRole,
         sessionId: existing.sessionId,
       );
+      if (_sessionEndStarted || generation != _sessionGeneration) return null;
       await _tokenStore.saveSession(refreshed);
+      if (_sessionEndStarted || generation != _sessionGeneration) return null;
       await onSessionRefreshed?.call(refreshed);
       return refreshed;
     } catch (_) {
@@ -98,7 +123,21 @@ class AuthRefreshCoordinator {
     }
   }
 
+  Future<void> _drainRefreshAndClear(
+    Future<StoredSession?>? refreshToDrain,
+  ) async {
+    if (refreshToDrain != null) {
+      try {
+        await refreshToDrain;
+      } catch (_) {
+        // Logout still owns local clearing when an in-flight refresh fails.
+      }
+    }
+    await _tokenStore.clearSession();
+  }
+
   Future<void> _clearAndNotify() async {
+    _sessionGeneration += 1;
     await _tokenStore.clearSession();
     await _onSessionInvalidated?.call();
   }

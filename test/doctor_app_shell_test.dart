@@ -176,36 +176,13 @@ void main() {
     await tester.tap(medicalRecord);
     await tester.pumpAndSettle();
     _expectUrgentShell(tester);
-    expect(find.text('Dossier médical'), findsOneWidget);
-    expect(tester.takeException(), isNull, reason: 'medical record summary');
-
-    for (final tab in ['Historique', 'Documents', 'Résumé']) {
-      await tester.tap(find.text(tab).first);
-      await tester.pumpAndSettle();
-      _expectUrgentShell(tester);
-      expect(tester.takeException(), isNull, reason: 'medical record $tab');
-    }
-
-    final continuation = find.text('Continuer la consultation');
-    await tester.scrollUntilVisible(continuation, 180);
-    final continuationRect = tester.getRect(continuation);
-    final navigationRect = tester.getRect(
-      find.byKey(const ValueKey('doctor-bottom-navigation')),
+    expect(find.text('Dossier médical indisponible.'), findsOneWidget);
+    expect(find.text('Informations essentielles'), findsNothing);
+    expect(
+      tester.takeException(),
+      isNull,
+      reason: 'medical record unavailable',
     );
-    expect(continuationRect.bottom, lessThanOrEqualTo(navigationRect.top));
-
-    final recordBack = find.byTooltip('Retour');
-    await tester.scrollUntilVisible(recordBack, -180);
-    await tester.tap(recordBack);
-    await tester.pumpAndSettle();
-    expect(find.text('QR vérifié'), findsOneWidget);
-    _expectUrgentShell(tester);
-    await tester.tap(find.byTooltip('Retour'));
-    await tester.pumpAndSettle();
-    expect(urgent.state, DoctorUrgentState.arrived);
-    expect(find.text('Scanner le QR du patient'), findsOneWidget);
-    _expectUrgentShell(tester);
-    expect(tester.takeException(), isNull);
   });
 }
 

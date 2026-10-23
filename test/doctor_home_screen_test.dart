@@ -7,7 +7,10 @@ import 'package:omnicare_mobile/features/doctor/home/doctor_home_screen.dart';
 import 'package:omnicare_mobile/features/doctor/shell/doctor_app_shell.dart';
 import 'package:omnicare_mobile/features/doctor/workspace/doctor_workspace_config.dart';
 
-DoctorWorkspaceConfig _workspace(Set<DoctorPracticeMode> modes) {
+DoctorWorkspaceConfig _workspace(
+  Set<DoctorPracticeMode> modes, {
+  Set<DoctorWorkspaceService> services = const {},
+}) {
   final hasCabinet = modes.contains(DoctorPracticeMode.cabinet);
   final hasHome =
       modes.contains(DoctorPracticeMode.homeVisit) ||
@@ -16,7 +19,7 @@ DoctorWorkspaceConfig _workspace(Set<DoctorPracticeMode> modes) {
     doctorId: 'doctor-home-test',
     onboardingCompleted: true,
     practiceModes: modes,
-    services: const {},
+    services: services,
     cabinet: hasCabinet
         ? const DoctorCabinetConfig(
             name: 'Cabinet Lac 2',
@@ -135,6 +138,28 @@ void main() {
     );
     expect(find.text('Prochain rendez-vous'), findsNothing);
     expect(find.text('Urgences à domicile'), findsNWidgets(2));
+  });
+
+  testWidgets('activity chips include all three configured V1 capabilities', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _home(
+        _workspace(
+          {DoctorPracticeMode.cabinet, DoctorPracticeMode.urgentHome},
+          services: const {
+            DoctorWorkspaceService.cabinetConsultations,
+            DoctorWorkspaceService.urgentHomeVisits,
+            DoctorWorkspaceService.urgentCabinetConsultations,
+          },
+        ),
+      ),
+    );
+
+    await tester.ensureVisible(find.text('Votre activité'));
+    expect(find.text('Cabinet'), findsOneWidget);
+    expect(find.text('Urgences à domicile'), findsNWidgets(2));
+    expect(find.text('Urgences au cabinet'), findsOneWidget);
   });
 
   testWidgets('Home actions select the existing agenda and urgent shell tabs', (

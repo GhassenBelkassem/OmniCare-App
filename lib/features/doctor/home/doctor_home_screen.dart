@@ -919,7 +919,15 @@ class _ActivitySummary extends StatelessWidget {
   final DoctorWorkspaceConfig config;
 
   @override
-  Widget build(BuildContext context) => Column(
+  Widget build(BuildContext context) {
+    final labels = <String>{
+      ...config.practiceModes.map((mode) => mode.label),
+      if (config.services.contains(
+        DoctorWorkspaceService.urgentCabinetConsultations,
+      ))
+        'Urgences au cabinet',
+    };
+    return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       const _SectionHeader(title: 'Votre activité'),
@@ -927,10 +935,10 @@ class _ActivitySummary extends StatelessWidget {
       Wrap(
         spacing: OmniSpacing.sm,
         runSpacing: OmniSpacing.sm,
-        children: config.practiceModes
+        children: labels
             .map(
-              (mode) => Chip(
-                label: Text(mode.label),
+              (label) => Chip(
+                label: Text(label),
                 visualDensity: VisualDensity.compact,
               ),
             )
@@ -938,6 +946,7 @@ class _ActivitySummary extends StatelessWidget {
       ),
     ],
   );
+  }
 }
 
 class _IconCircle extends StatelessWidget {

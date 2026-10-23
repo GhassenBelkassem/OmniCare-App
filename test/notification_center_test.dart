@@ -20,6 +20,7 @@ import 'package:omnicare_mobile/features/notifications/domain/notification_model
 import 'package:omnicare_mobile/features/notifications/notifications_screen.dart';
 import 'package:omnicare_mobile/features/notifications/presentation/notification_badge.dart';
 import 'package:omnicare_mobile/features/notifications/realtime/notification_realtime_coordinator.dart';
+import 'package:omnicare_mobile/services/notification_service.dart';
 
 const _notificationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const _secondNotificationId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -27,6 +28,22 @@ const _requestId = '11111111-1111-4111-8111-111111111111';
 const _appointmentId = '22222222-2222-4222-8222-222222222222';
 
 void main() {
+  test(
+    'urgent notification payload emits only a validated request intent',
+    () async {
+      final service = NotificationService();
+      final opened = service.urgentCabinetOpens.first;
+
+      service.openPayload({
+        'destination': 'URGENT_CABINET_REQUEST',
+        'request_id': _requestId,
+        'outcome': 'ACCEPTED',
+      });
+
+      expect((await opened).requestId, _requestId);
+    },
+  );
+
   group('notification DTO and query contract', () {
     test('parses exact fields, category, priority, and Instant', () {
       final value = InboxNotification.fromJson(_item());
@@ -372,6 +389,70 @@ void main() {
       expect(controller.items, isEmpty);
       expect(controller.unreadCount, 0);
     });
+
+    test(
+      'late list metadata cannot overwrite a newer unread authority',
+      () async {
+        final pageGate = Completer<NotificationPage>();
+        final repository = _FakeRepository()
+          ..counts.addAll([4, 1])
+          ..pageCompleters.add(pageGate);
+        final controller = NotificationCenterController(repository: repository);
+        await controller.startSession('doctor-a::DOCTOR');
+
+        final lateLoad = controller.load();
+        await controller.refreshUnreadCount();
+        expect(controller.unreadCount, 1);
+
+        pageGate.complete(
+          _notificationPage(items: [_notification()], unreadCount: 4),
+        );
+        await lateLoad;
+        expect(controller.unreadCount, 1);
+      },
+    );
+
+    test('pagination never changes the global unread badge', () async {
+      final repository = _FakeRepository()
+        ..pages.add(
+          _notificationPage(
+            items: [_notification()],
+            unreadCount: 4,
+            totalElements: 2,
+          ),
+        )
+        ..counts.add(1)
+        ..pages.add(
+          _notificationPage(
+            items: [_notification(id: _secondNotificationId)],
+            page: 1,
+            unreadCount: 99,
+            totalElements: 2,
+          ),
+        );
+      final controller = NotificationCenterController(repository: repository);
+      await controller.load();
+      await controller.startSession('doctor-a::DOCTOR');
+      await controller.loadMore();
+      expect(controller.unreadCount, 1);
+    });
+
+    test(
+      'unread endpoint failure preserves the last trustworthy count',
+      () async {
+        final countGate = Completer<int>();
+        final repository = _FakeRepository()..counts.add(4);
+        final controller = NotificationCenterController(repository: repository);
+        await controller.startSession('doctor-a::DOCTOR');
+        repository.countCompleters.add(countGate);
+        final failedRefresh = controller.refreshUnreadCount();
+        countGate.completeError(
+          const NotificationFailure(NotificationFailureKind.network, 'offline'),
+        );
+        await failedRefresh;
+        expect(controller.unreadCount, 4);
+      },
+    );
   });
 
   group('structured notification navigation', () {
@@ -462,6 +543,48 @@ void main() {
             'appointment_id',
             _appointmentId,
           ),
+          (
+            'URGENT_CABINET_REQUEST_TARGETED',
+            AuthRoleFamily.doctor,
+            NotificationNavigationResource.urgentCabinetRequest,
+            'request_id',
+            _requestId,
+          ),
+          (
+            'URGENT_CABINET_REQUEST_ACCEPTED',
+            AuthRoleFamily.patient,
+            NotificationNavigationResource.urgentCabinetRequest,
+            'request_id',
+            _requestId,
+          ),
+          (
+            'URGENT_CABINET_REQUEST_DECLINED',
+            AuthRoleFamily.patient,
+            NotificationNavigationResource.urgentCabinetRequest,
+            'request_id',
+            _requestId,
+          ),
+          (
+            'URGENT_CABINET_REQUEST_EXPIRED',
+            AuthRoleFamily.patient,
+            NotificationNavigationResource.urgentCabinetRequest,
+            'request_id',
+            _requestId,
+          ),
+          (
+            'URGENT_CABINET_REQUEST_CANCELLED',
+            AuthRoleFamily.patient,
+            NotificationNavigationResource.urgentCabinetRequest,
+            'request_id',
+            _requestId,
+          ),
+          (
+            'URGENT_CABINET_COMMITMENT_WITHDRAWN',
+            AuthRoleFamily.patient,
+            NotificationNavigationResource.urgentCabinetRequest,
+            'request_id',
+            _requestId,
+          ),
         ];
 
     for (final value in cases) {
@@ -523,6 +646,31 @@ void main() {
       );
       expect(result.status, NotificationNavigationStatus.noDestination);
     });
+
+    test('expired Doctor CABINET alert remains an authority lookup only', () {
+      final result = NotificationNavigationResolver.resolve(
+        _notification(
+          type: 'URGENT_CABINET_REQUEST_TARGETED',
+          payload: const {'request_id': _requestId},
+          expiresAt: DateTime.utc(2020),
+        ),
+        AuthRoleFamily.doctor,
+      );
+      expect(result.status, NotificationNavigationStatus.target);
+      expect(result.resourceId, _requestId);
+    });
+
+    test('other expired notification routes remain unavailable', () {
+      final result = NotificationNavigationResolver.resolve(
+        _notification(
+          type: 'DOCTOR_BOOKING_REQUEST_CREATED',
+          payload: const {'request_id': _requestId},
+          expiresAt: DateTime.utc(2020),
+        ),
+        AuthRoleFamily.doctor,
+      );
+      expect(result.status, NotificationNavigationStatus.unavailable);
+    });
   });
 
   group('notification realtime invalidation', () {
@@ -543,20 +691,26 @@ void main() {
     });
 
     test(
-      'event refreshes count but hidden inbox does not fetch list',
+      'event retrieves authenticated inbox item and emits one foreground alert',
       () async {
-        final repository = _FakeRepository()..counts.addAll([0, 1]);
+        final repository = _FakeRepository()
+          ..counts.addAll([0, 1])
+          ..pages.add(_notificationPage(items: [_notification()]));
         final controller = NotificationCenterController(repository: repository);
         await controller.startSession('patient-a::PATIENT');
         final transport = _FakeTransport();
+        final alerts = <InboxNotification>[];
         final coordinator = NotificationRealtimeCoordinator(
           transport: transport,
           controller: controller,
+          onForegroundNotification: (notification) async =>
+              alerts.add(notification),
         )..startSession();
         transport.emitNotification(_notificationEvent());
         await _pumpEvents();
         expect(controller.unreadCount, 1);
-        expect(repository.queries, isEmpty);
+        expect(repository.queries, hasLength(1));
+        expect(alerts.map((item) => item.id), [_notificationId]);
         await coordinator.dispose();
       },
     );
@@ -619,14 +773,22 @@ void main() {
       'repeated invalidations are bounded to one eventual count follow-up',
       () async {
         final gate = Completer<int>();
-        final repository = _FakeRepository()..counts.addAll([0, 2]);
+        final repository = _FakeRepository()
+          ..counts.addAll([0, 2])
+          ..pages.addAll([
+            _notificationPage(items: [_notification()]),
+            _notificationPage(items: [_notification()]),
+          ]);
         final controller = NotificationCenterController(repository: repository);
         await controller.startSession('patient-a::PATIENT');
         repository.countCompleters.add(gate);
         final transport = _FakeTransport();
+        final alerts = <InboxNotification>[];
         final coordinator = NotificationRealtimeCoordinator(
           transport: transport,
           controller: controller,
+          onForegroundNotification: (notification) async =>
+              alerts.add(notification),
         )..startSession();
 
         transport.emitNotification(_notificationEvent());
@@ -639,6 +801,7 @@ void main() {
 
         expect(repository.countCalls, 3);
         expect(controller.unreadCount, 2);
+        expect(alerts.map((item) => item.id), [_notificationId]);
         await coordinator.dispose();
       },
     );
@@ -726,6 +889,7 @@ Map<String, dynamic> _item({
   bool isRead = false,
   String titleFr = 'Rendez-vous confirmé',
   Map<String, dynamic>? payload,
+  DateTime? expiresAt,
 }) => {
   'id': id,
   'type': type,
@@ -739,6 +903,7 @@ Map<String, dynamic> _item({
       payload ?? {'appointment_id': _appointmentId, 'request_id': _requestId},
   'read': isRead,
   'createdAt': '2026-10-12T10:30:00Z',
+  if (expiresAt != null) 'expiresAt': expiresAt.toUtc().toIso8601String(),
 };
 
 Map<String, dynamic> _page({
@@ -760,8 +925,16 @@ InboxNotification _notification({
   bool isRead = false,
   String titleFr = 'Rendez-vous confirmé',
   Map<String, dynamic>? payload,
+  DateTime? expiresAt,
 }) => InboxNotification.fromJson(
-  _item(id: id, type: type, isRead: isRead, titleFr: titleFr, payload: payload),
+  _item(
+    id: id,
+    type: type,
+    isRead: isRead,
+    titleFr: titleFr,
+    payload: payload,
+    expiresAt: expiresAt,
+  ),
 );
 
 NotificationPage _notificationPage({

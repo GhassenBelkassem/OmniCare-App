@@ -16,6 +16,7 @@ enum DoctorPracticeMode {
 
 enum DoctorWorkspaceService {
   cabinetConsultations,
+  urgentCabinetConsultations,
   patientFollowUp,
   appointments,
   homeVisits,
@@ -25,6 +26,8 @@ enum DoctorWorkspaceService {
 
   String get label => switch (this) {
     DoctorWorkspaceService.cabinetConsultations => 'Consultations au cabinet',
+    DoctorWorkspaceService.urgentCabinetConsultations =>
+      'Consultations urgentes au cabinet',
     DoctorWorkspaceService.patientFollowUp => 'Suivi patient',
     DoctorWorkspaceService.appointments => 'Rendez-vous',
     DoctorWorkspaceService.homeVisits => 'Visites à domicile',
@@ -37,7 +40,12 @@ enum DoctorWorkspaceService {
 
 enum DoctorCapability {
   agenda,
+
+  /// Legacy HOME-urgent capability retained for existing HOME presentation.
   urgentRequests,
+  urgentHomeRequests,
+  urgentCabinetRequests,
+  urgentWorkspace,
   patientManagement,
   workQueue,
   followUp,
@@ -307,12 +315,25 @@ Set<DoctorCapability> deriveDoctorCapabilities(DoctorWorkspaceConfig config) {
       DoctorCapability.followUp,
     });
   }
-  if (modes.contains(DoctorPracticeMode.urgentHome) ||
-      services.contains(DoctorWorkspaceService.urgentHomeVisits)) {
+  final hasUrgentHome =
+      modes.contains(DoctorPracticeMode.urgentHome) ||
+      services.contains(DoctorWorkspaceService.urgentHomeVisits);
+  final hasUrgentCabinet = services.contains(
+    DoctorWorkspaceService.urgentCabinetConsultations,
+  );
+  if (hasUrgentHome) {
     capabilities.addAll({
       DoctorCapability.urgentRequests,
+      DoctorCapability.urgentHomeRequests,
+      DoctorCapability.urgentWorkspace,
       DoctorCapability.patientManagement,
       DoctorCapability.workQueue,
+    });
+  }
+  if (hasUrgentCabinet) {
+    capabilities.addAll({
+      DoctorCapability.urgentCabinetRequests,
+      DoctorCapability.urgentWorkspace,
     });
   }
   if (services.contains(DoctorWorkspaceService.patientFollowUp)) {

@@ -7,11 +7,14 @@ import 'passport_card.dart';
 class PassportHistoryTab extends StatefulWidget {
   final List<PassportConsultation> consultations;
   final VoidCallback onOpenFilters;
+  final Future<void> Function(PassportConsultation consultation)?
+  onToggleSharing;
 
   const PassportHistoryTab({
     super.key,
     required this.consultations,
     required this.onOpenFilters,
+    this.onToggleSharing,
   });
 
   @override
@@ -128,7 +131,16 @@ class _PassportHistoryTabState extends State<PassportHistoryTab> {
           ...visibleConsultations.map(
             (consultation) => Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: _ConsultationCard(consultation: consultation),
+              child: _ConsultationCard(
+                consultation: consultation,
+                onToggleSharing:
+                    consultation.status ==
+                            PassportConsultationStatus.completed &&
+                        consultation.consultationId != null &&
+                        consultation.sharingVersion != null
+                    ? () => widget.onToggleSharing?.call(consultation)
+                    : null,
+              ),
             ),
           ),
       ],
@@ -138,8 +150,12 @@ class _PassportHistoryTabState extends State<PassportHistoryTab> {
 
 class _ConsultationCard extends StatelessWidget {
   final PassportConsultation consultation;
+  final VoidCallback? onToggleSharing;
 
-  const _ConsultationCard({required this.consultation});
+  const _ConsultationCard({
+    required this.consultation,
+    required this.onToggleSharing,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -247,12 +263,18 @@ class _ConsultationCard extends StatelessWidget {
                 ),
               ),
             ),
-            child: Icon(
-              consultation.isShareable
-                  ? Icons.lock_open_outlined
-                  : Icons.lock_outline_rounded,
-              color: cancelled ? OmniColors.error : OmniColors.textTertiary,
-              size: 19,
+            child: IconButton(
+              tooltip: consultation.isShareable
+                  ? 'Rendre privée pour le partage normal'
+                  : 'Rendre éligible au partage autorisé',
+              onPressed: onToggleSharing,
+              icon: Icon(
+                consultation.isShareable
+                    ? Icons.lock_open_outlined
+                    : Icons.lock_outline_rounded,
+                color: cancelled ? OmniColors.error : OmniColors.textTertiary,
+                size: 19,
+              ),
             ),
           ),
         ],
