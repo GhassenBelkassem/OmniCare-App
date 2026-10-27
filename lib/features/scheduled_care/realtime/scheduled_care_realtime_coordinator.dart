@@ -165,6 +165,9 @@ class PatientScheduledCareRealtimeTarget
           operations.add(_appointment.invalidate());
         }
       case ScheduledCareResourceType.consultation:
+      case ScheduledCareResourceType.clinicalOrder:
+      case ScheduledCareResourceType.prescription:
+      case ScheduledCareResourceType.artifact:
         break;
     }
     await Future.wait(operations);
@@ -283,6 +286,9 @@ class DoctorScheduledCareRealtimeTarget implements ScheduledCareRealtimeTarget {
           operations.add(_appointment.invalidate());
         }
       case ScheduledCareResourceType.consultation:
+      case ScheduledCareResourceType.clinicalOrder:
+      case ScheduledCareResourceType.prescription:
+      case ScheduledCareResourceType.artifact:
         break;
     }
     await Future.wait(operations);

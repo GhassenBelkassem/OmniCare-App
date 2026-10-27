@@ -14,7 +14,14 @@ enum ScheduledCareEventType {
   unknown,
 }
 
-enum ScheduledCareResourceType { bookingRequest, appointment, consultation }
+enum ScheduledCareResourceType {
+  bookingRequest,
+  appointment,
+  consultation,
+  clinicalOrder,
+  prescription,
+  artifact,
+}
 
 class ScheduledCareInvalidationEvent {
   const ScheduledCareInvalidationEvent({
@@ -70,6 +77,9 @@ class ScheduledCareInvalidationEvent {
         'BOOKING_REQUEST' => ScheduledCareResourceType.bookingRequest,
         'APPOINTMENT' => ScheduledCareResourceType.appointment,
         'CONSULTATION' => ScheduledCareResourceType.consultation,
+        'CLINICAL_ORDER' => ScheduledCareResourceType.clinicalOrder,
+        'PRESCRIPTION' => ScheduledCareResourceType.prescription,
+        'ARTIFACT' => ScheduledCareResourceType.artifact,
         _ => null,
       };
       if (resourceType == null) return null;

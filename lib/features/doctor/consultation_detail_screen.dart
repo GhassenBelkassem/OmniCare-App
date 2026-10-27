@@ -4,6 +4,18 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/api/api_error_utils.dart';
 import '../../core/api/consultations_api.dart';
 import '../../core/models/consultation.dart';
+import 'clinical_record/clinical_authoring_card.dart';
+import 'clinical_record/clinical_record_api.dart';
+import 'clinical_record/clinical_record_controller.dart';
+import 'clinical_order/clinical_order_card.dart';
+import 'prescription/prescription_card.dart';
+import 'artifact/official_artifact_card.dart';
+import 'finish/consultation_finish_api.dart';
+import 'finish/consultation_finish_card.dart';
+import 'finish/consultation_finish_controller.dart';
+import '../scheduled_care/realtime/scheduled_care_realtime_coordinator.dart';
+import '../../core/network/app_http_client.dart';
+import 'package:provider/provider.dart';
 
 class ConsultationDetailScreen extends StatefulWidget {
   final Map<String, dynamic> consultation;
@@ -30,6 +42,14 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
 
   bool _isLoading = true;
   bool _isSaving = false;
+  ClinicalRecordController? _clinicalController;
+  ConsultationFinishController? _finishController;
+  ConsultationFinishRealtimeTarget? _finishTarget;
+  VoidCallback? _unregisterFinish;
+
+  bool get _isCanonical => RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+  ).hasMatch(widget.consultationId.trim());
 
   String _displayOrDash(String? v) {
     final t = (v ?? '').trim();
@@ -62,7 +82,40 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
       text: (widget.consultation['treatment'] ?? '').toString(),
     );
 
-    _load();
+    if (_isCanonical) {
+      _isLoading = false;
+    } else {
+      _load();
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_isCanonical || _finishController != null) return;
+    final http = context.read<AppHttpClient>();
+    final clinical = ClinicalRecordController(
+      consultationId: _consultationId,
+      api: ClinicalRecordApi(http),
+    );
+    final finish = ConsultationFinishController(
+      consultationId: _consultationId,
+      api: ConsultationFinishApi(http),
+      clinical: clinical,
+    )..addListener(_canonicalChanged);
+    _clinicalController = clinical;
+    _finishController = finish;
+    final realtime = context.read<ScheduledCareRealtimeCoordinator?>();
+    if (realtime != null) {
+      _finishTarget = ConsultationFinishRealtimeTarget(finish);
+      _unregisterFinish = realtime.registerTarget(_finishTarget!);
+    }
+    clinical.load();
+    finish.load();
+  }
+
+  void _canonicalChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _load() async {
@@ -176,6 +229,12 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
 
   @override
   void dispose() {
+    _unregisterFinish?.call();
+    _finishTarget?.dispose();
+    _finishController
+      ?..removeListener(_canonicalChanged)
+      ..dispose();
+    _clinicalController?.dispose();
     _diagnosisController.dispose();
     _treatmentController.dispose();
     super.dispose();
@@ -233,304 +292,331 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF1FBF9A), Color(0xFF0F6F73)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 50,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.person,
-                            color: Colors.white,
-                            size: 26,
-                          ),
+                  if (_isCanonical) ...[
+                    if (_clinicalController == null ||
+                        _finishController == null)
+                      const Center(child: CircularProgressIndicator())
+                    else ...[
+                      if ((_finishController!.consultation?.status ??
+                              'IN_PROGRESS') ==
+                          'IN_PROGRESS') ...[
+                        ClinicalAuthoringCard(
+                          consultationId: _consultationId,
+                          controller: _clinicalController,
                         ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                patientName,
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white,
+                        const SizedBox(height: 20),
+                        PrescriptionCard(consultationId: _consultationId),
+                        const SizedBox(height: 20),
+                        ClinicalOrderCard(consultationId: _consultationId),
+                        const SizedBox(height: 20),
+                        OfficialArtifactCard(consultationId: _consultationId),
+                        const SizedBox(height: 20),
+                      ],
+                      ConsultationFinishCard(controller: _finishController!),
+                    ],
+                  ] else ...[
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF1FBF9A), Color(0xFF0F6F73)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 50,
+                            height: 50,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.person,
+                              color: Colors.white,
+                              size: 26,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  patientName,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
                                 ),
-                              ),
-                              Text(
-                                [
-                                      if (patientAge != null)
-                                        '${patientAge.toString()}y',
-                                      if (patientGender != '--') patientGender,
-                                    ].join(' • ').trim().isEmpty
-                                    ? 'Patient'
-                                    : [
+                                Text(
+                                  [
                                         if (patientAge != null)
                                           '${patientAge.toString()}y',
                                         if (patientGender != '--')
                                           patientGender,
-                                      ].join(' • '),
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 14,
-                                  color: Colors.white.withOpacity(0.9),
-                                ),
-                              ),
-                              if (symptoms != null && symptoms.isNotEmpty) ...[
-                                const SizedBox(height: 10),
-                                Text(
-                                  'Symptoms: $symptoms',
-                                  maxLines: 3,
-                                  overflow: TextOverflow.ellipsis,
+                                      ].join(' • ').trim().isEmpty
+                                      ? 'Patient'
+                                      : [
+                                          if (patientAge != null)
+                                            '${patientAge.toString()}y',
+                                          if (patientGender != '--')
+                                            patientGender,
+                                        ].join(' • '),
                                   style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.white,
+                                    fontSize: 14,
+                                    color: Colors.white.withOpacity(0.9),
+                                  ),
+                                ),
+                                if (symptoms != null &&
+                                    symptoms.isNotEmpty) ...[
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    'Symptoms: $symptoms',
+                                    maxLines: 3,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ],
+                                const SizedBox(height: 6),
+                                Text(
+                                  [
+                                        (doctorName == null ||
+                                                doctorName.isEmpty)
+                                            ? 'Doctor'
+                                            : doctorName,
+                                        (doctorSpecialty == null ||
+                                                doctorSpecialty.isEmpty)
+                                            ? null
+                                            : doctorSpecialty,
+                                      ]
+                                      .whereType<String>()
+                                      .where((e) => e.trim().isNotEmpty)
+                                      .join(' • '),
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 12,
+                                    color: Colors.white.withOpacity(0.85),
                                   ),
                                 ),
                               ],
-                              const SizedBox(height: 6),
-                              Text(
-                                [
-                                      (doctorName == null || doctorName.isEmpty)
-                                          ? 'Doctor'
-                                          : doctorName,
-                                      (doctorSpecialty == null ||
-                                              doctorSpecialty.isEmpty)
-                                          ? null
-                                          : doctorSpecialty,
-                                    ]
-                                    .whereType<String>()
-                                    .where((e) => e.trim().isNotEmpty)
-                                    .join(' • '),
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 12,
-                                  color: Colors.white.withOpacity(0.85),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Patient',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF1D2939),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildSectionCard(
+                                  'Name',
+                                  Icons.person,
+                                  patientName,
+                                  const Color(0xFF0F6F73),
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Patient',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF1D2939),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildSectionCard(
-                                'Name',
-                                Icons.person,
-                                patientName,
-                                const Color(0xFF0F6F73),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildSectionCard(
-                                'Age',
-                                Icons.cake,
-                                (patientAge == null)
-                                    ? '--'
-                                    : patientAge.toString(),
-                                const Color(0xFF0F6F73),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _buildSectionCard(
-                                'Gender',
-                                Icons.wc,
-                                patientGender,
-                                const Color(0xFF0F6F73),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildSectionCard(
-                                'Height',
-                                Icons.height,
-                                _vitalText(height, unit: 'cm'),
-                                const Color(0xFF0F6F73),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _buildSectionCard(
-                                'Weight',
-                                Icons.monitor_weight_outlined,
-                                _vitalText(weight, unit: 'kg'),
-                                const Color(0xFF0F6F73),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Diagnosis',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF1D2939),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _diagnosisController,
-                          maxLines: 3,
-                          decoration: InputDecoration(
-                            hintText: 'Enter diagnosis',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Treatment',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF1D2939),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _treatmentController,
-                          maxLines: 4,
-                          decoration: InputDecoration(
-                            hintText: 'Enter treatment',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: _isSaving ? null : _saveDraft,
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: const Color(0xFF1FBF9A),
-                                  side: const BorderSide(
-                                    color: Color(0xFF1FBF9A),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 14,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildSectionCard(
+                                  'Age',
+                                  Icons.cake,
+                                  (patientAge == null)
+                                      ? '--'
+                                      : patientAge.toString(),
+                                  const Color(0xFF0F6F73),
                                 ),
-                                child: Text(
-                                  'Save',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontWeight: FontWeight.w700,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildSectionCard(
+                                  'Gender',
+                                  Icons.wc,
+                                  patientGender,
+                                  const Color(0xFF0F6F73),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildSectionCard(
+                                  'Height',
+                                  Icons.height,
+                                  _vitalText(height, unit: 'cm'),
+                                  const Color(0xFF0F6F73),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildSectionCard(
+                                  'Weight',
+                                  Icons.monitor_weight_outlined,
+                                  _vitalText(weight, unit: 'kg'),
+                                  const Color(0xFF0F6F73),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Diagnosis',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF1D2939),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: _diagnosisController,
+                            maxLines: 3,
+                            decoration: InputDecoration(
+                              hintText: 'Enter diagnosis',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Treatment',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF1D2939),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: _treatmentController,
+                            maxLines: 4,
+                            decoration: InputDecoration(
+                              hintText: 'Enter treatment',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton(
+                                  onPressed: _isSaving ? null : _saveDraft,
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: const Color(0xFF1FBF9A),
+                                    side: const BorderSide(
+                                      color: Color(0xFF1FBF9A),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 14,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    'Save',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: ElevatedButton(
-                                onPressed: _isSaving ? null : _complete,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF1FBF9A),
-                                  foregroundColor: Colors.white,
-                                  elevation: 0,
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 14,
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: _isSaving ? null : _complete,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF1FBF9A),
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 14,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
                                   ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                                child: Text(
-                                  'Complete',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontWeight: FontWeight.w700,
+                                  child: Text(
+                                    'Complete',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ],
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
 
-                  if (symptoms != null && symptoms.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    _buildSectionCard(
-                      'Symptoms',
-                      Icons.sick,
-                      symptoms,
-                      Colors.orange,
-                    ),
-                  ],
+                    if (symptoms != null && symptoms.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      _buildSectionCard(
+                        'Symptoms',
+                        Icons.sick,
+                        symptoms,
+                        Colors.orange,
+                      ),
+                    ],
 
-                  if (feeText != null) ...[
-                    const SizedBox(height: 16),
-                    _buildSectionCard(
-                      'Payment',
-                      Icons.payments_outlined,
-                      feeText,
-                      const Color(0xFF0F6F73),
-                    ),
+                    if (feeText != null) ...[
+                      const SizedBox(height: 16),
+                      _buildSectionCard(
+                        'Payment',
+                        Icons.payments_outlined,
+                        feeText,
+                        const Color(0xFF0F6F73),
+                      ),
+                    ],
                   ],
                 ],
               ),

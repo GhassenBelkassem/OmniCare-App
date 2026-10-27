@@ -10,6 +10,7 @@ import '../scheduled_care/application/doctor_home_controller.dart';
 import '../workspace/doctor_workspace_config.dart';
 import '../urgent/doctor_urgent_controller.dart';
 import 'doctor_home_demo_state.dart';
+import 'active_consultation_entry.dart';
 
 DoctorHomeUrgentStatus _homeUrgentStatus(DoctorUrgentState state) =>
     switch (state) {
@@ -218,6 +219,7 @@ class DoctorHomeScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _Greeting(profile: profile),
+                const ActiveConsultationEntry(),
                 if (controller.state == DoctorHomeLoadState.loading &&
                     summary == null) ...[
                   const SizedBox(height: OmniSpacing.xxl),
