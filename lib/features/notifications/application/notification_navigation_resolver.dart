@@ -148,7 +148,10 @@ class NotificationNavigationResolver {
       idKey: 'request_id',
     ),
     'URGENT_CABINET_COMMITMENT_WITHDRAWN': _NotificationNavigationRule(
-      role: AuthRoleFamily.patient,
+      // P4 withdrawal invalidates the accepted Doctor responsibility. The
+      // Patient initiated the command, but the notification recipient and
+      // navigation authority are the exact commitment Doctor.
+      role: AuthRoleFamily.doctor,
       resource: NotificationNavigationResource.urgentCabinetRequest,
       idKey: 'request_id',
     ),

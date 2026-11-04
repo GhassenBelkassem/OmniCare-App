@@ -18,6 +18,9 @@ enum UrgentCabinetPatientLifecyclePhase {
   withdrawing,
   issuingArrivalHandoff,
   accepted,
+  arrivedWaitingForDoctor,
+  consultationInProgress,
+  careCompleted,
   declined,
   cancelled,
   expired,
@@ -96,6 +99,8 @@ class UrgentCabinetPatientLifecycleController extends ChangeNotifier {
       _isTransientReadFailure(_failure!.kind);
   bool get isPending =>
       _snapshot?.responseStatus == UrgentCabinetPatientResponseStatus.pending;
+  bool get hasAcceptedJourney =>
+      _snapshot?.responseStatus == UrgentCabinetPatientResponseStatus.accepted;
   bool get canCancel =>
       isPending &&
       _phase != UrgentCabinetPatientLifecyclePhase.cancelling &&
@@ -700,9 +705,9 @@ class UrgentCabinetPatientLifecycleController extends ChangeNotifier {
   void setWaitingRouteActive(bool active) {
     if (_disposed || _waitingRouteActive == active) return;
     _waitingRouteActive = active;
-    if (active && isPending) {
+    if (active && (isPending || hasAcceptedJourney)) {
       _startTimers();
-      unawaited(refresh());
+      if (isPending) unawaited(refresh());
     } else {
       _stopTimers();
     }
@@ -826,7 +831,7 @@ class UrgentCabinetPatientLifecycleController extends ChangeNotifier {
     }
     _receivedAt = _clock();
     _failure = null;
-    _phase = _phaseFor(next.responseStatus);
+    _phase = _phaseFor(next);
     if (next.isTerminal) {
       _stopTimers();
     } else if (_waitingRouteActive) {
@@ -874,11 +879,18 @@ class UrgentCabinetPatientLifecycleController extends ChangeNotifier {
   }
 
   void _startTimers() {
-    if (!_waitingRouteActive || !isPending || _disposed) return;
+    if (!_waitingRouteActive ||
+        (!isPending && !hasAcceptedJourney) ||
+        _disposed) {
+      return;
+    }
     _pollTimer ??= Timer.periodic(_pollingInterval, (_) {
-      if (_waitingRouteActive && isPending) unawaited(refresh());
+      if (_waitingRouteActive && (isPending || hasAcceptedJourney)) {
+        unawaited(refresh());
+      }
     });
     _deadlineTimer?.cancel();
+    if (!isPending) return;
     final remaining = approximateRemainingResponseWindow ?? Duration.zero;
     _deadlineTimer = Timer(remaining + const Duration(milliseconds: 100), () {
       if (_waitingRouteActive && isPending) unawaited(refresh());
@@ -920,19 +932,34 @@ class UrgentCabinetPatientLifecycleController extends ChangeNotifier {
       _subject == null;
 
   static UrgentCabinetPatientLifecyclePhase _phaseFor(
-    UrgentCabinetPatientResponseStatus status,
-  ) => switch (status) {
-    UrgentCabinetPatientResponseStatus.pending =>
-      UrgentCabinetPatientLifecyclePhase.pending,
-    UrgentCabinetPatientResponseStatus.accepted =>
-      UrgentCabinetPatientLifecyclePhase.accepted,
-    UrgentCabinetPatientResponseStatus.declined =>
-      UrgentCabinetPatientLifecyclePhase.declined,
-    UrgentCabinetPatientResponseStatus.cancelled =>
-      UrgentCabinetPatientLifecyclePhase.cancelled,
-    UrgentCabinetPatientResponseStatus.expired =>
-      UrgentCabinetPatientLifecyclePhase.expired,
-  };
+    UrgentCabinetTargetedRequestSnapshot snapshot,
+  ) {
+    final clinical = snapshot.clinicalPhase;
+    if (clinical != null) {
+      return switch (clinical) {
+        UrgentCabinetPatientClinicalPhase.confirmedTravelToCabinet =>
+          UrgentCabinetPatientLifecyclePhase.accepted,
+        UrgentCabinetPatientClinicalPhase.arrivedWaitingForDoctor =>
+          UrgentCabinetPatientLifecyclePhase.arrivedWaitingForDoctor,
+        UrgentCabinetPatientClinicalPhase.consultationInProgress =>
+          UrgentCabinetPatientLifecyclePhase.consultationInProgress,
+        UrgentCabinetPatientClinicalPhase.careCompleted =>
+          UrgentCabinetPatientLifecyclePhase.careCompleted,
+      };
+    }
+    return switch (snapshot.responseStatus) {
+      UrgentCabinetPatientResponseStatus.pending =>
+        UrgentCabinetPatientLifecyclePhase.pending,
+      UrgentCabinetPatientResponseStatus.accepted =>
+        UrgentCabinetPatientLifecyclePhase.accepted,
+      UrgentCabinetPatientResponseStatus.declined =>
+        UrgentCabinetPatientLifecyclePhase.declined,
+      UrgentCabinetPatientResponseStatus.cancelled =>
+        UrgentCabinetPatientLifecyclePhase.cancelled,
+      UrgentCabinetPatientResponseStatus.expired =>
+        UrgentCabinetPatientLifecyclePhase.expired,
+    };
+  }
 
   static bool _isTransientReadFailure(
     UrgentCabinetPatientRequestFailureKind kind,

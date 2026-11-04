@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../../../core/utils/uuid_v4.dart';
@@ -38,14 +40,18 @@ class ClinicalOrderController extends ChangeNotifier {
       _pendingFingerprint,
       _finalizeKey,
       _finalizeFingerprint;
+  bool _refreshPending = false;
   bool _disposed = false;
   bool get dirty => editor?.dirty ?? false;
 
   Future<void> load({bool force = false}) async {
-    if (isLoading || _disposed) return;
-    if (!force && (dirty || isSaving)) {
-      newerVersionAvailable = true;
-      notifyListeners();
+    if (_disposed) return;
+    if ((isSaving || finalizingId != null) && !force) {
+      _refreshPending = true;
+      return;
+    }
+    if (isLoading) {
+      _refreshPending = true;
       return;
     }
     isLoading = true;
@@ -54,18 +60,38 @@ class ClinicalOrderController extends ChangeNotifier {
     try {
       final values = await _api.list(consultationId);
       if (_disposed) return;
-      orders = values;
-      editor = null;
-      conflict = false;
-      newerVersionAvailable = false;
-      _pendingKey = null;
-      _pendingFingerprint = null;
+      final activeEditor = editor;
+      if (force || activeEditor == null) {
+        _adopt(values);
+      } else {
+        final localOrder = activeEditor.orderId == null
+            ? null
+            : orders
+                  .where((value) => value.id == activeEditor.orderId)
+                  .firstOrNull;
+        final serverOrder = activeEditor.orderId == null
+            ? null
+            : values
+                  .where((value) => value.id == activeEditor.orderId)
+                  .firstOrNull;
+        if (localOrder != null &&
+            (serverOrder == null || serverOrder.version > localOrder.version)) {
+          newerVersionAvailable = true;
+        } else {
+          // A list refresh may arrive while a new or unchanged order is being
+          // authored. Refresh the authoritative list without replacing the
+          // volatile editor or claiming that its resource version advanced.
+          orders = values;
+          newerVersionAvailable = false;
+        }
+      }
     } catch (error) {
       if (!_disposed) failureCode = _code(error);
     } finally {
       if (!_disposed) {
         isLoading = false;
         notifyListeners();
+        _drainRefresh();
       }
     }
   }
@@ -169,6 +195,7 @@ class ClinicalOrderController extends ChangeNotifier {
       if (!_disposed) {
         isSaving = false;
         notifyListeners();
+        _drainRefresh();
       }
     }
   }
@@ -213,6 +240,7 @@ class ClinicalOrderController extends ChangeNotifier {
       if (!_disposed) {
         finalizingId = null;
         notifyListeners();
+        _drainRefresh();
       }
     }
   }
@@ -238,7 +266,29 @@ class ClinicalOrderController extends ChangeNotifier {
     _pendingFingerprint = null;
     _finalizeKey = null;
     _finalizeFingerprint = null;
+    _refreshPending = false;
     if (!_disposed) notifyListeners();
+  }
+
+  void _adopt(List<ClinicalOrder> values) {
+    orders = values;
+    editor = null;
+    conflict = false;
+    newerVersionAvailable = false;
+    _pendingKey = null;
+    _pendingFingerprint = null;
+  }
+
+  void _drainRefresh() {
+    if (!_refreshPending ||
+        _disposed ||
+        isLoading ||
+        isSaving ||
+        finalizingId != null) {
+      return;
+    }
+    _refreshPending = false;
+    unawaited(load());
   }
 
   void _reset() {
@@ -270,24 +320,30 @@ class ClinicalOrderController extends ChangeNotifier {
 }
 
 class ClinicalOrderRealtimeTarget implements ScheduledCareRealtimeTarget {
-  ClinicalOrderRealtimeTarget(this.controller);
+  ClinicalOrderRealtimeTarget(
+    this.controller, {
+    bool Function()? isWorkspaceActive,
+  }) : _isWorkspaceActive = isWorkspaceActive;
   final ClinicalOrderController controller;
+  final bool Function()? _isWorkspaceActive;
   bool _active = false;
+  bool get _canRefresh => _active && (_isWorkspaceActive?.call() ?? true);
   @override
   String get role => 'DOCTOR';
   @override
   void activate() => _active = true;
   @override
   void deactivate() {
+    if (!_active) return;
     _active = false;
     controller.clear();
   }
 
   @override
   Future<void> invalidate(ScheduledCareInvalidationEvent event) =>
-      _active ? controller.invalidate(event) : Future.value();
+      _canRefresh ? controller.invalidate(event) : Future.value();
   @override
-  Future<void> resync() => _active ? controller.load() : Future.value();
+  Future<void> resync() => _canRefresh ? controller.load() : Future.value();
   @override
   void dispose() => _active = false;
 }

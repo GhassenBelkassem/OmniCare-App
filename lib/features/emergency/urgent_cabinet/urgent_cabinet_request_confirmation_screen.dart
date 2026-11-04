@@ -27,15 +27,13 @@ class UrgentCabinetRequestConfirmationScreen extends StatefulWidget {
     super.key,
     this.source,
     this.requestSource,
-    this.activationGate =
-        UrgentCabinetSubmissionActivationGate.p4Cab03C01Closed,
+    this.activationGate = UrgentCabinetSubmissionActivationGate.p4Production,
   });
 
   final UrgentCabinetDoctorSource? source;
   final UrgentCabinetRequestSource? requestSource;
 
-  /// Explicit test seam. The checked-in production construction always uses
-  /// the closed four-authority gate above.
+  /// Explicit test seam for fail-closed and synthetic scenarios.
   @visibleForTesting
   final UrgentCabinetSubmissionActivationGate activationGate;
 

@@ -8,8 +8,13 @@ import 'clinical_order_api.dart';
 import 'clinical_order_controller.dart';
 
 class ClinicalOrderCard extends StatefulWidget {
-  const ClinicalOrderCard({super.key, required this.consultationId});
+  const ClinicalOrderCard({
+    super.key,
+    required this.consultationId,
+    this.isActive,
+  });
   final String consultationId;
+  final bool Function()? isActive;
   @override
   State<ClinicalOrderCard> createState() => _ClinicalOrderCardState();
 }
@@ -29,23 +34,40 @@ class _ClinicalOrderCardState extends State<ClinicalOrderCard> {
     _controller = controller;
     final coordinator = context.read<ScheduledCareRealtimeCoordinator?>();
     if (coordinator != null) {
-      _target = ClinicalOrderRealtimeTarget(controller);
+      _target = ClinicalOrderRealtimeTarget(
+        controller,
+        isWorkspaceActive: widget.isActive,
+      );
       _unregister = coordinator.registerTarget(_target!);
     }
-    controller.load();
+    if (widget.isActive?.call() ?? true) controller.load();
   }
 
   void _changed() {
     if (mounted) setState(() {});
   }
 
+  void _beginCreate(ClinicalOrderCategory category) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    _controller?.beginCreate(category);
+  }
+
+  void _cancelEdit() {
+    FocusManager.instance.primaryFocus?.unfocus();
+    _controller?.cancelEdit();
+  }
+
+  Future<void> _save() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    await _controller?.save();
+  }
+
   @override
   void dispose() {
-    _unregister?.call();
+    _controller?.removeListener(_changed);
     _target?.dispose();
-    _controller
-      ?..removeListener(_changed)
-      ..dispose();
+    _unregister?.call();
+    _controller?.dispose();
     super.dispose();
   }
 
@@ -82,7 +104,7 @@ class _ClinicalOrderCardState extends State<ClinicalOrderCard> {
                   children: ClinicalOrderCategory.values
                       .map(
                         (category) => OutlinedButton(
-                          onPressed: () => controller.beginCreate(category),
+                          onPressed: () => _beginCreate(category),
                           child: Text(category.label),
                         ),
                       )
@@ -134,14 +156,14 @@ class _ClinicalOrderCardState extends State<ClinicalOrderCard> {
                         const SizedBox(width: 8),
                       ],
                       TextButton(
-                        onPressed: controller.cancelEdit,
+                        onPressed: _cancelEdit,
                         child: const Text('Cancel'),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: ElevatedButton(
                           onPressed: controller.dirty && !controller.isSaving
-                              ? controller.save
+                              ? _save
                               : null,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF1FBF9A),
@@ -229,6 +251,7 @@ class _OrderRow extends StatelessWidget {
                 onPressed: controller.finalizingId == null
                     ? () => controller.finalize(order)
                     : null,
+                style: OutlinedButton.styleFrom(minimumSize: const Size(0, 50)),
                 child: const Text('Finalize'),
               ),
             ],

@@ -221,6 +221,9 @@ class _DoctorAuthShellScreenState extends State<DoctorAuthShellScreen>
       _presenceController?.resumeForeground();
       _workspaceController?.refresh();
       _homeOfferController?.refreshIfActive();
+      unawaited(
+        _activeConsultationController?.refresh() ?? Future<void>.value(),
+      );
       _medicalRecordController?.refresh();
     } else if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused ||

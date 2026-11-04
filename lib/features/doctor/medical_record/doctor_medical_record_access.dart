@@ -163,6 +163,8 @@ class DoctorMedicalRecordAccess {
       passport: full.passport,
       triageSummary: full.triageSummary,
       documents: const [],
+      medicationsShared: false,
+      summariesShared: false,
     );
   }
 }

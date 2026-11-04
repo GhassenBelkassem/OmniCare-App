@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../../../core/utils/uuid_v4.dart';
@@ -25,15 +27,19 @@ class PrescriptionController extends ChangeNotifier {
       _pendingFingerprint,
       _finalizeKey,
       _finalizeFingerprint;
+  bool _refreshPending = false;
   bool _disposed = false;
   bool get dirty =>
       authoritative != null &&
       draft.fingerprint() != authoritative!.content.fingerprint();
   Future<void> load({bool force = false}) async {
-    if (isLoading || _disposed) return;
-    if (dirty && !force) {
-      newerVersionAvailable = true;
-      notifyListeners();
+    if (_disposed) return;
+    if ((isSaving || isFinalizing) && !force) {
+      _refreshPending = true;
+      return;
+    }
+    if (isLoading) {
+      _refreshPending = true;
       return;
     }
     isLoading = true;
@@ -42,18 +48,25 @@ class PrescriptionController extends ChangeNotifier {
     try {
       final value = await _api.read(consultationId);
       if (_disposed) return;
-      authoritative = value;
-      draft = value.content.copy();
-      conflict = false;
-      newerVersionAvailable = false;
-      _pendingKey = null;
-      _pendingFingerprint = null;
+      final current = authoritative;
+      if (force || current == null || !dirty) {
+        _adopt(value);
+      } else if (value.prescriptionVersion > current.prescriptionVersion) {
+        newerVersionAvailable = true;
+      } else if (value.prescriptionVersion == current.prescriptionVersion) {
+        // The clinical-record dependency may advance while the prescription
+        // content remains at the same version. Adopt that metadata without
+        // replacing the Doctor's volatile prescription draft.
+        authoritative = value;
+        newerVersionAvailable = false;
+      }
     } catch (error) {
       if (!_disposed) failureCode = _code(error);
     } finally {
       if (!_disposed) {
         isLoading = false;
         notifyListeners();
+        _drainRefresh();
       }
     }
   }
@@ -97,6 +110,7 @@ class PrescriptionController extends ChangeNotifier {
       if (_disposed) return;
       authoritative = value;
       draft = value.content.copy();
+      conflict = false;
       _pendingKey = null;
       _pendingFingerprint = null;
       newerVersionAvailable = false;
@@ -113,6 +127,7 @@ class PrescriptionController extends ChangeNotifier {
       if (!_disposed) {
         isSaving = false;
         notifyListeners();
+        _drainRefresh();
       }
     }
   }
@@ -145,6 +160,8 @@ class PrescriptionController extends ChangeNotifier {
       if (_disposed) return;
       authoritative = value;
       draft = value.content.copy();
+      conflict = false;
+      newerVersionAvailable = false;
       _finalizeKey = null;
       _finalizeFingerprint = null;
     } catch (error) {
@@ -162,6 +179,7 @@ class PrescriptionController extends ChangeNotifier {
       if (!_disposed) {
         isFinalizing = false;
         notifyListeners();
+        _drainRefresh();
       }
     }
   }
@@ -194,7 +212,29 @@ class PrescriptionController extends ChangeNotifier {
     _pendingFingerprint = null;
     _finalizeKey = null;
     _finalizeFingerprint = null;
+    _refreshPending = false;
     if (!_disposed) notifyListeners();
+  }
+
+  void _adopt(PrescriptionEnvelope value) {
+    authoritative = value;
+    draft = value.content.copy();
+    conflict = false;
+    newerVersionAvailable = false;
+    _pendingKey = null;
+    _pendingFingerprint = null;
+  }
+
+  void _drainRefresh() {
+    if (!_refreshPending ||
+        _disposed ||
+        isLoading ||
+        isSaving ||
+        isFinalizing) {
+      return;
+    }
+    _refreshPending = false;
+    unawaited(load());
   }
 
   @override
@@ -222,24 +262,30 @@ class PrescriptionController extends ChangeNotifier {
 }
 
 class PrescriptionRealtimeTarget implements ScheduledCareRealtimeTarget {
-  PrescriptionRealtimeTarget(this.controller);
+  PrescriptionRealtimeTarget(
+    this.controller, {
+    bool Function()? isWorkspaceActive,
+  }) : _isWorkspaceActive = isWorkspaceActive;
   final PrescriptionController controller;
+  final bool Function()? _isWorkspaceActive;
   bool _active = false;
+  bool get _canRefresh => _active && (_isWorkspaceActive?.call() ?? true);
   @override
   String get role => 'DOCTOR';
   @override
   void activate() => _active = true;
   @override
   void deactivate() {
+    if (!_active) return;
     _active = false;
     controller.clear();
   }
 
   @override
   Future<void> invalidate(ScheduledCareInvalidationEvent event) =>
-      _active ? controller.invalidate(event) : Future.value();
+      _canRefresh ? controller.invalidate(event) : Future.value();
   @override
-  Future<void> resync() => _active ? controller.load() : Future.value();
+  Future<void> resync() => _canRefresh ? controller.load() : Future.value();
   @override
   void dispose() => _active = false;
 }

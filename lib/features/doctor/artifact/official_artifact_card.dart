@@ -14,8 +14,13 @@ import 'artifact.dart';
 import 'artifact_api.dart';
 
 class OfficialArtifactCard extends StatefulWidget {
-  const OfficialArtifactCard({super.key, required this.consultationId});
+  const OfficialArtifactCard({
+    super.key,
+    required this.consultationId,
+    this.isActive,
+  });
   final String consultationId;
+  final bool Function()? isActive;
   @override
   State<OfficialArtifactCard> createState() => _OfficialArtifactCardState();
 }
@@ -32,15 +37,20 @@ class _OfficialArtifactCardState extends State<OfficialArtifactCard> {
       _days = TextEditingController(text: '1');
   VoidCallback? _unregister;
   _ArtifactRealtimeTarget? _target;
+  bool get _isActive => widget.isActive?.call() ?? true;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_loading || _unregister != null) return;
+    if (!_isActive || !_loading || _unregister != null) return;
     final http = context.read<AppHttpClient>();
     _api = ArtifactApi(http);
     final coordinator = context.read<ScheduledCareRealtimeCoordinator?>();
     if (coordinator != null) {
-      _target = _ArtifactRealtimeTarget(this);
+      _target = _ArtifactRealtimeTarget(
+        this,
+        isWorkspaceActive: widget.isActive,
+      );
       _unregister = coordinator.registerTarget(_target!);
     }
     _load();
@@ -48,8 +58,8 @@ class _OfficialArtifactCardState extends State<OfficialArtifactCard> {
 
   @override
   void dispose() {
-    _unregister?.call();
     _target?.dispose();
+    _unregister?.call();
     _statement.dispose();
     _start.dispose();
     _end.dispose();
@@ -59,6 +69,7 @@ class _OfficialArtifactCardState extends State<OfficialArtifactCard> {
   }
 
   Future<void> _load({bool force = false}) async {
+    if (!_isActive) return;
     if (_dirty && !force) {
       setState(() => _newer = true);
       return;
@@ -209,7 +220,7 @@ class _OfficialArtifactCardState extends State<OfficialArtifactCard> {
   }
 
   Future<void> _sources() async {
-    if (_busy) return;
+    if (_busy || !_isActive) return;
     setState(() => _busy = true);
     try {
       final http = context.read<AppHttpClient>();
@@ -427,26 +438,30 @@ class _Surface extends StatelessWidget {
 }
 
 class _ArtifactRealtimeTarget implements ScheduledCareRealtimeTarget {
-  _ArtifactRealtimeTarget(this.state);
+  _ArtifactRealtimeTarget(this.state, {bool Function()? isWorkspaceActive})
+    : _isWorkspaceActive = isWorkspaceActive;
   final _OfficialArtifactCardState state;
+  final bool Function()? _isWorkspaceActive;
   bool active = false;
+  bool get _canRefresh => active && (_isWorkspaceActive?.call() ?? true);
   @override
   String get role => 'DOCTOR';
   @override
   void activate() => active = true;
   @override
   void deactivate() {
+    if (!active) return;
     active = false;
     state._clearVolatile();
   }
 
   @override
   Future<void> invalidate(ScheduledCareInvalidationEvent event) =>
-      active && event.resourceType == ScheduledCareResourceType.artifact
+      _canRefresh && event.resourceType == ScheduledCareResourceType.artifact
       ? state._load()
       : Future.value();
   @override
-  Future<void> resync() => active ? state._load() : Future.value();
+  Future<void> resync() => _canRefresh ? state._load() : Future.value();
   @override
   void dispose() => active = false;
 }

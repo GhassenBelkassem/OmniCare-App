@@ -383,8 +383,11 @@ class DoctorWorkspaceBootstrap {
 
   String? get cabinetOperationalMessage {
     final mode = readiness.cabinet;
-    if (mode.blockingReasons.isNotEmpty) {
-      return mode.blockingReasons.map((reason) => reason.frenchLabel).join(' ');
+    final actualBlockers = mode.blockingReasons
+        .where((reason) => reason != DoctorUrgentReadinessReason.clinicalBusy)
+        .toList(growable: false);
+    if (actualBlockers.isNotEmpty) {
+      return actualBlockers.map((reason) => reason.frenchLabel).join(' ');
     }
     if (runtime?.cabinetEnabled != true || !mode.runtimeAvailabilityIntent) {
       return 'La disponibilité opérationnelle est désactivée côté serveur.';

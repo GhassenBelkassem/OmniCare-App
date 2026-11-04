@@ -8,8 +8,13 @@ import 'prescription_api.dart';
 import 'prescription_controller.dart';
 
 class PrescriptionCard extends StatefulWidget {
-  const PrescriptionCard({super.key, required this.consultationId});
+  const PrescriptionCard({
+    super.key,
+    required this.consultationId,
+    this.isActive,
+  });
   final String consultationId;
+  final bool Function()? isActive;
   @override
   State<PrescriptionCard> createState() => _PrescriptionCardState();
 }
@@ -29,23 +34,44 @@ class _PrescriptionCardState extends State<PrescriptionCard> {
     _controller = controller;
     final coordinator = context.read<ScheduledCareRealtimeCoordinator?>();
     if (coordinator != null) {
-      _target = PrescriptionRealtimeTarget(controller);
+      _target = PrescriptionRealtimeTarget(
+        controller,
+        isWorkspaceActive: widget.isActive,
+      );
       _unregister = coordinator.registerTarget(_target!);
     }
-    controller.load();
+    if (widget.isActive?.call() ?? true) controller.load();
   }
 
   void _changed() {
     if (mounted) setState(() {});
   }
 
+  void _addMedication(PrescriptionController controller) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    controller.update(
+      (draft) => draft.medications.add(
+        PrescriptionMedication(itemId: generateUuidV4()),
+      ),
+    );
+  }
+
+  void _removeMedication(PrescriptionController controller, int index) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    controller.update((draft) => draft.medications.removeAt(index));
+  }
+
+  Future<void> _save(PrescriptionController controller) async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    await controller.save();
+  }
+
   @override
   void dispose() {
-    _unregister?.call();
+    _controller?.removeListener(_changed);
     _target?.dispose();
-    _controller
-      ?..removeListener(_changed)
-      ..dispose();
+    _unregister?.call();
+    _controller?.dispose();
     super.dispose();
   }
 
@@ -115,18 +141,12 @@ class _PrescriptionCardState extends State<PrescriptionCard> {
               medication: entry.value,
               readOnly: readOnly,
               changed: () => controller.update((_) {}),
-              remove: () => controller.update(
-                (draft) => draft.medications.removeAt(entry.key),
-              ),
+              remove: () => _removeMedication(controller, entry.key),
             ),
           ),
           if (!readOnly)
             OutlinedButton.icon(
-              onPressed: () => controller.update(
-                (draft) => draft.medications.add(
-                  PrescriptionMedication(itemId: generateUuidV4()),
-                ),
-              ),
+              onPressed: () => _addMedication(controller),
               icon: const Icon(Icons.add),
               label: const Text('Add medication'),
             ),
@@ -160,7 +180,7 @@ class _PrescriptionCardState extends State<PrescriptionCard> {
                         controller.dirty &&
                             current.medicationDecision ==
                                 'MEDICATION_PRESCRIBED'
-                        ? controller.save
+                        ? () => _save(controller)
                         : null,
                     child: const Text('Save'),
                   ),
@@ -346,6 +366,7 @@ class _MedicationEditor extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: DropdownButtonFormField<String>(
+                  isExpanded: true,
                   initialValue: medication.durationUnit ?? 'DAY',
                   decoration: _decoration('Duration unit'),
                   items: const [

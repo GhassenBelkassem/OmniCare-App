@@ -23,7 +23,16 @@ DoctorWorkspaceBootstrap _workspace(
     bool runtime,
   ) => DoctorUrgentModeReadiness(
     capabilityEnabled: enabled,
-    configurationReady: reasons.isEmpty,
+    configurationReady: !reasons.any(
+      const {
+        DoctorUrgentReadinessReason.capabilityDisabled,
+        DoctorUrgentReadinessReason.homeFeeNotConfigured,
+        DoctorUrgentReadinessReason.homeTravelDistanceNotConfigured,
+        DoctorUrgentReadinessReason.cabinetFeeNotConfigured,
+        DoctorUrgentReadinessReason.noActiveCabinet,
+        DoctorUrgentReadinessReason.professionalNotEligible,
+      }.contains,
+    ),
     runtimeAvailabilityIntent: runtime,
     effectiveCurrentEligibility: false,
     blockingReasons: reasons,
@@ -291,6 +300,22 @@ void main() {
     final workspace = _workspace(
       'doctor-a',
       {DoctorServerCareCapability.urgentCabinet},
+      runtimeCabinet: true,
+      includeCabinet: true,
+    );
+
+    expect(workspace.cabinetOperationalMessage, isNull);
+    expect(
+      workspace.navigationCapabilities,
+      contains(DoctorCapability.urgentCabinetRequests),
+    );
+  });
+
+  test('CLINICAL_BUSY remains operational for frozen deferred CABINET', () {
+    final workspace = _workspace(
+      'doctor-a',
+      {DoctorServerCareCapability.urgentCabinet},
+      cabinetReasons: const [DoctorUrgentReadinessReason.clinicalBusy],
       runtimeCabinet: true,
       includeCabinet: true,
     );

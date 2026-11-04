@@ -123,6 +123,13 @@ void main() {
     expect(find.text('Urgences au cabinet'), findsOneWidget);
     expect(find.text('Cabinet Mansour'), findsOneWidget);
     expect(find.text('Aucune demande urgente au cabinet'), findsOneWidget);
+    expect(find.text('Actions opérationnelles indisponibles'), findsNothing);
+    expect(
+      find.text(
+        'La réception et le traitement des demandes urgentes réelles ne sont pas activés dans cette version.',
+      ),
+      findsNothing,
+    );
     expect(
       find.byKey(const ValueKey('doctor-urgent-mode-selector')),
       findsNothing,

@@ -13,9 +13,11 @@ class ClinicalAuthoringCard extends StatefulWidget {
     super.key,
     required this.consultationId,
     this.controller,
+    this.isActive,
   });
   final String consultationId;
   final ClinicalRecordController? controller;
+  final bool Function()? isActive;
 
   @override
   State<ClinicalAuthoringCard> createState() => _ClinicalAuthoringCardState();
@@ -40,10 +42,15 @@ class _ClinicalAuthoringCardState extends State<ClinicalAuthoringCard> {
     _controller = controller;
     final coordinator = context.read<ScheduledCareRealtimeCoordinator?>();
     if (coordinator != null) {
-      _target = ClinicalRecordRealtimeTarget(controller);
+      _target = ClinicalRecordRealtimeTarget(
+        controller,
+        isWorkspaceActive: widget.isActive,
+      );
       _unregister = coordinator.registerTarget(_target!);
     }
-    if (controller.authoritative == null) controller.load();
+    if ((widget.isActive?.call() ?? true) && controller.authoritative == null) {
+      controller.load();
+    }
   }
 
   void _changed() {
@@ -52,9 +59,9 @@ class _ClinicalAuthoringCardState extends State<ClinicalAuthoringCard> {
 
   @override
   void dispose() {
-    _unregister?.call();
-    _target?.dispose();
     _controller?.removeListener(_changed);
+    _target?.dispose();
+    _unregister?.call();
     if (widget.controller == null) _controller?.dispose();
     super.dispose();
   }
@@ -123,6 +130,7 @@ class _ClinicalAuthoringCardState extends State<ClinicalAuthoringCard> {
             ],
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
+              isExpanded: true,
               initialValue: draft.medicationDecision,
               decoration: _decoration('Medication decision'),
               items: const [
@@ -198,6 +206,7 @@ class _ClinicalAuthoringCardState extends State<ClinicalAuthoringCard> {
               maxLines: 2,
             ),
             DropdownButtonFormField<String>(
+              isExpanded: true,
               initialValue: draft.diagnosisStatus,
               decoration: _decoration('Diagnosis status'),
               items: const [
@@ -240,6 +249,7 @@ class _ClinicalAuthoringCardState extends State<ClinicalAuthoringCard> {
                   controller.update((d) => d.notes = nullableClinicalText(v)),
             ),
             DropdownButtonFormField<String>(
+              isExpanded: true,
               initialValue: draft.followUpDecision,
               decoration: _decoration('Follow-up decision'),
               items: const [

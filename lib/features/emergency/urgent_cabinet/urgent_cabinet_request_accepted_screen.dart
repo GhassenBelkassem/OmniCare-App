@@ -8,6 +8,7 @@ import 'urgent_cabinet_flow_controller.dart';
 import 'urgent_cabinet_patient_lifecycle_controller.dart';
 import 'urgent_cabinet_request_review.dart';
 import 'urgent_cabinet_request_state.dart';
+import 'urgent_cabinet_targeted_request_models.dart';
 
 class UrgentCabinetRequestAcceptedScreen extends StatefulWidget {
   const UrgentCabinetRequestAcceptedScreen({
@@ -143,6 +144,7 @@ class _UrgentCabinetRequestAcceptedScreenState
                     ),
                 arrivalOpening: _openingArrivalInstructions,
                 onOpenArrival: _openArrivalInstructions,
+                clinicalPhase: lifecycle?.snapshot?.clinicalPhase,
               ),
       ),
     );
@@ -282,6 +284,7 @@ class _AcceptedContent extends StatelessWidget {
     required this.showArrivalEntry,
     required this.arrivalOpening,
     required this.onOpenArrival,
+    required this.clinicalPhase,
   });
 
   final UrgentCabinetRequestReview review;
@@ -289,6 +292,7 @@ class _AcceptedContent extends StatelessWidget {
   final bool showArrivalEntry;
   final bool arrivalOpening;
   final VoidCallback onOpenArrival;
+  final UrgentCabinetPatientClinicalPhase? clinicalPhase;
 
   @override
   Widget build(BuildContext context) {
@@ -318,7 +322,7 @@ class _AcceptedContent extends StatelessWidget {
               ),
               const SizedBox(height: OmniSpacing.lg),
               Text(
-                'Votre demande a été acceptée',
+                _title,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   fontSize: 25,
@@ -330,7 +334,7 @@ class _AcceptedContent extends StatelessWidget {
               ),
               const SizedBox(height: OmniSpacing.sm),
               Text(
-                'Le médecin a accepté votre demande de consultation urgente au cabinet.',
+                _description,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   height: 1.5,
@@ -360,6 +364,27 @@ class _AcceptedContent extends StatelessWidget {
       ],
     );
   }
+
+  String get _title => switch (clinicalPhase) {
+    UrgentCabinetPatientClinicalPhase.arrivedWaitingForDoctor =>
+      'Arrivé au cabinet',
+    UrgentCabinetPatientClinicalPhase.consultationInProgress =>
+      'Consultation en cours',
+    UrgentCabinetPatientClinicalPhase.careCompleted =>
+      'Prise en charge terminée',
+    _ => 'Votre demande a été acceptée',
+  };
+
+  String get _description => switch (clinicalPhase) {
+    UrgentCabinetPatientClinicalPhase.arrivedWaitingForDoctor =>
+      'En attente du médecin. Votre présence est confirmée et la consultation sera démarrée lorsqu’il sera disponible.',
+    UrgentCabinetPatientClinicalPhase.consultationInProgress =>
+      'Votre consultation urgente au cabinet est maintenant en cours.',
+    UrgentCabinetPatientClinicalPhase.careCompleted =>
+      'Votre prise en charge au cabinet est terminée. Vos documents restent disponibles dans les parcours habituels.',
+    _ =>
+      'Le médecin a accepté votre demande de consultation urgente au cabinet.',
+  };
 }
 
 class _ArrivalPreparationCard extends StatelessWidget {

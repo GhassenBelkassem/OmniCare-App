@@ -7,15 +7,32 @@ import 'doctor_urgent_cabinet_request_source.dart';
 enum DoctorUrgentCabinetCommitmentStatus {
   active,
   cancelled,
-  invalidated;
+  invalidated,
+  completed;
 
   static DoctorUrgentCabinetCommitmentStatus parse(String value) =>
       switch (value) {
         'ACTIVE' => active,
         'CANCELLED' => cancelled,
         'INVALIDATED' => invalidated,
+        'COMPLETED' => completed,
         _ => throw FormatException(
           'Unknown urgent CABINET commitment status: $value.',
+        ),
+      };
+}
+
+enum DoctorUrgentCabinetCapacityBinding {
+  exclusiveCapacity,
+  deferredClinicalBusy;
+
+  static DoctorUrgentCabinetCapacityBinding? parseNullable(Object? value) =>
+      switch (value) {
+        'EXCLUSIVE_CAPACITY' => exclusiveCapacity,
+        'DEFERRED_CLINICAL_BUSY' => deferredClinicalBusy,
+        null => null,
+        _ => throw FormatException(
+          'Unknown urgent CABINET capacity binding: $value.',
         ),
       };
 }
@@ -36,6 +53,12 @@ class DoctorUrgentCabinetCommitment {
     required this.updatedAt,
     required this.allowedActions,
     required this.evaluatedAt,
+    this.capacityBinding,
+    this.clinicalStartReady = false,
+    this.consultationId,
+    this.consultationStatus,
+    this.clinicalStartedAt,
+    this.completedAt,
     this.terminalAt,
   });
 
@@ -53,12 +76,27 @@ class DoctorUrgentCabinetCommitment {
   final DateTime updatedAt;
   final List<String> allowedActions;
   final DateTime evaluatedAt;
+  final DoctorUrgentCabinetCapacityBinding? capacityBinding;
+  final bool clinicalStartReady;
+  final String? consultationId;
+  final String? consultationStatus;
+  final DateTime? clinicalStartedAt;
+  final DateTime? completedAt;
 
   bool get isActive => status == DoctorUrgentCabinetCommitmentStatus.active;
   bool get canVerifyArrival =>
       isActive &&
       arrivalVerifiedAt == null &&
       allowedActions.contains('VERIFY_ARRIVAL');
+  bool get canStartConsultation =>
+      isActive &&
+      arrivalVerifiedAt != null &&
+      clinicalStartReady &&
+      consultationId == null &&
+      allowedActions.contains('START_CONSULTATION');
+  bool get isDeferred =>
+      capacityBinding ==
+      DoctorUrgentCabinetCapacityBinding.deferredClinicalBusy;
 
   DoctorUrgentCabinetRequest toRecoveredRequest(
     DoctorUrgentCabinetRequestContext context,
@@ -105,14 +143,23 @@ DoctorUrgentCabinetCommitment parseDoctorUrgentCabinetCommitment(
   );
   final terminalAt = _nullableDateTime(json, 'terminalAt');
   final arrivalVerifiedAt = _nullableDateTime(json, 'arrivalVerifiedAt');
-  if ((status == DoctorUrgentCabinetCommitmentStatus.active) !=
-      (terminalAt == null)) {
+  if ((status == DoctorUrgentCabinetCommitmentStatus.active &&
+          terminalAt != null) ||
+      ((status == DoctorUrgentCabinetCommitmentStatus.cancelled ||
+              status == DoctorUrgentCabinetCommitmentStatus.invalidated) &&
+          terminalAt == null) ||
+      (status == DoctorUrgentCabinetCommitmentStatus.completed &&
+          terminalAt != null)) {
     throw const FormatException('Invalid urgent CABINET terminal shape.');
   }
   final actions = _stringList(json, 'allowedActions');
   if (actions.toSet().length != actions.length ||
-      actions.any((action) => action != 'VERIFY_ARRIVAL') ||
-      (arrivalVerifiedAt != null && actions.isNotEmpty) ||
+      actions.any(
+        (action) =>
+            action != 'VERIFY_ARRIVAL' && action != 'START_CONSULTATION',
+      ) ||
+      (arrivalVerifiedAt != null && actions.contains('VERIFY_ARRIVAL')) ||
+      (arrivalVerifiedAt == null && actions.contains('START_CONSULTATION')) ||
       (status != DoctorUrgentCabinetCommitmentStatus.active &&
           actions.isNotEmpty)) {
     throw const FormatException(
@@ -147,6 +194,14 @@ DoctorUrgentCabinetCommitment parseDoctorUrgentCabinetCommitment(
     updatedAt: updatedAt,
     allowedActions: actions,
     evaluatedAt: _requiredDateTime(json, 'evaluatedAt'),
+    capacityBinding: DoctorUrgentCabinetCapacityBinding.parseNullable(
+      json['capacityBinding'],
+    ),
+    clinicalStartReady: _optionalBool(json, 'clinicalStartReady'),
+    consultationId: _nullableUuid(json, 'consultationId'),
+    consultationStatus: _nullableString(json, 'consultationStatus'),
+    clinicalStartedAt: _nullableDateTime(json, 'clinicalStartedAt'),
+    completedAt: _nullableDateTime(json, 'completedAt'),
   );
 }
 
@@ -239,6 +294,23 @@ DateTime _requiredDateTime(Map<Object?, Object?> json, String field) {
 DateTime? _nullableDateTime(Map<Object?, Object?> json, String field) {
   if (json[field] == null) return null;
   return _requiredDateTime(json, field);
+}
+
+String? _nullableUuid(Map<Object?, Object?> json, String field) {
+  if (json[field] == null) return null;
+  return _requiredUuid(json, field);
+}
+
+String? _nullableString(Map<Object?, Object?> json, String field) {
+  if (json[field] == null) return null;
+  return _requiredString(json, field);
+}
+
+bool _optionalBool(Map<Object?, Object?> json, String field) {
+  final value = json[field];
+  if (value == null) return false;
+  if (value is! bool) throw FormatException('Invalid urgent CABINET $field.');
+  return value;
 }
 
 List<String> _stringList(Map<Object?, Object?> json, String field) {

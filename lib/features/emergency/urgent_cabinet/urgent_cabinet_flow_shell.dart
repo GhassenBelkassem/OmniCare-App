@@ -83,8 +83,7 @@ class UrgentCabinetFlowShell extends StatelessWidget {
   final UrgentCabinetRequestSource? requestSource;
   final UrgentCabinetRequestDecisionSource? decisionSource;
 
-  /// Test-only injection seam. Production construction leaves the checked-in
-  /// four-authority gate closed.
+  /// Test-only injection seam. Production uses the frozen P4 submission gate.
   @visibleForTesting
   final UrgentCabinetSubmissionActivationGate?
   submissionActivationGateForTesting;
@@ -394,9 +393,10 @@ class _UrgentCabinetFlowNavigatorState
   }
 
   void _routeChanged() {
-    final waiting =
-        _routeObserver.currentName == UrgentCabinetFlowRoutes.requestWaiting;
-    _lifecycleController?.setWaitingRouteActive(waiting);
+    final lifecycleVisible =
+        _routeObserver.currentName == UrgentCabinetFlowRoutes.requestWaiting ||
+        _routeObserver.currentName == UrgentCabinetFlowRoutes.requestAccepted;
+    _lifecycleController?.setWaitingRouteActive(lifecycleVisible);
     _scheduleTerminalNavigation();
   }
 
@@ -657,7 +657,7 @@ class _UrgentCabinetFlowNavigatorState
           activationGate:
               widget.submissionActivationGateForTesting ??
               context.read<UrgentCabinetSubmissionActivationGate?>() ??
-              UrgentCabinetSubmissionActivationGate.p4Cab03C01Closed,
+              UrgentCabinetSubmissionActivationGate.p4Production,
         ),
       UrgentCabinetFlowRoutes.requestWaiting =>
         UrgentCabinetRequestWaitingScreen(

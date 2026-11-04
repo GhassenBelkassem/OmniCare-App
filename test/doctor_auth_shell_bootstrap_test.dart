@@ -151,6 +151,8 @@ class _MemoryStorage implements SecureTokenStorageBackend {
 }
 
 class _UnavailableAdapter implements HttpClientAdapter {
+  final paths = <String>[];
+
   @override
   void close({bool force = false}) {}
 
@@ -159,13 +161,19 @@ class _UnavailableAdapter implements HttpClientAdapter {
     RequestOptions options,
     Stream<Uint8List>? requestStream,
     Future<void>? cancelFuture,
-  ) async => ResponseBody.fromString(
-    '{"code":"UNAVAILABLE"}',
-    503,
-    headers: {
-      Headers.contentTypeHeader: [Headers.jsonContentType],
-    },
-  );
+  ) async {
+    paths.add(options.path);
+    if (options.path == '/doctor/consultations/active') {
+      return ResponseBody.fromString('', 204);
+    }
+    return ResponseBody.fromString(
+      '{"code":"UNAVAILABLE"}',
+      503,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
+    );
+  }
 }
 
 DoctorWorkspaceBootstrap _homeWorkspace() => DoctorWorkspaceBootstrap(
@@ -267,6 +275,7 @@ Future<
     _QueuedBootstrapRepository repository,
     _CommitmentRepository commitmentRepository,
     _DispatchContextRepository dispatchContextRepository,
+    _UnavailableAdapter adapter,
   })
 >
 _pumpCombinedDoctorShell(WidgetTester tester) async {
@@ -275,7 +284,8 @@ _pumpCombinedDoctorShell(WidgetTester tester) async {
   final repository = _QueuedBootstrapRepository();
   final commitmentRepository = _CommitmentRepository();
   final dispatchContextRepository = _DispatchContextRepository();
-  final dio = Dio()..httpClientAdapter = _UnavailableAdapter();
+  final adapter = _UnavailableAdapter();
+  final dio = Dio()..httpClientAdapter = adapter;
   final refreshDio = Dio()..httpClientAdapter = _UnavailableAdapter();
   final client = AppHttpClient(
     tokenStore: SecureTokenStore(backend: _MemoryStorage()),
@@ -312,6 +322,7 @@ _pumpCombinedDoctorShell(WidgetTester tester) async {
     repository: repository,
     commitmentRepository: commitmentRepository,
     dispatchContextRepository: dispatchContextRepository,
+    adapter: adapter,
   );
 }
 
@@ -477,15 +488,27 @@ void main() {
 
   testWidgets('Agenda survives background workspace refresh', (tester) async {
     final setup = await _pumpCombinedDoctorShell(tester);
+    expect(
+      setup.adapter.paths.where(
+        (path) => path == '/doctor/consultations/active',
+      ),
+      hasLength(1),
+    );
     await tester.tap(find.byKey(const ValueKey('doctor-tab-agenda')));
     await tester.pumpAndSettle();
     expect(find.byType(DoctorAgendaScreen), findsOneWidget);
 
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
 
     expect(setup.repository.requests, hasLength(2));
+    expect(
+      setup.adapter.paths.where(
+        (path) => path == '/doctor/consultations/active',
+      ),
+      hasLength(2),
+    );
     expect(find.byType(DoctorAgendaScreen), findsOneWidget);
 
     setup.repository.requests.last.complete(_combinedWorkspace());

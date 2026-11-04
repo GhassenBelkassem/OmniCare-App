@@ -6,10 +6,26 @@ import 'doctor_active_consultation.dart';
 
 abstract interface class DoctorActiveConsultationApiContract {
   Future<DoctorActiveConsultation?> getActive();
+  Future<DoctorActiveConsultation> startScheduled({
+    required String appointmentId,
+    required int expectedAppointmentVersion,
+    required String idempotencyKey,
+  });
+}
+
+abstract interface class DoctorCanonicalConsultationStartApiContract {
+  Future<DoctorActiveConsultation> startCanonical({
+    required DoctorConsultationSourceType sourceType,
+    required String sourceId,
+    required int expectedSourceVersion,
+    required String idempotencyKey,
+  });
 }
 
 class DoctorActiveConsultationApi
-    implements DoctorActiveConsultationApiContract {
+    implements
+        DoctorActiveConsultationApiContract,
+        DoctorCanonicalConsultationStartApiContract {
   const DoctorActiveConsultationApi(this._httpClient);
 
   final AppHttpClient _httpClient;
@@ -41,5 +57,41 @@ class DoctorActiveConsultationApi
         cause: error,
       );
     }
+  }
+
+  @override
+  Future<DoctorActiveConsultation> startScheduled({
+    required String appointmentId,
+    required int expectedAppointmentVersion,
+    required String idempotencyKey,
+  }) => startCanonical(
+    sourceType: DoctorConsultationSourceType.scheduledAppointment,
+    sourceId: appointmentId,
+    expectedSourceVersion: expectedAppointmentVersion,
+    idempotencyKey: idempotencyKey,
+  );
+
+  @override
+  Future<DoctorActiveConsultation> startCanonical({
+    required DoctorConsultationSourceType sourceType,
+    required String sourceId,
+    required int expectedSourceVersion,
+    required String idempotencyKey,
+  }) async {
+    final response = await _httpClient.dio.post<dynamic>(
+      '/doctor/consultations/start',
+      data: <String, Object>{
+        'sourceType': sourceType.apiValue,
+        'sourceId': sourceId.trim(),
+        'expectedSourceVersion': expectedSourceVersion,
+      },
+      options: Options(
+        contentType: Headers.jsonContentType,
+        headers: <String, String>{'Idempotency-Key': idempotencyKey},
+      ),
+    );
+    final data = response.data;
+    if (data is! Map) throw const FormatException('Expected JSON object.');
+    return DoctorActiveConsultation.fromJson(data.cast<String, dynamic>());
   }
 }

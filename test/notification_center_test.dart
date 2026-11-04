@@ -40,7 +40,27 @@ void main() {
         'outcome': 'ACCEPTED',
       });
 
-      expect((await opened).requestId, _requestId);
+      final intent = await opened;
+      expect(intent.requestId, _requestId);
+      expect(service.claimUrgentCabinetOpen(intent), same(intent));
+      expect(service.takePendingUrgentCabinetOpen(), isNull);
+    },
+  );
+
+  test(
+    'urgent notification identity survives until Doctor bootstrap claims it',
+    () {
+      final service = NotificationService();
+
+      service.openPayload({
+        'destination': 'URGENT_CABINET_REQUEST',
+        'request_id': _requestId.toUpperCase(),
+        'outcome': 'DOCTOR_PENDING',
+      });
+
+      final pending = service.takePendingUrgentCabinetOpen();
+      expect(pending?.requestId, _requestId);
+      expect(service.takePendingUrgentCabinetOpen(), isNull);
     },
   );
 
@@ -580,7 +600,7 @@ void main() {
           ),
           (
             'URGENT_CABINET_COMMITMENT_WITHDRAWN',
-            AuthRoleFamily.patient,
+            AuthRoleFamily.doctor,
             NotificationNavigationResource.urgentCabinetRequest,
             'request_id',
             _requestId,

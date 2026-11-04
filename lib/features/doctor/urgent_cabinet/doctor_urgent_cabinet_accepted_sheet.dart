@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/omni_theme.dart';
 import 'doctor_urgent_cabinet_request.dart';
 
-enum DoctorUrgentCabinetAcceptedSheetAction { verifyArrival }
+enum DoctorUrgentCabinetAcceptedSheetAction { verifyArrival, startConsultation }
 
 @visibleForTesting
 bool canVerifyDoctorUrgentCabinetArrival(DoctorUrgentCabinetRequest request) =>
@@ -14,6 +14,8 @@ showDoctorUrgentCabinetAcceptedSheet(
   BuildContext context, {
   required DoctorUrgentCabinetRequest request,
   bool arrivalVerificationEnabled = false,
+  bool consultationStartEnabled = false,
+  bool arrivedWaitingForCapacity = false,
   ValueChanged<BuildContext>? onSheetContextReady,
 }) {
   var transitionStarted = false;
@@ -37,6 +39,16 @@ showDoctorUrgentCabinetAcceptedSheet(
                 ).pop(DoctorUrgentCabinetAcceptedSheetAction.verifyArrival);
               }
             : null,
+        onStartConsultation: consultationStartEnabled
+            ? () {
+                if (transitionStarted) return;
+                transitionStarted = true;
+                Navigator.of(
+                  sheetContext,
+                ).pop(DoctorUrgentCabinetAcceptedSheetAction.startConsultation);
+              }
+            : null,
+        arrivedWaitingForCapacity: arrivedWaitingForCapacity,
         onClose: () => Navigator.of(sheetContext).pop(),
       );
     },
@@ -48,11 +60,15 @@ class DoctorUrgentCabinetAcceptedSheet extends StatelessWidget {
     super.key,
     required this.request,
     required this.onVerifyArrival,
+    required this.onStartConsultation,
+    required this.arrivedWaitingForCapacity,
     required this.onClose,
   });
 
   final DoctorUrgentCabinetRequest request;
   final VoidCallback? onVerifyArrival;
+  final VoidCallback? onStartConsultation;
+  final bool arrivedWaitingForCapacity;
   final VoidCallback onClose;
 
   @override
@@ -218,6 +234,14 @@ class DoctorUrgentCabinetAcceptedSheet extends StatelessWidget {
                     message:
                         "Aucun déplacement, arrivée ou début de consultation n'est confirmé.",
                   ),
+                  if (arrivedWaitingForCapacity) ...[
+                    const SizedBox(height: OmniSpacing.md),
+                    const _AcceptedNotice(
+                      icon: Icons.schedule_rounded,
+                      message:
+                          'Patient arrivé. Terminez la consultation en cours puis actualisez pour démarrer celle-ci.',
+                    ),
+                  ],
                   const SizedBox(height: OmniSpacing.md),
                   _AcceptedNotice(
                     icon: Icons.science_outlined,
@@ -247,14 +271,24 @@ class DoctorUrgentCabinetAcceptedSheet extends StatelessWidget {
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton(
-                      key: const ValueKey(
-                        'doctor-urgent-cabinet-accepted-sheet-verify-arrival',
+                      key: ValueKey(
+                        onStartConsultation != null
+                            ? 'doctor-urgent-cabinet-accepted-sheet-start-consultation'
+                            : 'doctor-urgent-cabinet-accepted-sheet-verify-arrival',
                       ),
                       style: buildOmniPrimaryButtonStyle(),
-                      onPressed: onVerifyArrival,
-                      child: const SizedBox(
+                      onPressed: onStartConsultation ?? onVerifyArrival,
+                      child: SizedBox(
                         height: 48,
-                        child: Center(child: Text("Vérifier l'arrivée")),
+                        child: Center(
+                          child: Text(
+                            onStartConsultation != null
+                                ? 'Démarrer la consultation'
+                                : arrivedWaitingForCapacity
+                                ? 'En attente de disponibilité'
+                                : "Vérifier l'arrivée",
+                          ),
+                        ),
                       ),
                     ),
                   ),

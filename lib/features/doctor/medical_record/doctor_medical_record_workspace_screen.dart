@@ -11,11 +11,13 @@ class DoctorMedicalRecordWorkspaceScreen extends StatelessWidget {
     required this.controller,
     this.embedded = false,
     this.onBack,
+    this.onContinueConsultation,
   });
 
   final DoctorMedicalRecordController controller;
   final bool embedded;
   final VoidCallback? onBack;
+  final VoidCallback? onContinueConsultation;
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
@@ -28,6 +30,7 @@ class DoctorMedicalRecordWorkspaceScreen extends StatelessWidget {
           access: DoctorMedicalRecordAccess.fromWorkspace(workspace),
           embedded: embedded,
           onBack: onBack,
+          onContinueConsultation: onContinueConsultation,
         );
       }
       final content = _StateContent(controller: controller, onBack: onBack);

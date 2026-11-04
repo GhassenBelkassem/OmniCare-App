@@ -283,6 +283,9 @@ class DoctorUrgentCabinetController extends ChangeNotifier {
       commitmentFor(requestIdentity)?.canVerifyArrival == true &&
       _commitmentSource is DoctorUrgentCabinetArrivalSource;
 
+  bool canStartConsultation(String requestIdentity) =>
+      commitmentFor(requestIdentity)?.canStartConsultation == true;
+
   bool isArrivalVerificationInProgress(String requestIdentity) =>
       _arrivalInProgress.contains(requestIdentity);
 

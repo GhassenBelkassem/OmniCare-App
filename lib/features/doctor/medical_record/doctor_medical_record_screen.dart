@@ -20,11 +20,13 @@ class DoctorMedicalRecordScreen extends StatefulWidget {
     required this.access,
     this.embedded = false,
     this.onBack,
+    this.onContinueConsultation,
   });
 
   final DoctorMedicalRecordAccess access;
   final bool embedded;
   final VoidCallback? onBack;
+  final VoidCallback? onContinueConsultation;
 
   @override
   State<DoctorMedicalRecordScreen> createState() =>
@@ -53,17 +55,6 @@ class _DoctorMedicalRecordScreenState extends State<DoctorMedicalRecordScreen> {
       );
     }
     setState(() => _section = section);
-  }
-
-  void _continueConsultation() {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => const Padding(
-        padding: EdgeInsets.fromLTRB(24, 4, 24, 32),
-        child: Text('La consultation sera ajoutée à l’étape suivante.'),
-      ),
-    );
   }
 
   Future<void> _openHistoryFilters() async {
@@ -179,14 +170,16 @@ class _DoctorMedicalRecordScreenState extends State<DoctorMedicalRecordScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: _continueConsultation,
-                child: const Text('Continuer la consultation'),
+            if (widget.onContinueConsultation != null) ...[
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: widget.onContinueConsultation,
+                  child: const Text('Continuer la consultation'),
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),

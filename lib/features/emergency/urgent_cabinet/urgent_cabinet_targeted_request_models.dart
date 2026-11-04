@@ -220,7 +220,8 @@ enum UrgentCabinetPatientAttemptState {
 enum UrgentCabinetPatientCommitmentStatus {
   active('ACTIVE'),
   cancelled('CANCELLED'),
-  invalidated('INVALIDATED');
+  invalidated('INVALIDATED'),
+  completed('COMPLETED');
 
   const UrgentCabinetPatientCommitmentStatus(this.wireValue);
   final String wireValue;
@@ -232,6 +233,29 @@ enum UrgentCabinetPatientCommitmentStatus {
           'Unsupported urgent CABINET commitment status: $value.',
         ),
       );
+}
+
+enum UrgentCabinetPatientClinicalPhase {
+  confirmedTravelToCabinet('CONFIRMED_TRAVEL_TO_CABINET'),
+  arrivedWaitingForDoctor('ARRIVED_WAITING_FOR_DOCTOR'),
+  consultationInProgress('CONSULTATION_IN_PROGRESS'),
+  careCompleted('CARE_COMPLETED');
+
+  const UrgentCabinetPatientClinicalPhase(this.wireValue);
+  final String wireValue;
+
+  static UrgentCabinetPatientClinicalPhase? parseNullable(Object? value) {
+    if (value == null) return null;
+    if (value is! String) {
+      throw const FormatException('Invalid urgent CABINET clinical phase.');
+    }
+    return values.firstWhere(
+      (phase) => phase.wireValue == value,
+      orElse: () => throw FormatException(
+        'Unsupported urgent CABINET clinical phase: $value.',
+      ),
+    );
+  }
 }
 
 enum UrgentCabinetPatientTerminalReason {
@@ -290,6 +314,9 @@ class UrgentCabinetTargetedRequestSnapshot {
     required this.allowedActions,
     required this.replayed,
     required this.evaluatedAt,
+    required this.clinicalPhase,
+    required this.consultationId,
+    required this.consultationStatus,
   });
 
   final String requestId;
@@ -327,6 +354,9 @@ class UrgentCabinetTargetedRequestSnapshot {
   final List<String> allowedActions;
   final bool replayed;
   final DateTime evaluatedAt;
+  final UrgentCabinetPatientClinicalPhase? clinicalPhase;
+  final String? consultationId;
+  final String? consultationStatus;
 
   bool get isTerminal =>
       responseStatus == UrgentCabinetPatientResponseStatus.declined ||
@@ -376,6 +406,13 @@ class UrgentCabinetTargetedRequestSnapshot {
     final createdAt = _requiredInstant(json, 'createdAt');
     final deadline = _requiredInstant(json, 'responseDeadlineAt');
     final evaluatedAt = _requiredInstant(json, 'evaluatedAt');
+    final clinicalPhase = UrgentCabinetPatientClinicalPhase.parseNullable(
+      json['clinicalPhase'],
+    );
+    final consultationId = _nullableUuid(json, 'consultationId');
+    final consultationStatus = json['consultationStatus'] == null
+        ? null
+        : _requiredString(json, 'consultationStatus');
     final cabinetLatitude = _nullableCoordinate(
       json,
       'cabinetLatitude',
@@ -411,6 +448,14 @@ class UrgentCabinetTargetedRequestSnapshot {
       allowedActions: actions,
       deadline: deadline,
       evaluatedAt: evaluatedAt,
+    );
+    _validateClinicalProjection(
+      responseStatus: responseStatus,
+      commitmentStatus: commitmentStatus,
+      arrivalVerifiedAt: arrivalVerifiedAt,
+      clinicalPhase: clinicalPhase,
+      consultationId: consultationId,
+      consultationStatus: consultationStatus,
     );
 
     final currency = _requiredString(json, 'currency');
@@ -461,6 +506,58 @@ class UrgentCabinetTargetedRequestSnapshot {
       allowedActions: List.unmodifiable(actions),
       replayed: _requiredBool(json, 'replayed'),
       evaluatedAt: evaluatedAt,
+      clinicalPhase: clinicalPhase,
+      consultationId: consultationId,
+      consultationStatus: consultationStatus,
+    );
+  }
+}
+
+void _validateClinicalProjection({
+  required UrgentCabinetPatientResponseStatus responseStatus,
+  required UrgentCabinetPatientCommitmentStatus? commitmentStatus,
+  required DateTime? arrivalVerifiedAt,
+  required UrgentCabinetPatientClinicalPhase? clinicalPhase,
+  required String? consultationId,
+  required String? consultationStatus,
+}) {
+  if (clinicalPhase == null) {
+    if (consultationId != null || consultationStatus != null) {
+      throw const FormatException(
+        'Incomplete urgent CABINET clinical projection.',
+      );
+    }
+    return;
+  }
+  if (responseStatus != UrgentCabinetPatientResponseStatus.accepted) {
+    throw const FormatException('Clinical phase requires an accepted request.');
+  }
+  final valid = switch (clinicalPhase) {
+    UrgentCabinetPatientClinicalPhase.confirmedTravelToCabinet =>
+      commitmentStatus == UrgentCabinetPatientCommitmentStatus.active &&
+          arrivalVerifiedAt == null &&
+          consultationId == null &&
+          consultationStatus == null,
+    UrgentCabinetPatientClinicalPhase.arrivedWaitingForDoctor =>
+      commitmentStatus == UrgentCabinetPatientCommitmentStatus.active &&
+          arrivalVerifiedAt != null &&
+          consultationId == null &&
+          consultationStatus == null,
+    UrgentCabinetPatientClinicalPhase.consultationInProgress =>
+      commitmentStatus == UrgentCabinetPatientCommitmentStatus.active &&
+          arrivalVerifiedAt != null &&
+          consultationId != null &&
+          (consultationStatus == 'IN_PROGRESS' ||
+              consultationStatus == 'FINALIZING'),
+    UrgentCabinetPatientClinicalPhase.careCompleted =>
+      commitmentStatus == UrgentCabinetPatientCommitmentStatus.completed &&
+          arrivalVerifiedAt != null &&
+          consultationId != null &&
+          consultationStatus == 'COMPLETED',
+  };
+  if (!valid) {
+    throw const FormatException(
+      'Incoherent urgent CABINET clinical projection.',
     );
   }
 }
@@ -589,15 +686,20 @@ void _validateStateCombination({
         throw const FormatException('Invalid pending urgent CABINET state.');
       }
     case UrgentCabinetPatientResponseStatus.accepted:
+      final clinicallyCompleted =
+          commitmentStatus == UrgentCabinetPatientCommitmentStatus.completed;
       if (attemptState != UrgentCabinetPatientAttemptState.cabinetCommitted ||
           respondedAt == null ||
           commitmentId == null ||
-          commitmentStatus != UrgentCabinetPatientCommitmentStatus.active ||
+          (commitmentStatus != UrgentCabinetPatientCommitmentStatus.active &&
+              !clinicallyCompleted) ||
           commitmentRevision == null ||
           committedAt == null ||
           terminalAt == null ||
           terminalReason != null ||
-          (arrivalVerifiedAt == null
+          (clinicallyCompleted
+              ? allowedActions.isNotEmpty
+              : arrivalVerifiedAt == null
               ? !(allowedActions.isEmpty ||
                     (allowedActions.length == 2 &&
                         allowedActions.contains('WITHDRAW') &&

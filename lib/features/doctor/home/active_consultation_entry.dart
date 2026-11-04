@@ -80,6 +80,8 @@ class _ActiveConsultationEntryState extends State<ActiveConsultationEntry> {
               MaterialPageRoute<void>(
                 builder: (_) => ConsultationDetailScreen(
                   consultationId: consultation.consultationId,
+                  activeWorkspace: true,
+                  onCompleted: (_) => _load(),
                   consultation: const <String, dynamic>{},
                 ),
               ),

@@ -310,6 +310,7 @@ void main() {
       'BOOKING_REQUEST_EXPIRED': ScheduledCareEventType.bookingRequestExpired,
       'APPOINTMENT_CREATED': ScheduledCareEventType.appointmentCreated,
       'APPOINTMENT_CANCELLED': ScheduledCareEventType.appointmentCancelled,
+      'APPOINTMENT_COMPLETED': ScheduledCareEventType.appointmentCompleted,
     };
 
     for (final entry in knownTypes.entries) {
@@ -522,6 +523,33 @@ void main() {
     );
 
     test(
+      'doctor foreground resync replaces a stale startable Home projection',
+      () async {
+        final home = _Projection(active: true, loaded: true)
+          ..uiState = 'FINISHED_SOURCE_CONFIRMED'
+          ..serverState = 'FINISHED_SOURCE_ABSENT';
+        final target = DoctorScheduledCareRealtimeTarget.bindings(
+          requestId: () => null,
+          appointmentId: () => null,
+          home: _binding(home),
+          request: _binding(_Projection()),
+          agenda: _binding(_Projection()),
+          appointment: _binding(_Projection()),
+        );
+        coordinator.registerTarget(target);
+        await coordinator.startSession(
+          const RealtimeSessionOwner(userId: 'doctor-a', role: 'DOCTOR'),
+        );
+
+        await coordinator.foregroundResync();
+
+        expect(transport.ensureCalls, 1);
+        expect(home.refreshes, 1);
+        expect(home.uiState, 'FINISHED_SOURCE_ABSENT');
+      },
+    );
+
+    test(
       'patient mapping refreshes only active list and matching detail via REST',
       () async {
         final request = _Projection(active: true, loaded: true);
@@ -548,7 +576,58 @@ void main() {
         );
         expect(appointment.refreshes, 1);
         expect(list.refreshes, 2);
+
+        appointment.serverState = 'COMPLETED';
+        list.serverState = 'UPCOMING_EMPTY';
+        await target.invalidate(
+          _parsedEvent(
+            eventId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+            eventType: 'APPOINTMENT_COMPLETED',
+            resourceType: 'APPOINTMENT',
+          ),
+        );
+        expect(appointment.refreshes, 2);
+        expect(appointment.uiState, 'COMPLETED');
+        expect(list.refreshes, 3);
+        expect(list.uiState, 'UPCOMING_EMPTY');
         target.dispose();
+      },
+    );
+
+    test(
+      'patient foreground and reconnect refetch completed Appointment authority',
+      () async {
+        final list = _Projection(active: true, loaded: true)
+          ..uiState = 'UPCOMING_CONFIRMED'
+          ..serverState = 'UPCOMING_EMPTY';
+        final appointment = _Projection(active: true, loaded: true)
+          ..uiState = 'CONFIRMED'
+          ..serverState = 'COMPLETED';
+        final target = PatientScheduledCareRealtimeTarget.bindings(
+          requestId: () => null,
+          appointmentId: () => _appointmentId,
+          request: _binding(_Projection()),
+          appointment: _binding(appointment),
+          list: _binding(list),
+        );
+        coordinator.registerTarget(target);
+        await coordinator.startSession(
+          const RealtimeSessionOwner(userId: 'patient-a', role: 'PATIENT'),
+        );
+
+        await coordinator.foregroundResync();
+        expect(list.uiState, 'UPCOMING_EMPTY');
+        expect(appointment.uiState, 'COMPLETED');
+
+        list.uiState = 'STALE_UPCOMING_CONFIRMED';
+        appointment.uiState = 'STALE_CONFIRMED';
+        transport.connect();
+        await _pumpEvents();
+
+        expect(list.uiState, 'UPCOMING_EMPTY');
+        expect(appointment.uiState, 'COMPLETED');
+        expect(list.refreshes, 2);
+        expect(appointment.refreshes, 2);
       },
     );
 
@@ -627,6 +706,18 @@ void main() {
         expect(home.refreshes, 2);
         expect(agenda.refreshes, 2);
         expect(appointment.refreshes, 1);
+
+        await target.invalidate(
+          _parsedEvent(
+            eventId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+            eventType: 'CONSULTATION_COMPLETED',
+            resourceType: 'CONSULTATION',
+          ),
+        );
+        expect(home.refreshes, 3);
+        expect(agenda.refreshes, 3);
+        expect(appointment.refreshes, 2);
+        expect(request.refreshes, 1);
         target.dispose();
       },
     );

@@ -163,4 +163,11 @@ class _FakeActiveConsultationApi
         ? index
         : _responses.length - 1];
   }
+
+  @override
+  Future<DoctorActiveConsultation> startScheduled({
+    required String appointmentId,
+    required int expectedAppointmentVersion,
+    required String idempotencyKey,
+  }) => throw UnimplementedError();
 }

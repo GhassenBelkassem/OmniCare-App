@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
@@ -24,6 +26,7 @@ class ClinicalRecordController extends ChangeNotifier {
   String? failureCode;
   String? _pendingKey;
   String? _pendingFingerprint;
+  bool _refreshPending = false;
   bool _disposed = false;
 
   bool get dirty =>
@@ -31,10 +34,13 @@ class ClinicalRecordController extends ChangeNotifier {
       draft.fingerprint() != authoritative!.record.fingerprint();
 
   Future<void> load({bool force = false}) async {
-    if (isLoading || _disposed) return;
-    if (dirty && !force) {
-      newerVersionAvailable = true;
-      notifyListeners();
+    if (_disposed) return;
+    if (isSaving && !force) {
+      _refreshPending = true;
+      return;
+    }
+    if (isLoading) {
+      _refreshPending = true;
       return;
     }
     isLoading = true;
@@ -43,18 +49,21 @@ class ClinicalRecordController extends ChangeNotifier {
     try {
       final value = await _api.read(consultationId);
       if (_disposed) return;
-      authoritative = value;
-      draft = value.record.copy();
-      conflict = false;
-      newerVersionAvailable = false;
-      _pendingKey = null;
-      _pendingFingerprint = null;
+      final current = authoritative;
+      if (force || current == null || !dirty) {
+        _adopt(value);
+      } else if (value.clinicalRecordVersion > current.clinicalRecordVersion) {
+        newerVersionAvailable = true;
+      } else if (value.clinicalRecordVersion == current.clinicalRecordVersion) {
+        newerVersionAvailable = false;
+      }
     } catch (error) {
       if (!_disposed) failureCode = _code(error);
     } finally {
       if (!_disposed) {
         isLoading = false;
         notifyListeners();
+        _drainRefresh();
       }
     }
   }
@@ -92,6 +101,7 @@ class ClinicalRecordController extends ChangeNotifier {
       if (_disposed) return;
       authoritative = saved;
       draft = saved.record.copy();
+      conflict = false;
       newerVersionAvailable = false;
       _pendingKey = null;
       _pendingFingerprint = null;
@@ -107,6 +117,7 @@ class ClinicalRecordController extends ChangeNotifier {
       if (!_disposed) {
         isSaving = false;
         notifyListeners();
+        _drainRefresh();
       }
     }
   }
@@ -132,7 +143,23 @@ class ClinicalRecordController extends ChangeNotifier {
     failureCode = null;
     _pendingKey = null;
     _pendingFingerprint = null;
+    _refreshPending = false;
     if (!_disposed) notifyListeners();
+  }
+
+  void _adopt(ClinicalRecordEnvelope value) {
+    authoritative = value;
+    draft = value.record.copy();
+    conflict = false;
+    newerVersionAvailable = false;
+    _pendingKey = null;
+    _pendingFingerprint = null;
+  }
+
+  void _drainRefresh() {
+    if (!_refreshPending || _disposed || isLoading || isSaving) return;
+    _refreshPending = false;
+    unawaited(load());
   }
 
   @override
@@ -156,9 +183,15 @@ class ClinicalRecordController extends ChangeNotifier {
 }
 
 class ClinicalRecordRealtimeTarget implements ScheduledCareRealtimeTarget {
-  ClinicalRecordRealtimeTarget(this.controller);
+  ClinicalRecordRealtimeTarget(
+    this.controller, {
+    bool Function()? isWorkspaceActive,
+  }) : _isWorkspaceActive = isWorkspaceActive;
   final ClinicalRecordController controller;
+  final bool Function()? _isWorkspaceActive;
   bool _active = false;
+
+  bool get _canRefresh => _active && (_isWorkspaceActive?.call() ?? true);
 
   @override
   String get role => 'DOCTOR';
@@ -166,15 +199,17 @@ class ClinicalRecordRealtimeTarget implements ScheduledCareRealtimeTarget {
   void activate() => _active = true;
   @override
   void deactivate() {
+    if (!_active) return;
     _active = false;
     controller.clear();
   }
 
   @override
   Future<void> invalidate(ScheduledCareInvalidationEvent event) =>
-      _active ? controller.invalidate(event) : Future<void>.value();
+      _canRefresh ? controller.invalidate(event) : Future<void>.value();
   @override
-  Future<void> resync() => _active ? controller.load() : Future<void>.value();
+  Future<void> resync() =>
+      _canRefresh ? controller.load() : Future<void>.value();
   @override
   void dispose() => _active = false;
 }

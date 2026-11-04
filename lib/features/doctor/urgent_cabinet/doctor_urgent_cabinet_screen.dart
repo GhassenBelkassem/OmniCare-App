@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/omni_theme.dart';
 import '../workspace/doctor_workspace_config.dart';
+import '../active_consultation/doctor_active_consultation_controller.dart';
+import '../consultation_detail_screen.dart';
 import 'doctor_urgent_cabinet_accepted_card.dart';
 import 'doctor_urgent_cabinet_accepted_sheet.dart';
 import 'doctor_urgent_cabinet_check_in_entry_sheet.dart';
@@ -25,10 +27,12 @@ class DoctorUrgentCabinetScreen extends StatefulWidget {
     super.key,
     required this.workspaceConfig,
     required this.controller,
+    this.activeConsultationController,
   });
 
   final DoctorWorkspaceConfig? workspaceConfig;
   final DoctorUrgentCabinetController controller;
+  final DoctorActiveConsultationController? activeConsultationController;
 
   @override
   State<DoctorUrgentCabinetScreen> createState() =>
@@ -249,6 +253,7 @@ class _DoctorUrgentCabinetScreenState extends State<DoctorUrgentCabinetScreen>
     }
 
     final request = current.request;
+    final commitment = widget.controller.commitmentFor(identity);
     final sheetToken = Object();
     _openRequestIdentity = null;
     _openAcceptedRequestIdentity = identity;
@@ -256,6 +261,13 @@ class _DoctorUrgentCabinetScreenState extends State<DoctorUrgentCabinetScreen>
       context,
       request: request,
       arrivalVerificationEnabled: widget.controller.canVerifyArrival(identity),
+      consultationStartEnabled:
+          widget.activeConsultationController != null &&
+          widget.controller.canStartConsultation(identity),
+      arrivedWaitingForCapacity:
+          commitment?.arrivalVerifiedAt != null &&
+          commitment?.consultationId == null &&
+          commitment?.canStartConsultation != true,
       onSheetContextReady: (sheetContext) {
         if (!mounted || _currentAcceptedRequest(identity) == null) {
           _scheduleSheetDismiss(sheetContext);
@@ -270,15 +282,74 @@ class _DoctorUrgentCabinetScreenState extends State<DoctorUrgentCabinetScreen>
       _openSheetContext = null;
       _openAcceptedRequestIdentity = null;
     }
-    if (!mounted ||
-        action != DoctorUrgentCabinetAcceptedSheetAction.verifyArrival ||
-        _currentAcceptedRequest(identity) == null) {
+    if (!mounted || _currentAcceptedRequest(identity) == null) {
       return;
     }
+    if (action == DoctorUrgentCabinetAcceptedSheetAction.startConsultation) {
+      await _startConsultation(identity);
+      return;
+    }
+    if (action != DoctorUrgentCabinetAcceptedSheetAction.verifyArrival) return;
     await _openCheckInEntry(
       identity,
       originFocusNode: originFocusNode,
       expectedContextFingerprint: expectedContextFingerprint,
+    );
+  }
+
+  Future<void> _startConsultation(String identity) async {
+    final activeController = widget.activeConsultationController;
+    final commitment = widget.controller.commitmentFor(identity);
+    if (activeController == null ||
+        commitment == null ||
+        !commitment.canStartConsultation) {
+      return;
+    }
+    final outcome = await activeController.startUrgentCabinet(
+      commitment.commitmentId,
+      commitment.revision,
+    );
+    if (!mounted) return;
+    if (outcome != DoctorConsultationStartOutcome.started &&
+        outcome != DoctorConsultationStartOutcome.recovered) {
+      _showNotificationStatus(
+        activeController.startErrorMessage ??
+            'Impossible de démarrer la consultation.',
+      );
+      await widget.controller.refresh(showLoading: false);
+      return;
+    }
+    final active = activeController.active;
+    if (active == null) return;
+    await widget.controller.refresh(showLoading: false);
+    if (!mounted) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => ConsultationDetailScreen(
+          consultationId: active.consultationId,
+          activeWorkspace: true,
+          onCompleted: (consultationId) async {
+            await activeController.reconcileCompleted(consultationId);
+            await widget.controller.refresh(showLoading: false);
+          },
+          consultation: <String, dynamic>{
+            'id': active.consultationId,
+            'sourceId': active.sourceId,
+            'status': active.status.name,
+            'urgentIntakeBodyAreas':
+                _currentAcceptedRequest(identity)?.request.bodyAreas
+                    .map((area) => area.frenchLabel)
+                    .toList(growable: false) ??
+                const <String>[],
+            'urgentIntakePainScore': _currentAcceptedRequest(
+              identity,
+            )?.request.painScore,
+            'urgentIntakeDescription': _currentAcceptedRequest(
+              identity,
+            )?.request.shortDescription,
+          },
+        ),
+      ),
     );
   }
 

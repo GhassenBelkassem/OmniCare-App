@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -25,7 +27,14 @@ class ConsultationDetailScreen extends StatefulWidget {
     super.key,
     required this.consultation,
     required this.consultationId,
+    this.activeWorkspace = false,
+    this.onCompleted,
   });
+
+  /// Active authoring is opt-in so history/read-only routes never mount MRS
+  /// active-care stores merely because their Consultation id is a UUID.
+  final bool activeWorkspace;
+  final Future<void> Function(String consultationId)? onCompleted;
 
   @override
   State<ConsultationDetailScreen> createState() =>
@@ -39,6 +48,7 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
 
   late final TextEditingController _diagnosisController;
   late final TextEditingController _treatmentController;
+  final ScrollController _scrollController = ScrollController();
 
   bool _isLoading = true;
   bool _isSaving = false;
@@ -46,10 +56,14 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
   ConsultationFinishController? _finishController;
   ConsultationFinishRealtimeTarget? _finishTarget;
   VoidCallback? _unregisterFinish;
+  bool _activeAuthoring = true;
+  bool _completionHandled = false;
 
-  bool get _isCanonical => RegExp(
-    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
-  ).hasMatch(widget.consultationId.trim());
+  bool get _isCanonical =>
+      widget.activeWorkspace &&
+      RegExp(
+        r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+      ).hasMatch(widget.consultationId.trim());
 
   String _displayOrDash(String? v) {
     final t = (v ?? '').trim();
@@ -115,6 +129,19 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
   }
 
   void _canonicalChanged() {
+    if (!_completionHandled &&
+        _finishController?.consultation?.status == 'COMPLETED') {
+      _completionHandled = true;
+      _activeAuthoring = false;
+      _unregisterFinish?.call();
+      _unregisterFinish = null;
+      _finishTarget?.dispose();
+      _finishTarget = null;
+      final onCompleted = widget.onCompleted;
+      if (onCompleted != null) {
+        unawaited(onCompleted(_consultationId));
+      }
+    }
     if (mounted) setState(() {});
   }
 
@@ -237,12 +264,19 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
     _clinicalController?.dispose();
     _diagnosisController.dispose();
     _treatmentController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final c = _consultation;
+    final completedReadOnly =
+        (c?.status ?? widget.consultation['status'])
+            ?.toString()
+            .trim()
+            .toUpperCase() ==
+        'COMPLETED';
     final symptoms = (c?.symptoms ?? widget.consultation['symptoms'])
         ?.toString()
         .trim();
@@ -288,11 +322,32 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
+              key: const ValueKey('consultation-detail-scroll'),
+              controller: _scrollController,
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (_isCanonical) ...[
+                    if (widget.consultation['urgentIntakeBodyAreas'] is List &&
+                        (widget.consultation['urgentIntakeBodyAreas'] as List)
+                            .isNotEmpty) ...[
+                      _UrgentIntakeContextCard(
+                        bodyAreas:
+                            (widget.consultation['urgentIntakeBodyAreas']
+                                    as List)
+                                .whereType<String>()
+                                .toList(growable: false),
+                        painScore:
+                            widget.consultation['urgentIntakePainScore']
+                                as int?,
+                        description: widget
+                            .consultation['urgentIntakeDescription']
+                            ?.toString(),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
                     if (_clinicalController == null ||
                         _finishController == null)
                       const Center(child: CircularProgressIndicator())
@@ -303,13 +358,23 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                         ClinicalAuthoringCard(
                           consultationId: _consultationId,
                           controller: _clinicalController,
+                          isActive: () => _activeAuthoring,
                         ),
                         const SizedBox(height: 20),
-                        PrescriptionCard(consultationId: _consultationId),
+                        PrescriptionCard(
+                          consultationId: _consultationId,
+                          isActive: () => _activeAuthoring,
+                        ),
                         const SizedBox(height: 20),
-                        ClinicalOrderCard(consultationId: _consultationId),
+                        ClinicalOrderCard(
+                          consultationId: _consultationId,
+                          isActive: () => _activeAuthoring,
+                        ),
                         const SizedBox(height: 20),
-                        OfficialArtifactCard(consultationId: _consultationId),
+                        OfficialArtifactCard(
+                          consultationId: _consultationId,
+                          isActive: () => _activeAuthoring,
+                        ),
                         const SizedBox(height: 20),
                       ],
                       ConsultationFinishCard(controller: _finishController!),
@@ -515,6 +580,7 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                           const SizedBox(height: 8),
                           TextField(
                             controller: _diagnosisController,
+                            readOnly: completedReadOnly,
                             maxLines: 3,
                             decoration: InputDecoration(
                               hintText: 'Enter diagnosis',
@@ -535,6 +601,7 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                           const SizedBox(height: 8),
                           TextField(
                             controller: _treatmentController,
+                            readOnly: completedReadOnly,
                             maxLines: 4,
                             decoration: InputDecoration(
                               hintText: 'Enter treatment',
@@ -543,57 +610,59 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                               ),
                             ),
                           ),
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: _isSaving ? null : _saveDraft,
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: const Color(0xFF1FBF9A),
-                                    side: const BorderSide(
-                                      color: Color(0xFF1FBF9A),
+                          if (!completedReadOnly) ...[
+                            const SizedBox(height: 16),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: _isSaving ? null : _saveDraft,
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: const Color(0xFF1FBF9A),
+                                      side: const BorderSide(
+                                        color: Color(0xFF1FBF9A),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 14,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
                                     ),
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 14,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    'Save',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: ElevatedButton(
-                                  onPressed: _isSaving ? null : _complete,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF1FBF9A),
-                                    foregroundColor: Colors.white,
-                                    elevation: 0,
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 14,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    'Complete',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontWeight: FontWeight.w700,
+                                    child: Text(
+                                      'Save',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: ElevatedButton(
+                                    onPressed: _isSaving ? null : _complete,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF1FBF9A),
+                                      foregroundColor: Colors.white,
+                                      elevation: 0,
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 14,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      'Complete',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -1000,4 +1069,51 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
       ),
     );
   }
+}
+
+class _UrgentIntakeContextCard extends StatelessWidget {
+  const _UrgentIntakeContextCard({
+    required this.bodyAreas,
+    required this.painScore,
+    required this.description,
+  });
+
+  final List<String> bodyAreas;
+  final int? painScore;
+  final String? description;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    key: const ValueKey('urgent-cabinet-intake-context'),
+    margin: EdgeInsets.zero,
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.info_outline_rounded),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Contexte déclaré avant l’arrivée',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text('Zones : ${bodyAreas.join(', ')}'),
+          if (painScore != null) Text('Douleur déclarée : $painScore/10'),
+          if (description?.trim().isNotEmpty == true)
+            Text('Description : ${description!.trim()}'),
+          const SizedBox(height: 8),
+          const Text(
+            'Contexte opérationnel en lecture seule — non copié dans le dossier médical.',
+          ),
+        ],
+      ),
+    ),
+  );
 }

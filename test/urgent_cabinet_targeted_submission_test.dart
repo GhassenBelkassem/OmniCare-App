@@ -456,6 +456,62 @@ void main() {
   });
 
   group('activation gate', () {
+    test('production gate admits valid SELF and FAMILY_MEMBER authority', () {
+      for (final subject in <UrgentCabinetCareSubject>[
+        const UrgentCabinetCareSubject.self(),
+        UrgentCabinetCareSubject.familyMember(_familyId),
+      ]) {
+        final validation = prepareUrgentCabinetTargetedSubmission(
+          clinicalIntake: _draft(subject: subject),
+          quote: _quote(),
+        );
+        expect(
+          UrgentCabinetSubmissionActivationGate.p4Production.allows(
+            authenticatedAccountId: _accountId,
+            submission: validation,
+            currentAuthoritativeTargetAndQuote: true,
+          ),
+          isTrue,
+        );
+      }
+    });
+
+    test('production gate retains account, payload and target fences', () {
+      final valid = prepareUrgentCabinetTargetedSubmission(
+        clinicalIntake: _draft(),
+        quote: _quote(),
+      );
+      final invalid = prepareUrgentCabinetTargetedSubmission(
+        clinicalIntake: _draft(doctorId: 'invalid'),
+        quote: _quote(),
+      );
+
+      expect(
+        UrgentCabinetSubmissionActivationGate.p4Production.allows(
+          authenticatedAccountId: null,
+          submission: valid,
+          currentAuthoritativeTargetAndQuote: true,
+        ),
+        isFalse,
+      );
+      expect(
+        UrgentCabinetSubmissionActivationGate.p4Production.allows(
+          authenticatedAccountId: _accountId,
+          submission: invalid,
+          currentAuthoritativeTargetAndQuote: true,
+        ),
+        isFalse,
+      );
+      expect(
+        UrgentCabinetSubmissionActivationGate.p4Production.allows(
+          authenticatedAccountId: _accountId,
+          submission: valid,
+          currentAuthoritativeTargetAndQuote: false,
+        ),
+        isFalse,
+      );
+    });
+
     test('checked-in milestone gate cannot activate submission', () {
       final validation = prepareUrgentCabinetTargetedSubmission(
         clinicalIntake: _draft(),

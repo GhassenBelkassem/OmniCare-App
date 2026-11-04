@@ -47,7 +47,6 @@ import 'providers/reservation_provider.dart';
 import 'services/notification_service.dart';
 import 'l10n/app_localizations.dart';
 import 'core/nav/app_nav.dart';
-import 'core/config/p4_cabinet_local_development_activation.dart';
 import 'core/theme/omni_theme.dart';
 import 'core/device/device_identity_service.dart';
 import 'core/network/app_http_client.dart';
@@ -125,7 +124,7 @@ Future<void> startOmniCare({
   ]);
   final resolvedUrgentCabinetGate =
       submissionActivationGate ??
-      P4CabinetLocalDevelopmentActivation.forCurrentBuild();
+      UrgentCabinetSubmissionActivationGate.p4Production;
 
   final tokenStore = SecureTokenStore();
   late AuthController authController;
@@ -205,7 +204,7 @@ class OmniCareApp extends StatelessWidget {
     this.notificationRealtimeCoordinator,
     this.notificationPushCoordinator,
     this.urgentCabinetSubmissionActivationGate =
-        UrgentCabinetSubmissionActivationGate.p4Cab03C01Closed,
+        UrgentCabinetSubmissionActivationGate.p4Production,
   });
 
   final AuthController authController;
@@ -670,12 +669,14 @@ class _AuthStateListenerState extends State<_AuthStateListener>
     if (!auth.isAuthenticated || auth.globalRole != 'PATIENT') return;
     final accountId = auth.currentUser?.id.trim();
     if (accountId == null || accountId.isEmpty) return;
+    final claimed = NotificationService().claimUrgentCabinetOpen(intent);
+    if (claimed == null) return;
     final navigator = Navigator.of(context);
     final recovered = await context
         .read<UrgentCabinetPatientLifecycleController>()
         .recoverFromNotification(
           accountId: accountId,
-          requestId: intent.requestId,
+          requestId: claimed.requestId,
         );
     if (!context.mounted ||
         !recovered ||

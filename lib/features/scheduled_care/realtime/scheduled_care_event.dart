@@ -8,8 +8,10 @@ enum ScheduledCareEventType {
   bookingRequestExpired,
   appointmentCreated,
   appointmentCancelled,
+  appointmentCompleted,
   consultationActivated,
   consultationUpdated,
+  consultationCompleted,
   clinicalAccessChanged,
   unknown,
 }
@@ -108,8 +110,10 @@ class ScheduledCareInvalidationEvent {
     'BOOKING_REQUEST_EXPIRED' => ScheduledCareEventType.bookingRequestExpired,
     'APPOINTMENT_CREATED' => ScheduledCareEventType.appointmentCreated,
     'APPOINTMENT_CANCELLED' => ScheduledCareEventType.appointmentCancelled,
+    'APPOINTMENT_COMPLETED' => ScheduledCareEventType.appointmentCompleted,
     'CONSULTATION_ACTIVATED' => ScheduledCareEventType.consultationActivated,
     'CONSULTATION_UPDATED' => ScheduledCareEventType.consultationUpdated,
+    'CONSULTATION_COMPLETED' => ScheduledCareEventType.consultationCompleted,
     'CLINICAL_ACCESS_CHANGED' => ScheduledCareEventType.clinicalAccessChanged,
     _ => ScheduledCareEventType.unknown,
   };

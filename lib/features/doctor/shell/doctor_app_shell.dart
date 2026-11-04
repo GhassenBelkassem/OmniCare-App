@@ -20,6 +20,7 @@ import '../agenda/doctor_agenda_controller.dart';
 import '../agenda/doctor_agenda_screen.dart';
 import '../active_consultation/doctor_active_consultation.dart';
 import '../active_consultation/doctor_active_consultation_controller.dart';
+import '../consultation_detail_screen.dart';
 import '../home/doctor_home_screen.dart';
 import '../medical_record/doctor_medical_record_controller.dart';
 import '../medical_record/doctor_medical_record_workspace_screen.dart';
@@ -138,10 +139,22 @@ class _DoctorAppShellState extends State<DoctorAppShell> {
       widget.activeConsultationController?.active,
     );
     widget.homeController?.setRealtimeActive(true);
-    _urgentCabinetOpenSubscription = NotificationService().urgentCabinetOpens
-        .listen(
-          (intent) => unawaited(_selectUrgentCabinetRequest(intent.requestId)),
-        );
+    final notifications = NotificationService();
+    _urgentCabinetOpenSubscription = notifications.urgentCabinetOpens.listen((
+      intent,
+    ) {
+      final claimed = notifications.claimUrgentCabinetOpen(intent);
+      if (claimed != null) {
+        unawaited(_selectUrgentCabinetRequest(claimed.requestId));
+      }
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final pending = notifications.takePendingUrgentCabinetOpen();
+      if (pending != null) {
+        unawaited(_selectUrgentCabinetRequest(pending.requestId));
+      }
+    });
   }
 
   @override
@@ -443,6 +456,9 @@ class _DoctorAppShellState extends State<DoctorAppShell> {
             ? _urgentController
             : null,
         homeController: widget.homeController,
+        activeConsultationController: widget.activeConsultationController,
+        onOpenActiveConsultation: _openActiveConsultation,
+        onOpenAppointment: _openAppointment,
         onOpenBookingRequest: _openBookingRequest,
         onOpenAgenda: () =>
             _selectDestination(DoctorNavigationDestinationId.agenda),
@@ -476,6 +492,7 @@ class _DoctorAppShellState extends State<DoctorAppShell> {
             _showUrgentWorkflow(_DoctorUrgentWorkflow.medicalRecord),
         onBackToQr: () => _showUrgentWorkflow(_DoctorUrgentWorkflow.qr),
         urgentCabinetController: _urgentCabinetController,
+        activeConsultationController: widget.activeConsultationController,
         medicalRecordController: widget.medicalRecordController,
       ),
       DoctorNavigationDestinationId.patients => const DoctorPlaceholderTab(
@@ -525,6 +542,12 @@ class _DoctorAppShellState extends State<DoctorAppShell> {
       context,
       appointmentId: appointmentId,
       controller: controller,
+      activeConsultationController: widget.activeConsultationController,
+      onConsultationReady: (_) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _openActiveConsultation();
+        });
+      },
     );
   }
 
@@ -638,6 +661,7 @@ class _DoctorAppShellState extends State<DoctorAppShell> {
                   MaterialPageRoute(
                     builder: (_) => DoctorMedicalRecordWorkspaceScreen(
                       controller: widget.medicalRecordController!,
+                      onContinueConsultation: _continueActiveConsultation,
                     ),
                   ),
                 );
@@ -651,6 +675,39 @@ class _DoctorAppShellState extends State<DoctorAppShell> {
         ],
       ),
     );
+  }
+
+  void _continueActiveConsultation() {
+    final active = widget.activeConsultationController?.active;
+    if (active == null) return;
+    Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => ConsultationDetailScreen(
+          consultationId: active.consultationId,
+          activeWorkspace: true,
+          onCompleted: _convergeAfterConsultationCompleted,
+          consultation: <String, dynamic>{
+            'id': active.consultationId,
+            'sourceId': active.sourceId,
+            'status': active.status.name,
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<void> _convergeAfterConsultationCompleted(
+    String consultationId,
+  ) async {
+    final operations = <Future<void>>[
+      widget.activeConsultationController?.reconcileCompleted(consultationId) ??
+          Future<void>.value(),
+      widget.homeController?.refresh() ?? Future<void>.value(),
+      if (_agendaController.hasLoaded) _agendaController.refresh(),
+      if (widget.appointmentController?.appointment != null)
+        widget.appointmentController!.refresh(),
+    ];
+    await Future.wait(operations);
   }
 }
 
@@ -697,6 +754,7 @@ class _UrgentWorkflowContent extends StatelessWidget {
     required this.onOpenMedicalRecord,
     required this.onBackToQr,
     required this.urgentCabinetController,
+    required this.activeConsultationController,
     required this.medicalRecordController,
   });
 
@@ -718,6 +776,7 @@ class _UrgentWorkflowContent extends StatelessWidget {
   final VoidCallback onOpenMedicalRecord;
   final VoidCallback onBackToQr;
   final DoctorUrgentCabinetController urgentCabinetController;
+  final DoctorActiveConsultationController? activeConsultationController;
   final DoctorMedicalRecordController? medicalRecordController;
 
   @override
@@ -737,6 +796,7 @@ class _UrgentWorkflowContent extends StatelessWidget {
       homeController: urgentController,
       onOpenHomeQr: onOpenQr,
       urgentCabinetController: urgentCabinetController,
+      activeConsultationController: activeConsultationController,
     );
     if (!capabilities.contains(DoctorCapability.urgentHomeRequests)) {
       return workspace;

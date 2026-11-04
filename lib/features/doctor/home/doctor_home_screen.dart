@@ -9,8 +9,9 @@ import '../profile/doctor_display_profile.dart';
 import '../scheduled_care/application/doctor_home_controller.dart';
 import '../workspace/doctor_workspace_config.dart';
 import '../urgent/doctor_urgent_controller.dart';
+import '../active_consultation/doctor_active_consultation.dart';
+import '../active_consultation/doctor_active_consultation_controller.dart';
 import 'doctor_home_demo_state.dart';
-import 'active_consultation_entry.dart';
 
 DoctorHomeUrgentStatus _homeUrgentStatus(DoctorUrgentState state) =>
     switch (state) {
@@ -39,6 +40,9 @@ class DoctorHomeScreen extends StatelessWidget {
     this.urgentController,
     this.homeController,
     this.onOpenBookingRequest,
+    this.activeConsultationController,
+    this.onOpenActiveConsultation,
+    this.onOpenAppointment,
   });
 
   final DoctorDisplayProfile profile;
@@ -51,6 +55,9 @@ class DoctorHomeScreen extends StatelessWidget {
   final DoctorUrgentController? urgentController;
   final DoctorHomeController? homeController;
   final ValueChanged<String>? onOpenBookingRequest;
+  final DoctorActiveConsultationController? activeConsultationController;
+  final VoidCallback? onOpenActiveConsultation;
+  final ValueChanged<String>? onOpenAppointment;
 
   @override
   Widget build(BuildContext context) {
@@ -193,6 +200,11 @@ class DoctorHomeScreen extends StatelessWidget {
 
   Widget _buildReal(BuildContext context, DoctorHomeController controller) {
     final summary = controller.summary;
+    final activeConsultation = activeConsultationController?.active;
+    final activeAuthorityReady =
+        activeConsultationController == null ||
+        activeConsultationController?.state ==
+            DoctorActiveConsultationLoadState.ready;
     final nextRequest = summary?.nextPendingRequest;
     final nextAppointment = summary?.nextConfirmedAppointment;
     final hasUrgentRequests = capabilities.contains(
@@ -219,7 +231,22 @@ class DoctorHomeScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _Greeting(profile: profile),
-                const ActiveConsultationEntry(),
+                if (activeConsultation != null) ...[
+                  const SizedBox(height: OmniSpacing.xl),
+                  _CanonicalActiveConsultationCard(
+                    consultation: activeConsultation,
+                    onContinue: onOpenActiveConsultation,
+                  ),
+                ] else if (activeConsultationController?.isLoading == true) ...[
+                  const SizedBox(height: OmniSpacing.xl),
+                  const LinearProgressIndicator(),
+                ] else if (!activeAuthorityReady) ...[
+                  const SizedBox(height: OmniSpacing.xl),
+                  const _HomeNeutralCard(
+                    icon: Icons.sync_problem_outlined,
+                    message: 'Synchronisation de la consultation indisponible.',
+                  ),
+                ],
                 if (controller.state == DoctorHomeLoadState.loading &&
                     summary == null) ...[
                   const SizedBox(height: OmniSpacing.xxl),
@@ -266,30 +293,37 @@ class DoctorHomeScreen extends StatelessWidget {
                               nextRequest.requestId!,
                             ),
                     ),
-                  const SizedBox(height: OmniSpacing.xxl),
-                  const _SectionHeader(title: 'Prochain rendez-vous'),
-                  const SizedBox(height: OmniSpacing.md),
-                  if (nextAppointment == null)
-                    const _HomeNeutralCard(
-                      key: ValueKey('doctor-no-next-appointment'),
-                      icon: Icons.event_available_outlined,
-                      message: 'Aucun rendez-vous confirmé à venir.',
-                    )
-                  else
-                    _NextAppointmentCard(
-                      appointment: DoctorHomeAppointment(
-                        time: DateFormat('HH:mm').format(
-                          schedulingWallClock(
-                            nextAppointment.start,
-                            timezone: nextAppointment.timezone,
+                  if (activeConsultation == null && activeAuthorityReady) ...[
+                    const SizedBox(height: OmniSpacing.xxl),
+                    const _SectionHeader(title: 'Rendez-vous à démarrer'),
+                    const SizedBox(height: OmniSpacing.md),
+                    if (nextAppointment == null)
+                      const _HomeNeutralCard(
+                        key: ValueKey('doctor-no-next-appointment'),
+                        icon: Icons.event_available_outlined,
+                        message: 'Aucun rendez-vous confirmé.',
+                      )
+                    else
+                      _NextAppointmentCard(
+                        appointment: DoctorHomeAppointment(
+                          time: DateFormat('HH:mm').format(
+                            schedulingWallClock(
+                              nextAppointment.start,
+                              timezone: nextAppointment.timezone,
+                            ),
                           ),
+                          patientName: nextAppointment.subject.displayName,
+                          reason: 'Rendez-vous confirmé',
+                          location: nextAppointment.cabinet.name,
                         ),
-                        patientName: nextAppointment.subject.displayName,
-                        reason: 'Rendez-vous confirmé',
-                        location: nextAppointment.cabinet.name,
+                        onOpenAgenda: onOpenAgenda,
+                        onStart: nextAppointment.appointmentId == null
+                            ? null
+                            : () => onOpenAppointment?.call(
+                                nextAppointment.appointmentId!,
+                              ),
                       ),
-                      onOpenAgenda: onOpenAgenda,
-                    ),
+                  ],
                   if (controller.failure != null) ...[
                     const SizedBox(height: OmniSpacing.md),
                     _HomeFailure(
@@ -560,10 +594,12 @@ class _NextAppointmentCard extends StatelessWidget {
   const _NextAppointmentCard({
     required this.appointment,
     required this.onOpenAgenda,
+    this.onStart,
   });
 
   final DoctorHomeAppointment appointment;
   final VoidCallback? onOpenAgenda;
+  final VoidCallback? onStart;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -624,12 +660,72 @@ class _NextAppointmentCard extends StatelessWidget {
         ],
         if (onOpenAgenda != null) ...[
           const SizedBox(height: OmniSpacing.md),
-          TextButton.icon(
-            onPressed: onOpenAgenda,
-            icon: const Icon(Icons.calendar_month_rounded, size: 18),
-            label: const Text('Voir dans l’agenda'),
+          Wrap(
+            spacing: OmniSpacing.sm,
+            runSpacing: OmniSpacing.sm,
+            children: [
+              if (onStart != null)
+                FilledButton.icon(
+                  key: const ValueKey('doctor-home-start-consultation'),
+                  onPressed: onStart,
+                  icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                  label: const Text('Démarrer la consultation'),
+                ),
+              TextButton.icon(
+                onPressed: onOpenAgenda,
+                icon: const Icon(Icons.calendar_month_rounded, size: 18),
+                label: const Text('Voir dans l’agenda'),
+              ),
+            ],
           ),
         ],
+      ],
+    ),
+  );
+}
+
+class _CanonicalActiveConsultationCard extends StatelessWidget {
+  const _CanonicalActiveConsultationCard({
+    required this.consultation,
+    required this.onContinue,
+  });
+
+  final DoctorActiveConsultation consultation;
+  final VoidCallback? onContinue;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(OmniSpacing.base),
+    decoration: BoxDecoration(
+      color: OmniColors.surfacePrimary,
+      borderRadius: BorderRadius.circular(OmniRadii.card),
+      border: Border.all(color: OmniColors.borderLight),
+      boxShadow: const [OmniColors.shadowSm],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Consultation en cours',
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: OmniSpacing.xs),
+        Text(
+          'Épisode ${consultation.consultationId}',
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: OmniColors.textSecondary),
+        ),
+        const SizedBox(height: OmniSpacing.md),
+        FilledButton.icon(
+          key: const ValueKey('doctor-home-continue-consultation'),
+          onPressed: onContinue,
+          icon: const Icon(Icons.medical_services_outlined),
+          label: const Text('Continuer la consultation'),
+        ),
       ],
     ),
   );
@@ -930,24 +1026,24 @@ class _ActivitySummary extends StatelessWidget {
         'Urgences au cabinet',
     };
     return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      const _SectionHeader(title: 'Votre activité'),
-      const SizedBox(height: OmniSpacing.md),
-      Wrap(
-        spacing: OmniSpacing.sm,
-        runSpacing: OmniSpacing.sm,
-        children: labels
-            .map(
-              (label) => Chip(
-                label: Text(label),
-                visualDensity: VisualDensity.compact,
-              ),
-            )
-            .toList(growable: false),
-      ),
-    ],
-  );
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionHeader(title: 'Votre activité'),
+        const SizedBox(height: OmniSpacing.md),
+        Wrap(
+          spacing: OmniSpacing.sm,
+          runSpacing: OmniSpacing.sm,
+          children: labels
+              .map(
+                (label) => Chip(
+                  label: Text(label),
+                  visualDensity: VisualDensity.compact,
+                ),
+              )
+              .toList(growable: false),
+        ),
+      ],
+    );
   }
 }
 

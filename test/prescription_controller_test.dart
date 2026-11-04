@@ -89,6 +89,7 @@ void main() {
       );
       await controller.load();
       controller.update((draft) => draft.generalInstructions = 'Unsaved');
+      api.version = 2;
       await controller.invalidate(
         _event(
           'PRESCRIPTION_UPDATED',
@@ -99,7 +100,36 @@ void main() {
 
       expect(controller.newerVersionAvailable, isTrue);
       expect(controller.draft.generalInstructions, 'Unsaved');
-      expect(api.readCount, 1);
+      expect(api.readCount, 2);
+      controller.dispose();
+    },
+  );
+
+  test(
+    'clinical dependency refresh at same prescription version preserves draft without warning',
+    () async {
+      final api = _FakePrescriptionApi();
+      final controller = PrescriptionController(
+        consultationId: consultationId,
+        api: api,
+      );
+      await controller.load();
+      controller.update((draft) => draft.generalInstructions = 'Unsaved');
+      api.clinicalVersion = 6;
+
+      await controller.invalidate(
+        _event(
+          'CONSULTATION_UPDATED',
+          ScheduledCareResourceType.consultation,
+          6,
+        ),
+      );
+
+      expect(api.readCount, 2);
+      expect(controller.authoritative?.prescriptionVersion, 1);
+      expect(controller.authoritative?.clinicalRecordVersion, 6);
+      expect(controller.draft.generalInstructions, 'Unsaved');
+      expect(controller.newerVersionAvailable, isFalse);
       controller.dispose();
     },
   );
@@ -159,6 +189,7 @@ ScheduledCareInvalidationEvent _event(
 class _FakePrescriptionApi implements PrescriptionApiContract {
   final String id = '33333333-3333-4333-8333-333333333333';
   int version = 1;
+  int clinicalVersion = 5;
   int readCount = 0;
   bool failAmbiguouslyOnce = false;
   bool signerUnavailable = false;
@@ -178,7 +209,7 @@ class _FakePrescriptionApi implements PrescriptionApiContract {
       PrescriptionEnvelope(
         prescriptionId: id,
         prescriptionVersion: version,
-        clinicalRecordVersion: 5,
+        clinicalRecordVersion: clinicalVersion,
         status: finalized ? 'ACTIVE' : 'DRAFT',
         finalized: finalized,
         medicationDecision: 'MEDICATION_PRESCRIBED',

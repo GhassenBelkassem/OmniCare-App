@@ -59,6 +59,9 @@ Map<String, Object?> _snapshotJson({
   String? arrivalVerifiedAt,
   bool withdrawnAfterAcceptance = false,
   int commitmentRevision = 1,
+  String? clinicalPhase,
+  String? consultationStatus,
+  String? commitmentStatusOverride,
 }) {
   final accepted = status == 'ACCEPTED';
   final declined = status == 'DECLINED';
@@ -90,7 +93,7 @@ Map<String, Object?> _snapshotJson({
         : null,
     'commitmentId': accepted || withdrawnAfterAcceptance ? _commitmentId : null,
     'commitmentStatus': accepted
-        ? 'ACTIVE'
+        ? commitmentStatusOverride ?? 'ACTIVE'
         : withdrawnAfterAcceptance
         ? 'CANCELLED'
         : null,
@@ -121,6 +124,11 @@ Map<String, Object?> _snapshotJson({
         (status == 'PENDING' ? <String>['CANCEL'] : <String>[]),
     'replayed': replayed,
     'evaluatedAt': '2026-10-18T10:00:30Z',
+    'clinicalPhase': clinicalPhase,
+    'consultationId': consultationStatus == null
+        ? null
+        : '99999999-9999-4999-8999-999999999999',
+    'consultationStatus': consultationStatus,
   };
 }
 
@@ -138,6 +146,9 @@ UrgentCabinetTargetedRequestSnapshot _snapshot({
   String? arrivalVerifiedAt,
   bool withdrawnAfterAcceptance = false,
   int commitmentRevision = 1,
+  String? clinicalPhase,
+  String? consultationStatus,
+  String? commitmentStatusOverride,
 }) => UrgentCabinetTargetedRequestSnapshot.fromJson(
   _snapshotJson(
     status: status,
@@ -153,6 +164,9 @@ UrgentCabinetTargetedRequestSnapshot _snapshot({
     arrivalVerifiedAt: arrivalVerifiedAt,
     withdrawnAfterAcceptance: withdrawnAfterAcceptance,
     commitmentRevision: commitmentRevision,
+    clinicalPhase: clinicalPhase,
+    consultationStatus: consultationStatus,
+    commitmentStatusOverride: commitmentStatusOverride,
   ),
 );
 
@@ -373,12 +387,7 @@ UrgentCabinetTargetedSubmissionValidation _validSubmission() =>
       ),
     );
 
-const _openGate = UrgentCabinetSubmissionActivationGate(
-  explicitSyntheticDevelopmentAuthorization: true,
-  backendLifecycleReady: true,
-  authorizedIsolatedApplicationDatabase: true,
-  waitingRecoveryIntegrated: true,
-);
+const _openGate = UrgentCabinetSubmissionActivationGate.p4Production;
 
 UrgentCabinetPatientLifecycleController _controller(
   _FakeRepository repository,
@@ -1485,6 +1494,75 @@ void main() {
       expect(flow.clinicalIntakeDraft, isNull);
       flow.dispose();
     });
+
+    test(
+      'patient presentation converges travel waiting in-progress completed',
+      () {
+        final controller = _controller(
+          _FakeRepository(),
+          _MemoryReceiptStore(),
+        );
+        const subject = UrgentCabinetCareSubject.self();
+
+        for (final transition
+            in <
+              (
+                UrgentCabinetTargetedRequestSnapshot,
+                UrgentCabinetPatientLifecyclePhase,
+              )
+            >[
+              (
+                _snapshot(
+                  status: 'ACCEPTED',
+                  state: 'CABINET_COMMITTED',
+                  clinicalPhase: 'CONFIRMED_TRAVEL_TO_CABINET',
+                ),
+                UrgentCabinetPatientLifecyclePhase.accepted,
+              ),
+              (
+                _snapshot(
+                  status: 'ACCEPTED',
+                  state: 'CABINET_COMMITTED',
+                  arrivalVerifiedAt: '2026-10-18T10:04:00Z',
+                  clinicalPhase: 'ARRIVED_WAITING_FOR_DOCTOR',
+                ),
+                UrgentCabinetPatientLifecyclePhase.arrivedWaitingForDoctor,
+              ),
+              (
+                _snapshot(
+                  status: 'ACCEPTED',
+                  state: 'CABINET_COMMITTED',
+                  arrivalVerifiedAt: '2026-10-18T10:04:00Z',
+                  clinicalPhase: 'CONSULTATION_IN_PROGRESS',
+                  consultationStatus: 'IN_PROGRESS',
+                ),
+                UrgentCabinetPatientLifecyclePhase.consultationInProgress,
+              ),
+              (
+                _snapshot(
+                  status: 'ACCEPTED',
+                  state: 'CABINET_COMMITTED',
+                  arrivalVerifiedAt: '2026-10-18T10:04:00Z',
+                  clinicalPhase: 'CARE_COMPLETED',
+                  consultationStatus: 'COMPLETED',
+                  commitmentStatusOverride: 'COMPLETED',
+                ),
+                UrgentCabinetPatientLifecyclePhase.careCompleted,
+              ),
+            ]) {
+          expect(
+            controller.adopt(
+              accountId: _accountId,
+              subject: subject,
+              snapshot: transition.$1,
+            ),
+            isTrue,
+          );
+          expect(controller.phase, transition.$2);
+        }
+        controller.dispose();
+      },
+    );
 
     test(
       'deliberate retry clears terminal receipt without cancelling',

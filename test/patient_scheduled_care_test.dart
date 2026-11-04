@@ -1,8 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:omnicare_mobile/core/network/app_http_client.dart';
+import 'package:omnicare_mobile/core/storage/secure_token_store.dart';
 import 'package:omnicare_mobile/core/theme/omni_theme.dart';
 import 'package:omnicare_mobile/features/patient_appointments/presentation/patient_appointments_screen.dart';
 import 'package:omnicare_mobile/features/scheduled_care/application/patient_booking_controller.dart';
@@ -10,10 +14,17 @@ import 'package:omnicare_mobile/features/scheduled_care/application/patient_sche
 import 'package:omnicare_mobile/features/scheduled_care/data/scheduled_care_api.dart';
 import 'package:omnicare_mobile/features/scheduled_care/data/scheduled_care_failure.dart';
 import 'package:omnicare_mobile/features/scheduled_care/data/scheduled_care_repository.dart';
+import 'package:omnicare_mobile/features/scheduled_care/data/patient_scheduled_consultation_api.dart';
 import 'package:omnicare_mobile/features/scheduled_care/domain/patient_scheduled_care_models.dart';
 import 'package:omnicare_mobile/features/scheduled_care/domain/scheduled_care_models.dart';
 import 'package:omnicare_mobile/features/scheduled_care/presentation/confirmed_scheduled_appointment_screen.dart';
+import 'package:omnicare_mobile/features/scheduled_care/realtime/scheduled_care_event.dart'
+    as realtime;
+import 'package:omnicare_mobile/features/scheduled_care/realtime/scheduled_care_realtime_coordinator.dart';
 import 'package:provider/provider.dart';
+
+const _completedAppointmentId = '8eca2732-a477-4b3a-af89-8982afcae325';
+const _completedConsultationId = 'e97c7a54-e378-4d59-b656-5e15457cdc02';
 
 Map<String, dynamic> _summaryJson({
   String type = 'APPOINTMENT',
@@ -448,6 +459,77 @@ void main() {
       expect(controller.filters.isActive, isFalse);
     });
 
+    test(
+      'APPOINTMENT_COMPLETED refetch moves the source from Upcoming to Past once',
+      () async {
+        var completed = false;
+        final repository = _ListRepository((query, _) async {
+          if (query.bucket == PatientScheduledCareBucket.upcoming) {
+            return _page(
+              completed
+                  ? const <PatientScheduledCareItem>[]
+                  : <PatientScheduledCareItem>[
+                      _item(id: _completedAppointmentId),
+                    ],
+            );
+          }
+          if (query.bucket == PatientScheduledCareBucket.past && completed) {
+            return _page(<PatientScheduledCareItem>[
+              _item(id: _completedAppointmentId, status: 'COMPLETED'),
+            ]);
+          }
+          return _page(const <PatientScheduledCareItem>[]);
+        });
+        final list = PatientScheduledCareController(repository: repository);
+        final bookingRepository = _BookingRepository();
+        final booking = PatientBookingController(
+          repository: bookingRepository,
+          lifecycleRepository: bookingRepository,
+          appointmentRepository: bookingRepository,
+        );
+        final target = PatientScheduledCareRealtimeTarget(
+          bookingController: booking,
+          listController: list,
+        )..activate();
+        addTearDown(() {
+          target.dispose();
+          list.dispose();
+          booking.dispose();
+        });
+        list.setRealtimeActive(true);
+
+        await list.load();
+        expect(list.items.single.appointmentId, _completedAppointmentId);
+
+        completed = true;
+        await target.invalidate(
+          realtime.ScheduledCareInvalidationEvent(
+            eventId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            type: realtime.ScheduledCareEventType.appointmentCompleted,
+            rawEventType: 'APPOINTMENT_COMPLETED',
+            resourceType: realtime.ScheduledCareResourceType.appointment,
+            resourceId: _completedAppointmentId,
+            version: 2,
+            occurredAt: DateTime.utc(2026, 10, 27, 21, 59, 32),
+          ),
+        );
+
+        expect(list.bucket, PatientScheduledCareBucket.upcoming);
+        expect(list.items, isEmpty);
+        await list.setBucket(PatientScheduledCareBucket.past);
+        expect(list.items, hasLength(1));
+        expect(list.items.single.appointmentId, _completedAppointmentId);
+        expect(list.items.single.status, 'COMPLETED');
+        expect(
+          list.items.where(
+            (item) =>
+                item.resourceType == ScheduledCareResourceType.bookingRequest,
+          ),
+          isEmpty,
+        );
+      },
+    );
+
     testWidgets('production screen renders real list and empty/error states', (
       tester,
     ) async {
@@ -537,6 +619,133 @@ void main() {
       expect(find.text('request-1'), findsOneWidget);
       expect(find.text('appointment-1'), findsOneWidget);
     });
+
+    testWidgets(
+      'completed Past Appointment re-enters exact detail through its real identity',
+      (tester) async {
+        final bookingRepository = _BookingRepository()
+          ..appointment = _appointment(
+            id: _completedAppointmentId,
+            status: 'COMPLETED',
+            actions: const [],
+          );
+        final booking = PatientBookingController(
+          repository: bookingRepository,
+          lifecycleRepository: bookingRepository,
+          appointmentRepository: bookingRepository,
+        );
+        final list = PatientScheduledCareController(
+          repository: _ListRepository(
+            (query, _) async => query.bucket == PatientScheduledCareBucket.past
+                ? _page(<PatientScheduledCareItem>[
+                    _item(id: _completedAppointmentId, status: 'COMPLETED'),
+                  ])
+                : _page(const <PatientScheduledCareItem>[]),
+          ),
+        );
+        await list.setBucket(PatientScheduledCareBucket.past);
+        final adapter = _PatientCompletionAdapter();
+        final client = _client(adapter);
+        addTearDown(booking.dispose);
+        addTearDown(list.dispose);
+        addTearDown(() => client.close(force: true));
+
+        await tester.pumpWidget(
+          MultiProvider(
+            providers: [
+              ChangeNotifierProvider.value(value: list),
+              ChangeNotifierProvider.value(value: booking),
+              Provider<AppHttpClient>.value(value: client),
+            ],
+            child: MaterialApp(
+              theme: buildOmniTheme(),
+              home: const PatientAppointmentsScreen(),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Dr. Amira Ben Salem'), findsOneWidget);
+        await tester.tap(find.text('Dr. Amira Ben Salem'));
+        await tester.pumpAndSettle();
+
+        expect(bookingRepository.appointmentGets, [_completedAppointmentId]);
+        expect(find.text('Rendez-vous terminé'), findsOneWidget);
+        expect(find.text(_completedAppointmentId), findsOneWidget);
+        expect(find.text('request-1'), findsOneWidget);
+        expect(find.text('Annuler le rendez-vous'), findsNothing);
+        expect(find.textContaining('Démarrer'), findsNothing);
+        expect(adapter.bridgeAppointmentIds, [_completedAppointmentId]);
+
+        Navigator.of(tester.element(find.text('Rendez-vous terminé'))).pop();
+        await tester.pumpAndSettle();
+        expect(find.text('Dr. Amira Ben Salem'), findsOneWidget);
+        await tester.tap(find.text('Dr. Amira Ben Salem'));
+        await tester.pumpAndSettle();
+
+        expect(bookingRepository.appointmentGets, [_completedAppointmentId]);
+        expect(find.text('Rendez-vous terminé'), findsOneWidget);
+        expect(find.text(_completedAppointmentId), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'completed scheduled detail resolves exact Consultation and discovers artifacts',
+      (tester) async {
+        final bookingRepository = _BookingRepository()
+          ..appointment = _appointment(
+            id: _completedAppointmentId,
+            status: 'COMPLETED',
+            actions: const [],
+          );
+        final booking = PatientBookingController(
+          repository: bookingRepository,
+          lifecycleRepository: bookingRepository,
+          appointmentRepository: bookingRepository,
+        );
+        await booking.openAppointment(_completedAppointmentId);
+        final bridge = _BridgeApi();
+        final adapter = _PatientCompletionAdapter();
+        final client = _client(adapter);
+        addTearDown(booking.dispose);
+        addTearDown(() => client.close(force: true));
+
+        await tester.pumpWidget(
+          MultiProvider(
+            providers: [
+              ChangeNotifierProvider.value(value: booking),
+              Provider<AppHttpClient>.value(value: client),
+            ],
+            child: MaterialApp(
+              theme: buildOmniTheme(),
+              home: ConfirmedScheduledAppointmentScreen(
+                appointmentId: _completedAppointmentId,
+                consultationApi: bridge,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.drag(find.byType(ListView), const Offset(0, -1200));
+        await tester.pumpAndSettle();
+        for (
+          var attempt = 0;
+          attempt < 10 && adapter.artifactConsultationIds.isEmpty;
+          attempt++
+        ) {
+          await tester.pump(const Duration(milliseconds: 50));
+        }
+
+        expect(bridge.appointmentIds, [_completedAppointmentId]);
+        expect(adapter.artifactConsultationIds, [_completedConsultationId]);
+        expect(adapter.artifactSubjectTypes, ['SELF']);
+        expect(find.text('LAB ORDER'), findsOneWidget);
+        expect(find.text('MEDICAL CERTIFICATE'), findsOneWidget);
+        expect(find.text('PRESCRIPTION'), findsOneWidget);
+        expect(find.text('Annuler le rendez-vous'), findsNothing);
+        expect(find.textContaining('Démarrer'), findsNothing);
+      },
+    );
   });
 
   group('appointment re-entry and cancellation', () {
@@ -897,4 +1106,107 @@ class _CancellationApi implements ScheduledAppointmentCancellationApiContract {
     if (result is Exception) throw result;
     return result as ConfirmedScheduledAppointment;
   }
+}
+
+class _PatientCompletionAdapter implements HttpClientAdapter {
+  final bridgeAppointmentIds = <String>[];
+  final artifactConsultationIds = <String>[];
+  final artifactSubjectTypes = <String>[];
+
+  @override
+  void close({bool force = false}) {}
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    final bridge = RegExp(
+      r'/patient/appointments/([^/]+)/consultation$',
+    ).firstMatch(options.path);
+    if (bridge != null) {
+      final appointmentId = bridge.group(1)!;
+      bridgeAppointmentIds.add(appointmentId);
+      return _jsonResponse(<String, Object>{
+        'consultationId': _completedConsultationId,
+        'sourceType': 'SCHEDULED_APPOINTMENT',
+        'sourceId': appointmentId,
+        'status': 'COMPLETED',
+      });
+    }
+
+    final artifacts = RegExp(
+      r'/patient/consultations/([^/]+)/artifacts$',
+    ).firstMatch(options.path);
+    if (artifacts != null) {
+      artifactConsultationIds.add(artifacts.group(1)!);
+      artifactSubjectTypes.add(
+        options.queryParameters['subjectType'] as String,
+      );
+      return _jsonResponse(<String, Object>{
+        'artifacts': <Object>[
+          _artifact('artifact-lab', 'LAB_ORDER'),
+          _artifact('artifact-certificate', 'MEDICAL_CERTIFICATE'),
+          _artifact('artifact-prescription', 'PRESCRIPTION'),
+        ],
+      });
+    }
+
+    return _jsonResponse(const <String, Object>{
+      'errorCode': 'NOT_FOUND',
+    }, status: 404);
+  }
+
+  static Map<String, Object> _artifact(String id, String type) =>
+      <String, Object>{
+        'artifactId': id,
+        'artifactType': type,
+        'artifactVersion': 1,
+        'renderVersion': 1,
+        'status': 'FINALIZED',
+        'renderStatus': 'READY',
+        'definition': const <String, Object>{},
+      };
+
+  static ResponseBody _jsonResponse(Object body, {int status = 200}) =>
+      ResponseBody.fromString(
+        jsonEncode(body),
+        status,
+        headers: const <String, List<String>>{
+          Headers.contentTypeHeader: <String>[Headers.jsonContentType],
+        },
+      );
+}
+
+class _BridgeApi implements PatientScheduledConsultationApiContract {
+  final appointmentIds = <String>[];
+
+  @override
+  Future<String> resolveCompletedConsultation(String appointmentId) async {
+    appointmentIds.add(appointmentId);
+    return _completedConsultationId;
+  }
+}
+
+AppHttpClient _client(HttpClientAdapter adapter) {
+  final dio = Dio()..httpClientAdapter = adapter;
+  final refreshDio = Dio()..httpClientAdapter = adapter;
+  return AppHttpClient(
+    tokenStore: SecureTokenStore(backend: _MemoryStorage()),
+    baseUrl: 'https://api.test',
+    dio: dio,
+    refreshDio: refreshDio,
+  );
+}
+
+class _MemoryStorage implements SecureTokenStorageBackend {
+  @override
+  Future<void> delete({required String key}) async {}
+
+  @override
+  Future<String?> read({required String key}) async => null;
+
+  @override
+  Future<void> write({required String key, required String value}) async {}
 }

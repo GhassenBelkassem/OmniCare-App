@@ -274,7 +274,16 @@ class DoctorScheduledCareRealtimeTarget implements ScheduledCareRealtimeTarget {
 
   @override
   Future<void> invalidate(ScheduledCareInvalidationEvent event) async {
-    if (event.resourceType == ScheduledCareResourceType.consultation) return;
+    if (event.resourceType == ScheduledCareResourceType.consultation) {
+      if (event.type == ScheduledCareEventType.consultationCompleted) {
+        await Future.wait(<Future<void>>[
+          _home.invalidate(),
+          _agenda.invalidate(),
+          _appointment.invalidate(),
+        ]);
+      }
+      return;
+    }
     final operations = <Future<void>>[_home.invalidate(), _agenda.invalidate()];
     switch (event.resourceType) {
       case ScheduledCareResourceType.bookingRequest:

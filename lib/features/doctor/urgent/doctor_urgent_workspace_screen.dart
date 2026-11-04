@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/omni_theme.dart';
 import '../urgent_cabinet/doctor_urgent_cabinet_controller.dart';
 import '../urgent_cabinet/doctor_urgent_cabinet_screen.dart';
+import '../active_consultation/doctor_active_consultation_controller.dart';
 import '../workspace/doctor_workspace_config.dart';
 import 'doctor_home_offer_inbox_controller.dart';
 import 'doctor_home_offer_inbox_section.dart';
@@ -30,6 +31,7 @@ class DoctorUrgentWorkspaceScreen extends StatelessWidget {
     required this.onModeChanged,
     required this.homeController,
     required this.urgentCabinetController,
+    this.activeConsultationController,
     this.onOpenHomeQr,
     this.homeOperationalMessage,
     this.cabinetOperationalMessage,
@@ -46,6 +48,7 @@ class DoctorUrgentWorkspaceScreen extends StatelessWidget {
   final ValueChanged<DoctorUrgentMode> onModeChanged;
   final DoctorUrgentController homeController;
   final DoctorUrgentCabinetController urgentCabinetController;
+  final DoctorActiveConsultationController? activeConsultationController;
   final VoidCallback? onOpenHomeQr;
   final String? homeOperationalMessage;
   final String? cabinetOperationalMessage;
@@ -208,6 +211,7 @@ class DoctorUrgentWorkspaceScreen extends StatelessWidget {
       DoctorUrgentMode.cabinet => DoctorUrgentCabinetScreen(
         workspaceConfig: workspaceConfig,
         controller: urgentCabinetController,
+        activeConsultationController: activeConsultationController,
       ),
     };
   }
@@ -359,9 +363,7 @@ class _DoctorUrgentBackendGate extends StatelessWidget {
                                         homeCapabilityConfigured &&
                                         homeOfferController != null
                                     ? 'La consultation de l’inbox serveur est active en lecture seule. Accepter, décliner ou retirer un maintien n’est pas disponible.'
-                                    : controller == null
-                                    ? message
-                                    : 'La réception et le traitement des demandes urgentes réelles ne sont pas activés dans cette version.',
+                                    : message,
                               ),
                               const SizedBox(height: OmniSpacing.sm),
                               Text(
@@ -371,6 +373,8 @@ class _DoctorUrgentBackendGate extends StatelessWidget {
                                     ? 'Chaque ouverture de statut relit l’autorité serveur. Aucun contenu Patient, trajet ou mission n’est déduit localement.'
                                     : controller == null
                                     ? 'La configuration permanente reste gérée dans les paramètres professionnels. Aucune disponibilité, position ou mission n’est activée ici.'
+                                    : mode == DoctorUrgentMode.cabinet
+                                    ? 'La réception CABINET reste pilotée par la capacité et l’autorité serveur. Actualisez après avoir corrigé la configuration indiquée.'
                                     : 'Cette commande enregistre uniquement votre intention de disponibilité. Elle n’active ni GPS, ni réception de demandes, ni mission.',
                                 style: Theme.of(context).textTheme.bodySmall
                                     ?.copyWith(color: OmniColors.textSecondary),

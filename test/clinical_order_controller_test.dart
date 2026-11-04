@@ -125,7 +125,7 @@ void main() {
     controller.dispose();
   });
 
-  test('dirty realtime invalidation preserves volatile input', () async {
+  test('genuine newer order invalidation preserves volatile input', () async {
     final api = _FakeClinicalOrderApi();
     final order = await api.create(
       consultationId: consultationId,
@@ -143,6 +143,15 @@ void main() {
     await controller.load();
     controller.beginEdit(order);
     controller.updateValue('Neurology');
+    await api.update(
+      consultationId: consultationId,
+      idempotencyKey: 'other-device-update',
+      order: order,
+      definition: ClinicalOrderDefinition.forValue(
+        ClinicalOrderCategory.referral,
+        'Oncology',
+      ),
+    );
     await controller.invalidate(
       ScheduledCareInvalidationEvent(
         eventId: '22222222-2222-4222-8222-222222222222',
@@ -156,6 +165,56 @@ void main() {
     );
     expect(controller.newerVersionAvailable, isTrue);
     expect(controller.editor?.draft.targetSpecialty, 'Neurology');
+    controller.dispose();
+  });
+
+  test('same-version refresh preserves editor without false warning', () async {
+    final api = _FakeClinicalOrderApi();
+    final order = await api.create(
+      consultationId: consultationId,
+      idempotencyKey: 'create',
+      category: ClinicalOrderCategory.lab,
+      definition: ClinicalOrderDefinition.forValue(
+        ClinicalOrderCategory.lab,
+        'CBC',
+      ),
+    );
+    final controller = ClinicalOrderController(
+      consultationId: consultationId,
+      api: api,
+    );
+    await controller.load();
+    controller.beginEdit(order);
+    controller.updateValue('CBC and CRP');
+
+    await controller.load();
+
+    expect(controller.newerVersionAvailable, isFalse);
+    expect(
+      controller.editor?.draft.value(ClinicalOrderCategory.lab),
+      'CBC and CRP',
+    );
+    expect(controller.orders.single.version, 1);
+    controller.dispose();
+  });
+
+  test('refresh preserves a new Laboratory editor without warning', () async {
+    final controller = ClinicalOrderController(
+      consultationId: consultationId,
+      api: _FakeClinicalOrderApi(),
+    );
+    await controller.load();
+    controller.beginCreate(ClinicalOrderCategory.lab);
+    controller.updateValue('Metabolic panel');
+
+    await controller.load();
+
+    expect(controller.newerVersionAvailable, isFalse);
+    expect(controller.editor?.orderId, isNull);
+    expect(
+      controller.editor?.draft.value(ClinicalOrderCategory.lab),
+      'Metabolic panel',
+    );
     controller.dispose();
   });
 

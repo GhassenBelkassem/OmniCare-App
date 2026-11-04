@@ -20,6 +20,7 @@ class NotificationService {
       StreamController<UrgentCabinetNotificationOpenIntent>.broadcast(
         sync: true,
       );
+  UrgentCabinetNotificationOpenIntent? _pendingUrgentCabinetOpen;
   bool _initialized = false;
 
   Stream<UrgentCabinetNotificationOpenIntent> get urgentCabinetOpens =>
@@ -83,12 +84,32 @@ class NotificationService {
     if (data['destination'] == 'URGENT_CABINET_REQUEST' &&
         requestId != null &&
         _uuidPattern.hasMatch(requestId)) {
-      _urgentCabinetOpens.add(
-        UrgentCabinetNotificationOpenIntent(requestId: requestId),
+      final intent = UrgentCabinetNotificationOpenIntent(
+        requestId: requestId.toLowerCase(),
       );
+      // A push-open may arrive before the authenticated Doctor workspace has
+      // completed bootstrap. Broadcast streams do not replay, so retain the
+      // latest opaque lookup intent until the correct role-specific surface
+      // atomically claims it. No notification data becomes lifecycle authority.
+      _pendingUrgentCabinetOpen = intent;
+      _urgentCabinetOpens.add(intent);
       return;
     }
     openNotificationCenter();
+  }
+
+  UrgentCabinetNotificationOpenIntent? claimUrgentCabinetOpen(
+    UrgentCabinetNotificationOpenIntent intent,
+  ) {
+    if (!identical(_pendingUrgentCabinetOpen, intent)) return null;
+    _pendingUrgentCabinetOpen = null;
+    return intent;
+  }
+
+  UrgentCabinetNotificationOpenIntent? takePendingUrgentCabinetOpen() {
+    final intent = _pendingUrgentCabinetOpen;
+    _pendingUrgentCabinetOpen = null;
+    return intent;
   }
 
   void openNotificationCenter() {

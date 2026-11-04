@@ -3,7 +3,13 @@ import 'package:flutter/foundation.dart';
 enum DoctorConsultationSourceType {
   scheduledAppointment,
   urgentHome,
-  urgentCabinet,
+  urgentCabinet;
+
+  String get apiValue => switch (this) {
+    scheduledAppointment => 'SCHEDULED_APPOINTMENT',
+    urgentHome => 'URGENT_HOME',
+    urgentCabinet => 'URGENT_CABINET',
+  };
 }
 
 enum DoctorConsultationStatus { inProgress, finalizing, completed, aborted }
