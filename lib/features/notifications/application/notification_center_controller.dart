@@ -36,6 +36,7 @@ class NotificationCenterController extends ChangeNotifier {
   int _sessionGeneration = 0;
   int _listGeneration = 0;
   int _countGeneration = 0;
+  int _unreadAuthorityGeneration = 0;
   CancelToken? _listToken;
   CancelToken? _moreToken;
   CancelToken? _countToken;
@@ -90,7 +91,7 @@ class NotificationCenterController extends ChangeNotifier {
       _items = _dedupe(<InboxNotification>[..._items, ...result.items]);
       _page = result.page;
       _totalElements = result.totalElements;
-      _unreadCount = result.unreadCount;
+      // Pagination must never derive or overwrite the global badge count.
       _state = NotificationCenterLoadState.ready;
     } catch (error) {
       if (!_isSessionCurrent(sessionGeneration) || token.isCancelled) return;
@@ -106,6 +107,7 @@ class NotificationCenterController extends ChangeNotifier {
     if (_disposed) return;
     final sessionGeneration = _sessionGeneration;
     final listGeneration = ++_listGeneration;
+    final unreadGeneration = ++_unreadAuthorityGeneration;
     _listToken?.cancel('notification-list-replaced');
     _moreToken?.cancel('notification-list-replaced');
     final token = _listToken = CancelToken();
@@ -123,7 +125,7 @@ class NotificationCenterController extends ChangeNotifier {
       _items = _dedupe(result.items);
       _page = result.page;
       _totalElements = result.totalElements;
-      _unreadCount = result.unreadCount;
+      _commitUnreadCount(result.unreadCount, unreadGeneration);
       _state = NotificationCenterLoadState.ready;
       _inboxInvalidated = false;
     } catch (error) {
@@ -143,12 +145,13 @@ class NotificationCenterController extends ChangeNotifier {
     if (_disposed || _sessionOwnerKey == null) return;
     final sessionGeneration = _sessionGeneration;
     final countGeneration = ++_countGeneration;
+    final unreadGeneration = ++_unreadAuthorityGeneration;
     _countToken?.cancel('notification-count-replaced');
     final token = _countToken = CancelToken();
     try {
       final count = await _repository.getUnreadCount(cancelToken: token);
       if (!_isCountCurrent(sessionGeneration, countGeneration, token)) return;
-      _unreadCount = count;
+      _commitUnreadCount(count, unreadGeneration);
       _notify();
     } catch (_) {
       // Badge freshness is retried on reconnect, foreground, manual refresh,
@@ -164,6 +167,7 @@ class NotificationCenterController extends ChangeNotifier {
     final sessionGeneration = _sessionGeneration;
     final wasUnread = !_items[index].isRead;
     if (wasUnread) {
+      _unreadAuthorityGeneration++;
       final updated = List<InboxNotification>.of(_items);
       updated[index] = updated[index].copyWith(isRead: true);
       _items = List.unmodifiable(updated);
@@ -206,6 +210,7 @@ class NotificationCenterController extends ChangeNotifier {
     final sessionGeneration = _sessionGeneration;
     final token = _markAllToken = CancelToken();
     _markingAll = true;
+    _unreadAuthorityGeneration++;
     _items = List.unmodifiable(
       _items.map((item) => item.copyWith(isRead: true)),
     );
@@ -235,6 +240,21 @@ class NotificationCenterController extends ChangeNotifier {
 
   Future<void> onRealtimeInvalidation() => _resync(invalidateInbox: true);
 
+  Future<InboxNotification?> onRealtimeNotification(
+    String notificationId,
+  ) async {
+    if (_disposed || _sessionOwnerKey == null) return null;
+    await Future.wait(<Future<void>>[
+      _inboxRefresh.request(refresh),
+      refreshUnreadCount(),
+    ]);
+    if (_disposed || _sessionOwnerKey == null) return null;
+    for (final item in _items) {
+      if (item.id == notificationId) return item;
+    }
+    return null;
+  }
+
   Future<void> onReconnect() => _resync(invalidateInbox: true);
 
   Future<void> onForeground() => _resync(invalidateInbox: true);
@@ -262,6 +282,7 @@ class NotificationCenterController extends ChangeNotifier {
     _sessionGeneration++;
     _listGeneration++;
     _countGeneration++;
+    _unreadAuthorityGeneration++;
     _listToken?.cancel('notification-session-cleared');
     _moreToken?.cancel('notification-session-cleared');
     _countToken?.cancel('notification-session-cleared');
@@ -314,6 +335,12 @@ class NotificationCenterController extends ChangeNotifier {
       countGeneration == _countGeneration &&
       identical(token, _countToken) &&
       !token.isCancelled;
+
+  void _commitUnreadCount(int value, int authorityGeneration) {
+    if (authorityGeneration == _unreadAuthorityGeneration) {
+      _unreadCount = value;
+    }
+  }
 
   void _notify() {
     if (!_disposed) notifyListeners();

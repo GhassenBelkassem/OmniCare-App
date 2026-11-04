@@ -250,6 +250,51 @@ void main() {
     });
 
     test(
+      'Home authoritative refresh advances from completed source to next then empty',
+      () async {
+        var read = 0;
+        final snapshots = <DoctorHomeSummary>[
+          DoctorHomeSummary.fromJson(
+            _homeJson(
+              appointment: _summaryJson(
+                type: 'APPOINTMENT',
+                id: 'finished-source',
+              ),
+            ),
+          ),
+          DoctorHomeSummary.fromJson(
+            _homeJson(
+              appointment: _summaryJson(
+                type: 'APPOINTMENT',
+                id: 'later-confirmed',
+              ),
+            ),
+          ),
+          DoctorHomeSummary.fromJson(_homeJson(appointment: null)),
+        ];
+        final controller = DoctorHomeController(
+          repository: _FakeRepository(
+            homeHandler: (_) async => snapshots[read++],
+          ),
+        );
+        addTearDown(controller.dispose);
+
+        await controller.load();
+        expect(
+          controller.summary?.nextConfirmedAppointment?.appointmentId,
+          'finished-source',
+        );
+        await controller.refresh();
+        expect(
+          controller.summary?.nextConfirmedAppointment?.appointmentId,
+          'later-confirmed',
+        );
+        await controller.refresh();
+        expect(controller.summary?.nextConfirmedAppointment, isNull);
+      },
+    );
+
+    test(
       'request clear removes detail/action key and ignores late detail',
       () async {
         final pending = Completer<DoctorBookingRequestDetail>();
@@ -429,6 +474,7 @@ void main() {
       tester,
     ) async {
       String? opened;
+      String? openedAppointment;
       final controller = DoctorHomeController(
         repository: _FakeRepository(
           homeHandler: (_) async => DoctorHomeSummary.fromJson(_homeJson()),
@@ -445,7 +491,9 @@ void main() {
               ),
               capabilities: const {DoctorCapability.agenda},
               homeController: controller,
+              onOpenAgenda: () {},
               onOpenBookingRequest: (value) => opened = value,
+              onOpenAppointment: (value) => openedAppointment = value,
             ),
           ),
         ),
@@ -454,6 +502,14 @@ void main() {
       expect(find.text('4'), findsOneWidget);
       expect(find.text('Nadia Ben Ali'), findsNWidgets(2));
       expect(find.text('Sami Ben Ali'), findsNothing);
+      expect(find.text('Rendez-vous à démarrer'), findsOneWidget);
+      expect(find.text('Démarrer la consultation'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('Démarrer la consultation'),
+        180,
+      );
+      await tester.tap(find.text('Démarrer la consultation'));
+      expect(openedAppointment, 'appointment-1');
       await tester.tap(
         find.byKey(const ValueKey('doctor-next-pending-request')),
       );

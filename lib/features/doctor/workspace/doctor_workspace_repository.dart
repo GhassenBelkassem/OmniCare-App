@@ -3,8 +3,10 @@ import 'dart:convert';
 import '../../../core/storage/secure_token_store.dart';
 import 'doctor_workspace_config.dart';
 
-/// Local-only D1 repository. This record is not a credential and does not
-/// alter the auth session; it is just a per-Doctor workspace preference.
+/// Debug-fixture-only storage for the retired local practice wizard.
+///
+/// It is not professional authority and is never read by the authenticated
+/// Doctor shell. Server capabilities/configuration own production navigation.
 class DoctorWorkspaceRepository {
   DoctorWorkspaceRepository({SecureTokenStorageBackend? backend})
     : _backend = backend ?? const FlutterSecureTokenStorageBackend();

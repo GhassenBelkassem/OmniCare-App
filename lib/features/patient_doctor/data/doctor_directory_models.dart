@@ -165,6 +165,7 @@ class DoctorPracticeLocationDto {
     this.publicPhone,
     this.wheelchairAccessible = false,
     this.patientInstructions,
+    this.gallery = const [],
     this.equipment = const [],
   });
 
@@ -180,29 +181,49 @@ class DoctorPracticeLocationDto {
   final bool wheelchairAccessible;
   final String? patientInstructions;
   final bool primary;
+  final List<DoctorPracticeMediaDto> gallery;
   final List<DoctorEquipmentDto> equipment;
 
-  factory DoctorPracticeLocationDto.fromJson(Map<String, dynamic> json) =>
-      DoctorPracticeLocationDto(
-        id: _requiredString(json, 'id'),
-        type: _optionalString(json['type']),
-        name: _requiredString(json, 'name'),
-        governorate: _requiredString(json, 'governorate'),
-        city: _requiredString(json, 'city'),
-        address: _requiredString(json, 'address'),
-        latitude: _optionalDouble(json['latitude']),
-        longitude: _optionalDouble(json['longitude']),
-        publicPhone: _optionalString(json['publicPhone']),
-        wheelchairAccessible: json['wheelchairAccessible'] is bool
-            ? json['wheelchairAccessible'] as bool
-            : false,
-        patientInstructions: _optionalString(json['patientInstructions']),
-        primary: _requiredBool(json, 'primary'),
-        equipment: _optionalObjectList(
-          json['equipment'],
-          DoctorEquipmentDto.fromJson,
-        ),
+  factory DoctorPracticeLocationDto.fromJson(Map<String, dynamic> json) {
+    return DoctorPracticeLocationDto(
+      id: _requiredString(json, 'id'),
+      type: _optionalString(json['type']),
+      name: _requiredString(json, 'name'),
+      governorate: _requiredString(json, 'governorate'),
+      city: _requiredString(json, 'city'),
+      address: _requiredString(json, 'address'),
+      latitude: _optionalDouble(json['latitude']),
+      longitude: _optionalDouble(json['longitude']),
+      publicPhone: _optionalString(json['publicPhone']),
+      wheelchairAccessible: json['wheelchairAccessible'] is bool
+          ? json['wheelchairAccessible'] as bool
+          : false,
+      patientInstructions: _optionalString(json['patientInstructions']),
+      primary: _requiredBool(json, 'primary'),
+      gallery: _orderedPracticeGallery(json['gallery']),
+      equipment: _optionalObjectList(
+        json['equipment'],
+        DoctorEquipmentDto.fromJson,
+      ),
+    );
+  }
+}
+
+/// One public photograph belonging to a specific doctor practice location.
+class DoctorPracticeMediaDto {
+  const DoctorPracticeMediaDto({required this.url, this.displayOrder});
+
+  final String url;
+  final int? displayOrder;
+
+  factory DoctorPracticeMediaDto.fromJson(Map<String, dynamic> json) =>
+      DoctorPracticeMediaDto(
+        url: _requiredString(json, 'url'),
+        displayOrder: _optionalInt(json['displayOrder']),
       );
+
+  @override
+  String toString() => 'DoctorPracticeMediaDto(displayOrder: $displayOrder)';
 }
 
 class DoctorEquipmentDto {
@@ -398,6 +419,20 @@ List<T> _optionalObjectList<T>(
       return parser(element.cast<String, dynamic>());
     }),
   );
+}
+
+List<DoctorPracticeMediaDto> _orderedPracticeGallery(Object? value) {
+  final gallery = _optionalObjectList(value, DoctorPracticeMediaDto.fromJson);
+  final indexed = gallery.indexed.toList(growable: false);
+  indexed.sort((left, right) {
+    final leftOrder = left.$2.displayOrder;
+    final rightOrder = right.$2.displayOrder;
+    if (leftOrder == null && rightOrder != null) return 1;
+    if (leftOrder != null && rightOrder == null) return -1;
+    final orderComparison = (leftOrder ?? 0).compareTo(rightOrder ?? 0);
+    return orderComparison != 0 ? orderComparison : left.$1.compareTo(right.$1);
+  });
+  return List.unmodifiable(indexed.map((entry) => entry.$2));
 }
 
 /// Thrown when a doctor directory payload cannot be trusted.

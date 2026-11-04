@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import '../../core/auth/google_web_sign_in_button.dart';
@@ -133,8 +132,9 @@ class _SignupScreenState extends State<SignupScreen> {
   Future<void> _handleGoogleSignUp() async {
     if (kIsWeb) return;
     try {
-      final account = await GoogleSignIn(scopes: const ['email']).signIn();
-      final idToken = (await account?.authentication)?.idToken;
+      final idToken = await context
+          .read<AuthController>()
+          .requestGoogleIdToken();
       if (idToken == null || idToken.isEmpty) {
         throw StateError('Google did not return an ID token.');
       }

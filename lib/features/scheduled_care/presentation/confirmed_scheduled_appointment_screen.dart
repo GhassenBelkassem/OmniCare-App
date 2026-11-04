@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/theme/omni_theme.dart';
+import '../../../core/network/app_http_client.dart';
+import '../../patient/artifact/patient_artifact_card.dart';
 import '../application/patient_booking_controller.dart';
 import '../data/scheduled_care_failure.dart';
+import '../data/patient_scheduled_consultation_api.dart';
 import '../domain/patient_scheduled_care_models.dart';
 import '../domain/scheduled_care_models.dart';
 import '../realtime/scheduled_care_route_visibility.dart';
@@ -13,9 +16,11 @@ class ConfirmedScheduledAppointmentScreen extends StatefulWidget {
   const ConfirmedScheduledAppointmentScreen({
     super.key,
     required this.appointmentId,
+    this.consultationApi,
   });
 
   final String appointmentId;
+  final PatientScheduledConsultationApiContract? consultationApi;
 
   @override
   State<ConfirmedScheduledAppointmentScreen> createState() =>
@@ -27,11 +32,17 @@ class _ConfirmedScheduledAppointmentScreenState
     with ScheduledCareRouteVisibility<ConfirmedScheduledAppointmentScreen> {
   bool _leavingProtectedRoute = false;
   late final PatientBookingController _realtimeController;
+  PatientScheduledConsultationApiContract? _consultationApi;
+  String? _bridgeAppointmentId;
+  String? _consultationId;
+  bool _bridgeLoading = false;
+  String? _bridgeError;
 
   @override
   void initState() {
     super.initState();
     _realtimeController = context.read<PatientBookingController>();
+    _consultationApi = widget.consultationApi;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final booking = context.read<PatientBookingController>();
@@ -39,6 +50,44 @@ class _ConfirmedScheduledAppointmentScreenState
         booking.openAppointment(widget.appointmentId);
       }
     });
+  }
+
+  void _ensureArtifactBridge(ConfirmedScheduledAppointment appointment) {
+    if (appointment.status != ScheduledAppointmentStatus.completed ||
+        _bridgeAppointmentId == appointment.appointmentId) {
+      return;
+    }
+    _bridgeAppointmentId = appointment.appointmentId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadArtifactBridge(appointment.appointmentId);
+    });
+  }
+
+  Future<void> _loadArtifactBridge(String appointmentId) async {
+    setState(() {
+      _bridgeLoading = true;
+      _bridgeError = null;
+    });
+    try {
+      final api = _consultationApi ??= PatientScheduledConsultationApi(
+        context.read<AppHttpClient>(),
+      );
+      final consultationId = await api.resolveCompletedConsultation(
+        appointmentId,
+      );
+      if (!mounted || _bridgeAppointmentId != appointmentId) return;
+      setState(() {
+        _consultationId = consultationId;
+        _bridgeLoading = false;
+      });
+    } catch (_) {
+      if (!mounted || _bridgeAppointmentId != appointmentId) return;
+      setState(() {
+        _bridgeLoading = false;
+        _bridgeError =
+            'Les documents officiels sont temporairement indisponibles.';
+      });
+    }
   }
 
   @override
@@ -174,6 +223,7 @@ class _ConfirmedScheduledAppointmentScreenState
         ),
       );
     }
+    _ensureArtifactBridge(appointment);
     return Scaffold(
       backgroundColor: OmniColors.pageBackground,
       appBar: AppBar(title: const Text('Détails du rendez-vous')),
@@ -197,6 +247,25 @@ class _ConfirmedScheduledAppointmentScreenState
             ),
             const SizedBox(height: OmniSpacing.xl),
             _AppointmentDetails(appointment: appointment),
+            if (appointment.status == ScheduledAppointmentStatus.completed) ...[
+              const SizedBox(height: OmniSpacing.md),
+              if (_bridgeLoading)
+                const LinearProgressIndicator()
+              else if (_bridgeError case final message?)
+                Text(
+                  message,
+                  key: const ValueKey(
+                    'patient-scheduled-artifact-bridge-error',
+                  ),
+                  style: const TextStyle(color: OmniColors.error),
+                )
+              else if (_consultationId case final consultationId?)
+                PatientArtifactCard(
+                  consultationId: consultationId,
+                  subjectType: appointment.subject.subjectType.wireValue,
+                  familyMemberId: appointment.subject.familyMemberId,
+                ),
+            ],
             if (booking.failure case final failure?) ...[
               const SizedBox(height: OmniSpacing.md),
               Text(

@@ -38,17 +38,11 @@
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 
   <script>
-    (function () {
-      const key = '%GOOGLE_MAPS_API_KEY%';
-      if (!key || key.indexOf('%') !== -1) {
-        return;
-      }
-      const s = document.createElement('script');
-      s.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(key) + '&loading=async';
-      s.async = true;
-      s.defer = true;
-      document.head.appendChild(s);
-    })();
+    window.__omnicareGoogleMapsAuthFailed = false;
+    window.gm_authFailure = function () {
+      window.__omnicareGoogleMapsAuthFailed = true;
+      window.dispatchEvent(new Event('omnicare-google-maps-auth-failure'));
+    };
   </script>
 </head>
 <body>

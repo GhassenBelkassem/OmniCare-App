@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'history_tab.dart';
-import '../../core/api/consultations_api.dart';
+import '../../core/network/app_http_client.dart';
+import '../patient/prescription/patient_prescription_api.dart';
+import '../patient/artifact/patient_artifact_card.dart';
 import '../../core/api/medical_acts_api.dart';
 import '../../core/api/files_api.dart';
 import '../../providers/user_provider.dart';
@@ -264,8 +266,6 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
   }
 
   Future<void> _loadPrescriptionIfNeeded() async {
-    final isCompleted = (widget.consultation.status == 'completed');
-    if (!isCompleted) return;
     if (widget.consultation.id.trim().isEmpty) return;
 
     setState(() {
@@ -274,21 +274,36 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
     });
 
     try {
-      final raw = await ConsultationsApi().getPrescription(
-        consultationId: widget.consultation.id,
-      );
-      final prescriptionId = raw['id']?.toString().trim();
-      final items = raw['items'];
-
-      final meds = <String>[];
-      if (items is List) {
-        for (final it in items) {
-          if (it is Map) {
-            final name = (it['medicationName'] ?? '').toString().trim();
-            if (name.isNotEmpty) meds.add(name);
-          }
-        }
-      }
+      final prescription =
+          await PatientPrescriptionApi(context.read<AppHttpClient>()).read(
+            consultationId: widget.consultation.id,
+            subjectType: widget.consultation.subjectType,
+            familyMemberId: widget.consultation.familyMemberId,
+          );
+      final prescriptionId = prescription.prescriptionId;
+      final meds = prescription.content.medications
+          .map((item) {
+            final identity = item.name ?? item.medicationCode ?? '';
+            final strength = item.strength == null ? '' : ' · ${item.strength}';
+            final dose = ' · ${item.doseAmount} ${item.doseUnit}';
+            final frequency = item.timesPerDay != null
+                ? ' · ${item.timesPerDay}×/day'
+                : item.frequencyText == null
+                ? ''
+                : ' · ${item.frequencyText}';
+            final duration = item.durationValue == null
+                ? ''
+                : ' · ${item.durationValue} ${item.durationUnit?.toLowerCase() ?? ''}';
+            final quantity = item.quantity == null
+                ? ''
+                : ' · qty ${item.quantity}';
+            final instructions = item.instructions == null
+                ? ''
+                : ' · ${item.instructions}';
+            return '$identity$strength$dose · ${item.route}$frequency$duration$quantity$instructions';
+          })
+          .where((value) => value.isNotEmpty)
+          .toList();
 
       if (!mounted) return;
       setState(() {
@@ -357,11 +372,10 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
         .toUpperCase();
     final canRecordMedicalAct = userRole == 'NURSE' || userRole == 'KINE';
 
-    final List<String>? medications =
-        (consultation.medications != null &&
-            consultation.medications!.isNotEmpty)
-        ? consultation.medications
-        : _prescribedMedications;
+    // Finalized prescription content is authoritative only when returned by
+    // the Patient Spring/MRS facade. Legacy Consultation medication arrays are
+    // intentionally not used as a fallback.
+    final List<String>? medications = _prescribedMedications;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F5F7),
@@ -385,7 +399,7 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                     const SizedBox(height: 20),
                     _buildDiagnosisSection(),
                   ],
-                  if (isCompleted && _prescriptionError != null) ...[
+                  if (_prescriptionError != null) ...[
                     const SizedBox(height: 12),
                     Text(
                       _prescriptionError!,
@@ -395,7 +409,7 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                       ),
                     ),
                   ],
-                  if (isCompleted && _isLoadingPrescription) ...[
+                  if (_isLoadingPrescription) ...[
                     const SizedBox(height: 12),
                     Text(
                       'Loading prescription...',
@@ -405,9 +419,7 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                       ),
                     ),
                   ],
-                  if (isCompleted &&
-                      medications != null &&
-                      medications.isNotEmpty) ...[
+                  if (medications != null && medications.isNotEmpty) ...[
                     const SizedBox(height: 20),
                     _buildMedicationsSection(),
                   ],
@@ -417,6 +429,12 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                     const SizedBox(height: 20),
                     _buildMedicalActActionsSection(),
                   ],
+                  const SizedBox(height: 20),
+                  PatientArtifactCard(
+                    consultationId: consultation.id,
+                    subjectType: consultation.subjectType,
+                    familyMemberId: consultation.familyMemberId,
+                  ),
                   const SizedBox(height: 20),
                   _buildCostActionsSection(),
                   const SizedBox(height: 20),

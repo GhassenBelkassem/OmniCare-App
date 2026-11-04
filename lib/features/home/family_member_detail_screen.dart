@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'edit_medical_data_screen.dart';
 import 'document_viewer_screen.dart';
 import 'qr_code_modal.dart';
+import '../patient_passport/sharing/medical_sharing_models.dart';
 
 import '../../providers/family_provider.dart';
 
@@ -359,7 +360,7 @@ class _FamilyMemberDetailScreenState extends State<FamilyMemberDetailScreen> {
                 context: context,
                 builder: (context) => QRCodeModal(
                   patientName: _member.name,
-                  patientId: _member.id,
+                  subject: MedicalSharingSubject.family(_member.id),
                   isFamilyMember: true,
                 ),
               );

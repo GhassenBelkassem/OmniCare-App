@@ -4,6 +4,8 @@ import '../../../../core/theme/omni_theme.dart';
 import '../../../scheduled_care/domain/scheduled_care_models.dart';
 import '../../../scheduled_care/presentation/booking_review_screen.dart';
 import '../application/doctor_appointment_controller.dart';
+import '../../active_consultation/doctor_active_consultation.dart';
+import '../../active_consultation/doctor_active_consultation_controller.dart';
 import '../domain/doctor_scheduled_care_models.dart';
 import '../../../scheduled_care/realtime/scheduled_care_route_visibility.dart';
 
@@ -11,6 +13,8 @@ Future<void> showDoctorAppointmentDetail(
   BuildContext context, {
   required String appointmentId,
   required DoctorAppointmentController controller,
+  DoctorActiveConsultationController? activeConsultationController,
+  ValueChanged<DoctorActiveConsultation>? onConsultationReady,
 }) => showModalBottomSheet<void>(
   context: context,
   isScrollControlled: true,
@@ -19,6 +23,8 @@ Future<void> showDoctorAppointmentDetail(
   builder: (_) => DoctorAppointmentDetailSheet(
     appointmentId: appointmentId,
     controller: controller,
+    activeConsultationController: activeConsultationController,
+    onConsultationReady: onConsultationReady,
   ),
 );
 
@@ -27,10 +33,14 @@ class DoctorAppointmentDetailSheet extends StatefulWidget {
     super.key,
     required this.appointmentId,
     required this.controller,
+    this.activeConsultationController,
+    this.onConsultationReady,
   });
 
   final String appointmentId;
   final DoctorAppointmentController controller;
+  final DoctorActiveConsultationController? activeConsultationController;
+  final ValueChanged<DoctorActiveConsultation>? onConsultationReady;
 
   @override
   State<DoctorAppointmentDetailSheet> createState() =>
@@ -65,9 +75,15 @@ class _DoctorAppointmentDetailSheetState
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-    animation: widget.controller,
+    animation: Listenable.merge(<Listenable>[
+      widget.controller,
+      if (widget.activeConsultationController != null)
+        widget.activeConsultationController!,
+    ]),
     builder: (context, _) => PopScope(
-      canPop: !widget.controller.isCancelling,
+      canPop:
+          !widget.controller.isCancelling &&
+          !(widget.activeConsultationController?.isStarting ?? false),
       child: SizedBox(
         height: MediaQuery.sizeOf(context).height * .82,
         child: _body(context),
@@ -77,6 +93,8 @@ class _DoctorAppointmentDetailSheetState
 
   Widget _body(BuildContext context) {
     final controller = widget.controller;
+    final consultations = widget.activeConsultationController;
+    final activeConsultation = consultations?.active;
     final appointment = controller.appointment;
     if (controller.state == DoctorAppointmentLoadState.loading &&
         appointment == null) {
@@ -200,6 +218,58 @@ class _DoctorAppointmentDetailSheetState
               ),
             ),
           ],
+          if (consultations?.startErrorMessage case final message?) ...[
+            const SizedBox(height: OmniSpacing.md),
+            Text(
+              message,
+              key: const ValueKey('doctor-consultation-start-error'),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: OmniColors.error,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+          if (consultations?.errorMessage case final message?) ...[
+            const SizedBox(height: OmniSpacing.md),
+            Text(
+              message,
+              key: const ValueKey('doctor-active-consultation-sync-error'),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: OmniColors.error,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+          if (activeConsultation != null) ...[
+            const SizedBox(height: OmniSpacing.xl),
+            FilledButton.icon(
+              key: const ValueKey('doctor-continue-active-consultation'),
+              onPressed: consultations?.isStarting == true
+                  ? null
+                  : () => _continueConsultation(activeConsultation),
+              icon: const Icon(Icons.medical_services_outlined),
+              label: const Text('Continuer la consultation'),
+            ),
+          ] else if (appointment.status ==
+                  ScheduledAppointmentStatus.confirmed &&
+              consultations?.state ==
+                  DoctorActiveConsultationLoadState.ready) ...[
+            const SizedBox(height: OmniSpacing.xl),
+            FilledButton.icon(
+              key: const ValueKey('doctor-start-scheduled-consultation'),
+              onPressed: consultations?.isStarting == true
+                  ? null
+                  : _startConsultation,
+              icon: consultations?.isStarting == true
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.play_arrow_rounded),
+              label: const Text('Démarrer la consultation'),
+            ),
+          ],
           if (controller.canCancel || controller.isCancelling) ...[
             const SizedBox(height: OmniSpacing.xl),
             OutlinedButton.icon(
@@ -218,6 +288,29 @@ class _DoctorAppointmentDetailSheetState
         ],
       ),
     );
+  }
+
+  Future<void> _startConsultation() async {
+    final appointment = widget.controller.appointment;
+    final consultations = widget.activeConsultationController;
+    if (appointment == null || consultations == null) return;
+    final outcome = await consultations.startScheduled(
+      appointment.appointmentId,
+      appointment.version,
+    );
+    if (!mounted) return;
+    if (outcome == DoctorConsultationStartOutcome.started ||
+        outcome == DoctorConsultationStartOutcome.recovered) {
+      final active = consultations.active;
+      if (active == null) return;
+      Navigator.of(context).pop();
+      widget.onConsultationReady?.call(active);
+    }
+  }
+
+  void _continueConsultation(DoctorActiveConsultation consultation) {
+    Navigator.of(context).pop();
+    widget.onConsultationReady?.call(consultation);
   }
 
   Future<void> _showCancellationReasons() async {

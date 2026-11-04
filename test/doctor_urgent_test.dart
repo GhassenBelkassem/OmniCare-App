@@ -417,11 +417,8 @@ void main() {
     }
     await tester.tap(find.text('Voir le dossier médical'));
     await tester.pumpAndSettle();
-    expect(find.text('Dossier médical'), findsOneWidget);
-    expect(find.text('Amina Chaari · 45 ans'), findsOneWidget);
-    expect(find.text('Informations essentielles'), findsOneWidget);
-    await tester.tap(find.byTooltip('Retour'));
-    await tester.pumpAndSettle();
+    expect(find.text('Dossier médical indisponible.'), findsOneWidget);
+    expect(find.text('Informations essentielles'), findsNothing);
     expect(find.text('QR vérifié'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

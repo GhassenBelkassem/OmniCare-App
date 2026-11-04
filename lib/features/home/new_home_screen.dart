@@ -19,6 +19,7 @@ import 'add_family_member_screen.dart';
 import 'family_member_detail_screen.dart';
 import 'document_viewer_screen.dart';
 import 'qr_code_modal.dart';
+import '../patient_passport/sharing/medical_sharing_models.dart';
 import 'patient_home_feed.dart';
 import '../profile/patient_profile_screen.dart';
 import '../patient_appointments/presentation/patient_appointments_screen.dart';
@@ -40,6 +41,8 @@ import '../patient_passport/presentation/patient_passport_screen.dart';
 import '../request_history/presentation/my_requests_screen.dart';
 import '../emergency/emergency_request_step0.dart';
 import '../emergency/emergency_request_step1.dart';
+import '../emergency/urgent_care_mode_selection_screen.dart';
+import '../emergency/urgent_cabinet/urgent_cabinet_flow_shell.dart';
 import '../emergency/emergency_request_step2.dart';
 import '../emergency/emergency_request_step3.dart';
 import '../emergency/emergency_review_screen.dart';
@@ -427,6 +430,9 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
           '/patient-home' => _buildHomeTab(userName),
           '/provider-selection' => const ProviderSelectionScreen(),
           '/emergency-step0' => const EmergencyRequestStep0(),
+          '/urgent-care-mode-selection' =>
+            const UrgentCareModeSelectionScreen(),
+          '/urgent-cabinet/care-subject' => const UrgentCabinetFlowShell(),
           '/emergency-step1' => const EmergencyRequestStep1(),
           '/m05/request' => const RequestFlowEntryScreen(),
           '/doctor/cabinet/who-needs-care' => const DoctorCabinetEntryScreen(),
@@ -1348,10 +1354,6 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
       patientName = 'User';
     }
 
-    final String patientId = (userProvider.user?.email.isNotEmpty == true)
-        ? userProvider.user!.email
-        : (onboarding.email ?? '');
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1465,7 +1467,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                       context: context,
                       builder: (context) => QRCodeModal(
                         patientName: patientName,
-                        patientId: patientId,
+                        subject: const MedicalSharingSubject.self(),
                         isFamilyMember: false,
                       ),
                     );

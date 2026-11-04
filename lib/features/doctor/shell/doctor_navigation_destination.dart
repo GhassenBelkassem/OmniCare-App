@@ -63,7 +63,7 @@ const _allDestinations = <DoctorNavigationDestination>[
     label: 'Urgences',
     icon: Icons.emergency_outlined,
     selectedIcon: Icons.emergency_rounded,
-    requiredCapability: DoctorCapability.urgentRequests,
+    requiredCapability: DoctorCapability.urgentWorkspace,
   ),
   DoctorNavigationDestination(
     id: DoctorNavigationDestinationId.patients,

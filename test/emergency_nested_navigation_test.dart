@@ -3,6 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:omnicare_mobile/features/home/new_home_screen.dart';
 import 'package:omnicare_mobile/features/emergency/emergency_request_step0.dart';
 import 'package:omnicare_mobile/features/emergency/emergency_request_step1.dart';
+import 'package:omnicare_mobile/features/emergency/urgent_care_mode_selection_screen.dart';
+import 'package:omnicare_mobile/features/emergency/urgent_cabinet/urgent_cabinet_care_subject_screen.dart';
+import 'package:omnicare_mobile/features/request_flow/screens/doctor_cabinet_entry_screen.dart';
 import 'package:omnicare_mobile/features/request_core/application/request_submission_controller.dart';
 import 'package:omnicare_mobile/features/request_core/data/request_repository.dart';
 import 'package:omnicare_mobile/core/models/patient_profile.dart';
@@ -67,7 +70,7 @@ void main() {
     );
 
     testWidgets(
-      'from EmergencyRequestStep0, home consultation navigates to EmergencyRequestStep1',
+      'urgent home selection preserves context and opens EmergencyRequestStep1',
       (tester) async {
         await tester.binding.setSurfaceSize(const Size(390, 844));
         addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -107,14 +110,151 @@ void main() {
 
         expect(find.byType(EmergencyRequestStep0), findsOneWidget);
 
-        // Tap "Consultation à domicile".
-        await tester.tap(find.text('Consultation à domicile'));
+        expect(find.text('Demande urgente'), findsOneWidget);
+        expect(find.text('Consultation au cabinet'), findsOneWidget);
+
+        await tester.tap(find.text('Demande urgente'));
         await tester.pumpAndSettle();
 
-        // EmergencyRequestStep1 must be rendered.
+        expect(find.byType(UrgentCareModeSelectionScreen), findsOneWidget);
+        expect(find.text('Urgence à domicile'), findsOneWidget);
+        expect(find.text('Urgence au cabinet'), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('home-bottom-navigation')),
+          findsOneWidget,
+        );
+
+        await tester.tap(find.text('Urgence à domicile'));
+        await tester.pumpAndSettle();
+
         expect(find.byType(EmergencyRequestStep1), findsOneWidget);
+        final step1Context = tester.element(find.byType(EmergencyRequestStep1));
+        expect(ModalRoute.of(step1Context)?.settings.arguments, {
+          'consultationType': 'home',
+          'providerType': 'doctor',
+        });
       },
     );
+
+    testWidgets(
+      'urgent cabinet opens P4 selector and never opens P3 cabinet flow',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(390, 844));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+
+        final userProvider = _createTestUserProvider();
+
+        final requestController = RequestSubmissionController(
+          repository: _FakeRequestRepository(),
+        );
+
+        await tester.pumpWidget(
+          MultiProvider(
+            providers: [
+              ChangeNotifierProvider<UserProvider>.value(value: userProvider),
+              ChangeNotifierProvider(create: (_) => UserOnboardingProvider()),
+              ChangeNotifierProvider(create: (_) => FamilyProvider()),
+              ChangeNotifierProvider<RequestSubmissionController>.value(
+                value: requestController,
+              ),
+            ],
+            child: MaterialApp(
+              routes: {
+                '/medical-documents': (_) =>
+                    const Scaffold(body: Text('medical-docs')),
+                '/notifications': (_) =>
+                    const Scaffold(body: Text('notifications')),
+              },
+              home: const NewHomeScreen(),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const ValueKey('patient-care-action')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Médecin'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Demande urgente'));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Urgence au cabinet'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(UrgentCabinetCareSubjectScreen), findsOneWidget);
+        expect(find.text('Qui a besoin de soins ?'), findsOneWidget);
+        expect(find.byType(DoctorCabinetEntryScreen), findsNothing);
+        expect(requestController.status, RequestSubmissionStatus.idle);
+        expect(requestController.operationId, isNull);
+
+        expect(find.byType(DoctorCabinetEntryScreen), findsNothing);
+        expect(
+          find.byKey(const ValueKey('home-bottom-navigation')),
+          findsOneWidget,
+        );
+        expect(requestController.status, RequestSubmissionStatus.idle);
+
+        await tester.tap(find.byTooltip('Fermer'));
+        await tester.pumpAndSettle();
+        expect(find.byType(UrgentCareModeSelectionScreen), findsOneWidget);
+
+        await tester.tap(find.byTooltip('Retour'));
+        await tester.pumpAndSettle();
+        expect(find.byType(EmergencyRequestStep0), findsOneWidget);
+      },
+    );
+
+    testWidgets('normal cabinet option still opens its frozen P3 entry', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final userProvider = _createTestUserProvider();
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<UserProvider>.value(value: userProvider),
+            ChangeNotifierProvider(create: (_) => UserOnboardingProvider()),
+            ChangeNotifierProvider(create: (_) => FamilyProvider()),
+            ChangeNotifierProvider(
+              create: (_) => RequestSubmissionController(
+                repository: _FakeRequestRepository(),
+              ),
+            ),
+          ],
+          child: MaterialApp(
+            routes: {
+              '/medical-documents': (_) =>
+                  const Scaffold(body: Text('medical-docs')),
+              '/notifications': (_) =>
+                  const Scaffold(body: Text('notifications')),
+            },
+            home: const NewHomeScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('patient-care-action')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Médecin'));
+      await tester.pumpAndSettle();
+      await tester.drag(
+        find.descendant(
+          of: find.byType(EmergencyRequestStep0),
+          matching: find.byType(ListView),
+        ),
+        const Offset(0, -300),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Consultation au cabinet'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(DoctorCabinetEntryScreen), findsOneWidget);
+      expect(find.text('Who needs care?'), findsOneWidget);
+    });
 
     testWidgets(
       'tapping Clinique from provider selection still opens M05 request flow',
@@ -158,11 +298,9 @@ void main() {
         await tester.pump();
         await tester.pump();
 
-        // Consume the pre-existing framework assertion from
-        // RequestFlowEntryScreen.initState (notifyListeners during build).
-        tester.takeException();
-
         await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
 
         // M05 WhoNeedsCareScreen must be rendered (request flow entry).
         expect(find.text('Who needs care?'), findsOneWidget);

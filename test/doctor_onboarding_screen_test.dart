@@ -1,3 +1,5 @@
+import 'dart:ui' show Tristate;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:omnicare_mobile/core/theme/omni_theme.dart';
@@ -7,10 +9,15 @@ import 'package:omnicare_mobile/features/doctor/workspace/doctor_workspace_confi
 
 void main() {
   Widget buildSubject(
-    Future<void> Function(DoctorWorkspaceConfig) onCompleted,
-  ) {
+    Future<void> Function(DoctorWorkspaceConfig) onCompleted, {
+    TextScaler textScaler = TextScaler.noScaling,
+  }) {
     return MaterialApp(
       theme: buildOmniTheme(),
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(textScaler: textScaler),
+        child: child!,
+      ),
       home: DoctorOnboardingScreen(
         doctorId: 'doctor-a',
         profile: DoctorDemoProfile.current,
@@ -38,18 +45,28 @@ void main() {
     await tester.pumpWidget(buildSubject((_) async {}));
     await tester.pumpAndSettle();
 
-    for (final label in const [
-      'Étape 1 sur 5',
-      'Votre activité',
-      "Comment exercez-vous aujourd'hui ?",
+    const activityLabels = [
       'Cabinet',
       'Clinique',
       'Visites à domicile',
       'Urgences à domicile',
-      'Téléconsultation',
+      'Urgences au cabinet',
+    ];
+    for (final label in const [
+      'Étape 1 sur 5',
+      'Votre activité',
+      "Comment exercez-vous aujourd'hui ?",
+      ...activityLabels,
       'Continuer',
     ]) {
       expect(find.text(label), findsOneWidget);
+    }
+    expect(find.text('Téléconsultation'), findsNothing);
+    for (var index = 0; index < activityLabels.length - 1; index += 1) {
+      expect(
+        tester.getTopLeft(find.text(activityLabels[index])).dy,
+        lessThan(tester.getTopLeft(find.text(activityLabels[index + 1])).dy),
+      );
     }
 
     final heading = tester.getRect(find.text('Votre activité'));
@@ -139,6 +156,7 @@ void main() {
       Size(390, 844),
       Size(430, 932),
       Size(360, 568),
+      Size(1024, 768),
     ];
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -163,5 +181,222 @@ void main() {
       expect(cta.right, lessThanOrEqualTo(size.width));
       expect(cta.bottom, lessThanOrEqualTo(size.height));
     }
+  });
+
+  testWidgets('activity cards remain scrollable with large text', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      buildSubject((_) async {}, textScaler: const TextScaler.linear(1.8)),
+    );
+    await tester.pumpAndSettle();
+
+    final urgentCabinet = find.byKey(
+      const ValueKey('doctor-onboarding-urgent-cabinet'),
+    );
+    await tester.scrollUntilVisible(urgentCabinet, 160);
+
+    expect(urgentCabinet, findsOneWidget);
+    expect(find.text('Téléconsultation'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('normal Cabinet never auto-enables urgent CABINET', (
+    tester,
+  ) async {
+    await tester.pumpWidget(buildSubject((_) async {}));
+    await tester.tap(
+      find.byKey(const ValueKey('doctor-onboarding-mode-cabinet')),
+    );
+    final urgentCabinet = find.byKey(
+      const ValueKey('doctor-onboarding-urgent-cabinet'),
+    );
+    expect(
+      tester.getSemantics(urgentCabinet).flagsCollection.isSelected,
+      Tristate.isFalse,
+    );
+    await tester.tap(find.byKey(const ValueKey('doctor-onboarding-continue')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const ValueKey('doctor-cabinet-name')),
+      'Cabinet Mansour',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('doctor-cabinet-governorate')),
+      'Tunis',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('doctor-cabinet-city')),
+      'La Marsa',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('doctor-cabinet-address')),
+      '1, rue de la Santé',
+    );
+    await tester.tap(find.byKey(const ValueKey('doctor-onboarding-continue')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('doctor-service-urgentCabinetConsultations')),
+      findsNothing,
+    );
+    expect(find.text('Téléconsultation'), findsNothing);
+    expect(find.text('Préparer la téléconsultation'), findsNothing);
+  });
+
+  testWidgets('urgent CABINET enforces and releases its Cabinet prerequisite', (
+    tester,
+  ) async {
+    await tester.pumpWidget(buildSubject((_) async {}));
+    final cabinet = find.byKey(
+      const ValueKey('doctor-onboarding-mode-cabinet'),
+    );
+    final clinic = find.byKey(const ValueKey('doctor-onboarding-mode-clinic'));
+    final urgentCabinet = find.byKey(
+      const ValueKey('doctor-onboarding-urgent-cabinet'),
+    );
+
+    await tester.scrollUntilVisible(urgentCabinet, 120);
+    await tester.tap(urgentCabinet);
+    await tester.pumpAndSettle();
+    expect(
+      tester.getSemantics(cabinet).flagsCollection.isSelected,
+      Tristate.isTrue,
+    );
+    expect(
+      tester.getSemantics(urgentCabinet).flagsCollection.isSelected,
+      Tristate.isTrue,
+    );
+
+    await tester.ensureVisible(clinic);
+    await tester.tap(clinic);
+    await tester.pumpAndSettle();
+    expect(
+      tester.getSemantics(urgentCabinet).flagsCollection.isSelected,
+      Tristate.isTrue,
+    );
+
+    await tester.scrollUntilVisible(urgentCabinet, 120);
+    await tester.tap(urgentCabinet);
+    await tester.pumpAndSettle();
+    expect(
+      tester.getSemantics(urgentCabinet).flagsCollection.isSelected,
+      Tristate.isFalse,
+    );
+    expect(
+      tester.getSemantics(cabinet).flagsCollection.isSelected,
+      Tristate.isTrue,
+    );
+    expect(
+      tester.getSemantics(clinic).flagsCollection.isSelected,
+      Tristate.isTrue,
+    );
+
+    await tester.tap(urgentCabinet);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(cabinet);
+    await tester.tap(cabinet);
+    await tester.pumpAndSettle();
+    expect(
+      tester.getSemantics(cabinet).flagsCollection.isSelected,
+      Tristate.isFalse,
+    );
+    expect(
+      tester.getSemantics(urgentCabinet).flagsCollection.isSelected,
+      Tristate.isFalse,
+    );
+    expect(
+      tester.getSemantics(clinic).flagsCollection.isSelected,
+      Tristate.isTrue,
+    );
+  });
+
+  testWidgets('urgent CABINET persists through steps and final review', (
+    tester,
+  ) async {
+    DoctorWorkspaceConfig? completed;
+    await tester.pumpWidget(
+      buildSubject((config) async {
+        completed = config;
+      }),
+    );
+
+    final urgentCabinet = find.byKey(
+      const ValueKey('doctor-onboarding-urgent-cabinet'),
+    );
+    await tester.scrollUntilVisible(urgentCabinet, 120);
+    await tester.tap(urgentCabinet);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('doctor-onboarding-continue')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const ValueKey('doctor-cabinet-name')),
+      'Cabinet Mansour',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('doctor-cabinet-governorate')),
+      'Tunis',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('doctor-cabinet-city')),
+      'La Marsa',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('doctor-cabinet-address')),
+      '1, rue de la Santé',
+    );
+    await tester.tap(find.byKey(const ValueKey('doctor-onboarding-continue')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('doctor-service-urgentCabinetConsultations')),
+      findsNothing,
+    );
+    expect(find.text('Téléconsultation'), findsNothing);
+    expect(find.text('Préparer la téléconsultation'), findsNothing);
+
+    await tester.tap(find.byTooltip('Retour'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Retour'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(urgentCabinet, 120);
+    expect(
+      tester.getSemantics(urgentCabinet).flagsCollection.isSelected,
+      Tristate.isTrue,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('doctor-onboarding-continue')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('doctor-onboarding-continue')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('doctor-onboarding-continue')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('doctor-onboarding-continue')));
+    await tester.pumpAndSettle();
+    expect(find.text('Urgences au cabinet'), findsOneWidget);
+    expect(find.text('Service configuré localement'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('doctor-onboarding-continue')));
+    await tester.pump();
+
+    expect(completed?.practiceModes, contains(DoctorPracticeMode.cabinet));
+    expect(
+      completed?.services,
+      contains(DoctorWorkspaceService.urgentCabinetConsultations),
+    );
+    expect(
+      completed?.practiceModes,
+      isNot(contains(DoctorPracticeMode.teleconsultation)),
+    );
+    expect(
+      completed?.services,
+      isNot(contains(DoctorWorkspaceService.teleconsultationPreparation)),
+    );
   });
 }

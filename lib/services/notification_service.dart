@@ -1,6 +1,12 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
+import '../core/nav/app_nav.dart';
+import '../features/notifications/domain/notification_models.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -9,7 +15,16 @@ class NotificationService {
 
   final FlutterLocalNotificationsPlugin _notifications =
       FlutterLocalNotificationsPlugin();
+  final StreamController<UrgentCabinetNotificationOpenIntent>
+  _urgentCabinetOpens =
+      StreamController<UrgentCabinetNotificationOpenIntent>.broadcast(
+        sync: true,
+      );
+  UrgentCabinetNotificationOpenIntent? _pendingUrgentCabinetOpen;
   bool _initialized = false;
+
+  Stream<UrgentCabinetNotificationOpenIntent> get urgentCabinetOpens =>
+      _urgentCabinetOpens.stream;
 
   Future<void> initialize() async {
     if (_initialized) return;
@@ -47,8 +62,150 @@ class NotificationService {
   }
 
   void _onNotificationTapped(NotificationResponse response) {
-    // Handle notification tap - navigate to appropriate screen
-    debugPrint('Notification tapped: ${response.payload}');
+    final payload = response.payload;
+    if (payload == null || payload.isEmpty) {
+      openNotificationCenter();
+      return;
+    }
+    try {
+      final decoded = jsonDecode(payload);
+      if (decoded is Map) {
+        openPayload(decoded.map((key, value) => MapEntry('$key', value)));
+        return;
+      }
+    } catch (_) {
+      // Legacy/non-JSON notification payloads retain the safe inbox fallback.
+    }
+    openNotificationCenter();
+  }
+
+  void openPayload(Map<String, dynamic> data) {
+    final requestId = data['request_id']?.toString().trim();
+    if (data['destination'] == 'URGENT_CABINET_REQUEST' &&
+        requestId != null &&
+        _uuidPattern.hasMatch(requestId)) {
+      final intent = UrgentCabinetNotificationOpenIntent(
+        requestId: requestId.toLowerCase(),
+      );
+      // A push-open may arrive before the authenticated Doctor workspace has
+      // completed bootstrap. Broadcast streams do not replay, so retain the
+      // latest opaque lookup intent until the correct role-specific surface
+      // atomically claims it. No notification data becomes lifecycle authority.
+      _pendingUrgentCabinetOpen = intent;
+      _urgentCabinetOpens.add(intent);
+      return;
+    }
+    openNotificationCenter();
+  }
+
+  UrgentCabinetNotificationOpenIntent? claimUrgentCabinetOpen(
+    UrgentCabinetNotificationOpenIntent intent,
+  ) {
+    if (!identical(_pendingUrgentCabinetOpen, intent)) return null;
+    _pendingUrgentCabinetOpen = null;
+    return intent;
+  }
+
+  UrgentCabinetNotificationOpenIntent? takePendingUrgentCabinetOpen() {
+    final intent = _pendingUrgentCabinetOpen;
+    _pendingUrgentCabinetOpen = null;
+    return intent;
+  }
+
+  void openNotificationCenter() {
+    AppNav.navigatorKey.currentState?.pushNamed('/notifications');
+  }
+
+  Future<void> showInboxNotification(InboxNotification notification) async {
+    if (notification.isExpired) return;
+    final urgent = notification.priority == InboxNotificationPriority.critical;
+    final messenger = AppNav.scaffoldMessengerKey.currentState;
+    messenger
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('${notification.titleFr}\n${notification.bodyFr}'),
+          action: SnackBarAction(
+            label: 'Ouvrir',
+            onPressed: () => openPayload(notification.deepLinkPayload),
+          ),
+        ),
+      );
+    if (kIsWeb) return;
+    final androidDetails = AndroidNotificationDetails(
+      urgent ? 'omnicare_critical' : 'omnicare_high',
+      urgent ? 'Urgences OmniCare' : 'Alertes OmniCare',
+      channelDescription: 'Notifications opérationnelles OmniCare',
+      importance: urgent ? Importance.max : Importance.high,
+      priority: urgent ? Priority.max : Priority.high,
+      playSound: true,
+      enableVibration: true,
+      icon: '@mipmap/ic_launcher',
+    );
+    const iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+      sound: 'default',
+      presentBanner: true,
+      presentList: true,
+    );
+    await _notifications.show(
+      notification.id.hashCode & 0x7fffffff,
+      notification.titleFr,
+      notification.bodyFr,
+      NotificationDetails(android: androidDetails, iOS: iosDetails),
+      payload: jsonEncode(<String, Object?>{
+        'notification_id': notification.id,
+        ...notification.deepLinkPayload,
+      }),
+    );
+  }
+
+  Future<void> showRemoteNotification({
+    required String title,
+    required String body,
+    required Map<String, dynamic> data,
+    required bool urgent,
+  }) async {
+    final messenger = AppNav.scaffoldMessengerKey.currentState;
+    messenger
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('$title\n$body'),
+          action: SnackBarAction(
+            label: 'Ouvrir',
+            onPressed: () => openPayload(data),
+          ),
+        ),
+      );
+    if (kIsWeb) return;
+    final androidDetails = AndroidNotificationDetails(
+      urgent ? 'omnicare_critical' : 'omnicare_high',
+      urgent ? 'Urgences OmniCare' : 'Alertes OmniCare',
+      channelDescription: 'Notifications opérationnelles OmniCare',
+      importance: urgent ? Importance.max : Importance.high,
+      priority: urgent ? Priority.max : Priority.high,
+      playSound: true,
+      enableVibration: true,
+      icon: '@mipmap/ic_launcher',
+    );
+    const iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+      sound: 'default',
+      presentBanner: true,
+      presentList: true,
+    );
+    await _notifications.show(
+      Object.hash(title, body, data['request_id']) & 0x7fffffff,
+      title,
+      body,
+      NotificationDetails(android: androidDetails, iOS: iosDetails),
+      payload: jsonEncode(data),
+    );
   }
 
   Future<void> showDoctorsFoundNotification() async {
@@ -226,4 +383,14 @@ class NotificationService {
     );
     debugPrint('✅ NOTIFICATION: Test notification sent');
   }
+}
+
+final RegExp _uuidPattern = RegExp(
+  r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+);
+
+class UrgentCabinetNotificationOpenIntent {
+  const UrgentCabinetNotificationOpenIntent({required this.requestId});
+
+  final String requestId;
 }

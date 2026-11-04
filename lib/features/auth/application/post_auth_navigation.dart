@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../../../core/models/patient_profile.dart';
 import '../../../core/nav/keyboard_navigation.dart';
 import '../../../providers/user_provider.dart';
+import '../../emergency/urgent_cabinet/urgent_cabinet_patient_lifecycle_controller.dart';
+import '../../emergency/urgent_cabinet/urgent_cabinet_targeted_request_models.dart';
 import 'auth_controller.dart';
 import 'auth_role_family.dart';
 
@@ -50,6 +52,47 @@ Future<bool> navigateAfterAuthentication(
     context.read<UserProvider>().setPatientProfile(patientProfile);
   }
 
-  Navigator.of(context).pushNamedAndRemoveUntil(route, (_) => false);
+  var restoreUrgentCabinet = false;
+  String? restoredUrgentCabinetAccountId;
+  if (patientProfile != null && route == '/home') {
+    final lifecycle = context.read<UrgentCabinetPatientLifecycleController?>();
+    if (lifecycle != null) {
+      final accountId = patientProfile.userId.trim();
+      final authenticatedAccountId = auth.currentUser?.id.trim();
+      if (accountId.isNotEmpty && accountId == authenticatedAccountId) {
+        final restored = await lifecycle.recoverAfterAuthentication(
+          accountId: accountId,
+        );
+        if (!context.mounted ||
+            !auth.isAuthenticated ||
+            auth.currentUser?.id.trim() != accountId) {
+          return false;
+        }
+        final status = lifecycle.snapshot?.responseStatus;
+        restoreUrgentCabinet =
+            restored &&
+            (status == UrgentCabinetPatientResponseStatus.pending ||
+                status == UrgentCabinetPatientResponseStatus.accepted);
+        if (restoreUrgentCabinet) {
+          restoredUrgentCabinetAccountId = accountId;
+        }
+      }
+    }
+  }
+
+  final navigator = Navigator.of(context);
+  navigator.pushNamedAndRemoveUntil(route, (_) => false);
+  if (restoreUrgentCabinet) {
+    // Keep Home below the flow. Closing an accepted confirmation is therefore
+    // a deliberate return to Home, not a permanent recovery redirect.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!auth.isAuthenticated ||
+          auth.currentUser?.role != 'PATIENT' ||
+          auth.currentUser?.id.trim() != restoredUrgentCabinetAccountId) {
+        return;
+      }
+      navigator.pushNamed('/urgent-cabinet/care-subject');
+    });
+  }
   return true;
 }

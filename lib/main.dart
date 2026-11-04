@@ -16,6 +16,12 @@ import 'features/onboarding/conversational_onboarding_screen.dart';
 import 'features/home/new_home_screen.dart';
 import 'features/emergency/emergency_request_step0.dart';
 import 'features/emergency/emergency_request_step1.dart';
+import 'features/emergency/urgent_care_mode_selection_screen.dart';
+import 'features/emergency/urgent_cabinet/urgent_cabinet_flow_shell.dart';
+import 'features/emergency/urgent_cabinet/urgent_cabinet_patient_lifecycle_controller.dart';
+import 'features/emergency/urgent_cabinet/urgent_cabinet_submission_activation_gate.dart';
+import 'features/emergency/urgent_cabinet/urgent_cabinet_submission_coordinator.dart';
+import 'features/emergency/urgent_cabinet/urgent_cabinet_targeted_request_repository.dart';
 import 'features/emergency/emergency_request_step2.dart';
 import 'features/emergency/emergency_request_step3.dart';
 import 'features/emergency/emergency_review_screen.dart';
@@ -72,6 +78,7 @@ import 'features/notifications/application/notification_center_controller.dart';
 import 'features/notifications/data/notification_api.dart';
 import 'features/notifications/data/notification_repository.dart';
 import 'features/notifications/realtime/notification_realtime_coordinator.dart';
+import 'features/notifications/push/notification_push_coordinator.dart';
 import 'features/request_flow/screens/request_flow_entry_screen.dart';
 import 'features/request_flow/screens/doctor_cabinet_entry_screen.dart';
 import 'features/request_flow/screens/who_needs_care_screen.dart';
@@ -87,6 +94,7 @@ import 'core/api/files_api.dart';
 import 'core/api/family_api.dart';
 import 'features/auth/data/auth_api.dart';
 import 'features/auth/data/auth_repository.dart';
+import 'features/auth/application/google_sign_in_session.dart';
 import 'repositories/user_repository.dart';
 import 'repositories/family_repository.dart';
 import 'features/security/account_security_api.dart';
@@ -94,8 +102,16 @@ import 'features/security/account_security_provider.dart';
 import 'features/security/app_lock_gate.dart';
 import 'features/security/app_lock_service.dart';
 import 'features/security/phone_change_reversal_screen.dart';
+import 'features/patient_passport/sharing/medical_sharing_api.dart';
+import 'features/patient_passport/sharing/medical_sharing_controller.dart';
+import 'features/patient_passport/sharing/medical_share_qr_api.dart';
+import 'features/patient_passport/sharing/medical_share_qr_controller.dart';
 
-void main() async {
+Future<void> main() => startOmniCare();
+
+Future<void> startOmniCare({
+  UrgentCabinetSubmissionActivationGate? submissionActivationGate,
+}) async {
   WidgetsFlutterBinding.ensureInitialized();
   final appLockService = AppLockService();
 
@@ -106,6 +122,9 @@ void main() async {
     dotenv.load(fileName: '.env'),
     appLockService.initialize(),
   ]);
+  final resolvedUrgentCabinetGate =
+      submissionActivationGate ??
+      UrgentCabinetSubmissionActivationGate.p4Production;
 
   final tokenStore = SecureTokenStore();
   late AuthController authController;
@@ -116,7 +135,10 @@ void main() async {
     deviceIdentityService: DeviceIdentityService(tokenStore: tokenStore),
     refreshCoordinator: httpClient.refreshCoordinator,
   );
-  authController = AuthController(repository: authRepository);
+  authController = AuthController(
+    repository: authRepository,
+    googleSignInSession: createGoogleSignInSession(),
+  );
   httpClient.onSessionInvalidated = authController.handleSessionInvalidated;
   final realtimeTransport = AuthenticatedRealtimeTransport(
     tokenStore: tokenStore,
@@ -130,6 +152,11 @@ void main() async {
   final notificationRealtimeCoordinator = NotificationRealtimeCoordinator(
     transport: realtimeTransport,
     controller: notificationController,
+    onForegroundNotification: NotificationService().showInboxNotification,
+  );
+  final notificationPushCoordinator = NotificationPushCoordinator(
+    httpClient: httpClient,
+    alerts: NotificationService(),
   );
   httpClient.refreshCoordinator.onSessionRefreshed = (_) =>
       realtimeCoordinator.credentialsChanged();
@@ -142,6 +169,8 @@ void main() async {
       realtimeCoordinator: realtimeCoordinator,
       notificationController: notificationController,
       notificationRealtimeCoordinator: notificationRealtimeCoordinator,
+      notificationPushCoordinator: notificationPushCoordinator,
+      urgentCabinetSubmissionActivationGate: resolvedUrgentCabinetGate,
     ),
   );
 
@@ -173,6 +202,9 @@ class OmniCareApp extends StatelessWidget {
     this.realtimeCoordinator,
     this.notificationController,
     this.notificationRealtimeCoordinator,
+    this.notificationPushCoordinator,
+    this.urgentCabinetSubmissionActivationGate =
+        UrgentCabinetSubmissionActivationGate.p4Production,
   });
 
   final AuthController authController;
@@ -181,6 +213,9 @@ class OmniCareApp extends StatelessWidget {
   final ScheduledCareRealtimeCoordinator? realtimeCoordinator;
   final NotificationCenterController? notificationController;
   final NotificationRealtimeCoordinator? notificationRealtimeCoordinator;
+  final NotificationPushCoordinator? notificationPushCoordinator;
+  final UrgentCabinetSubmissionActivationGate
+  urgentCabinetSubmissionActivationGate;
 
   @override
   Widget build(BuildContext context) {
@@ -196,6 +231,9 @@ class OmniCareApp extends StatelessWidget {
     );
     return MultiProvider(
       providers: [
+        Provider<UrgentCabinetSubmissionActivationGate>.value(
+          value: urgentCabinetSubmissionActivationGate,
+        ),
         if (realtimeCoordinator != null)
           Provider<ScheduledCareRealtimeCoordinator>.value(
             value: realtimeCoordinator!,
@@ -204,7 +242,25 @@ class OmniCareApp extends StatelessWidget {
           Provider<NotificationRealtimeCoordinator>.value(
             value: notificationRealtimeCoordinator!,
           ),
+        if (notificationPushCoordinator != null)
+          Provider<NotificationPushCoordinator>.value(
+            value: notificationPushCoordinator!,
+          ),
         Provider<AppHttpClient>.value(value: resolvedHttpClient),
+        ChangeNotifierProvider(
+          create: (_) {
+            final repository = AppUrgentCabinetTargetedRequestRepository(
+              resolvedHttpClient,
+            );
+            return UrgentCabinetPatientLifecycleController(
+              repository: repository,
+              submissionCoordinator: UrgentCabinetSubmissionCoordinator(
+                repository: repository,
+                receiptStore: SecureUrgentCabinetRecoveryReceiptStore(),
+              ),
+            );
+          },
+        ),
         ChangeNotifierProvider<AuthController>.value(value: authController),
         if (notificationController != null)
           ChangeNotifierProvider<NotificationCenterController>.value(
@@ -234,6 +290,14 @@ class OmniCareApp extends StatelessWidget {
             ),
             onFamilyChanged: context.read<UserProvider>().refresh,
           ),
+        ),
+        ChangeNotifierProvider(
+          create: (_) =>
+              MedicalSharingController(MedicalSharingApi(resolvedHttpClient)),
+        ),
+        ChangeNotifierProvider(
+          create: (_) =>
+              MedicalShareQrController(MedicalShareQrApi(resolvedHttpClient)),
         ),
         ChangeNotifierProvider(
           create: (context) => AccountSecurityProvider(
@@ -308,6 +372,7 @@ class OmniCareApp extends StatelessWidget {
             title: 'OmniCare',
             debugShowCheckedModeBanner: false,
             navigatorKey: AppNav.navigatorKey,
+            scaffoldMessengerKey: AppNav.scaffoldMessengerKey,
             locale: locale,
             builder: (context, child) {
               final mq = MediaQuery.of(context);
@@ -363,6 +428,10 @@ class OmniCareApp extends StatelessWidget {
               '/home': (context) => const NewHomeScreen(),
               '/doctor-dashboard': (context) => const DoctorAuthShellScreen(),
               '/emergency-step0': (context) => const EmergencyRequestStep0(),
+              '/urgent-care-mode-selection': (context) =>
+                  const UrgentCareModeSelectionScreen(),
+              '/urgent-cabinet/care-subject': (context) =>
+                  const UrgentCabinetFlowShell(),
               '/emergency-step1': (context) => const EmergencyRequestStep1(),
               '/request-care': (context) => const ProviderSelectionScreen(),
               '/provider-selection': (context) =>
@@ -524,6 +593,10 @@ class _AuthStateListenerState extends State<_AuthStateListener>
   String? _realtimeOwnerKey;
   ScheduledCareRealtimeCoordinator? _realtimeCoordinator;
   NotificationRealtimeCoordinator? _notificationRealtimeCoordinator;
+  NotificationPushCoordinator? _notificationPushCoordinator;
+  NotificationService? _notificationAlerts;
+  StreamSubscription<UrgentCabinetNotificationOpenIntent>?
+  _urgentCabinetOpenSubscription;
   PatientScheduledCareRealtimeTarget? _patientRealtimeTarget;
   VoidCallback? _unregisterPatientRealtimeTarget;
 
@@ -538,6 +611,14 @@ class _AuthStateListenerState extends State<_AuthStateListener>
     super.didChangeDependencies();
     _notificationRealtimeCoordinator = context
         .read<NotificationRealtimeCoordinator?>();
+    _notificationPushCoordinator = context.read<NotificationPushCoordinator?>();
+    final notificationAlerts = NotificationService();
+    if (!identical(notificationAlerts, _notificationAlerts)) {
+      _urgentCabinetOpenSubscription?.cancel();
+      _notificationAlerts = notificationAlerts;
+      _urgentCabinetOpenSubscription = notificationAlerts.urgentCabinetOpens
+          .listen(_openPatientUrgentCabinetNotification);
+    }
     final coordinator = context.read<ScheduledCareRealtimeCoordinator?>();
     if (identical(coordinator, _realtimeCoordinator)) return;
     _unregisterPatientRealtimeTarget?.call();
@@ -556,8 +637,18 @@ class _AuthStateListenerState extends State<_AuthStateListener>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      context
+          .read<UrgentCabinetPatientLifecycleController>()
+          .applicationResumed();
       unawaited(_realtimeCoordinator?.foregroundResync());
       unawaited(_notificationRealtimeCoordinator?.foregroundResync());
+    } else if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      context
+          .read<UrgentCabinetPatientLifecycleController>()
+          .applicationBackgrounded();
     }
   }
 
@@ -566,7 +657,34 @@ class _AuthStateListenerState extends State<_AuthStateListener>
     WidgetsBinding.instance.removeObserver(this);
     _unregisterPatientRealtimeTarget?.call();
     _patientRealtimeTarget?.dispose();
+    _urgentCabinetOpenSubscription?.cancel();
     super.dispose();
+  }
+
+  Future<void> _openPatientUrgentCabinetNotification(
+    UrgentCabinetNotificationOpenIntent intent,
+  ) async {
+    if (!mounted) return;
+    final auth = context.read<AuthController>();
+    if (!auth.isAuthenticated || auth.globalRole != 'PATIENT') return;
+    final accountId = auth.currentUser?.id.trim();
+    if (accountId == null || accountId.isEmpty) return;
+    final claimed = NotificationService().claimUrgentCabinetOpen(intent);
+    if (claimed == null) return;
+    final navigator = Navigator.of(context);
+    final recovered = await context
+        .read<UrgentCabinetPatientLifecycleController>()
+        .recoverFromNotification(
+          accountId: accountId,
+          requestId: claimed.requestId,
+        );
+    if (!context.mounted ||
+        !recovered ||
+        !auth.isAuthenticated ||
+        auth.currentUser?.id.trim() != accountId) {
+      return;
+    }
+    await navigator.pushNamed<void>('/urgent-cabinet/care-subject');
   }
 
   @override
@@ -595,6 +713,9 @@ class _AuthStateListenerState extends State<_AuthStateListener>
           );
           _notificationRealtimeCoordinator?.startSession();
           unawaited(
+            _notificationPushCoordinator?.startSession(nextRealtimeOwnerKey),
+          );
+          unawaited(
             _realtimeCoordinator?.startSession(
               RealtimeSessionOwner(userId: realtimeUserId, role: realtimeRole),
             ),
@@ -606,6 +727,7 @@ class _AuthStateListenerState extends State<_AuthStateListener>
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
           _notificationRealtimeCoordinator?.stopSession();
+          unawaited(_notificationPushCoordinator?.stopSession());
           context.read<NotificationCenterController>().clearForSession();
           unawaited(_realtimeCoordinator?.stopSession());
         });
@@ -615,8 +737,15 @@ class _AuthStateListenerState extends State<_AuthStateListener>
           previousUserId != nextUserId) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
+          unawaited(
+            context
+                .read<UrgentCabinetPatientLifecycleController>()
+                .invalidateSession(previousUserId),
+          );
           context.read<PatientBookingController>().clear();
           context.read<PatientScheduledCareController>().clear();
+          context.read<MedicalSharingController>().clear();
+          context.read<MedicalShareQrController>().clear();
         });
       }
       _wasAuthenticated = true;
@@ -626,11 +755,20 @@ class _AuthStateListenerState extends State<_AuthStateListener>
         (_wasAuthenticated || auth.errorCode == 'AUTH_SESSION_INVALID')) {
       _handledUnauthenticatedTransition = true;
       _wasAuthenticated = false;
+      final urgentCabinetOwnerUserId = _scheduledCareOwnerUserId;
       _scheduledCareOwnerUserId = null;
       _realtimeOwnerKey = null;
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted) return;
+        if (urgentCabinetOwnerUserId != null) {
+          await context
+              .read<UrgentCabinetPatientLifecycleController>()
+              .invalidateSession(urgentCabinetOwnerUserId);
+          if (!context.mounted) return;
+        }
         _notificationRealtimeCoordinator?.stopSession();
+        await _notificationPushCoordinator?.stopSession();
+        if (!context.mounted) return;
         context.read<NotificationCenterController>().clearForSession();
         await _realtimeCoordinator?.stopSession();
         if (!context.mounted) return;
@@ -650,6 +788,10 @@ class _AuthStateListenerState extends State<_AuthStateListener>
         context.read<PatientBookingController>().clear();
         if (!context.mounted) return;
         context.read<PatientScheduledCareController>().clear();
+        if (!context.mounted) return;
+        context.read<MedicalSharingController>().clear();
+        if (!context.mounted) return;
+        context.read<MedicalShareQrController>().clear();
         if (!context.mounted) return;
         if (stayOnPublicSecurityRoute) return;
         AppNav.navigatorKey.currentState?.pushNamedAndRemoveUntil(

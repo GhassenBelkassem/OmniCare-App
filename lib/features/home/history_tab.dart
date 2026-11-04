@@ -19,6 +19,8 @@ class Consultation {
   final List<String>? medications;
   final String? diagnosis;
   final String cost;
+  final String subjectType;
+  final String? familyMemberId;
 
   Consultation({
     required this.id,
@@ -33,6 +35,8 @@ class Consultation {
     this.medications,
     this.diagnosis,
     required this.cost,
+    this.subjectType = 'SELF',
+    this.familyMemberId,
   });
 }
 
@@ -143,6 +147,8 @@ class _HistoryTabState extends State<HistoryTab> {
       cost: (c.fee == null || c.fee! <= 0)
           ? '-'
           : '${c.fee!.toStringAsFixed(0)} DT',
+      subjectType: c.subjectType ?? 'SELF',
+      familyMemberId: c.familyMemberId,
     );
   }
 

@@ -97,7 +97,11 @@ class _StompRealtimeSocket implements RealtimeSocket {
           onConnect: (_) => configuration.onConnected(),
           onStompError: (_) => configuration.onStompError(),
           onWebSocketError: (_) => configuration.onTransportError(),
-          onWebSocketDone: configuration.onTransportDone,
+          // stomp_dart_client invokes onWebSocketDone before it marks its
+          // handler disconnected. Let that internal cleanup finish before the
+          // transport attempts to release subscriptions.
+          onWebSocketDone: () =>
+              scheduleMicrotask(configuration.onTransportDone),
         ),
       );
 
@@ -308,13 +312,23 @@ class AuthenticatedRealtimeTransport implements ScheduledCareRealtimeTransport {
 
   void _handleTransportDrop(int generation) {
     if (!_isCurrent(generation) || _authRejected || _owner == null) return;
-    _tearDownSocket(invalidateGeneration: false);
-    _state = RealtimeConnectionState.disconnected;
-    if (_reconnectTimer != null) return;
-    _reconnectTimer = Timer(reconnectDelay, () {
-      _reconnectTimer = null;
-      if (_owner != null && !_authRejected) unawaited(_connect());
-    });
+    Object? cleanupError;
+    StackTrace? cleanupStackTrace;
+    try {
+      _tearDownSocket(invalidateGeneration: false);
+    } catch (error, stackTrace) {
+      cleanupError = error;
+      cleanupStackTrace = stackTrace;
+    } finally {
+      _state = RealtimeConnectionState.disconnected;
+      _reconnectTimer ??= Timer(reconnectDelay, () {
+        _reconnectTimer = null;
+        if (_owner != null && !_authRejected) unawaited(_connect());
+      });
+    }
+    if (cleanupError != null) {
+      Error.throwWithStackTrace(cleanupError, cleanupStackTrace!);
+    }
   }
 
   bool _belongsToOwner(StoredSession? session, RealtimeSessionOwner owner) =>
@@ -330,14 +344,36 @@ class AuthenticatedRealtimeTransport implements ScheduledCareRealtimeTransport {
 
   void _tearDownSocket({bool invalidateGeneration = true}) {
     if (invalidateGeneration) _generation++;
-    _unsubscribe?.call();
+    final unsubscribe = _unsubscribe;
     _unsubscribe = null;
-    _unsubscribeNotifications?.call();
+    final unsubscribeNotifications = _unsubscribeNotifications;
     _unsubscribeNotifications = null;
-    _socket?.deactivate();
+    final socket = _socket;
     _socket = null;
     _connectedAccessToken = null;
     _connectedCredentialFingerprint = null;
+
+    Object? cleanupError;
+    StackTrace? cleanupStackTrace;
+    void runCleanup(void Function()? cleanup) {
+      if (cleanup == null) return;
+      try {
+        cleanup();
+      } on StompBadStateException {
+        // The peer may already have closed the socket. Local references have
+        // still been retired, so a protocol-level UNSUBSCRIBE is unnecessary.
+      } catch (error, stackTrace) {
+        cleanupError ??= error;
+        cleanupStackTrace ??= stackTrace;
+      }
+    }
+
+    runCleanup(unsubscribe);
+    runCleanup(unsubscribeNotifications);
+    runCleanup(socket?.deactivate);
+    if (cleanupError != null) {
+      Error.throwWithStackTrace(cleanupError!, cleanupStackTrace!);
+    }
   }
 
   @override

@@ -8,10 +8,22 @@ enum ScheduledCareEventType {
   bookingRequestExpired,
   appointmentCreated,
   appointmentCancelled,
+  appointmentCompleted,
+  consultationActivated,
+  consultationUpdated,
+  consultationCompleted,
+  clinicalAccessChanged,
   unknown,
 }
 
-enum ScheduledCareResourceType { bookingRequest, appointment }
+enum ScheduledCareResourceType {
+  bookingRequest,
+  appointment,
+  consultation,
+  clinicalOrder,
+  prescription,
+  artifact,
+}
 
 class ScheduledCareInvalidationEvent {
   const ScheduledCareInvalidationEvent({
@@ -66,6 +78,10 @@ class ScheduledCareInvalidationEvent {
       final resourceType = switch (rawResource) {
         'BOOKING_REQUEST' => ScheduledCareResourceType.bookingRequest,
         'APPOINTMENT' => ScheduledCareResourceType.appointment,
+        'CONSULTATION' => ScheduledCareResourceType.consultation,
+        'CLINICAL_ORDER' => ScheduledCareResourceType.clinicalOrder,
+        'PRESCRIPTION' => ScheduledCareResourceType.prescription,
+        'ARTIFACT' => ScheduledCareResourceType.artifact,
         _ => null,
       };
       if (resourceType == null) return null;
@@ -94,6 +110,11 @@ class ScheduledCareInvalidationEvent {
     'BOOKING_REQUEST_EXPIRED' => ScheduledCareEventType.bookingRequestExpired,
     'APPOINTMENT_CREATED' => ScheduledCareEventType.appointmentCreated,
     'APPOINTMENT_CANCELLED' => ScheduledCareEventType.appointmentCancelled,
+    'APPOINTMENT_COMPLETED' => ScheduledCareEventType.appointmentCompleted,
+    'CONSULTATION_ACTIVATED' => ScheduledCareEventType.consultationActivated,
+    'CONSULTATION_UPDATED' => ScheduledCareEventType.consultationUpdated,
+    'CONSULTATION_COMPLETED' => ScheduledCareEventType.consultationCompleted,
+    'CLINICAL_ACCESS_CHANGED' => ScheduledCareEventType.clinicalAccessChanged,
     _ => ScheduledCareEventType.unknown,
   };
 }

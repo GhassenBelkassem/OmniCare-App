@@ -9,6 +9,7 @@ import 'package:omnicare_mobile/features/scheduled_care/realtime/coalesced_refre
 import 'package:omnicare_mobile/features/scheduled_care/realtime/recent_event_deduper.dart';
 import 'package:omnicare_mobile/features/scheduled_care/realtime/scheduled_care_event.dart';
 import 'package:omnicare_mobile/features/scheduled_care/realtime/scheduled_care_realtime_coordinator.dart';
+import 'package:stomp_dart_client/stomp_dart_client.dart';
 
 const _requestId = '11111111-1111-4111-8111-111111111111';
 const _appointmentId = '22222222-2222-4222-8222-222222222222';
@@ -93,24 +94,95 @@ void main() {
       expect(socketFactory.sockets, hasLength(1));
     });
 
-    test('transient disconnect reconnects with a new epoch', () async {
+    test(
+      'closed-socket teardown is safe and duplicate callbacks reconnect once',
+      () async {
+        await transport.startSession(
+          const RealtimeSessionOwner(userId: 'patient-a', role: 'PATIENT'),
+        );
+        final firstConfiguration = socketFactory.configurations.first;
+        final firstSocket = socketFactory.sockets.first;
+        firstConfiguration.onConnected();
+        firstSocket.closeBeforeCleanup();
+
+        expect(firstConfiguration.onTransportDone, returnsNormally);
+        expect(transport.state, RealtimeConnectionState.disconnected);
+        expect(firstSocket.unsubscribeAttempts, 2);
+
+        firstConfiguration.onTransportError();
+        firstConfiguration.onTransportDone();
+        await _pumpEvents();
+
+        expect(socketFactory.sockets, hasLength(2));
+        expect(firstSocket.deactivateCalls, 1);
+        socketFactory.configurations.last.onConnected();
+        expect(transport.connectionEpoch, 2);
+        expect(socketFactory.sockets.last.destinations, [
+          '/user/queue/scheduled-care',
+          '/user/queue/notifications',
+        ]);
+
+        firstConfiguration.onTransportDone();
+        await _pumpEvents();
+        expect(socketFactory.sockets, hasLength(2));
+      },
+    );
+
+    test('dispose is idempotent and late callbacks never reconnect', () async {
       await transport.startSession(
         const RealtimeSessionOwner(userId: 'patient-a', role: 'PATIENT'),
       );
-      socketFactory.configurations.first.onConnected();
-      socketFactory.configurations.first.onTransportDone();
+      final configuration = socketFactory.configurations.single;
+      final socket = socketFactory.sockets.single;
+      configuration.onConnected();
+      socket.closeBeforeCleanup();
+
+      await transport.dispose();
+      await transport.dispose();
+      configuration.onTransportDone();
+      configuration.onTransportError();
       await _pumpEvents();
 
-      expect(socketFactory.sockets, hasLength(2));
-      socketFactory.configurations.last.onConnected();
-      expect(transport.connectionEpoch, 2);
+      expect(socket.deactivateCalls, 1);
+      expect(socketFactory.sockets, hasLength(1));
+      expect(transport.state, RealtimeConnectionState.disconnected);
     });
+
+    test(
+      'unexpected cleanup errors remain visible after reconnect is secured',
+      () async {
+        await transport.startSession(
+          const RealtimeSessionOwner(userId: 'patient-a', role: 'PATIENT'),
+        );
+        final configuration = socketFactory.configurations.single;
+        final socket = socketFactory.sockets.single;
+        configuration.onConnected();
+        socket.unsubscribeError = StateError('unexpected unsubscribe failure');
+
+        expect(
+          configuration.onTransportDone,
+          throwsA(
+            isA<StateError>().having(
+              (error) => error.message,
+              'message',
+              'unexpected unsubscribe failure',
+            ),
+          ),
+        );
+        expect(transport.state, RealtimeConnectionState.disconnected);
+        expect(socket.deactivated, isTrue);
+
+        await _pumpEvents();
+        expect(socketFactory.sockets, hasLength(2));
+      },
+    );
 
     test('STOMP authentication error disables automatic reconnect', () async {
       await transport.startSession(
         const RealtimeSessionOwner(userId: 'patient-a', role: 'PATIENT'),
       );
       final rejected = socketFactory.configurations.single;
+      socketFactory.sockets.single.closeBeforeCleanup();
       rejected.onStompError();
       rejected.onTransportDone();
       await _pumpEvents();
@@ -155,6 +227,7 @@ void main() {
         await _pumpEvents();
         expect(messages, ['{}']);
 
+        socket.closeBeforeCleanup();
         await transport.stopSession();
         socket.emit('{"late":true}');
         configuration.onTransportDone();
@@ -162,6 +235,7 @@ void main() {
 
         expect(socket.deactivated, isTrue);
         expect(socket.unsubscribed, isTrue);
+        expect(socket.unsubscribeAttempts, 2);
         expect(transport.owner, isNull);
         expect(transport.connectionEpoch, 0);
         expect(messages, ['{}']);
@@ -176,6 +250,7 @@ void main() {
           const RealtimeSessionOwner(userId: 'patient-a', role: 'PATIENT'),
         );
         socketFactory.configurations.single.onConnected();
+        socketFactory.sockets.single.closeBeforeCleanup();
         await tokenStore.saveSession(_session(accessToken: 'access-two'));
 
         await transport.ensureConnected();
@@ -191,10 +266,14 @@ void main() {
     test(
       'session owner change destroys old connection before creating next',
       () async {
+        final messages = <String>[];
+        transport.messages.listen(messages.add);
         await transport.startSession(
           const RealtimeSessionOwner(userId: 'patient-a', role: 'PATIENT'),
         );
+        socketFactory.configurations.single.onConnected();
         final oldSocket = socketFactory.sockets.single;
+        oldSocket.closeBeforeCleanup();
         await tokenStore.saveSession(
           _session(
             accessToken: 'doctor-token',
@@ -210,6 +289,11 @@ void main() {
         expect(oldSocket.deactivated, isTrue);
         expect(socketFactory.sockets, hasLength(2));
         expect(transport.owner?.userId, 'doctor-a');
+        oldSocket.emit('{"owner":"patient-a"}');
+        socketFactory.configurations.last.onConnected();
+        socketFactory.sockets.last.emit('{"owner":"doctor-a"}');
+        await _pumpEvents();
+        expect(messages, ['{"owner":"doctor-a"}']);
       },
     );
   });
@@ -226,6 +310,7 @@ void main() {
       'BOOKING_REQUEST_EXPIRED': ScheduledCareEventType.bookingRequestExpired,
       'APPOINTMENT_CREATED': ScheduledCareEventType.appointmentCreated,
       'APPOINTMENT_CANCELLED': ScheduledCareEventType.appointmentCancelled,
+      'APPOINTMENT_COMPLETED': ScheduledCareEventType.appointmentCompleted,
     };
 
     for (final entry in knownTypes.entries) {
@@ -438,6 +523,33 @@ void main() {
     );
 
     test(
+      'doctor foreground resync replaces a stale startable Home projection',
+      () async {
+        final home = _Projection(active: true, loaded: true)
+          ..uiState = 'FINISHED_SOURCE_CONFIRMED'
+          ..serverState = 'FINISHED_SOURCE_ABSENT';
+        final target = DoctorScheduledCareRealtimeTarget.bindings(
+          requestId: () => null,
+          appointmentId: () => null,
+          home: _binding(home),
+          request: _binding(_Projection()),
+          agenda: _binding(_Projection()),
+          appointment: _binding(_Projection()),
+        );
+        coordinator.registerTarget(target);
+        await coordinator.startSession(
+          const RealtimeSessionOwner(userId: 'doctor-a', role: 'DOCTOR'),
+        );
+
+        await coordinator.foregroundResync();
+
+        expect(transport.ensureCalls, 1);
+        expect(home.refreshes, 1);
+        expect(home.uiState, 'FINISHED_SOURCE_ABSENT');
+      },
+    );
+
+    test(
       'patient mapping refreshes only active list and matching detail via REST',
       () async {
         final request = _Projection(active: true, loaded: true);
@@ -464,7 +576,58 @@ void main() {
         );
         expect(appointment.refreshes, 1);
         expect(list.refreshes, 2);
+
+        appointment.serverState = 'COMPLETED';
+        list.serverState = 'UPCOMING_EMPTY';
+        await target.invalidate(
+          _parsedEvent(
+            eventId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+            eventType: 'APPOINTMENT_COMPLETED',
+            resourceType: 'APPOINTMENT',
+          ),
+        );
+        expect(appointment.refreshes, 2);
+        expect(appointment.uiState, 'COMPLETED');
+        expect(list.refreshes, 3);
+        expect(list.uiState, 'UPCOMING_EMPTY');
         target.dispose();
+      },
+    );
+
+    test(
+      'patient foreground and reconnect refetch completed Appointment authority',
+      () async {
+        final list = _Projection(active: true, loaded: true)
+          ..uiState = 'UPCOMING_CONFIRMED'
+          ..serverState = 'UPCOMING_EMPTY';
+        final appointment = _Projection(active: true, loaded: true)
+          ..uiState = 'CONFIRMED'
+          ..serverState = 'COMPLETED';
+        final target = PatientScheduledCareRealtimeTarget.bindings(
+          requestId: () => null,
+          appointmentId: () => _appointmentId,
+          request: _binding(_Projection()),
+          appointment: _binding(appointment),
+          list: _binding(list),
+        );
+        coordinator.registerTarget(target);
+        await coordinator.startSession(
+          const RealtimeSessionOwner(userId: 'patient-a', role: 'PATIENT'),
+        );
+
+        await coordinator.foregroundResync();
+        expect(list.uiState, 'UPCOMING_EMPTY');
+        expect(appointment.uiState, 'COMPLETED');
+
+        list.uiState = 'STALE_UPCOMING_CONFIRMED';
+        appointment.uiState = 'STALE_CONFIRMED';
+        transport.connect();
+        await _pumpEvents();
+
+        expect(list.uiState, 'UPCOMING_EMPTY');
+        expect(appointment.uiState, 'COMPLETED');
+        expect(list.refreshes, 2);
+        expect(appointment.refreshes, 2);
       },
     );
 
@@ -543,6 +706,18 @@ void main() {
         expect(home.refreshes, 2);
         expect(agenda.refreshes, 2);
         expect(appointment.refreshes, 1);
+
+        await target.invalidate(
+          _parsedEvent(
+            eventId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+            eventType: 'CONSULTATION_COMPLETED',
+            resourceType: 'CONSULTATION',
+          ),
+        );
+        expect(home.refreshes, 3);
+        expect(agenda.refreshes, 3);
+        expect(appointment.refreshes, 2);
+        expect(request.refreshes, 1);
         target.dispose();
       },
     );
@@ -631,6 +806,11 @@ class _FakeSocket implements RealtimeSocket {
   bool activated = false;
   bool deactivated = false;
   bool unsubscribed = false;
+  bool closed = false;
+  bool throwDisconnectedOnUnsubscribe = false;
+  Object? unsubscribeError;
+  int unsubscribeAttempts = 0;
+  int deactivateCalls = 0;
   final Map<String, RealtimeMessageCallback> callbacks = {};
   final List<String> destinations = [];
 
@@ -641,7 +821,11 @@ class _FakeSocket implements RealtimeSocket {
   void activate() => activated = true;
 
   @override
-  void deactivate() => deactivated = true;
+  void deactivate() {
+    deactivateCalls++;
+    deactivated = true;
+    closed = true;
+  }
 
   @override
   void Function() subscribe({
@@ -650,7 +834,23 @@ class _FakeSocket implements RealtimeSocket {
   }) {
     destinations.add(destination);
     callbacks[destination] = onMessage;
-    return () => unsubscribed = true;
+    return () {
+      unsubscribeAttempts++;
+      unsubscribed = true;
+      final error = unsubscribeError;
+      if (error != null) throw error;
+      if (closed && throwDisconnectedOnUnsubscribe) {
+        throw StompBadStateException(
+          'The StompHandler has no active connection '
+          'or the connection was unexpectedly closed.',
+        );
+      }
+    };
+  }
+
+  void closeBeforeCleanup() {
+    closed = true;
+    throwDisconnectedOnUnsubscribe = true;
   }
 
   void emit(String body) =>

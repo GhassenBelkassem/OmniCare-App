@@ -8,6 +8,9 @@ import 'package:omnicare_mobile/core/network/app_http_client.dart';
 import 'package:omnicare_mobile/core/storage/secure_token_store.dart';
 import 'package:omnicare_mobile/core/theme/omni_theme.dart';
 import 'package:omnicare_mobile/features/doctor/scheduled_care/application/doctor_appointment_controller.dart';
+import 'package:omnicare_mobile/features/doctor/active_consultation/doctor_active_consultation.dart';
+import 'package:omnicare_mobile/features/doctor/active_consultation/doctor_active_consultation_api.dart';
+import 'package:omnicare_mobile/features/doctor/active_consultation/doctor_active_consultation_controller.dart';
 import 'package:omnicare_mobile/features/doctor/scheduled_care/data/doctor_scheduled_care_api.dart';
 import 'package:omnicare_mobile/features/doctor/scheduled_care/data/doctor_scheduled_care_repository.dart';
 import 'package:omnicare_mobile/features/doctor/scheduled_care/domain/doctor_scheduled_care_models.dart';
@@ -463,6 +466,79 @@ void main() {
     }
     expect(find.byType(TextField), findsNothing);
   });
+
+  testWidgets('confirmed detail exposes canonical Start without redesign', (
+    tester,
+  ) async {
+    final appointmentController = DoctorAppointmentController(
+      repository: _AppointmentRepository(appointments: [_appointment()]),
+      refreshAgenda: () async {},
+      refreshHome: () async {},
+    );
+    final activeApi = _ActiveConsultationApi();
+    final activeController = DoctorActiveConsultationController(api: activeApi);
+    DoctorActiveConsultation? opened;
+    addTearDown(appointmentController.dispose);
+    addTearDown(activeController.dispose);
+    await activeController.attachDoctor('doctor-1');
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildOmniTheme(),
+        home: Scaffold(
+          body: DoctorAppointmentDetailSheet(
+            appointmentId: 'appointment-1',
+            controller: appointmentController,
+            activeConsultationController: activeController,
+            onConsultationReady: (value) => opened = value,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(activeController.state, DoctorActiveConsultationLoadState.ready);
+    expect(
+      appointmentController.appointment?.status,
+      ScheduledAppointmentStatus.confirmed,
+    );
+    await tester.drag(
+      find.byKey(const ValueKey('doctor-appointment-detail')),
+      const Offset(0, -1400),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('doctor-start-scheduled-consultation')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(activeApi.starts, [('appointment-1', 7)]);
+    expect(opened?.consultationId, 'consultation-1');
+  });
+}
+
+class _ActiveConsultationApi implements DoctorActiveConsultationApiContract {
+  final starts = <(String, int)>[];
+
+  @override
+  Future<DoctorActiveConsultation?> getActive() async => null;
+
+  @override
+  Future<DoctorActiveConsultation> startScheduled({
+    required String appointmentId,
+    required int expectedAppointmentVersion,
+    required String idempotencyKey,
+  }) async {
+    starts.add((appointmentId, expectedAppointmentVersion));
+    return DoctorActiveConsultation(
+      consultationId: 'consultation-1',
+      sourceType: DoctorConsultationSourceType.scheduledAppointment,
+      sourceId: appointmentId,
+      status: DoctorConsultationStatus.inProgress,
+      medicalAccessStatus: DoctorConsultationMedicalAccessStatus.none,
+      version: 0,
+      startedAt: DateTime.utc(2026, 10, 27, 10),
+    );
+  }
 }
 
 DoctorCancelAppointmentCommand _command() =>

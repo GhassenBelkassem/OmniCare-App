@@ -388,7 +388,7 @@ class AuthRepository implements AuthRepositoryContract {
     } catch (_) {
       // Local sensitive state must be cleared even when backend logout fails.
     } finally {
-      await _tokenStore.clearSession();
+      await _refreshCoordinator.endSession();
     }
   }
 

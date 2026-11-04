@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../../../core/models/family_models.dart';
 import '../../../core/theme/omni_theme.dart';
+import '../../../providers/family_provider.dart';
 import '../../home/qr_code_modal.dart';
 import '../data/patient_passport_static_data.dart';
 import '../models/patient_passport_view_models.dart';
+import '../sharing/medical_sharing_controller.dart';
+import '../sharing/medical_sharing_models.dart';
 import 'medical_data_editor_screen.dart';
 import 'medical_document_editor_screen.dart';
 import 'widgets/family_passport_selector_sheet.dart';
@@ -13,13 +18,16 @@ import 'widgets/passport_header.dart';
 import 'widgets/passport_history_filter_sheet.dart';
 import 'widgets/passport_history_tab.dart';
 import 'widgets/passport_identity_card.dart';
+import 'widgets/medical_sharing_settings_sheet.dart';
 import 'widgets/passport_measurements_card.dart';
 import 'widgets/passport_medications_card.dart';
 import 'widgets/passport_segmented_nav.dart';
 import 'widgets/passport_card.dart';
 
 class PatientPassportScreen extends StatefulWidget {
-  const PatientPassportScreen({super.key});
+  const PatientPassportScreen({super.key, this.medicalSharingController});
+
+  final MedicalSharingController? medicalSharingController;
 
   @override
   State<PatientPassportScreen> createState() => _PatientPassportScreenState();
@@ -32,11 +40,35 @@ class _PatientPassportScreenState extends State<PatientPassportScreen> {
   MedicationGroup _medicationGroup = MedicationGroup.current;
   late PassportFamilyMember _selectedMember;
   PassportHistoryFilters _historyFilters = const PassportHistoryFilters();
+  MedicalSharingController? _sharingController;
+  FamilyProvider? _familyProvider;
+  bool _dependenciesResolved = false;
 
   @override
   void initState() {
     super.initState();
     _selectedMember = _data.familyMembers.first;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_dependenciesResolved) return;
+    _dependenciesResolved = true;
+    _sharingController = widget.medicalSharingController;
+    try {
+      _sharingController ??= context.read<MedicalSharingController>();
+    } catch (_) {
+      // Standalone visual tests may intentionally omit the production provider.
+    }
+    try {
+      _familyProvider = context.read<FamilyProvider>();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _familyProvider?.loadFamilyMembers();
+      });
+    } catch (_) {
+      // The frozen static preview remains available outside the authenticated shell.
+    }
   }
 
   @override
@@ -128,6 +160,7 @@ class _PatientPassportScreenState extends State<PatientPassportScreen> {
       PassportSection.history => PassportHistoryTab(
         consultations: _filteredConsultations,
         onOpenFilters: _openHistoryFilters,
+        onToggleSharing: _toggleConsultationSharing,
       ),
       PassportSection.documents => PassportDocumentsTab(
         onAddDocument: _openDocumentEditor,
@@ -150,7 +183,12 @@ class _PatientPassportScreenState extends State<PatientPassportScreen> {
   Widget _buildSummary(BuildContext context, double availableWidth) {
     return Column(
       children: [
-        PassportIdentityCard(data: _displayedData),
+        PassportIdentityCard(
+          data: _displayedData,
+          onShowSecureQr: _selectedMedicalSharingSubject == null
+              ? null
+              : _openSecureQr,
+        ),
         const SizedBox(height: 12),
         PassportEssentialInfoCard(data: _displayedData),
         const SizedBox(height: 12),
@@ -230,11 +268,36 @@ class _PatientPassportScreenState extends State<PatientPassportScreen> {
   Future<void> _openFamilySelector() async {
     final selected = await showFamilyPassportSelector(
       context,
-      familyMembers: _data.familyMembers,
+      familyMembers: _availableFamilyMembers,
       selectedName: _selectedMember.name,
     );
     if (!mounted || selected == null) return;
     setState(() => _selectedMember = selected);
+  }
+
+  List<PassportFamilyMember> get _availableFamilyMembers {
+    final realFamily = _familyProvider?.members ?? const <FamilyMember>[];
+    if (realFamily.isEmpty) return _data.familyMembers;
+    final self = _data.familyMembers.first;
+    return [
+      PassportFamilyMember(
+        name: self.name,
+        relationship: self.relationship,
+        avatarAsset: self.avatarAsset,
+        isSelf: true,
+      ),
+      for (var index = 0; index < realFamily.length; index++)
+        PassportFamilyMember(
+          name: realFamily[index].fullName,
+          relationship: FamilyRelationships.frenchLabel(
+            realFamily[index].relationship,
+          ),
+          avatarAsset: _data
+              .familyMembers[(index + 1) % _data.familyMembers.length]
+              .avatarAsset,
+          familyMemberId: realFamily[index].id,
+        ),
+    ];
   }
 
   Future<void> _openHistoryFilters() async {
@@ -244,6 +307,44 @@ class _PatientPassportScreenState extends State<PatientPassportScreen> {
     );
     if (!mounted || result == null) return;
     setState(() => _historyFilters = result);
+  }
+
+  Future<void> _toggleConsultationSharing(
+    PassportConsultation consultation,
+  ) async {
+    final controller = _sharingController;
+    final consultationId = consultation.consultationId;
+    final version = consultation.sharingVersion;
+    if (controller == null || consultationId == null || version == null) return;
+    final subject = _selectedMedicalSharingSubject;
+    if (subject == null) return;
+    await controller.selectSubject(subject);
+    final canonical = await controller.updateConsultationSharing(
+      consultationId: consultationId,
+      expectedVersion: version,
+      currentState: consultation.isShareable
+          ? ConsultationSharingState.shareable
+          : ConsultationSharingState.locked,
+      desiredState: consultation.isShareable
+          ? ConsultationSharingState.locked
+          : ConsultationSharingState.shareable,
+    );
+    if (!mounted || canonical == null) return;
+    setState(() {
+      _data = _data.copyWith(
+        consultations: _data.consultations
+            .map(
+              (item) => item.consultationId == consultationId
+                  ? item.copyWithSharing(
+                      isShareable:
+                          canonical.state == ConsultationSharingState.shareable,
+                      sharingVersion: canonical.version,
+                    )
+                  : item,
+            )
+            .toList(growable: false),
+      );
+    });
   }
 
   Future<void> _openDocumentEditor() async {
@@ -272,11 +373,47 @@ class _PatientPassportScreenState extends State<PatientPassportScreen> {
   }
 
   void _showShareDialog() {
+    final controller = _sharingController;
+    if (controller == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Paramètres de partage indisponibles.')),
+      );
+      return;
+    }
+    final subject = _selectedMedicalSharingSubject;
+    if (subject == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ce passeport familial n’est pas encore disponible.'),
+        ),
+      );
+      return;
+    }
+    showMedicalSharingSettingsSheet(
+      context,
+      controller: controller,
+      subject: subject,
+    );
+  }
+
+  MedicalSharingSubject? get _selectedMedicalSharingSubject {
+    if (_selectedMember.isSelf) {
+      return const MedicalSharingSubject.self();
+    }
+    final familyMemberId = _selectedMember.familyMemberId?.trim();
+    if (familyMemberId == null || familyMemberId.isEmpty) return null;
+    return MedicalSharingSubject.family(familyMemberId);
+  }
+
+  void _openSecureQr() {
+    final subject = _selectedMedicalSharingSubject;
+    if (subject == null) return;
     showDialog<void>(
       context: context,
       builder: (_) => QRCodeModal(
         patientName: _selectedMember.name,
-        patientId: _data.omniCareId,
+        subject: subject,
+        isFamilyMember: subject.type == MedicalSharingSubjectType.familyMember,
       ),
     );
   }

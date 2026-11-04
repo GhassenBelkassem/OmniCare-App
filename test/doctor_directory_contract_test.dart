@@ -8,6 +8,8 @@ import 'package:omnicare_mobile/features/patient_doctor/data/doctor_directory_ma
 import 'package:omnicare_mobile/features/patient_doctor/data/doctor_directory_models.dart';
 import 'package:omnicare_mobile/features/patient_doctor/data/doctor_directory_repository.dart';
 
+const _absentGallery = Object();
+
 const _listItemJson = <String, dynamic>{
   'doctorId': 'doc-1',
   'displayName': 'Dr. Sarah Mansour',
@@ -59,6 +61,21 @@ const _detailJson = <String, dynamic>{
       'wheelchairAccessible': true,
       'patientInstructions': null,
       'primary': true,
+      'gallery': [
+        {
+          'url': 'https://media.example.test/cabinet-later.jpg',
+          'displayOrder': 20,
+        },
+        {
+          'url': 'https://media.example.test/cabinet-first.jpg',
+          'displayOrder': 10,
+        },
+        {
+          'url': 'https://media.example.test/cabinet-equal.jpg',
+          'displayOrder': 10,
+        },
+        {'url': 'https://media.example.test/cabinet-unordered.jpg'},
+      ],
       'equipment': [
         {'code': 'ECG', 'displayName': 'ECG', 'portable': false},
       ],
@@ -173,6 +190,34 @@ void main() {
       expect(detail.patientAgeGroups, ['Adultes', 'Personnes âgées']);
       expect(detail.consultationTypes, ['En cabinet', 'Téléconsultation']);
       expect(detail.biography, 'Une brève biographie.');
+      final gallery = detail.practiceLocations.single.gallery;
+      expect(gallery.map((media) => media.url), [
+        'https://media.example.test/cabinet-first.jpg',
+        'https://media.example.test/cabinet-equal.jpg',
+        'https://media.example.test/cabinet-later.jpg',
+        'https://media.example.test/cabinet-unordered.jpg',
+      ]);
+      expect(gallery.map((media) => media.displayOrder), [10, 10, 20, null]);
+    });
+
+    test('accepts absent, null, and empty practice galleries', () {
+      for (final galleryValue in <Object?>[_absentGallery, null, const []]) {
+        final location = Map<String, dynamic>.from(
+          (_detailJson['practiceLocations']! as List).single
+              as Map<String, dynamic>,
+        );
+        if (identical(galleryValue, _absentGallery)) {
+          location.remove('gallery');
+        } else {
+          location['gallery'] = galleryValue;
+        }
+        final json = Map<String, dynamic>.from(_detailJson)
+          ..['practiceLocations'] = [location];
+
+        final detail = DoctorDirectoryDetail.fromJson(json);
+
+        expect(detail.practiceLocations.single.gallery, isEmpty);
+      }
     });
 
     test('defaults acceptingNewPatients to true when absent', () {
@@ -280,6 +325,56 @@ void main() {
       expect(detail.practiceLocations, isNotEmpty);
       expect(detail.practiceLocations.single.city, 'Tunis');
       expect(detail.practiceLocations.single.practiceLocationId, 'cabinet-1');
+      expect(
+        detail.practiceLocations.single.galleryMedia.map((media) => media.url),
+        [
+          'https://media.example.test/cabinet-first.jpg',
+          'https://media.example.test/cabinet-equal.jpg',
+          'https://media.example.test/cabinet-later.jpg',
+          'https://media.example.test/cabinet-unordered.jpg',
+        ],
+      );
+    });
+
+    test('preserves each practice location gallery independently', () {
+      Map<String, dynamic> location({
+        required String id,
+        required String url,
+      }) => <String, dynamic>{
+        'id': id,
+        'type': 'CABINET',
+        'name': 'Cabinet $id',
+        'governorate': 'Tunis',
+        'city': 'Tunis',
+        'address': 'Adresse $id',
+        'primary': id == 'cabinet-a',
+        'gallery': [
+          {'url': url, 'displayOrder': 0},
+        ],
+      };
+      final json = Map<String, dynamic>.from(_detailJson)
+        ..['practiceLocations'] = [
+          location(
+            id: 'cabinet-a',
+            url: 'https://media.example.test/cabinet-a.jpg',
+          ),
+          location(
+            id: 'cabinet-b',
+            url: 'https://media.example.test/cabinet-b.jpg',
+          ),
+        ];
+
+      final detail = buildDoctorDetail(DoctorDirectoryDetail.fromJson(json));
+
+      expect(detail.practiceLocations, hasLength(2));
+      expect(
+        detail.practiceLocations[0].galleryMedia.single.url,
+        'https://media.example.test/cabinet-a.jpg',
+      );
+      expect(
+        detail.practiceLocations[1].galleryMedia.single.url,
+        'https://media.example.test/cabinet-b.jpg',
+      );
     });
 
     test('practice locations do not derive from practiceCity', () {

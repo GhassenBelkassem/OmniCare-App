@@ -20,11 +20,13 @@ class DoctorMedicalRecordScreen extends StatefulWidget {
     required this.access,
     this.embedded = false,
     this.onBack,
+    this.onContinueConsultation,
   });
 
   final DoctorMedicalRecordAccess access;
   final bool embedded;
   final VoidCallback? onBack;
+  final VoidCallback? onContinueConsultation;
 
   @override
   State<DoctorMedicalRecordScreen> createState() =>
@@ -53,17 +55,6 @@ class _DoctorMedicalRecordScreenState extends State<DoctorMedicalRecordScreen> {
       );
     }
     setState(() => _section = section);
-  }
-
-  void _continueConsultation() {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => const Padding(
-        padding: EdgeInsets.fromLTRB(24, 4, 24, 32),
-        child: Text('La consultation sera ajoutée à l’étape suivante.'),
-      ),
-    );
   }
 
   Future<void> _openHistoryFilters() async {
@@ -179,14 +170,16 @@ class _DoctorMedicalRecordScreenState extends State<DoctorMedicalRecordScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: _continueConsultation,
-                child: const Text('Continuer la consultation'),
+            if (widget.onContinueConsultation != null) ...[
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: widget.onContinueConsultation,
+                  child: const Text('Continuer la consultation'),
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),
@@ -201,16 +194,22 @@ class _DoctorMedicalRecordScreenState extends State<DoctorMedicalRecordScreen> {
           setState(() => _medicationGroup = group),
     ),
     PassportSection.history =>
-      widget.access.hasFullPassport
+      widget.access.summariesShared
           ? _DoctorHistorySection(
               consultations: _filteredConsultations,
               onOpenFilters: _openHistoryFilters,
+              canonical: widget.access.canonical,
             )
           : const _NotSharedCard(
               label: 'Historique non partagé par le patient',
             ),
     PassportSection.documents =>
-      widget.access.hasFullPassport
+      widget.access.canonical
+          ? const _NotSharedCard(
+              label:
+                  'Consultation sécurisée des documents prévue au jalon P5-17',
+            )
+          : widget.access.hasFullPassport
           ? _DocumentsSection(documents: widget.access.documents)
           : const _NotSharedCard(
               label: 'Documents non partagés par le patient',
@@ -251,10 +250,12 @@ class _DoctorHistorySection extends StatelessWidget {
   const _DoctorHistorySection({
     required this.consultations,
     required this.onOpenFilters,
+    required this.canonical,
   });
 
   final List<PassportConsultation> consultations;
   final VoidCallback onOpenFilters;
+  final bool canonical;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -294,7 +295,10 @@ class _DoctorHistorySection extends StatelessWidget {
         ...consultations.map(
           (consultation) => Padding(
             padding: const EdgeInsets.only(bottom: 10),
-            child: _DoctorConsultationCard(consultation: consultation),
+            child: _DoctorConsultationCard(
+              consultation: consultation,
+              canonical: canonical,
+            ),
           ),
         ),
     ],
@@ -302,9 +306,13 @@ class _DoctorHistorySection extends StatelessWidget {
 }
 
 class _DoctorConsultationCard extends StatelessWidget {
-  const _DoctorConsultationCard({required this.consultation});
+  const _DoctorConsultationCard({
+    required this.consultation,
+    required this.canonical,
+  });
 
   final PassportConsultation consultation;
+  final bool canonical;
 
   void _showDetails(BuildContext context) {
     showModalBottomSheet<void>(
@@ -380,47 +388,71 @@ class _DoctorConsultationCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: OmniSpacing.xl),
-                _ConsultationDetailSection(
-                  title: 'Diagnostic',
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(OmniSpacing.base),
-                    decoration: BoxDecoration(
-                      color: OmniColors.mintSoft,
-                      borderRadius: BorderRadius.circular(OmniRadii.card),
-                      border: Border.all(color: OmniColors.borderLight),
-                    ),
-                    child: Text(
-                      consultation.diagnosis,
-                      style: Theme.of(sheetContext).textTheme.bodyMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                if (consultation.diagnosis.isNotEmpty)
+                  _ConsultationDetailSection(
+                    title: 'Diagnostic',
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(OmniSpacing.base),
+                      decoration: BoxDecoration(
+                        color: OmniColors.mintSoft,
+                        borderRadius: BorderRadius.circular(OmniRadii.card),
+                        border: Border.all(color: OmniColors.borderLight),
+                      ),
+                      child: Text(
+                        consultation.diagnosis,
+                        style: Theme.of(sheetContext).textTheme.bodyMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: OmniSpacing.xl),
-                _ConsultationDetailSection(
-                  title: 'Médicaments',
-                  child: consultation.medications.isEmpty
-                      ? Text(
-                          'Aucun médicament prescrit',
-                          style: Theme.of(sheetContext).textTheme.bodyMedium
-                              ?.copyWith(color: OmniColors.textSecondary),
-                        )
-                      : Column(
-                          children: consultation.medications
-                              .map(
-                                (medication) => Padding(
-                                  padding: const EdgeInsets.only(
-                                    bottom: OmniSpacing.md,
+                if (consultation.assessment != null) ...[
+                  const SizedBox(height: OmniSpacing.xl),
+                  _ConsultationDetailSection(
+                    title: 'Évaluation',
+                    child: Text(consultation.assessment!),
+                  ),
+                ],
+                if (consultation.treatmentPlan.isNotEmpty) ...[
+                  const SizedBox(height: OmniSpacing.xl),
+                  _ConsultationDetailSection(
+                    title: 'Traitement',
+                    child: Text(consultation.treatmentPlan.join(', ')),
+                  ),
+                ],
+                if (consultation.notes != null) ...[
+                  const SizedBox(height: OmniSpacing.xl),
+                  _ConsultationDetailSection(
+                    title: 'Notes',
+                    child: Text(consultation.notes!),
+                  ),
+                ],
+                if (!canonical) ...[
+                  const SizedBox(height: OmniSpacing.xl),
+                  _ConsultationDetailSection(
+                    title: 'Médicaments',
+                    child: consultation.medications.isEmpty
+                        ? Text(
+                            'Aucun médicament prescrit',
+                            style: Theme.of(sheetContext).textTheme.bodyMedium
+                                ?.copyWith(color: OmniColors.textSecondary),
+                          )
+                        : Column(
+                            children: consultation.medications
+                                .map(
+                                  (medication) => Padding(
+                                    padding: const EdgeInsets.only(
+                                      bottom: OmniSpacing.md,
+                                    ),
+                                    child: _ConsultationMedicationRow(
+                                      medication: medication,
+                                    ),
                                   ),
-                                  child: _ConsultationMedicationRow(
-                                    medication: medication,
-                                  ),
-                                ),
-                              )
-                              .toList(growable: false),
-                        ),
-                ),
+                                )
+                                .toList(growable: false),
+                          ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -750,14 +782,18 @@ class _AccessBanner extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '${access.patientName} · ${access.patientAge} ans',
+                    access.canonical
+                        ? 'Dossier Patient autorisé'
+                        : '${access.patientName} · ${access.patientAge} ans',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w800,
                     ),
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    '${access.sourceLabel} · ${access.requestId}',
+                    access.canonical
+                        ? access.sourceLabel
+                        : '${access.sourceLabel} · ${access.requestId}',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: OmniColors.textSecondary,
                     ),
@@ -809,22 +845,34 @@ class _SummarySection extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     children: [
       if (access.hasFullPassport) ...[
-        PassportEssentialInfoCard(data: access.passport),
+        if (access.essentialShared)
+          PassportEssentialInfoCard(data: access.passport)
+        else
+          const _NotSharedCard(
+            label: 'Informations essentielles non partagées',
+          ),
         const SizedBox(height: 12),
-        PassportMedicationsCard(
-          selectedGroup: medicationGroup,
-          medications: access.passport.medicationsFor(medicationGroup),
-          onGroupChanged: onMedicationGroupChanged,
-        ),
-        const SizedBox(height: 12),
-        PassportMeasurementsCard(
-          heightCm: access.passport.heightCm,
-          weightKg: access.passport.weightKg,
-        ),
+        if (access.medicationsShared)
+          PassportMedicationsCard(
+            selectedGroup: medicationGroup,
+            medications: access.passport.medicationsFor(medicationGroup),
+            onGroupChanged: onMedicationGroupChanged,
+          )
+        else
+          const _NotSharedCard(label: 'Médicaments actuels non partagés'),
+        if (!access.canonical) ...[
+          const SizedBox(height: 12),
+          PassportMeasurementsCard(
+            heightCm: access.passport.heightCm,
+            weightKg: access.passport.weightKg,
+          ),
+        ],
       ] else
         _LifeSafetyCard(access: access),
-      const SizedBox(height: 12),
-      _TriageCard(summary: access.triageSummary),
+      if (!access.canonical) ...[
+        const SizedBox(height: 12),
+        _TriageCard(summary: access.triageSummary),
+      ],
     ],
   );
 }

@@ -31,6 +31,66 @@ class _IdConfiguration {
 class _GoogleAccountsId {
   external void initialize(_IdConfiguration configuration);
   external void renderButton(html.Element parent, dynamic options);
+  external void disableAutoSelect();
+}
+
+typedef _GoogleIdTokenCallback = void Function(String idToken);
+
+/// Owns the one process-wide GIS initialization for the current Dart isolate.
+/// Individual button widgets only register callbacks and render DOM buttons.
+final _GoogleWebIdentityCoordinator _googleWebIdentityCoordinator =
+    _GoogleWebIdentityCoordinator();
+
+class _GoogleWebIdentityCoordinator {
+  final Map<Object, _GoogleIdTokenCallback> _callbacks = {};
+  bool _initialized = false;
+  String? _clientId;
+
+  Object register(_GoogleIdTokenCallback callback) {
+    final registration = Object();
+    _callbacks[registration] = callback;
+    return registration;
+  }
+
+  void update(Object registration, _GoogleIdTokenCallback callback) {
+    if (_callbacks.containsKey(registration)) {
+      _callbacks[registration] = callback;
+    }
+  }
+
+  void unregister(Object registration) {
+    _callbacks.remove(registration);
+  }
+
+  void ensureInitialized(String clientId) {
+    if (_initialized) {
+      if (_clientId != clientId) {
+        throw StateError('Google Sign-In client ID changed at runtime.');
+      }
+      return;
+    }
+
+    _googleAccountsId.initialize(
+      _IdConfiguration(
+        client_id: clientId,
+        // ignore: undefined_method
+        callback: allowInterop((dynamic response) {
+          final credential = (response is Object)
+              ? (response as dynamic).credential
+              : null;
+          final token = credential?.toString();
+          if (token == null || token.isEmpty || _callbacks.isEmpty) return;
+          _callbacks.values.last(token);
+        }),
+      ),
+    );
+    _clientId = clientId;
+    _initialized = true;
+  }
+}
+
+void clearGoogleWebProviderSession() {
+  _googleAccountsId.disableAutoSelect();
 }
 
 class GoogleWebSignInButton extends StatefulWidget {
@@ -44,13 +104,16 @@ class GoogleWebSignInButton extends StatefulWidget {
 
 class _GoogleWebSignInButtonState extends State<GoogleWebSignInButton> {
   late final String _viewType;
+  late final Object _callbackRegistration;
   html.DivElement? _container;
-  bool _gisInitialized = false;
   int? _renderedWidth;
 
   @override
   void initState() {
     super.initState();
+    _callbackRegistration = _googleWebIdentityCoordinator.register(
+      widget.onIdToken,
+    );
     _viewType = 'google-signin-button-${DateTime.now().microsecondsSinceEpoch}';
 
     // ignore:undefined_prefixed_name
@@ -60,6 +123,22 @@ class _GoogleWebSignInButtonState extends State<GoogleWebSignInButton> {
         ..style.height = '50px';
       return _container!;
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant GoogleWebSignInButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _googleWebIdentityCoordinator.update(
+      _callbackRegistration,
+      widget.onIdToken,
+    );
+  }
+
+  @override
+  void dispose() {
+    _googleWebIdentityCoordinator.unregister(_callbackRegistration);
+    _container = null;
+    super.dispose();
   }
 
   String? _readClientIdFromMeta() {
@@ -80,24 +159,7 @@ class _GoogleWebSignInButtonState extends State<GoogleWebSignInButton> {
     final container = _container;
     if (container == null) return;
 
-    if (!_gisInitialized) {
-      _googleAccountsId.initialize(
-        _IdConfiguration(
-          client_id: clientId,
-          // ignore: undefined_method
-          callback: allowInterop((dynamic response) {
-            final credential = (response is Object)
-                ? (response as dynamic).credential
-                : null;
-            final token = credential?.toString();
-            if (token != null && token.isNotEmpty) {
-              widget.onIdToken(token);
-            }
-          }),
-        ),
-      );
-      _gisInitialized = true;
-    }
+    _googleWebIdentityCoordinator.ensureInitialized(clientId);
 
     if (_renderedWidth == width) return;
     container.children.clear();

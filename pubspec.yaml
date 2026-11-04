@@ -47,6 +47,7 @@ dependencies:
   intl: ^0.20.2
   smooth_page_indicator: ^1.1.0
   qr_flutter: ^4.1.0
+  mobile_scanner: ^7.4.2
   confetti: ^0.7.0
   google_maps_flutter: ^2.5.0
   geolocator: ^10.1.0
@@ -54,6 +55,8 @@ dependencies:
   url_launcher: ^6.2.2
   lottie: ^3.0.0
   flutter_local_notifications: ^17.0.0
+  firebase_core: ^5.0.0
+  firebase_messaging: ^17.0.0
   dio: ^5.7.0
   http_parser: ^4.1.2
   flutter_dotenv: ^5.1.0
@@ -62,6 +65,7 @@ dependencies:
   shared_preferences: ^2.2.3
   google_sign_in: ^6.2.1
   js: ^0.6.7
+  web: ^1.1.1
   local_auth: ^3.0.2
   cryptography: ^2.9.0
   table_calendar: 3.2.1

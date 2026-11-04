@@ -197,6 +197,14 @@ PracticeLocation _toPracticeLocation(DoctorPracticeLocationDto dto) {
     wheelchairAccessible: dto.wheelchairAccessible,
     primary: dto.primary,
     distanceKm: null,
+    galleryMedia: dto.gallery
+        .map(
+          (media) => PracticeLocationMedia(
+            url: media.url,
+            displayOrder: media.displayOrder,
+          ),
+        )
+        .toList(growable: false),
     galleryImages: const [],
     openingHours: const [],
     equipment: dto.equipment

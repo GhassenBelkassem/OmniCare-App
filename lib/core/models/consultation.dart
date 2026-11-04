@@ -29,6 +29,8 @@ class Consultation {
   final double? omnicareFee;
   final String? timestamp;
   final String? allergyWarning;
+  final String? subjectType;
+  final String? familyMemberId;
 
   const Consultation({
     this.id,
@@ -61,6 +63,8 @@ class Consultation {
     this.omnicareFee,
     this.timestamp,
     this.allergyWarning,
+    this.subjectType,
+    this.familyMemberId,
   });
 
   static double? _parseDouble(dynamic v) {
@@ -152,6 +156,12 @@ class Consultation {
         'allergyWarning',
         'allergy_warning',
       )?.toString(),
+      subjectType: _parseOptionalText(
+        _pick(json, 'subjectType', 'subject_type'),
+      ),
+      familyMemberId: _parseOptionalText(
+        _pick(json, 'familyMemberId', 'family_member_id'),
+      ),
     );
   }
 

@@ -8,6 +8,7 @@ import '../data/models/auth_dtos.dart';
 import 'auth_error_messages.dart';
 import 'auth_flow_models.dart';
 import 'auth_role_family.dart';
+import 'google_sign_in_session_contract.dart';
 import 'tunisian_phone_number.dart';
 
 enum AuthStatus {
@@ -22,10 +23,14 @@ enum AuthStatus {
 }
 
 class AuthController extends ChangeNotifier {
-  AuthController({required AuthRepositoryContract repository})
-    : _repository = repository;
+  AuthController({
+    required AuthRepositoryContract repository,
+    GoogleSignInSession? googleSignInSession,
+  }) : _repository = repository,
+       _googleSignInSession = googleSignInSession;
 
   final AuthRepositoryContract _repository;
+  final GoogleSignInSession? _googleSignInSession;
 
   AuthStatus _status = AuthStatus.initializing;
   CurrentUserDto? _currentUser;
@@ -45,6 +50,7 @@ class AuthController extends ChangeNotifier {
   bool _submitting = false;
   bool _disposed = false;
   Future<void>? _initializationFuture;
+  Future<void>? _logoutFuture;
 
   AuthStatus get status => _status;
   CurrentUserDto? get currentUser => _currentUser;
@@ -224,6 +230,14 @@ class AuthController extends ChangeNotifier {
     });
   }
 
+  Future<String?> requestGoogleIdToken() {
+    final session = _googleSignInSession;
+    if (session == null) {
+      throw StateError('Google Sign-In is not configured.');
+    }
+    return session.signInIdToken();
+  }
+
   Future<bool> linkGoogleAccount(String password) async {
     if (_submitting || !_pendingGoogleAccountLink) return false;
     return _runSubmitting(() async {
@@ -382,7 +396,20 @@ class AuthController extends ChangeNotifier {
     });
   }
 
-  Future<void> logout() async {
+  Future<void> logout() {
+    final current = _logoutFuture;
+    if (current != null) return current;
+
+    final started = _logout();
+    late final Future<void> guarded;
+    guarded = started.whenComplete(() {
+      if (identical(_logoutFuture, guarded)) _logoutFuture = null;
+    });
+    _logoutFuture = guarded;
+    return guarded;
+  }
+
+  Future<void> _logout() async {
     if (_submitting) return;
     _submitting = true;
     _notify();
@@ -394,6 +421,12 @@ class AuthController extends ChangeNotifier {
       _status = AuthStatus.unauthenticated;
       _initializationCompleted = true;
       _notify();
+      try {
+        await _googleSignInSession?.signOut();
+      } catch (_) {
+        // Google is an optional identity provider. OmniCare logout remains
+        // authoritative even when provider cleanup is unavailable.
+      }
     }
   }
 
@@ -422,6 +455,11 @@ class AuthController extends ChangeNotifier {
     _errorCode = 'AUTH_SESSION_INVALID';
     _errorMessage = AuthErrorMessages.fromCode(_errorCode);
     _notify();
+    try {
+      await _googleSignInSession?.signOut();
+    } catch (_) {
+      // Local session invalidation must not depend on provider cleanup.
+    }
   }
 
   void clearError() {

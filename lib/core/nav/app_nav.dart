@@ -6,6 +6,8 @@ class AppNav {
   static const phoneChangeReversalRoute = '/security/phone-change/reverse';
   static final GlobalKey<NavigatorState> navigatorKey =
       GlobalKey<NavigatorState>();
+  static final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
+      GlobalKey<ScaffoldMessengerState>();
   static final _CurrentRouteObserver _routeObserver = _CurrentRouteObserver();
 
   static RouteObserver<ModalRoute<dynamic>> get routeObserver => _routeObserver;

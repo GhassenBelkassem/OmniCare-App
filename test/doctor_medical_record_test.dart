@@ -6,11 +6,18 @@ import 'package:omnicare_mobile/features/doctor/medical_record/doctor_medical_re
 import 'package:omnicare_mobile/features/doctor/urgent/doctor_urgent_controller.dart';
 
 void main() {
-  Widget buildRecord(DoctorMedicalRecordAccess access, {Key? key}) =>
-      MaterialApp(
-        theme: buildOmniTheme(),
-        home: DoctorMedicalRecordScreen(key: key, access: access),
-      );
+  Widget buildRecord(
+    DoctorMedicalRecordAccess access, {
+    Key? key,
+    VoidCallback? onContinueConsultation = _noop,
+  }) => MaterialApp(
+    theme: buildOmniTheme(),
+    home: DoctorMedicalRecordScreen(
+      key: key,
+      access: access,
+      onContinueConsultation: onContinueConsultation,
+    ),
+  );
 
   testWidgets('full access presents the patient passport read-only', (
     tester,
@@ -166,21 +173,43 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('consultation continuation is a D7 placeholder only', (
+  testWidgets('consultation continuation delegates to the canonical route', (
     tester,
   ) async {
+    var continuationCalls = 0;
     await tester.pumpWidget(
-      buildRecord(DoctorMedicalRecordAccess.fullDemo(DoctorUrgentRequest.demo)),
+      buildRecord(
+        DoctorMedicalRecordAccess.fullDemo(DoctorUrgentRequest.demo),
+        onContinueConsultation: () => continuationCalls++,
+      ),
     );
     final continuation = find.text('Continuer la consultation');
     await tester.scrollUntilVisible(continuation, 180);
     await tester.tap(continuation);
     await tester.pumpAndSettle();
+    expect(continuationCalls, 1);
     expect(
       find.text('La consultation sera ajoutée à l’étape suivante.'),
-      findsOneWidget,
+      findsNothing,
     );
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('preview without canonical continuation exposes no fake action', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      buildRecord(
+        DoctorMedicalRecordAccess.fullDemo(DoctorUrgentRequest.demo),
+        onContinueConsultation: null,
+      ),
+    );
+
+    expect(find.text('Continuer la consultation'), findsNothing);
+    expect(
+      find.text('La consultation sera ajoutée à l’étape suivante.'),
+      findsNothing,
+    );
   });
 
   testWidgets('medical record fits supported phone dimensions', (tester) async {
@@ -215,3 +244,5 @@ void main() {
     }
   });
 }
+
+void _noop() {}

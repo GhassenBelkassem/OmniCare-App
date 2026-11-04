@@ -69,9 +69,7 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>OmniCare a besoin d'accéder à votre position pour trouver les médecins à proximité et vous fournir des soins d'urgence.</string>
-	<key>NSLocationAlwaysUsageDescription</key>
-	<string>OmniCare a besoin d'accéder à votre position pour trouver les médecins à proximité et vous fournir des soins d'urgence.</string>
+	<string>OmniCare utilise votre position pendant l’utilisation pour les services de soins qui la nécessitent.</string>
 	<key>NSUserNotificationsUsageDescription</key>
 	<string>OmniCare a besoin d'envoyer des notifications pour vous informer de l'état de votre demande d'urgence médicale.</string>
 	<key>NSCameraUsageDescription</key>

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:omnicare_mobile/core/theme/omni_theme.dart';
 import 'package:omnicare_mobile/features/patient_passport/presentation/patient_passport_screen.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 void main() {
   Widget buildTestApp() {
@@ -19,6 +20,12 @@ void main() {
     await tester.pumpWidget(buildTestApp());
 
     expect(find.text('Identité du passeport'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('passport-secure-qr-action')),
+      findsOneWidget,
+    );
+    expect(find.text('Afficher le QR'), findsOneWidget);
+    expect(find.byType(QrImageView), findsNothing);
     expect(find.text('Metformine'), findsOneWidget);
 
     final previousMedicines = find.text('Anciens');
@@ -50,6 +57,8 @@ void main() {
     await tester.tap(find.text('Mohamed Ben Ahmed'));
     await tester.pumpAndSettle();
     expect(find.text('Mohamed Ben Ahmed'), findsNWidgets(2));
+    expect(find.text('QR indisponible'), findsOneWidget);
+    expect(find.byType(QrImageView), findsNothing);
 
     await tester.tap(find.byIcon(Icons.edit_outlined));
     await tester.pumpAndSettle();

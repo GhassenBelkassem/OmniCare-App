@@ -5,6 +5,25 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+fun isConfiguredGoogleMapsKey(value: String): Boolean {
+    val normalized = value.trim()
+    return normalized.startsWith("AIza") &&
+        normalized.length >= 30 &&
+        !normalized.contains("$(") &&
+        !normalized.contains('%')
+}
+
+val mapsApiKey =
+    (project.findProperty("MAPS_API_KEY") as String?)
+        ?: System.getenv("MAPS_API_KEY")
+        ?: ""
+
+if (!isConfiguredGoogleMapsKey(mapsApiKey)) {
+    logger.warn(
+        "OmniCare Maps is disabled: configure MAPS_API_KEY without committing or logging its value.",
+    )
+}
+
 android {
     namespace = "com.omnilinks.omnicare_mobile"
     compileSdk = flutter.compileSdkVersion
@@ -30,10 +49,7 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
 
-        manifestPlaceholders["MAPS_API_KEY"] =
-            (project.findProperty("MAPS_API_KEY") as String?)
-                ?: System.getenv("MAPS_API_KEY")
-                ?: ""
+        manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
     }
 
     buildTypes {

@@ -4,8 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/omni_theme.dart';
-import '../medical_record/doctor_medical_record_access.dart';
-import '../medical_record/doctor_medical_record_screen.dart';
 import 'doctor_urgent_controller.dart';
 
 enum DoctorUrgentQrScannerState { ready, scanning, verifying, success, invalid }
@@ -70,13 +68,11 @@ class _DoctorUrgentQrScannerScreenState
       callback();
       return;
     }
-    Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (_) => DoctorMedicalRecordScreen(
-          access: DoctorMedicalRecordAccess.fullDemo(widget.request),
-        ),
-      ),
-    );
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(content: Text('Dossier médical indisponible.')),
+      );
   }
 
   @override

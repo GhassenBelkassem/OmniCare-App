@@ -8,7 +8,7 @@ import 'qr_scanner_screen.dart';
 import '../../core/api/consultations_api.dart';
 import '../../core/models/consultation.dart';
 import '../../core/models/patient_models.dart';
-import 'patient_medical_passport_screen.dart';
+import 'medical_access/doctor_medical_access.dart';
 
 class NavigationScreen extends StatefulWidget {
   final PatientSummary? patient;
@@ -28,6 +28,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
   GoogleMapController? _mapController;
 
   Consultation? _consultation;
+  bool _medicalAccessActive = false;
 
   // Patient location fallback (Tunis)
   static const LatLng _fallbackPatientLocation = LatLng(36.8065, 10.1815);
@@ -93,6 +94,27 @@ class _NavigationScreenState extends State<NavigationScreen> {
           'Patient phone number is not available',
           style: GoogleFonts.plusJakartaSans(),
         ),
+      ),
+    );
+  }
+
+  Future<void> _openMedicalAccessScanner() async {
+    final consultationId = widget.consultationId.trim();
+    if (consultationId.isEmpty) {
+      throw StateError('consultationId is required');
+    }
+    final activation = await Navigator.push<DoctorMedicalAccessActivation>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => QRScannerScreen(consultationId: consultationId),
+      ),
+    );
+    if (!mounted || activation == null) return;
+    setState(() => _medicalAccessActive = true);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Accès médical activé pour cette consultation.'),
+        backgroundColor: Color(0xFF10B981),
       ),
     );
   }
@@ -1036,71 +1058,17 @@ class _NavigationScreenState extends State<NavigationScreen> {
                               const SizedBox(width: 12),
                               Expanded(
                                 child: ElevatedButton.icon(
-                                  onPressed: () {
-                                    final p = widget.patient;
-                                    if (p != null &&
-                                        p.patientId.trim().isNotEmpty) {
-                                      Navigator.pushReplacement(
-                                        context,
-                                        PageRouteBuilder(
-                                          pageBuilder: (context, a1, a2) {
-                                            return PatientMedicalPassportScreen(
-                                              patientId: p.patientId,
-                                              patientName: p.displayName,
-                                              consultationId:
-                                                  widget.consultationId,
-                                            );
-                                          },
-                                          transitionsBuilder:
-                                              (context, animation, _, child) {
-                                                final slide =
-                                                    Tween<Offset>(
-                                                      begin: const Offset(
-                                                        0,
-                                                        0.06,
-                                                      ),
-                                                      end: Offset.zero,
-                                                    ).animate(
-                                                      CurvedAnimation(
-                                                        parent: animation,
-                                                        curve:
-                                                            Curves.easeOutCubic,
-                                                      ),
-                                                    );
-                                                final fade = CurvedAnimation(
-                                                  parent: animation,
-                                                  curve: Curves.easeOut,
-                                                );
-                                                return FadeTransition(
-                                                  opacity: fade,
-                                                  child: SlideTransition(
-                                                    position: slide,
-                                                    child: child,
-                                                  ),
-                                                );
-                                              },
-                                          transitionDuration: const Duration(
-                                            milliseconds: 260,
-                                          ),
-                                        ),
-                                      );
-                                      return;
-                                    }
-
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            const QRScannerScreen(),
-                                      ),
-                                    );
-                                  },
+                                  onPressed: _medicalAccessActive
+                                      ? null
+                                      : _openMedicalAccessScanner,
                                   icon: const Icon(
                                     Icons.check_circle,
                                     size: 20,
                                   ),
                                   label: Text(
-                                    'Arrived',
+                                    _medicalAccessActive
+                                        ? 'Accès médical actif'
+                                        : 'Arrived',
                                     style: GoogleFonts.plusJakartaSans(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w700,

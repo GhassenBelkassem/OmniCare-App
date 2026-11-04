@@ -8,6 +8,7 @@ import '../../core/nav/app_nav.dart';
 import '../auth/application/auth_controller.dart';
 import '../auth/application/auth_role_family.dart';
 import '../scheduled_care/presentation/scheduled_care_resource_resolver.dart';
+import '../emergency/urgent_cabinet/urgent_cabinet_patient_lifecycle_controller.dart';
 import 'application/notification_center_controller.dart';
 import 'application/notification_navigation_resolver.dart';
 import 'domain/notification_models.dart';
@@ -18,11 +19,13 @@ class NotificationsScreen extends StatefulWidget {
     this.role,
     this.onOpenDoctorRequest,
     this.onOpenDoctorAppointment,
+    this.onOpenDoctorUrgentCabinetRequest,
   });
 
   final AuthRoleFamily? role;
   final ValueChanged<String>? onOpenDoctorRequest;
   final ValueChanged<String>? onOpenDoctorAppointment;
+  final ValueChanged<String>? onOpenDoctorUrgentCabinetRequest;
 
   @override
   State<NotificationsScreen> createState() => _NotificationsScreenState();
@@ -112,6 +115,30 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     final id = resolution.resourceId!;
     if (_role == AuthRoleFamily.patient) {
       if (resolution.resource ==
+          NotificationNavigationResource.urgentCabinetRequest) {
+        final auth = context.read<AuthController?>();
+        final accountId = auth?.currentUser?.id.trim();
+        final lifecycle = context
+            .read<UrgentCabinetPatientLifecycleController?>();
+        if (accountId == null ||
+            accountId.isEmpty ||
+            lifecycle == null ||
+            !await lifecycle.recoverFromNotification(
+              accountId: accountId,
+              requestId: id,
+            )) {
+          if (mounted) _showUnavailable();
+          return;
+        }
+        if (!mounted ||
+            !auth!.isAuthenticated ||
+            auth.currentUser?.id.trim() != accountId) {
+          return;
+        }
+        await Navigator.of(
+          context,
+        ).pushNamed<void>('/urgent-cabinet/care-subject');
+      } else if (resolution.resource ==
           NotificationNavigationResource.bookingRequest) {
         await ScheduledCareResourceResolver.openRequest(context, id);
       } else {
@@ -121,6 +148,9 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     }
     if (_role == AuthRoleFamily.doctor) {
       if (resolution.resource ==
+          NotificationNavigationResource.urgentCabinetRequest) {
+        widget.onOpenDoctorUrgentCabinetRequest?.call(id);
+      } else if (resolution.resource ==
           NotificationNavigationResource.bookingRequest) {
         widget.onOpenDoctorRequest?.call(id);
       } else {
