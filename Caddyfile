@@ -1,0 +1,32 @@
+{
+	auto_https off
+	admin off
+}
+
+:{$PORT:8080} {
+	root * /srv
+	encode zstd gzip
+
+	header {
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		X-Frame-Options "DENY"
+	}
+
+	handle /health {
+		respond "ok" 200
+	}
+
+	handle {
+		@spa {
+			not file
+			not path /assets/* /canvaskit/* /icons/* /favicon.png /flutter*.js /manifest.json /version.json /main.dart.js
+		}
+		rewrite @spa /index.html
+
+		@bootstrap path / /index.html /flutter_bootstrap.js /flutter.js /manifest.json /version.json
+		header @bootstrap Cache-Control "no-cache"
+
+		file_server
+	}
+}
