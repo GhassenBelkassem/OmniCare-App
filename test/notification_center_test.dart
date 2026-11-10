@@ -691,6 +691,77 @@ void main() {
       );
       expect(result.status, NotificationNavigationStatus.unavailable);
     });
+
+    test(
+      'cold payload retains only opaque identity and resolves after auth',
+      () {
+        final pending = NotificationNavigationResolver.parsePendingPayload(
+          const {
+            'type': 'APPOINTMENT_CONFIRMED',
+            'appointment_id': _appointmentId,
+            'title': 'MUST_NOT_BE_RETAINED',
+            'body': 'MUST_NOT_BE_RETAINED',
+            'status': 'MUST_NOT_BE_AUTHORITY',
+          },
+          accountScope: 'account-a',
+          now: DateTime.utc(2026, 11, 9),
+        );
+
+        expect(pending, isNotNull);
+        expect(pending!.resourceId, _appointmentId);
+        expect(pending.accountScope, 'account-a');
+        expect(pending.toString(), isNot(contains(_appointmentId)));
+        expect(pending.toString(), isNot(contains('MUST_NOT_BE_RETAINED')));
+        final resolved = NotificationNavigationResolver.resolvePending(
+          pending,
+          AuthRoleFamily.patient,
+          accountScope: 'account-a',
+        );
+        expect(resolved.status, NotificationNavigationStatus.target);
+        expect(resolved.resource, NotificationNavigationResource.appointment);
+      },
+    );
+
+    test('pending payload fails closed across owner and role changes', () {
+      final pending = NotificationNavigationResolver.parsePendingPayload(const {
+        'type': 'DOCTOR_BOOKING_REQUEST_CREATED',
+        'request_id': _requestId,
+      }, accountScope: 'doctor-account-a')!;
+
+      expect(
+        NotificationNavigationResolver.resolvePending(
+          pending,
+          AuthRoleFamily.doctor,
+          accountScope: 'doctor-account-b',
+        ).status,
+        NotificationNavigationStatus.unavailable,
+      );
+      expect(
+        NotificationNavigationResolver.resolvePending(
+          pending,
+          AuthRoleFamily.patient,
+          accountScope: 'doctor-account-a',
+        ).status,
+        NotificationNavigationStatus.noDestination,
+      );
+    });
+
+    test('malformed and unknown cold payloads are not retained', () {
+      expect(
+        NotificationNavigationResolver.parsePendingPayload(const {
+          'type': 'APPOINTMENT_CONFIRMED',
+          'appointment_id': 'bad',
+        }),
+        isNull,
+      );
+      expect(
+        NotificationNavigationResolver.parsePendingPayload(const {
+          'type': 'FUTURE_TYPE',
+          'request_id': _requestId,
+        }),
+        isNull,
+      );
+    });
   });
 
   group('notification realtime invalidation', () {

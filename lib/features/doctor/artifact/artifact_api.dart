@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 
 import '../../../core/network/app_http_client.dart';
+import '../../../core/network/request_replay_policy.dart';
 import 'artifact.dart';
 
 class ArtifactApi {
@@ -49,7 +50,7 @@ class ArtifactApi {
       (await _client.dio.post<dynamic>(
         '/doctor/consultations/$consultation/artifacts',
         data: {'artifactType': type, 'definition': definition},
-        options: Options(headers: {'Idempotency-Key': idempotencyKey}),
+        options: _declaredWrite(idempotencyKey),
       )).data,
     ),
   );
@@ -69,7 +70,7 @@ class ArtifactApi {
           'sourceResourceVersion': version,
           'definition': {},
         },
-        options: Options(headers: {'Idempotency-Key': idempotencyKey}),
+        options: _declaredWrite(idempotencyKey),
       )).data,
     ),
   );
@@ -86,7 +87,7 @@ class ArtifactApi {
           'expectedArtifactVersion': value.version,
           'definition': definition,
         },
-        options: Options(headers: {'Idempotency-Key': idempotencyKey}),
+        options: _declaredWrite(idempotencyKey),
       )).data,
     ),
   );
@@ -99,9 +100,14 @@ class ArtifactApi {
       (await _client.dio.post<dynamic>(
         '/doctor/consultations/$consultation/artifacts/${value.id}/finalize',
         data: {'expectedArtifactVersion': value.version, 'confirmation': true},
-        options: Options(headers: {'Idempotency-Key': idempotencyKey}),
+        options: _declaredWrite(idempotencyKey),
       )).data,
     ),
+  );
+
+  static Options _declaredWrite(String idempotencyKey) => Options(
+    headers: {'Idempotency-Key': idempotencyKey},
+    extra: requestReplayExtra(RequestReplayPolicy.declaredIdempotentWrite),
   );
   Future<Uint8List> downloadDoctor(String consultation, String artifact) async {
     final response = await _client.dio.get<List<int>>(

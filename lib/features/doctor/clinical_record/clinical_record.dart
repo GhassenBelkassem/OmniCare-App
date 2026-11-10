@@ -15,7 +15,10 @@ class ClinicalRecordEnvelope {
     final version = json['clinicalRecordVersion'];
     final schema = json['schemaVersion'];
     final record = json['clinicalRecord'];
-    if (version is! int || version < 0 || schema != 2 || record is! Map) {
+    if (version is! int ||
+        version < 0 ||
+        (schema != 2 && schema != 3) ||
+        record is! Map) {
       throw const FormatException('Invalid clinical record response.');
     }
     return ClinicalRecordEnvelope(
@@ -106,16 +109,12 @@ class ClinicalRecordDraft {
       'relevantMedicalHistory': relevantMedicalHistory,
       'relevantDentalHistory': relevantDentalHistory,
     },
-    'clinicalFindings':
-        findingType.trim().isEmpty && findingDescription.trim().isEmpty
+    'clinicalFindings': findingDescription.trim().isEmpty
         ? <Object>[]
         : <Object>[
             {'type': findingType, 'description': findingDescription},
           ],
-    'diagnoses':
-        diagnosisSystem.trim().isEmpty &&
-            diagnosisCode.trim().isEmpty &&
-            diagnosisLabel.trim().isEmpty
+    'diagnoses': diagnosisLabel.trim().isEmpty
         ? <Object>[]
         : <Object>[
             {

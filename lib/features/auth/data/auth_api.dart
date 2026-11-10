@@ -3,7 +3,9 @@ import 'package:dio/dio.dart';
 import '../../../core/models/patient_profile.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/network/app_http_client.dart';
-import '../../../core/storage/secure_token_store.dart';
+import '../../../core/network/auth_interceptor.dart';
+import '../../../core/network/auth_refresh_coordinator.dart';
+import '../../../core/network/transport_failure.dart';
 import 'models/auth_dtos.dart';
 
 class AuthApi {
@@ -91,7 +93,7 @@ class AuthApi {
     );
   }
 
-  Future<StoredSession?> refreshSession() {
+  Future<AuthRefreshResult> refreshSession() {
     return _httpClient.refreshCoordinator.refreshSession();
   }
 
@@ -181,6 +183,29 @@ class AuthApi {
   }
 
   ApiException _mapDioException(DioException error) {
+    if (error.error is AuthReplayRequiredException) {
+      return ApiException(
+        'Your session was refreshed. Retry the operation so it can be sent safely.',
+        code: 'AUTH_REPLAY_REQUIRED',
+        cause: error,
+      );
+    }
+
+    final refreshFailure = error.error;
+    if (refreshFailure is AuthRefreshUnavailableException) {
+      final malformed =
+          refreshFailure.status == AuthRefreshStatus.malformedResponse;
+      return ApiException(
+        malformed
+            ? 'The session refresh service returned an unexpected response.'
+            : 'Your session could not be refreshed because the network or server is temporarily unavailable.',
+        code: malformed
+            ? 'AUTH_REFRESH_MALFORMED_RESPONSE'
+            : 'AUTH_REFRESH_TEMPORARILY_UNAVAILABLE',
+        cause: refreshFailure.cause ?? error,
+      );
+    }
+
     final statusCode = error.response?.statusCode;
     final data = error.response?.data;
 
@@ -206,31 +231,64 @@ class AuthApi {
       }
     }
 
-    return switch (error.type) {
-      DioExceptionType.connectionTimeout => ApiException(
-        'Connection timed out.',
-        code: 'NETWORK_CONNECTION_TIMEOUT',
-        statusCode: statusCode,
-        cause: error,
+    final failure = TransportFailure.fromDio(error);
+    final (message, code) = switch (failure.kind) {
+      TransportFailureKind.timeout => (
+        'The authentication request timed out.',
+        'NETWORK_TIMEOUT',
       ),
-      DioExceptionType.receiveTimeout => ApiException(
-        'Server response timed out.',
-        code: 'NETWORK_RECEIVE_TIMEOUT',
-        statusCode: statusCode,
-        cause: error,
-      ),
-      DioExceptionType.connectionError => ApiException(
+      TransportFailureKind.noConnection => (
         'Network unavailable.',
-        code: 'NETWORK_UNAVAILABLE',
-        statusCode: statusCode,
-        cause: error,
+        'NETWORK_UNAVAILABLE',
       ),
-      _ => ApiException(
+      TransportFailureKind.dns => (
+        'The authentication service address could not be resolved.',
+        'NETWORK_DNS_FAILURE',
+      ),
+      TransportFailureKind.tls => (
+        'A secure connection to the authentication service could not be established.',
+        'NETWORK_TLS_FAILURE',
+      ),
+      TransportFailureKind.cancelled => (
+        'Network request cancelled.',
+        'NETWORK_REQUEST_CANCELLED',
+      ),
+      TransportFailureKind.rateLimited => (
+        'Too many requests. Please wait and try again.',
+        'RATE_LIMITED',
+      ),
+      TransportFailureKind.serverUnavailable => (
+        'The authentication service is temporarily unavailable.',
+        'SERVER_UNAVAILABLE',
+      ),
+      TransportFailureKind.unauthorized => (
+        'Authentication is required.',
+        'UNAUTHORIZED',
+      ),
+      TransportFailureKind.forbidden => ('Access denied.', 'FORBIDDEN'),
+      TransportFailureKind.conflict => (
+        'The authentication request conflicts with current server state.',
+        'CONFLICT',
+      ),
+      TransportFailureKind.notFound => (
+        'The requested authentication resource was not found.',
+        'NOT_FOUND',
+      ),
+      TransportFailureKind.invalidResponse => (
+        'The authentication service returned an unexpected response.',
+        'MALFORMED_RESPONSE',
+      ),
+      TransportFailureKind.unknown => (
         'Network request failed.',
-        code: 'NETWORK_REQUEST_FAILED',
-        statusCode: statusCode,
-        cause: error,
+        'NETWORK_REQUEST_FAILED',
       ),
     };
+    return ApiException(
+      message,
+      code: code,
+      statusCode: failure.statusCode,
+      retryAfter: failure.retryAfter,
+      cause: error,
+    );
   }
 }

@@ -3,19 +3,29 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/omni_theme.dart';
 import '../../sharing/medical_sharing_controller.dart';
 import '../../sharing/medical_sharing_models.dart';
+import '../../sharing/direct_patient_authorization.dart';
+import '../../sharing/direct_patient_authorization_controller.dart';
 
 Future<void> showMedicalSharingSettingsSheet(
   BuildContext context, {
   required MedicalSharingController controller,
   required MedicalSharingSubject subject,
+  DirectPatientAuthorizationController? directAuthorizationController,
+  String? subjectDisplayName,
+  VoidCallback? onShowQr,
 }) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
     backgroundColor: Colors.transparent,
-    builder: (_) =>
-        MedicalSharingSettingsSheet(controller: controller, subject: subject),
+    builder: (_) => MedicalSharingSettingsSheet(
+      controller: controller,
+      subject: subject,
+      directAuthorizationController: directAuthorizationController,
+      subjectDisplayName: subjectDisplayName,
+      onShowQr: onShowQr,
+    ),
   );
 }
 
@@ -24,10 +34,16 @@ class MedicalSharingSettingsSheet extends StatefulWidget {
     super.key,
     required this.controller,
     required this.subject,
+    this.directAuthorizationController,
+    this.subjectDisplayName,
+    this.onShowQr,
   });
 
   final MedicalSharingController controller;
   final MedicalSharingSubject subject;
+  final DirectPatientAuthorizationController? directAuthorizationController;
+  final String? subjectDisplayName;
+  final VoidCallback? onShowQr;
 
   @override
   State<MedicalSharingSettingsSheet> createState() =>
@@ -43,14 +59,17 @@ class _MedicalSharingSettingsSheetState
   void initState() {
     super.initState();
     widget.controller.addListener(_synchronizeDraft);
+    widget.directAuthorizationController?.addListener(_synchronizeDraft);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       widget.controller.selectSubject(widget.subject);
+      widget.directAuthorizationController?.load(widget.subject);
     });
   }
 
   @override
   void dispose() {
     widget.controller.removeListener(_synchronizeDraft);
+    widget.directAuthorizationController?.removeListener(_synchronizeDraft);
     super.dispose();
   }
 
@@ -146,6 +165,10 @@ class _MedicalSharingSettingsSheetState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (widget.directAuthorizationController != null) ...[
+          _directAuthorization(context, widget.directAuthorizationController!),
+          const SizedBox(height: 20),
+        ],
         Text(
           'Choisissez les catégories qui pourront être incluses après une autorisation explicite. Ces réglages ne donnent pas actuellement accès à un médecin.',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -219,6 +242,159 @@ class _MedicalSharingSettingsSheetState
     );
   }
 
+  Widget _directAuthorization(
+    BuildContext context,
+    DirectPatientAuthorizationController controller,
+  ) {
+    if (controller.isLoading && controller.contexts.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (controller.contexts.isEmpty) {
+      return _DirectAuthorizationCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              widget.subjectDisplayName ?? 'Consultation actuelle',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 6),
+            const Text('Aucune Consultation active pour ce passeport.'),
+            if (widget.onShowQr != null) ...[
+              const SizedBox(height: 12),
+              OutlinedButton(
+                key: const Key('show-medical-sharing-qr'),
+                onPressed: widget.onShowQr,
+                child: const Text('Afficher le QR'),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+    final selected = controller.selected;
+    final access = controller.access;
+    return _DirectAuthorizationCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            widget.subjectDisplayName ?? 'Consultation actuelle',
+            key: const Key('medical-sharing-subject-name'),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 10),
+          if (controller.contexts.length > 1)
+            DropdownButtonFormField<String>(
+              key: const Key('direct-consent-consultation-picker'),
+              initialValue: selected?.consultationId,
+              decoration: const InputDecoration(
+                labelText: 'Consultation à autoriser',
+              ),
+              items: [
+                for (final item in controller.contexts)
+                  DropdownMenuItem(
+                    value: item.consultationId,
+                    child: Text(_doctorLabel(item.doctor)),
+                  ),
+              ],
+              onChanged: (id) {
+                if (id == null) return;
+                final match = controller.contexts.firstWhere(
+                  (item) => item.consultationId == id,
+                );
+                controller.select(match);
+              },
+            )
+          else if (selected != null)
+            Text(
+              'Consultation avec ${_doctorLabel(selected.doctor)}',
+              key: const Key('direct-consent-doctor'),
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          if (selected == null && controller.contexts.length > 1) ...[
+            const SizedBox(height: 8),
+            const Text('Sélectionnez explicitement la Consultation concernée.'),
+          ],
+          if (access?.status == PatientMedicalAccessStatus.active) ...[
+            const SizedBox(height: 14),
+            const Row(
+              children: [
+                Icon(Icons.check_circle, color: OmniColors.success),
+                SizedBox(width: 8),
+                Text(
+                  'Accès accordé',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ],
+            ),
+            if (access?.expiresAt != null) ...[
+              const SizedBox(height: 4),
+              Text('Expire : ${_expiry(access!.expiresAt!)}'),
+            ],
+            const SizedBox(height: 12),
+            OutlinedButton(
+              key: const Key('revoke-direct-consent'),
+              onPressed: controller.isMutating ? null : controller.revoke,
+              child: const Text('Retirer l’accès'),
+            ),
+          ] else ...[
+            const SizedBox(height: 14),
+            FilledButton(
+              key: const Key('approve-direct-consent'),
+              onPressed: selected == null || controller.isMutating
+                  ? null
+                  : controller.approve,
+              child: controller.isMutating
+                  ? const SizedBox.square(
+                      dimension: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Autoriser ce médecin'),
+            ),
+          ],
+          if (widget.onShowQr != null) ...[
+            const SizedBox(height: 8),
+            TextButton(
+              key: const Key('show-medical-sharing-qr'),
+              onPressed: widget.onShowQr,
+              child: const Text('Afficher le QR à la place'),
+            ),
+          ],
+          if (controller.error != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              controller.error!,
+              key: const Key('direct-consent-error'),
+              style: const TextStyle(
+                color: OmniColors.error,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  static String _doctorLabel(MedicalSharingDoctor doctor) {
+    final specialty = doctor.specialty;
+    return specialty == null || specialty.isEmpty
+        ? 'Dr ${doctor.displayName}'
+        : 'Dr ${doctor.displayName} · $specialty';
+  }
+
+  static String _expiry(DateTime value) {
+    final local = value.toLocal();
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+
   void _setDraft(MedicalSharingPolicy value) {
     setState(() => _draft = value);
   }
@@ -233,6 +409,23 @@ class _MedicalSharingSettingsSheetState
       setState(() => _draft = widget.controller.policy);
     }
   }
+}
+
+class _DirectAuthorizationCard extends StatelessWidget {
+  const _DirectAuthorizationCard({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: OmniColors.slateSoft,
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: OmniColors.borderLight),
+    ),
+    child: child,
+  );
 }
 
 class _SharingSwitch extends StatelessWidget {

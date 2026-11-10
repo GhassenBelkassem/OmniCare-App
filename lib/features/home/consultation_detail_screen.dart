@@ -205,10 +205,9 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
         return;
       }
 
-      final upload = await FilesApi().uploadFile(
-        file: XFile(path),
-        folder: 'omnicare/documents',
-      );
+      final upload = await FilesApi(
+        httpClient: context.read<AppHttpClient>(),
+      ).uploadFile(file: XFile(path), folder: 'omnicare/documents');
 
       await _createMedicalAct(actType: 'INJECTION', photoUrl: upload.url);
     } catch (e) {

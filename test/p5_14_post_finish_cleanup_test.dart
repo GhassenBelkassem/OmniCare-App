@@ -93,6 +93,10 @@ void main() {
       await tester.ensureVisible(finish);
       await tester.tap(finish);
       await tester.pumpAndSettle();
+      await tester.tap(
+        find.widgetWithText(FilledButton, 'Finish consultation'),
+      );
+      await tester.pumpAndSettle();
 
       expect(adapter.finishPosts, 1);
       expect(find.text('Consultation completed'), findsOneWidget);
@@ -219,6 +223,10 @@ void main() {
       await tester.ensureVisible(finish);
       await tester.tap(finish);
       await tester.pumpAndSettle();
+      await tester.tap(
+        find.widgetWithText(FilledButton, 'Finish consultation'),
+      );
+      await tester.pumpAndSettle();
       expect(find.text('Consultation completed'), findsOneWidget);
       expect(active.active, isNull);
 
@@ -306,6 +314,18 @@ class _FinishAdapter implements HttpClientAdapter {
             ? (laterAppointmentAvailable ? _laterAppointment : null)
             : _sourceAppointment,
       );
+    } else if (path.endsWith('/finish-readiness')) {
+      body = const <String, Object>{
+        'ready': true,
+        'clinicalRecordSaved': true,
+        'diagnosisReady': true,
+        'medicationDecisionReady': true,
+        'followUpReady': true,
+        'prescriptionReady': true,
+        'ordersReady': true,
+        'artifactsReady': true,
+        'missing': <Object>[],
+      };
     } else if (path.endsWith('/finish') && options.method == 'POST') {
       finishPosts++;
       completed = true;

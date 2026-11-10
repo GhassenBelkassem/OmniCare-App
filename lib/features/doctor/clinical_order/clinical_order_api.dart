@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import '../../../core/network/app_http_client.dart';
+import '../../../core/network/request_replay_policy.dart';
 import 'clinical_order.dart';
 
 abstract interface class ClinicalOrderApiContract {
@@ -52,7 +53,7 @@ class ClinicalOrderApi implements ClinicalOrderApiContract {
     final response = await _client.dio.post<dynamic>(
       _base(consultationId),
       data: {'category': category.wire, 'definition': definition.toJson()},
-      options: Options(headers: {'Idempotency-Key': idempotencyKey}),
+      options: _declaredWrite(idempotencyKey),
     );
     return ClinicalOrder.fromJson(_object(response.data));
   }
@@ -67,7 +68,7 @@ class ClinicalOrderApi implements ClinicalOrderApiContract {
     final response = await _client.dio.put<dynamic>(
       '${_base(consultationId)}/${order.id}',
       data: _mutation(order, definition),
-      options: Options(headers: {'Idempotency-Key': idempotencyKey}),
+      options: _declaredWrite(idempotencyKey),
     );
     return ClinicalOrder.fromJson(_object(response.data));
   }
@@ -81,10 +82,15 @@ class ClinicalOrderApi implements ClinicalOrderApiContract {
     final response = await _client.dio.post<dynamic>(
       '${_base(consultationId)}/${order.id}/finalize',
       data: _mutation(order, order.definition),
-      options: Options(headers: {'Idempotency-Key': idempotencyKey}),
+      options: _declaredWrite(idempotencyKey),
     );
     return ClinicalOrder.fromJson(_object(response.data));
   }
+
+  static Options _declaredWrite(String idempotencyKey) => Options(
+    headers: {'Idempotency-Key': idempotencyKey},
+    extra: requestReplayExtra(RequestReplayPolicy.declaredIdempotentWrite),
+  );
 
   Map<String, dynamic> _mutation(
     ClinicalOrder order,

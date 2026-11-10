@@ -12,7 +12,9 @@ import '../../core/widgets/medication_search_field.dart';
 import 'onboarding_complete_screen.dart';
 
 class ConversationalOnboardingScreen extends StatefulWidget {
-  const ConversationalOnboardingScreen({super.key});
+  const ConversationalOnboardingScreen({super.key, required this.accountApi});
+
+  final AccountApi accountApi;
 
   @override
   State<ConversationalOnboardingScreen> createState() =>
@@ -22,7 +24,7 @@ class ConversationalOnboardingScreen extends StatefulWidget {
 class _ConversationalOnboardingScreenState
     extends State<ConversationalOnboardingScreen> {
   final PageController _pageController = PageController();
-  final AccountApi _accountApi = AccountApi();
+  AccountApi get _accountApi => widget.accountApi;
   final TextEditingController _firstNameController = TextEditingController();
   final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _dateOfBirthController = TextEditingController();

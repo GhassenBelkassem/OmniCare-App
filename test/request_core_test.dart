@@ -27,15 +27,23 @@ import 'package:omnicare_mobile/features/request_core/identity/request_operation
 const String clinicIdA = '44444444-4444-4444-8444-444444444444';
 const String clinicIdB = '55555555-5555-4555-8555-555555555555';
 const String serverRequestId = '33333333-3333-4333-8333-333333333333';
+const String accountId = '11111111-1111-4111-8111-111111111111';
 
 class FakeSecureBackend implements SecureTokenStorageBackend {
   final Map<String, String> values = <String, String>{};
+  bool failWrites = false;
+  int writeCount = 0;
+  int? failOnWriteCount;
 
   @override
   Future<String?> read({required String key}) async => values[key];
 
   @override
   Future<void> write({required String key, required String value}) async {
+    writeCount++;
+    if (failWrites || failOnWriteCount == writeCount) {
+      throw StateError('secure storage unavailable');
+    }
     values[key] = value;
   }
 
@@ -65,6 +73,9 @@ class FakeRequestRepository implements RequestRepository {
 
   Object? submitError;
   int submitCalls = 0;
+  int getCalls = 0;
+  Object? getError;
+  PatientRequest? getResult;
 
   @override
   Future<SubmitClinicRequestResult> submitClinicRequest({
@@ -101,7 +112,14 @@ class FakeRequestRepository implements RequestRepository {
   Future<PatientRequest> getRequest(
     RequestOperationId requestId, {
     CancelToken? cancelToken,
-  }) async => throw UnimplementedError();
+  }) async {
+    getCalls++;
+    final error = getError;
+    if (error != null) throw RequestFailure.from(error);
+    final result = getResult;
+    if (result != null) return result;
+    throw RequestFailure.notFound;
+  }
 
   @override
   Future<PatientRequest> cancelRequest({
@@ -188,6 +206,22 @@ String submissionResponseJson({int version = 0}) => jsonEncode({
   'version': version,
 });
 
+PatientRequest authoritativeRequest([String id = serverRequestId]) =>
+    PatientRequest(
+      requestId: RequestOperationId.parse(id),
+      kind: RequestKind.clinic,
+      targetType: RequestTargetType.clinic,
+      targetId: clinicIdA,
+      subjectType: RequestSubjectType.self,
+      situation: RequestSituation.appointment,
+      patientStatus: PatientRequestStatus.requestReceived,
+      submittedAt: DateTime.utc(2026, 8, 7, 9, 15),
+      cancelledAt: null,
+      version: 0,
+      availableActions: const {PatientRequestAction.cancel},
+      informationRequest: null,
+    );
+
 String problemJson(String errorCode) => jsonEncode({
   'type': 'https://api.omnicare.tn/problems/request/conflict',
   'title': 'BACKEND_TITLE_MUST_NOT_LEAK',
@@ -216,11 +250,13 @@ RequestSubmissionController buildController({
   required FakeSecureBackend backend,
   SequentialOperationIdFactory? factory,
 }) {
-  return RequestSubmissionController(
+  final controller = RequestSubmissionController(
     repository: repository,
     inFlightStore: InFlightRequestStore(backend: backend),
     operationIdFactory: factory ?? SequentialOperationIdFactory(),
   );
+  controller.attachAuthenticatedAccount(accountId);
+  return controller;
 }
 
 void main() {
@@ -791,51 +827,32 @@ void main() {
 
       await store.save(
         InFlightRequestOperation(
+          accountScope: accountId,
           operationId: RequestOperationId.parse(serverRequestId),
-          intent: ClinicRequestIntent(
-            clinicId: clinicIdA,
-            subject: RequestSubject.forFamilyMember(member),
-            situation: RequestSituation.appointment,
-          ),
+          clinicId: clinicIdA,
+          subject: RequestSubject.forFamilyMember(member),
+          dispatchState: InFlightRequestDispatchState.dispatchAttempted,
+          createdAt: DateTime.utc(2026, 11, 9, 10),
         ),
       );
 
       final raw = backend.values[InFlightRequestStore.storageKey]!;
       expect(jsonDecode(raw), {
-        'schemaVersion': 2,
+        'schemaVersion': 3,
+        'accountScope': accountId,
         'requestId': serverRequestId,
-        'kind': 'CLINIC',
         'clinicId': clinicIdA,
         'subjectType': 'FAMILY_MEMBER',
         'familyMemberId': member.id,
-        'situation': 'APPOINTMENT',
+        'dispatchState': 'dispatchAttempted',
+        'createdAt': '2026-11-09T10:00:00.000Z',
       });
       expect(raw, isNot(contains('PATIENT_ID_MUST_NOT_LEAK')));
 
-      final restored = await store.read();
-      expect(restored!.operationId.value, serverRequestId);
-      expect(restored.intent.clinicId, clinicIdA);
-      expect(
-        restored.matches(
-          ClinicRequestIntent(
-            clinicId: clinicIdA,
-            subject: RequestSubject.forFamilyMember(member),
-            situation: RequestSituation.appointment,
-          ),
-        ),
-        isTrue,
-      );
-      // A different clinic is a different logical submission.
-      expect(
-        restored.matches(
-          const ClinicRequestIntent(
-            clinicId: clinicIdB,
-            subject: RequestSubject.self(),
-            situation: RequestSituation.appointment,
-          ),
-        ),
-        isFalse,
-      );
+      final restored = await store.readForAccount(accountId);
+      expect(restored.operation!.operationId.value, serverRequestId);
+      expect(restored.operation!.clinicId, clinicIdA);
+      expect(restored.operation!.subject.familyMemberId, member.id);
     });
 
     test('discards a record from an unknown schema version', () async {
@@ -848,9 +865,11 @@ void main() {
         'subjectType': 'SELF',
       });
 
-      final restored = await InFlightRequestStore(backend: backend).read();
+      final restored = await InFlightRequestStore(
+        backend: backend,
+      ).readForAccount(accountId);
 
-      expect(restored, isNull);
+      expect(restored.status, InFlightRequestReadStatus.absent);
       expect(backend.values, isEmpty);
     });
 
@@ -867,10 +886,75 @@ void main() {
           'familyMemberId': '77777777-7777-4777-8777-777777777777',
         });
 
-        expect(await InFlightRequestStore(backend: backend).read(), isNull);
+        expect(
+          (await InFlightRequestStore(
+            backend: backend,
+          ).readForAccount(accountId)).status,
+          InFlightRequestReadStatus.absent,
+        );
         expect(backend.values, isEmpty);
       },
     );
+
+    test('migrates v2 by stripping location and business payload', () async {
+      final backend = FakeSecureBackend();
+      backend.values[InFlightRequestStore.storageKey] = jsonEncode({
+        'schemaVersion': 2,
+        'requestId': serverRequestId,
+        'kind': 'CLINIC',
+        'clinicId': clinicIdA,
+        'subjectType': 'SELF',
+        'familyMemberId': null,
+        'situation': 'AMBULANCE',
+        'pickup': {
+          'source': 'DEVICE_GPS',
+          'latitude': 36.8065,
+          'longitude': 10.1815,
+          'addressLine': 'PHI_ADDRESS_MUST_BE_REMOVED',
+          'capturedAt': '2026-11-09T10:00:00Z',
+        },
+      });
+      final store = InFlightRequestStore(
+        backend: backend,
+        clock: () => DateTime.utc(2026, 11, 9, 11),
+      );
+
+      final result = await store.readForAccount(accountId);
+
+      expect(result.status, InFlightRequestReadStatus.available);
+      expect(result.operation!.operationId.value, serverRequestId);
+      expect(result.operation!.requiresOwnerValidation, isTrue);
+      final migrated = backend.values[InFlightRequestStore.storageKey]!;
+      expect(migrated, isNot(contains('pickup')));
+      expect(migrated, isNot(contains('latitude')));
+      expect(migrated, isNot(contains('longitude')));
+      expect(migrated, isNot(contains('PHI_ADDRESS_MUST_BE_REMOVED')));
+      expect(migrated, isNot(contains('AMBULANCE')));
+      expect(migrated, contains(serverRequestId));
+    });
+
+    test('does not expose or consume another account receipt', () async {
+      final backend = FakeSecureBackend();
+      final store = InFlightRequestStore(backend: backend);
+      await store.save(
+        InFlightRequestOperation(
+          accountScope: accountId,
+          operationId: RequestOperationId.parse(serverRequestId),
+          clinicId: clinicIdA,
+          subject: const RequestSubject.self(),
+          dispatchState: InFlightRequestDispatchState.dispatchAttempted,
+          createdAt: DateTime.utc(2026, 11, 9),
+        ),
+      );
+
+      final result = await store.readForAccount(
+        '22222222-2222-4222-8222-222222222222',
+      );
+
+      expect(result.status, InFlightRequestReadStatus.ownerMismatch);
+      expect(result.operation, isNull);
+      expect(backend.values, isNotEmpty);
+    });
   });
 
   // -------------------------------------------------------------- controller
@@ -921,7 +1005,10 @@ void main() {
       expect(controller.canRetry, isTrue);
       // The record survives a retryable failure, so a process death here still
       // resumes the same operation.
-      expect(await store.read(), isNotNull);
+      expect(
+        (await store.readForAccount(accountId)).status,
+        InFlightRequestReadStatus.available,
+      );
 
       repository.submitError = null;
       await controller.retry();
@@ -982,7 +1069,10 @@ void main() {
         expect(controller.operationId, issued);
 
         // The burned id is not left behind for a later resume.
-        expect(await store.read(), isNull);
+        expect(
+          (await store.readForAccount(accountId)).status,
+          InFlightRequestReadStatus.absent,
+        );
 
         // Only an explicit new logical request mints a new id.
         await controller.beginNewRequest();
@@ -991,7 +1081,7 @@ void main() {
     );
 
     test(
-      'changing the target after an attempt is a new logical request',
+      'changing the target cannot abandon an unresolved operation',
       () async {
         await startClinicRequest();
         repository.submitError = DioException(
@@ -1003,9 +1093,13 @@ void main() {
 
         controller.selectClinic(clinicIdB);
 
+        expect(controller.operationId, firstId);
+        expect(controller.intent!.clinicId, clinicIdA);
+        expect(controller.hasUnresolvedOperation, isTrue);
+
+        await controller.abandonAndBeginNewRequest(clinicId: clinicIdB);
         expect(controller.operationId, isNot(firstId));
-        expect(controller.intent!.clinicId, clinicIdB);
-        expect(controller.failure, isNull);
+        expect(controller.selectedClinicId, clinicIdB);
       },
     );
 
@@ -1021,7 +1115,7 @@ void main() {
     });
 
     test(
-      'changing subject, situation, or pickup after an attempt rotates id',
+      'changing intent is refused while an attempted operation is unresolved',
       () async {
         await startClinicRequest();
         controller.selectSituation(RequestSituation.ambulance);
@@ -1045,45 +1139,12 @@ void main() {
 
         controller.selectFamilyMemberSubject(buildFamilyMember());
         final second = controller.operationId;
-        expect(second, isNot(first));
-
-        repository.submitError = DioException(
-          requestOptions: RequestOptions(path: '/x'),
-          type: DioExceptionType.connectionError,
-        );
-        await controller.submit();
+        expect(second, first);
+        expect(controller.subject.isSelf, isTrue);
         controller.selectSituation(RequestSituation.urgent);
         final third = controller.operationId;
-        expect(third, isNot(second));
-
-        controller.selectSituation(RequestSituation.ambulance);
-        controller.setPickupLocation(
-          PickupLocationSelection(
-            source: PickupLocationSource.mapSelection,
-            geoPoint: GeoPoint.fromCapturedCoordinates(
-              latitude: 36.8,
-              longitude: 10.18,
-            ),
-            capturedAt: DateTime.utc(2026, 8, 8, 10, 31),
-          ),
-        );
-        repository.submitError = DioException(
-          requestOptions: RequestOptions(path: '/x'),
-          type: DioExceptionType.connectionError,
-        );
-        await controller.submit();
-        final beforePickupChange = controller.operationId;
-        controller.setPickupLocation(
-          PickupLocationSelection(
-            source: PickupLocationSource.manualAddress,
-            postalAddress: const PostalAddress(
-              addressLine: '1 Rue',
-              city: 'Tunis',
-            ),
-            capturedAt: DateTime.utc(2026, 8, 8, 10, 32),
-          ),
-        );
-        expect(controller.operationId, isNot(beforePickupChange));
+        expect(third, second);
+        expect(controller.selectedSituation, RequestSituation.ambulance);
       },
     );
 
@@ -1094,7 +1155,10 @@ void main() {
 
       expect(controller.status, RequestSubmissionStatus.succeeded);
       expect(controller.result!.outcome, RequestSubmissionOutcome.created);
-      expect(await store.read(), isNull);
+      expect(
+        (await store.readForAccount(accountId)).status,
+        InFlightRequestReadStatus.absent,
+      );
       expect(backend.values, isEmpty);
     });
 
@@ -1118,6 +1182,103 @@ void main() {
       expect(controller.failure, RequestFailure.intentIncomplete);
     });
 
+    test('receipt persistence failure blocks the POST', () async {
+      await startClinicRequest();
+      backend.failWrites = true;
+
+      await controller.submit();
+
+      expect(repository.submitCalls, 0);
+      expect(controller.failure, RequestFailure.recoveryPersistenceUnavailable);
+      expect(controller.hasUnresolvedOperation, isFalse);
+    });
+
+    test('dispatch marker persistence failure also blocks the POST', () async {
+      await startClinicRequest();
+      backend.failOnWriteCount = 2;
+
+      await controller.submit();
+
+      expect(repository.submitCalls, 0);
+      expect(controller.failure, RequestFailure.recoveryPersistenceUnavailable);
+      final raw = backend.values[InFlightRequestStore.storageKey]!;
+      expect(jsonDecode(raw)['dispatchState'], 'prepared');
+    });
+
+    test(
+      'restart recovery performs GET first and never replays the POST',
+      () async {
+        await startClinicRequest();
+        repository.submitError = DioException(
+          requestOptions: RequestOptions(path: '/x'),
+          type: DioExceptionType.connectionError,
+        );
+        await controller.submit();
+        final persistedId = controller.operationId!;
+
+        final freshRepository = FakeRequestRepository()
+          ..getResult = authoritativeRequest(persistedId.value);
+        final fresh = buildController(
+          repository: freshRepository,
+          backend: backend,
+        );
+        addTearDown(fresh.dispose);
+
+        final recovered = await fresh.recoverAfterAuthentication(
+          accountId: accountId,
+        );
+
+        expect(recovered, isTrue);
+        expect(freshRepository.getCalls, 1);
+        expect(freshRepository.submitCalls, 0);
+        expect(fresh.recoveredRequestId, persistedId);
+      },
+    );
+
+    test('temporary GET recovery failure retains the receipt', () async {
+      await startClinicRequest();
+      repository.submitError = DioException(
+        requestOptions: RequestOptions(path: '/x'),
+        type: DioExceptionType.connectionError,
+      );
+      await controller.submit();
+      repository.getError = DioException(
+        requestOptions: RequestOptions(path: '/x'),
+        type: DioExceptionType.connectionTimeout,
+      );
+
+      final recovered = await controller.recoverAfterAuthentication(
+        accountId: accountId,
+      );
+
+      expect(recovered, isFalse);
+      expect(controller.failure!.retryable, isTrue);
+      expect(controller.hasUnresolvedOperation, isTrue);
+      expect(
+        (await store.readForAccount(accountId)).status,
+        InFlightRequestReadStatus.available,
+      );
+    });
+
+    test('opening a new flow cannot erase an unresolved operation', () async {
+      await startClinicRequest();
+      repository.submitError = DioException(
+        requestOptions: RequestOptions(path: '/x'),
+        type: DioExceptionType.connectionError,
+      );
+      await controller.submit();
+      final unresolvedId = controller.operationId;
+
+      await controller.beginNewRequest();
+
+      expect(controller.operationId, unresolvedId);
+      expect(controller.hasUnresolvedOperation, isTrue);
+      expect(
+        (await store.readForAccount(accountId)).status,
+        InFlightRequestReadStatus.available,
+      );
+    });
+
     test('logout clears every trace of the patient request', () async {
       await startClinicRequest();
       controller.selectFamilyMemberSubject(buildFamilyMember());
@@ -1126,7 +1287,10 @@ void main() {
         type: DioExceptionType.connectionError,
       );
       await controller.submit();
-      expect(await store.read(), isNotNull);
+      expect(
+        (await store.readForAccount(accountId)).status,
+        InFlightRequestReadStatus.available,
+      );
 
       await controller.clear();
 
@@ -1136,7 +1300,10 @@ void main() {
       expect(controller.result, isNull);
       expect(controller.failure, isNull);
       expect(controller.status, RequestSubmissionStatus.idle);
-      expect(await store.read(), isNull);
+      expect(
+        (await store.readForAccount(accountId)).status,
+        InFlightRequestReadStatus.absent,
+      );
       expect(backend.values, isEmpty);
     });
 
@@ -1145,14 +1312,15 @@ void main() {
       () async {
         await store.save(
           InFlightRequestOperation(
+            accountScope: accountId,
             operationId: RequestOperationId.parse(serverRequestId),
-            intent: const ClinicRequestIntent(
-              clinicId: clinicIdA,
-              subject: RequestSubject.self(),
-              situation: RequestSituation.appointment,
-            ),
+            clinicId: clinicIdA,
+            subject: const RequestSubject.self(),
+            dispatchState: InFlightRequestDispatchState.dispatchAttempted,
+            createdAt: DateTime.utc(2026, 11, 9, 10),
           ),
         );
+        repository.getResult = authoritativeRequest();
 
         final restored = await controller.restoreInFlightOperation();
 
@@ -1160,12 +1328,9 @@ void main() {
         expect(controller.operationId!.value, serverRequestId);
         expect(controller.selectedClinicId, clinicIdA);
         expect(repository.submitCalls, 0);
-        expect(controller.failure, RequestFailure.interrupted);
-        expect(controller.canRetry, isTrue);
-
-        await controller.retry();
-
-        expect(repository.submittedIds.single.value, serverRequestId);
+        expect(repository.getCalls, 1);
+        expect(controller.status, RequestSubmissionStatus.recovered);
+        expect(controller.recoveredRequestId!.value, serverRequestId);
       },
     );
   });

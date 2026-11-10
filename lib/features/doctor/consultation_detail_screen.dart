@@ -15,6 +15,9 @@ import 'artifact/official_artifact_card.dart';
 import 'finish/consultation_finish_api.dart';
 import 'finish/consultation_finish_card.dart';
 import 'finish/consultation_finish_controller.dart';
+import 'active_consultation/doctor_active_consultation.dart';
+import 'medical_record/doctor_medical_record_api.dart';
+import 'medical_record/doctor_medical_record_controller.dart';
 import '../scheduled_care/realtime/scheduled_care_realtime_coordinator.dart';
 import '../../core/network/app_http_client.dart';
 import 'package:provider/provider.dart';
@@ -49,11 +52,16 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
   late final TextEditingController _diagnosisController;
   late final TextEditingController _treatmentController;
   final ScrollController _scrollController = ScrollController();
+  final GlobalKey _clinicalCardKey = GlobalKey();
+  final GlobalKey _prescriptionCardKey = GlobalKey();
+  final GlobalKey _orderCardKey = GlobalKey();
+  final GlobalKey _artifactCardKey = GlobalKey();
 
   bool _isLoading = true;
   bool _isSaving = false;
   ClinicalRecordController? _clinicalController;
   ConsultationFinishController? _finishController;
+  DoctorMedicalRecordController? _medicalRecordController;
   ConsultationFinishRealtimeTarget? _finishTarget;
   VoidCallback? _unregisterFinish;
   bool _activeAuthoring = true;
@@ -119,6 +127,9 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
     )..addListener(_canonicalChanged);
     _clinicalController = clinical;
     _finishController = finish;
+    _medicalRecordController = DoctorMedicalRecordController(
+      api: DoctorMedicalRecordApi(http),
+    );
     final realtime = context.read<ScheduledCareRealtimeCoordinator?>();
     if (realtime != null) {
       _finishTarget = ConsultationFinishRealtimeTarget(finish);
@@ -129,6 +140,19 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
   }
 
   void _canonicalChanged() {
+    final operational = _finishController?.consultation;
+    if (operational != null) {
+      _medicalRecordController?.synchronizeAccess(
+        consultationId: operational.consultationId,
+        accessStatus: switch (operational.medicalAccessStatus) {
+          'ACTIVE' => DoctorConsultationMedicalAccessStatus.active,
+          'EXPIRED' => DoctorConsultationMedicalAccessStatus.expired,
+          'REVOKED' => DoctorConsultationMedicalAccessStatus.revoked,
+          'UNAVAILABLE' => DoctorConsultationMedicalAccessStatus.unavailable,
+          _ => DoctorConsultationMedicalAccessStatus.none,
+        },
+      );
+    }
     if (!_completionHandled &&
         _finishController?.consultation?.status == 'COMPLETED') {
       _completionHandled = true;
@@ -143,6 +167,37 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
       }
     }
     if (mounted) setState(() {});
+  }
+
+  void _resolveFinishRequirement(String code) {
+    final key = code.startsWith('PRESCRIPTION_')
+        ? _prescriptionCardKey
+        : code.startsWith('ORDER_')
+        ? _orderCardKey
+        : code.startsWith('ARTIFACT_')
+        ? _artifactCardKey
+        : _clinicalCardKey;
+    _scrollToCard(key);
+  }
+
+  void _openQuickAction(String action) {
+    final key = action == 'PRESCRIPTION'
+        ? _prescriptionCardKey
+        : action == 'LAB' || action == 'IMAGING' || action == 'REFERRAL'
+        ? _orderCardKey
+        : _artifactCardKey;
+    _scrollToCard(key);
+  }
+
+  void _scrollToCard(GlobalKey key) {
+    final target = key.currentContext;
+    if (target == null) return;
+    Scrollable.ensureVisible(
+      target,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+      alignment: 0.04,
+    );
   }
 
   Future<void> _load() async {
@@ -262,6 +317,7 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
       ?..removeListener(_canonicalChanged)
       ..dispose();
     _clinicalController?.dispose();
+    _medicalRecordController?.dispose();
     _diagnosisController.dispose();
     _treatmentController.dispose();
     _scrollController.dispose();
@@ -330,6 +386,12 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (_isCanonical) ...[
+                    if (_medicalRecordController != null) ...[
+                      _PatientContextSummary(
+                        controller: _medicalRecordController!,
+                      ),
+                      const SizedBox(height: 20),
+                    ],
                     if (widget.consultation['urgentIntakeBodyAreas'] is List &&
                         (widget.consultation['urgentIntakeBodyAreas'] as List)
                             .isNotEmpty) ...[
@@ -356,28 +418,36 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                               'IN_PROGRESS') ==
                           'IN_PROGRESS') ...[
                         ClinicalAuthoringCard(
+                          key: _clinicalCardKey,
                           consultationId: _consultationId,
                           controller: _clinicalController,
                           isActive: () => _activeAuthoring,
+                          onAction: _openQuickAction,
                         ),
                         const SizedBox(height: 20),
                         PrescriptionCard(
+                          key: _prescriptionCardKey,
                           consultationId: _consultationId,
                           isActive: () => _activeAuthoring,
                         ),
                         const SizedBox(height: 20),
                         ClinicalOrderCard(
+                          key: _orderCardKey,
                           consultationId: _consultationId,
                           isActive: () => _activeAuthoring,
                         ),
                         const SizedBox(height: 20),
                         OfficialArtifactCard(
+                          key: _artifactCardKey,
                           consultationId: _consultationId,
                           isActive: () => _activeAuthoring,
                         ),
                         const SizedBox(height: 20),
                       ],
-                      ConsultationFinishCard(controller: _finishController!),
+                      ConsultationFinishCard(
+                        controller: _finishController!,
+                        onResolve: _resolveFinishRequirement,
+                      ),
                     ],
                   ] else ...[
                     Container(
@@ -1069,6 +1139,111 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
       ),
     );
   }
+}
+
+class _PatientContextSummary extends StatelessWidget {
+  const _PatientContextSummary({required this.controller});
+
+  final DoctorMedicalRecordController controller;
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: controller,
+    builder: (context, _) {
+      final workspace = controller.workspace;
+      final ready =
+          controller.state == DoctorMedicalRecordState.ready &&
+          workspace != null;
+      return Card(
+        key: const ValueKey('authorized-patient-context'),
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.health_and_safety_outlined),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Patient context',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              if (controller.state == DoctorMedicalRecordState.loading)
+                const LinearProgressIndicator()
+              else if (!ready)
+                const Text(
+                  'Historical information is not shared for this care context. Current-care authoring remains available.',
+                )
+              else ...[
+                _contextLine(
+                  'Allergies',
+                  workspace.sectionAuthorized('ESSENTIAL_INFORMATION')
+                      ? _summary(
+                          workspace.essentialInformation?.allergies ?? const [],
+                        )
+                      : 'Not shared',
+                ),
+                _contextLine(
+                  'Critical conditions',
+                  workspace.sectionAuthorized('ESSENTIAL_INFORMATION')
+                      ? _summary(
+                          workspace.essentialInformation?.criticalConditions ??
+                              const [],
+                        )
+                      : 'Not shared',
+                ),
+                _contextLine(
+                  'Current medication',
+                  workspace.sectionAuthorized('CURRENT_MEDICATIONS')
+                      ? _summary(
+                          workspace.currentMedications
+                              .map((item) => item.displayName)
+                              .toList(growable: false),
+                        )
+                      : 'Not shared',
+                ),
+                _contextLine(
+                  'Recent history',
+                  workspace.sectionAuthorized('CONSULTATION_SUMMARIES')
+                      ? _summary(
+                          workspace.consultationSummaries
+                              .map((item) => item.title)
+                              .toList(growable: false),
+                        )
+                      : 'Not shared',
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    },
+  );
+
+  static Widget _contextLine(String label, String value) => Padding(
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(
+            text: '$label: ',
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+          TextSpan(text: value),
+        ],
+      ),
+    ),
+  );
+
+  static String _summary(List<String> values) =>
+      values.isEmpty ? 'None reported' : values.take(3).join(', ');
 }
 
 class _UrgentIntakeContextCard extends StatelessWidget {

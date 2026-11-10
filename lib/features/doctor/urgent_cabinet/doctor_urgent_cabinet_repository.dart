@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../../core/network/app_http_client.dart';
+import '../../../core/network/request_replay_policy.dart';
 import '../../../core/utils/uuid_v4.dart';
 import 'doctor_urgent_cabinet_commitment.dart';
 import 'doctor_urgent_cabinet_arrival.dart';
@@ -340,6 +341,9 @@ class DoctorUrgentCabinetRepository
         cancelToken: cancelToken,
         options: Options(
           headers: {'Cache-Control': 'no-store', 'Idempotency-Key': key},
+          extra: requestReplayExtra(
+            RequestReplayPolicy.declaredIdempotentWrite,
+          ),
         ),
       );
       final outcome = _parseDecision(response.data, request, action);
@@ -476,6 +480,9 @@ class DoctorUrgentCabinetRepository
             'Cache-Control': 'no-store',
             'Idempotency-Key': key,
           },
+          extra: requestReplayExtra(
+            RequestReplayPolicy.declaredIdempotentWrite,
+          ),
         ),
       );
       final value = response.data;

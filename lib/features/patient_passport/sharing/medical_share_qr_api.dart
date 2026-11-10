@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 
 import '../../../core/network/api_exception.dart';
 import '../../../core/network/app_http_client.dart';
+import '../../../core/network/request_replay_policy.dart';
 import 'medical_share_qr.dart';
 import 'medical_sharing_models.dart';
 
@@ -32,6 +33,9 @@ class MedicalShareQrApi implements MedicalShareQrApiContract {
             'Cache-Control': 'no-store',
             'Idempotency-Key': _validIdempotencyKey(idempotencyKey),
           },
+          extra: requestReplayExtra(
+            RequestReplayPolicy.declaredIdempotentWrite,
+          ),
         ),
       );
       return MedicalShareQr.fromJson(_object(response.data));

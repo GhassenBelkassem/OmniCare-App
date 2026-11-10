@@ -11,6 +11,7 @@ import 'request_accepted_screen.dart';
 import '../../core/api/consultations_api.dart';
 import '../../core/api/api_error_utils.dart';
 import '../../core/api/family_api.dart';
+import '../../core/network/app_http_client.dart';
 import '../../core/api/patients_api.dart';
 import '../../core/api/provider_me_api.dart';
 import '../../core/models/patient_models.dart';
@@ -528,7 +529,9 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
     }
 
     try {
-      final list = await FamilyApi().getFamilyMembers();
+      final list = await FamilyApi(
+        httpClient: context.read<AppHttpClient>(),
+      ).getFamilyMembers();
       if (!mounted) return;
       final match = list.where((m) => m.id == familyMemberId.trim()).toList();
       if (match.isEmpty) return;

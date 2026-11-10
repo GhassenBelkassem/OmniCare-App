@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import 'package:omnicare_mobile/core/api/family_api.dart';
 import 'package:omnicare_mobile/core/models/family_models.dart';
+import 'package:omnicare_mobile/core/storage/secure_token_store.dart';
 import 'package:omnicare_mobile/core/theme/omni_theme.dart';
 import 'package:omnicare_mobile/features/patient_clinic/application/patient_clinic_directory_controller.dart';
 import 'package:omnicare_mobile/features/patient_clinic/data/patient_clinic_models.dart';
@@ -16,6 +17,7 @@ import 'package:omnicare_mobile/features/request_core/data/request_models.dart';
 import 'package:omnicare_mobile/features/request_core/data/request_repository.dart';
 import 'package:omnicare_mobile/features/request_core/domain/clinic_request_intent.dart';
 import 'package:omnicare_mobile/features/request_core/domain/request_vocabulary.dart';
+import 'package:omnicare_mobile/features/request_core/identity/in_flight_request_store.dart';
 import 'package:omnicare_mobile/features/request_core/identity/request_operation_id.dart';
 import 'package:omnicare_mobile/features/request_flow/screens/review_screen.dart';
 import 'package:omnicare_mobile/providers/family_provider.dart';
@@ -30,6 +32,24 @@ class _FakeHttpOverrides extends HttpOverrides {
   HttpClient createHttpClient(SecurityContext? context) {
     return super.createHttpClient(context)
       ..badCertificateCallback = (_, __, ___) => true;
+  }
+}
+
+class _MemorySecureTokenStorageBackend
+    implements SecureTokenStorageBackend {
+  final Map<String, String> _values = <String, String>{};
+
+  @override
+  Future<String?> read({required String key}) async => _values[key];
+
+  @override
+  Future<void> write({required String key, required String value}) async {
+    _values[key] = value;
+  }
+
+  @override
+  Future<void> delete({required String key}) async {
+    _values.remove(key);
   }
 }
 
@@ -117,6 +137,14 @@ class _FakeFamilyRepository extends FamilyRepository {
   Future<List<FamilyMember>> getFamilyMembers() async => members;
 }
 
+RequestSubmissionController _requestController() =>
+    RequestSubmissionController(
+      repository: _FakeRequestRepository(),
+      inFlightStore: InFlightRequestStore(
+        backend: _MemorySecureTokenStorageBackend(),
+      ),
+    );
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -157,12 +185,15 @@ Future<void> _pumpReviewScreen(
   List<FamilyMember>? members,
 }) async {
   final requestController =
-      request ?? RequestSubmissionController(repository: _FakeRequestRepository());
+      request ?? _requestController();
   final directoryController = directory ?? await _buildDirectory();
   final fp = familyProvider ??
       FamilyProvider(
         repository: _FakeFamilyRepository(members: members ?? []),
       );
+  if (familyProvider == null && members != null) {
+    await fp.loadFamilyMembers();
+  }
 
   await tester.pumpWidget(
     MultiProvider(
@@ -190,9 +221,7 @@ Future<RequestSubmissionController> _buildReadyRequest({
   RequestSituation situation = RequestSituation.appointment,
   String clinicId = 'clinic-001',
 }) async {
-  final controller = RequestSubmissionController(
-    repository: _FakeRequestRepository(),
-  );
+  final controller = _requestController();
   await controller.beginNewRequest();
   controller.selectClinic(clinicId);
   controller.selectSituation(situation);
@@ -299,9 +328,7 @@ void main() {
     });
 
     testWidgets('Planned/Appointment mapping is correct', (tester) async {
-      final controller = RequestSubmissionController(
-        repository: _FakeRequestRepository(),
-      );
+      final controller = _requestController();
       await controller.beginNewRequest();
       controller.selectClinic('clinic-001');
       controller.selectSituation(RequestSituation.appointment);
@@ -311,9 +338,7 @@ void main() {
     });
 
     testWidgets('Urgent mapping is correct', (tester) async {
-      final controller = RequestSubmissionController(
-        repository: _FakeRequestRepository(),
-      );
+      final controller = _requestController();
       await controller.beginNewRequest();
       controller.selectClinic('clinic-001');
       controller.selectSituation(RequestSituation.urgent);
@@ -323,9 +348,7 @@ void main() {
     });
 
     testWidgets('Transport mapping is correct', (tester) async {
-      final controller = RequestSubmissionController(
-        repository: _FakeRequestRepository(),
-      );
+      final controller = _requestController();
       await controller.beginNewRequest();
       controller.selectClinic('clinic-001');
       controller.selectSituation(RequestSituation.ambulance);
@@ -449,9 +472,7 @@ void main() {
     });
 
     testWidgets('pickup location renders for ambulance', (tester) async {
-      final controller = RequestSubmissionController(
-        repository: _FakeRequestRepository(),
-      );
+      final controller = _requestController();
       await controller.beginNewRequest();
       controller.selectClinic('clinic-001');
       controller.selectSituation(RequestSituation.ambulance);

@@ -9,6 +9,7 @@ import '../data/patient_passport_static_data.dart';
 import '../models/patient_passport_view_models.dart';
 import '../sharing/medical_sharing_controller.dart';
 import '../sharing/medical_sharing_models.dart';
+import '../sharing/direct_patient_authorization_controller.dart';
 import 'medical_data_editor_screen.dart';
 import 'medical_document_editor_screen.dart';
 import 'widgets/family_passport_selector_sheet.dart';
@@ -41,6 +42,7 @@ class _PatientPassportScreenState extends State<PatientPassportScreen> {
   late PassportFamilyMember _selectedMember;
   PassportHistoryFilters _historyFilters = const PassportHistoryFilters();
   MedicalSharingController? _sharingController;
+  DirectPatientAuthorizationController? _directAuthorizationController;
   FamilyProvider? _familyProvider;
   bool _dependenciesResolved = false;
 
@@ -58,6 +60,12 @@ class _PatientPassportScreenState extends State<PatientPassportScreen> {
     _sharingController = widget.medicalSharingController;
     try {
       _sharingController ??= context.read<MedicalSharingController>();
+    } catch (_) {
+      // Standalone visual tests may intentionally omit the production provider.
+    }
+    try {
+      _directAuthorizationController = context
+          .read<DirectPatientAuthorizationController>();
     } catch (_) {
       // Standalone visual tests may intentionally omit the production provider.
     }
@@ -393,6 +401,12 @@ class _PatientPassportScreenState extends State<PatientPassportScreen> {
       context,
       controller: controller,
       subject: subject,
+      directAuthorizationController: _directAuthorizationController,
+      subjectDisplayName: _selectedMember.name,
+      onShowQr: () {
+        Navigator.of(context).pop();
+        WidgetsBinding.instance.addPostFrameCallback((_) => _openSecureQr());
+      },
     );
   }
 

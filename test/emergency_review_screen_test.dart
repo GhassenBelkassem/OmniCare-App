@@ -286,7 +286,7 @@ void main() {
       expect(find.byType(GoogleMap), findsNothing);
       await tester.tap(find.text('Envoyer la demande urgente'));
       await tester.pumpAndSettle();
-      expect(route, '/doctor-selection');
+      expect(route, '/clinical-request-unavailable');
     });
   }
 }

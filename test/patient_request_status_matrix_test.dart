@@ -126,7 +126,9 @@ void main() {
 
         expect(find.text('Request received'), findsWidgets);
         expect(
-          find.text('The clinic has received your request.'),
+          find.text(
+            'The clinic has received your request and will review it shortly.',
+          ),
           findsWidgets,
         );
 
@@ -177,7 +179,9 @@ void main() {
 
         expect(find.text('Under review'), findsWidgets);
         expect(
-          find.text('The clinic is reviewing your request.'),
+          find.text(
+            'The clinic has received your request and will review it shortly.',
+          ),
           findsWidgets,
         );
 
@@ -459,7 +463,7 @@ void main() {
         );
 
         expect(find.widgetWithText(OutlinedButton, 'Cancel request'), findsNothing);
-        expect(find.text('Request completed'), findsOneWidget);
+        expect(find.text('Request completed'), findsNWidgets(2));
 
         await tester.pumpWidget(const SizedBox());
         controller.dispose();
@@ -545,7 +549,7 @@ void main() {
         );
 
         expect(find.widgetWithText(OutlinedButton, 'Cancel request'), findsNothing);
-        expect(find.text('Request cancelled'), findsOneWidget);
+        expect(find.text('Request cancelled'), findsNWidgets(2));
 
         await tester.pumpWidget(const SizedBox());
         controller.dispose();

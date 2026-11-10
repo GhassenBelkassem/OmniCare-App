@@ -62,4 +62,43 @@ void main() {
       'decision': 'FOLLOW_UP_AFTER_RESULTS',
     });
   });
+
+  test('serializes LOCAL free-text conclusion without an invented code', () {
+    final draft = ClinicalRecordDraft(
+      diagnosisSystem: 'LOCAL',
+      diagnosisCode: '',
+      diagnosisLabel: 'Free-text clinical conclusion',
+      diagnosisStatus: 'CONFIRMED',
+      assessment: null,
+      medicationDecision: 'NO_MEDICATION',
+      followUpDecision: 'NO_FOLLOW_UP',
+    );
+
+    expect(draft.toJson()['diagnoses'], [
+      {
+        'system': 'LOCAL',
+        'code': '',
+        'label': 'Free-text clinical conclusion',
+        'status': 'CONFIRMED',
+      },
+    ]);
+    expect(draft.toJson()['assessment'], isNull);
+  });
+
+  test('accepts schema v3 and preserves advanced fields across a copy', () {
+    final envelope = ClinicalRecordEnvelope.fromJson({
+      'clinicalRecordVersion': 4,
+      'schemaVersion': 3,
+      'clinicalRecord': {
+        'history': {'presentIllness': 'Preserved history'},
+        'clinicalFindings': <Object>[],
+        'diagnoses': <Object>[],
+        'treatmentPlan': ['Preserved advice'],
+        'followUp': {'required': false},
+      },
+    });
+
+    expect(envelope.record.copy().presentIllness, 'Preserved history');
+    expect(envelope.record.copy().treatmentPlan, ['Preserved advice']);
+  });
 }

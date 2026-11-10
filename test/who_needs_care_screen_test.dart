@@ -528,19 +528,16 @@ void main() {
       expect(find.byTooltip('Back'), findsOneWidget);
     });
 
-    // Additional: background matches parent scaffold
-    testWidgets('uses correct canvas background', (tester) async {
+    // Additional: background comes from the approved parent canvas theme.
+    testWidgets('uses the approved parent canvas background', (tester) async {
       await tester.pumpWidget(_buildApp());
       await tester.pumpAndSettle();
 
-      final coloredBoxes = tester.widgetList<ColoredBox>(
-        find.byType(ColoredBox),
+      final context = tester.element(find.byType(WhoNeedsCareScreen));
+      expect(
+        Theme.of(context).scaffoldBackgroundColor,
+        OmniColors.pageBackground,
       );
-      final backgroundBox = coloredBoxes.firstWhere(
-        (box) => box.color == const Color(0xFFF4F5F7),
-        orElse: () => throw StateError('Background ColoredBox not found'),
-      );
-      expect(backgroundBox.color, const Color(0xFFF4F5F7));
     });
 
     // Additional: Continue renders and is enabled

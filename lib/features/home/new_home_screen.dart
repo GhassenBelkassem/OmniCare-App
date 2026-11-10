@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../core/theme/omni_theme.dart';
 import '../../core/api/account_api.dart';
+import '../../core/network/app_http_client.dart';
 import '../../core/services/file_picker_service.dart';
 import '../../core/models/family_models.dart' as core_models;
 import '../auth/application/auth_controller.dart';
@@ -46,12 +47,7 @@ import '../emergency/urgent_cabinet/urgent_cabinet_flow_shell.dart';
 import '../emergency/emergency_request_step2.dart';
 import '../emergency/emergency_request_step3.dart';
 import '../emergency/emergency_review_screen.dart';
-import '../emergency/doctor_selection_screen.dart';
-import '../emergency/review_confirm_screen.dart';
-import '../emergency/doctor_calling_screen.dart';
-import '../emergency/doctor_arriving_screen.dart';
-import '../emergency/consultation_qr_screen.dart';
-import '../emergency/consultation_complete_screen.dart';
+import '../clinical_safety/clinical_feature_unavailable_screen.dart';
 import '../notifications/application/notification_center_controller.dart';
 import '../notifications/presentation/notification_badge.dart';
 
@@ -375,52 +371,31 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
             settings: settings,
           );
         }
-        if (settings.name == '/doctor-selection') {
-          final args = settings.arguments as Map<String, dynamic>;
+        if (const <String>{
+          '/doctor-selection',
+          '/review-confirm',
+          '/doctor-calling',
+          '/doctor-arriving',
+          '/consultation-qr',
+          '/consultation-complete',
+          '/consultation-type',
+          '/provider-list',
+          '/time-selection',
+          '/appointment-confirmation',
+          '/booking-confirmed',
+        }.contains(settings.name)) {
           return _buildPatientPageRoute(
-            builder: (_) => DoctorSelectionScreen(emergencyData: args),
-            settings: settings,
-          );
-        }
-        if (settings.name == '/review-confirm') {
-          final args = settings.arguments as Map<String, dynamic>;
-          return _buildPatientPageRoute(
-            builder: (_) => ReviewConfirmScreen(requestData: args),
-            settings: settings,
-          );
-        }
-        if (settings.name == '/doctor-calling') {
-          final args = settings.arguments as Map<String, dynamic>;
-          return _buildPatientPageRoute(
-            builder: (_) => DoctorCallingScreen(requestData: args),
-            settings: settings,
-          );
-        }
-        if (settings.name == '/doctor-arriving') {
-          final args = settings.arguments as Map<String, dynamic>;
-          return _buildPatientPageRoute(
-            builder: (_) => DoctorArrivingScreen(requestData: args),
-            settings: settings,
-          );
-        }
-        if (settings.name == '/consultation-qr') {
-          final args = settings.arguments as Map<String, dynamic>;
-          return _buildPatientPageRoute(
-            builder: (_) => ConsultationQRScreen(requestData: args),
-            settings: settings,
-          );
-        }
-        if (settings.name == '/consultation-complete') {
-          final args = settings.arguments as Map<String, dynamic>;
-          return _buildPatientPageRoute(
-            builder: (_) => ConsultationCompleteScreen(requestData: args),
+            builder: (_) => const ClinicalFeatureUnavailableScreen(),
             settings: settings,
           );
         }
         if (settings.name == '/m05/doctor-detail') {
-          final args = settings.arguments as String;
+          final args = settings.arguments;
+          final doctorId = args is String ? args.trim() : '';
           return _buildPatientPageRoute(
-            builder: (_) => DoctorDetailScreen(doctorId: args),
+            builder: (_) => doctorId.isEmpty
+                ? const _InvalidDoctorDetailRouteScreen()
+                : DoctorDetailScreen(doctorId: doctorId),
             settings: settings,
           );
         }
@@ -434,6 +409,8 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
             const UrgentCareModeSelectionScreen(),
           '/urgent-cabinet/care-subject' => const UrgentCabinetFlowShell(),
           '/emergency-step1' => const EmergencyRequestStep1(),
+          '/clinical-request-unavailable' =>
+            const ClinicalFeatureUnavailableScreen(),
           '/m05/request' => const RequestFlowEntryScreen(),
           '/doctor/cabinet/who-needs-care' => const DoctorCabinetEntryScreen(),
           '/m05/who-needs-care' => const WhoNeedsCareScreen(),
@@ -1735,7 +1712,9 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                                 )
                                 .toList();
 
-                            await AccountApi().patchMedicalPassport(
+                            await AccountApi(
+                              httpClient: context.read<AppHttpClient>(),
+                            ).patchMedicalPassport(
                               bloodGroup: bloodType,
                               medicalInfo: {
                                 'chronicConditions': conditions,
@@ -3662,4 +3641,22 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
       child: Image.asset('assets/images/app_logo.png', fit: BoxFit.contain),
     );
   }
+}
+
+class _InvalidDoctorDetailRouteScreen extends StatelessWidget {
+  const _InvalidDoctorDetailRouteScreen();
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Médecin')),
+    body: const Center(
+      child: Padding(
+        padding: EdgeInsets.all(24),
+        child: Text(
+          'Ce médecin n’est pas disponible.',
+          textAlign: TextAlign.center,
+        ),
+      ),
+    ),
+  );
 }

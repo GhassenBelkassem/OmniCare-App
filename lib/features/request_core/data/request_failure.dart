@@ -206,6 +206,20 @@ class RequestFailure implements Exception {
     diagnosticCode: 'REQUEST_INTENT_INCOMPLETE',
   );
 
+  static const RequestFailure recoveryIdentityUnavailable = RequestFailure(
+    kind: RequestFailureKind.invalid,
+    message: 'Please sign in again before sending this request.',
+    retryable: false,
+    diagnosticCode: 'REQUEST_ACCOUNT_SCOPE_UNAVAILABLE',
+  );
+
+  static const RequestFailure recoveryPersistenceUnavailable = RequestFailure(
+    kind: RequestFailureKind.unexpected,
+    message: 'This request cannot be sent safely right now. Please try again.',
+    retryable: true,
+    diagnosticCode: 'REQUEST_RECOVERY_PERSISTENCE_UNAVAILABLE',
+  );
+
   /// Maps any thrown object into a safe failure.
   static RequestFailure from(Object error) {
     if (error is RequestFailure) return error;

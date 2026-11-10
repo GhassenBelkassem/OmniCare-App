@@ -8,6 +8,7 @@ import '../../features/auth/data/models/auth_dtos.dart';
 import '../models/patient_profile.dart';
 import '../network/api_exception.dart';
 import '../network/app_http_client.dart';
+import '../network/request_replay_policy.dart';
 import '../storage/secure_token_store.dart';
 
 typedef UploadProgressCallback = void Function(int sentBytes, int totalBytes);
@@ -73,7 +74,10 @@ class FilesApi {
       final response = await _httpClient.dio.patch<dynamic>(
         '/profile/avatar',
         data: form,
-        options: Options(contentType: Headers.multipartFormDataContentType),
+        options: Options(
+          contentType: Headers.multipartFormDataContentType,
+          extra: requestReplayExtra(RequestReplayPolicy.never),
+        ),
         onSendProgress: onProgress,
       );
       return _parseProfile(response.data);

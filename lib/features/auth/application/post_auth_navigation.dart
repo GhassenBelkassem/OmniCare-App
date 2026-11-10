@@ -6,6 +6,8 @@ import '../../../core/nav/keyboard_navigation.dart';
 import '../../../providers/user_provider.dart';
 import '../../emergency/urgent_cabinet/urgent_cabinet_patient_lifecycle_controller.dart';
 import '../../emergency/urgent_cabinet/urgent_cabinet_targeted_request_models.dart';
+import '../../request_core/application/request_submission_controller.dart';
+import '../../request_history/presentation/patient_request_detail_screen.dart';
 import 'auth_controller.dart';
 import 'auth_role_family.dart';
 
@@ -52,6 +54,23 @@ Future<bool> navigateAfterAuthentication(
     context.read<UserProvider>().setPatientProfile(patientProfile);
   }
 
+  Future<bool>? clinicRecovery;
+  String? clinicRecoveryAccountId;
+  RequestSubmissionController? clinicRecoveryController;
+  if (patientProfile != null && route == '/home') {
+    final accountId = auth.currentUser?.id.trim();
+    final request = context.read<RequestSubmissionController?>();
+    if (accountId != null && accountId.isNotEmpty && request != null) {
+      request.attachAuthenticatedAccount(accountId);
+      clinicRecoveryController = request;
+      clinicRecoveryAccountId = accountId;
+      // Domain recovery is deliberately independent from shell navigation: a
+      // temporarily unavailable clinic read must not hold the authenticated
+      // application hostage. The controller remains generation/owner fenced.
+      clinicRecovery = request.recoverAfterAuthentication(accountId: accountId);
+    }
+  }
+
   var restoreUrgentCabinet = false;
   String? restoredUrgentCabinetAccountId;
   if (patientProfile != null && route == '/home') {
@@ -82,6 +101,24 @@ Future<bool> navigateAfterAuthentication(
 
   final navigator = Navigator.of(context);
   navigator.pushNamedAndRemoveUntil(route, (_) => false);
+  if (clinicRecovery != null) {
+    final recovery = clinicRecovery;
+    final recoveryAccountId = clinicRecoveryAccountId;
+    recovery.then((recovered) {
+      if (!recovered ||
+          !auth.isAuthenticated ||
+          auth.currentUser?.id.trim() != recoveryAccountId) {
+        return;
+      }
+      final requestId = clinicRecoveryController?.recoveredRequestId;
+      if (requestId == null) return;
+      navigator.push<void>(
+        MaterialPageRoute(
+          builder: (_) => PatientRequestDetailScreen(requestId: requestId),
+        ),
+      );
+    });
+  }
   if (restoreUrgentCabinet) {
     // Keep Home below the flow. Closing an accepted confirmation is therefore
     // a deliberate return to Home, not a permanent recovery redirect.

@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../../../core/network/app_http_client.dart';
+import '../../../../core/network/request_replay_policy.dart';
 import '../../../scheduled_care/domain/scheduled_care_models.dart';
 import '../domain/doctor_scheduled_care_models.dart';
 
@@ -170,6 +171,7 @@ class DoctorScheduledCareApi implements DoctorScheduledCareApiContract {
     return Options(
       contentType: Headers.jsonContentType,
       headers: {'Idempotency-Key': key},
+      extra: requestReplayExtra(RequestReplayPolicy.declaredIdempotentWrite),
     );
   }
 

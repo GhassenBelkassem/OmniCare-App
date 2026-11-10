@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 
 import '../core/nav/app_nav.dart';
 import '../features/notifications/domain/notification_models.dart';
+import '../features/notifications/application/notification_navigation_resolver.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -21,10 +22,17 @@ class NotificationService {
         sync: true,
       );
   UrgentCabinetNotificationOpenIntent? _pendingUrgentCabinetOpen;
+  final StreamController<PendingNotificationOpenIdentity> _notificationOpens =
+      StreamController<PendingNotificationOpenIdentity>.broadcast(sync: true);
+  PendingNotificationOpenIdentity? _pendingNotificationOpen;
   bool _initialized = false;
 
   Stream<UrgentCabinetNotificationOpenIntent> get urgentCabinetOpens =>
       _urgentCabinetOpens.stream;
+  Stream<PendingNotificationOpenIdentity> get notificationOpens =>
+      _notificationOpens.stream;
+  PendingNotificationOpenIdentity? get pendingNotificationOpen =>
+      _pendingNotificationOpen;
 
   Future<void> initialize() async {
     if (_initialized) return;
@@ -47,6 +55,13 @@ class NotificationService {
       initSettings,
       onDidReceiveNotificationResponse: _onNotificationTapped,
     );
+    final launchDetails = await _notifications
+        .getNotificationAppLaunchDetails();
+    final launchResponse = launchDetails?.notificationResponse;
+    if (launchDetails?.didNotificationLaunchApp == true &&
+        launchResponse != null) {
+      _onNotificationTapped(launchResponse);
+    }
 
     // Request iOS permission once. Initialization now runs after the first
     // Flutter frame, so this platform dialog cannot delay application startup.
@@ -79,7 +94,15 @@ class NotificationService {
     openNotificationCenter();
   }
 
-  void openPayload(Map<String, dynamic> data) {
+  void openPayload(Map<String, dynamic> data, {String? accountScope}) {
+    final pending = NotificationNavigationResolver.parsePendingPayload(
+      data,
+      accountScope: accountScope,
+    );
+    if (pending != null) {
+      _pendingNotificationOpen = pending;
+      _notificationOpens.add(pending);
+    }
     final requestId = data['request_id']?.toString().trim();
     if (data['destination'] == 'URGENT_CABINET_REQUEST' &&
         requestId != null &&
@@ -95,7 +118,26 @@ class NotificationService {
       _urgentCabinetOpens.add(intent);
       return;
     }
-    openNotificationCenter();
+    if (pending == null) openNotificationCenter();
+  }
+
+  PendingNotificationOpenIdentity? claimNotificationOpen(
+    PendingNotificationOpenIdentity identity,
+  ) {
+    if (!identical(_pendingNotificationOpen, identity)) return null;
+    _pendingNotificationOpen = null;
+    return identity;
+  }
+
+  PendingNotificationOpenIdentity? takePendingNotificationOpen() {
+    final identity = _pendingNotificationOpen;
+    _pendingNotificationOpen = null;
+    return identity;
+  }
+
+  void clearPendingNotificationOpen() {
+    _pendingNotificationOpen = null;
+    _pendingUrgentCabinetOpen = null;
   }
 
   UrgentCabinetNotificationOpenIntent? claimUrgentCabinetOpen(
@@ -157,6 +199,7 @@ class NotificationService {
       NotificationDetails(android: androidDetails, iOS: iosDetails),
       payload: jsonEncode(<String, Object?>{
         'notification_id': notification.id,
+        'type': notification.type,
         ...notification.deepLinkPayload,
       }),
     );

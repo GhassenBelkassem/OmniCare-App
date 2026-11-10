@@ -9,6 +9,28 @@ enum NotificationNavigationResource {
 
 enum NotificationNavigationStatus { target, noDestination, unavailable }
 
+class PendingNotificationOpenIdentity {
+  const PendingNotificationOpenIdentity({
+    required this.type,
+    required this.resourceId,
+    required this.createdAt,
+    this.accountScope,
+    this.expiresAt,
+  });
+
+  final String type;
+  final String resourceId;
+  final DateTime createdAt;
+  final String? accountScope;
+  final DateTime? expiresAt;
+
+  bool get isExpired =>
+      expiresAt != null && !expiresAt!.isAfter(DateTime.now().toUtc());
+
+  @override
+  String toString() => 'PendingNotificationOpenIdentity($type)';
+}
+
 class NotificationNavigationResolution {
   const NotificationNavigationResolution._({
     required this.status,
@@ -65,6 +87,78 @@ class NotificationNavigationResolver {
       rawId.toLowerCase(),
     );
   }
+
+  /// Validates only the opaque navigation identity from push/local payloads.
+  /// Title, body, status, and all other business fields are intentionally
+  /// ignored and never retained for cold-entry recovery.
+  static PendingNotificationOpenIdentity? parsePendingPayload(
+    Map<String, dynamic> payload, {
+    String? accountScope,
+    DateTime? now,
+  }) {
+    var type = payload['type']?.toString().trim() ?? '';
+    _NotificationNavigationRule? rule = _rules[type];
+    if (rule == null && payload['destination'] == 'URGENT_CABINET_REQUEST') {
+      type = _legacyUrgentCabinetType;
+      rule = _legacyUrgentCabinetRule;
+    }
+    if (rule == null) return null;
+    final rawId = payload[rule.idKey];
+    if (rawId is! String || !isUuid(rawId)) return null;
+    final expiresAt = _optionalInstant(
+      payload['expiresAt'] ?? payload['expires_at'],
+    );
+    final owner = accountScope?.trim();
+    final identity = PendingNotificationOpenIdentity(
+      type: type,
+      resourceId: rawId.toLowerCase(),
+      accountScope: owner == null || owner.isEmpty ? null : owner,
+      createdAt: (now ?? DateTime.now()).toUtc(),
+      expiresAt: expiresAt,
+    );
+    return identity.isExpired ? null : identity;
+  }
+
+  static NotificationNavigationResolution resolvePending(
+    PendingNotificationOpenIdentity identity,
+    AuthRoleFamily role, {
+    required String accountScope,
+  }) {
+    if (identity.isExpired) return NotificationNavigationResolution.unavailable;
+    final owner = identity.accountScope;
+    if (owner != null && owner != accountScope.trim()) {
+      return NotificationNavigationResolution.unavailable;
+    }
+    if (identity.type == _legacyUrgentCabinetType) {
+      if (role != AuthRoleFamily.patient && role != AuthRoleFamily.doctor) {
+        return NotificationNavigationResolution.noDestination;
+      }
+      return NotificationNavigationResolution.target(
+        NotificationNavigationResource.urgentCabinetRequest,
+        identity.resourceId,
+      );
+    }
+    final rule = _rules[identity.type];
+    if (rule == null || rule.role != role) {
+      return NotificationNavigationResolution.noDestination;
+    }
+    return NotificationNavigationResolution.target(
+      rule.resource,
+      identity.resourceId,
+    );
+  }
+
+  static DateTime? _optionalInstant(Object? raw) {
+    if (raw is! String || raw.trim().isEmpty) return null;
+    return DateTime.tryParse(raw)?.toUtc();
+  }
+
+  static const _legacyUrgentCabinetType = '_URGENT_CABINET_OPEN';
+  static const _legacyUrgentCabinetRule = _NotificationNavigationRule(
+    role: AuthRoleFamily.unsupported,
+    resource: NotificationNavigationResource.urgentCabinetRequest,
+    idKey: 'request_id',
+  );
 
   static const Map<String, _NotificationNavigationRule> _rules = {
     'DOCTOR_BOOKING_REQUEST_CREATED': _NotificationNavigationRule(

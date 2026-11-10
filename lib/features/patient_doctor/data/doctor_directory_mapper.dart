@@ -153,11 +153,12 @@ DoctorDetail attachAvailability(
 /// earliest returned slot, or null when there is no availability at all.
 String? nextAvailableLabelFor(List<DoctorDayAvailability> days) {
   final now = toTunisWallClock(DateTime.now());
+  final today = DateTime(now.year, now.month, now.day);
   for (final day in days) {
-    if (day.date.isAfter(now.subtract(const Duration(days: 1))) &&
-        day.hasSlots) {
+    final dayDate = DateTime(day.date.year, day.date.month, day.date.day);
+    if (!dayDate.isBefore(today) && day.hasSlots) {
       final slot = day.slots.first;
-      return '${_dayLabel(day.date, now)} · ${slot.time}';
+      return '${_dayLabel(dayDate, today)} · ${slot.time}';
     }
   }
   return null;
@@ -166,8 +167,9 @@ String? nextAvailableLabelFor(List<DoctorDayAvailability> days) {
 String _dayLabel(DateTime date, DateTime now) {
   final today = DateTime(now.year, now.month, now.day);
   final tomorrow = DateTime(now.year, now.month, now.day + 1);
-  if (date.isAtSameMomentAs(today)) return 'Aujourd\'hui';
-  if (date.isAtSameMomentAs(tomorrow)) return 'Demain';
+  final calendarDate = DateTime(date.year, date.month, date.day);
+  if (calendarDate == today) return 'Aujourd\'hui';
+  if (calendarDate == tomorrow) return 'Demain';
   const dayNames = [
     'Lundi',
     'Mardi',
@@ -177,7 +179,7 @@ String _dayLabel(DateTime date, DateTime now) {
     'Samedi',
     'Dimanche',
   ];
-  return dayNames[(date.weekday - 1).clamp(0, 6)];
+  return dayNames[(calendarDate.weekday - 1).clamp(0, 6)];
 }
 
 PracticeLocation _toPracticeLocation(DoctorPracticeLocationDto dto) {

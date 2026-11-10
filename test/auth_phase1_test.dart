@@ -11,6 +11,7 @@ import 'package:omnicare_mobile/core/config/app_environment.dart';
 import 'package:omnicare_mobile/core/network/api_exception.dart';
 import 'package:omnicare_mobile/core/network/app_http_client.dart';
 import 'package:omnicare_mobile/core/network/auth_interceptor.dart';
+import 'package:omnicare_mobile/core/network/request_replay_policy.dart';
 import 'package:omnicare_mobile/core/models/patient_profile.dart';
 import 'package:omnicare_mobile/core/storage/secure_token_store.dart';
 import 'package:omnicare_mobile/core/theme/omni_theme.dart';
@@ -592,6 +593,16 @@ void main() {
       );
     });
 
+    test('shared clients enforce a bounded send timeout', () {
+      final client = AppHttpClient(
+        tokenStore: SecureTokenStore(backend: FakeSecureTokenStorageBackend()),
+        baseUrl: 'http://api.test',
+      );
+
+      expect(client.dio.options.sendTimeout, const Duration(seconds: 30));
+      expect(client.publicDio.options.sendTimeout, const Duration(seconds: 30));
+    });
+
     test('classifies production auth paths independent of query string', () {
       expect(isPublicAuthPath('/api/v1/auth/login/phone/initiate?x=1'), isTrue);
       expect(isPublicAuthPath('/api/v1/auth/signup/complete'), isTrue);
@@ -655,7 +666,8 @@ void main() {
         'accessToken': 'access-token-value',
         'refreshToken': 'refresh-token-value',
       });
-      expect(await store.readSession(), isNull);
+      final reloadedStore = SecureTokenStore(backend: backend);
+      expect(await reloadedStore.readSession(), isNull);
       expect(backend.values, isEmpty);
     });
 
@@ -1262,12 +1274,12 @@ void main() {
       },
     );
 
-    test('concurrent 401 responses share one refresh future', () async {
+    test('ten concurrent 401 responses share one refresh future', () async {
       final store = SecureTokenStore(backend: FakeSecureTokenStorageBackend());
       await store.saveSession(_session());
       final refreshCompleter = Completer<ResponseBody>();
       final adapter = FakeHttpAdapter({
-        'GET /api/v1/profile': (_, count) => count <= 2
+        'GET /api/v1/profile': (_, count) => count <= 10
             ? _json({'code': 'AUTH_SESSION_INVALID', 'message': 'expired'}, 401)
             : _json(_profileJson(onboardingCompleted: true), 200),
         'POST /api/v1/auth/refresh': (_, _) => refreshCompleter.future,
@@ -1275,14 +1287,628 @@ void main() {
       final client = _client(store, adapter);
       final api = AuthApi(client);
 
-      final first = api.getPatientProfile();
-      final second = api.getPatientProfile();
+      final requests = List.generate(10, (_) => api.getPatientProfile());
       await Future<void>.delayed(Duration.zero);
       refreshCompleter.complete(_json(_loginJson(), 200));
 
-      await Future.wait([first, second]);
+      await Future.wait(requests);
+      expect(adapter.counts['POST /api/v1/auth/refresh'], 1);
+      expect(adapter.counts['GET /api/v1/profile'], 20);
+    });
+
+    test(
+      'refresh 5xx preserves the stored session and does not invalidate',
+      () async {
+        final store = SecureTokenStore(
+          backend: FakeSecureTokenStorageBackend(),
+        );
+        await store.saveSession(_session());
+        var invalidations = 0;
+        final adapter = FakeHttpAdapter({
+          'GET /api/v1/profile': (_, _) => _json({
+            'code': 'AUTH_SESSION_INVALID',
+            'message': 'expired',
+          }, 401),
+          'POST /api/v1/auth/refresh': (_, _) =>
+              _json({'code': 'SERVICE_UNAVAILABLE', 'message': 'retry'}, 503),
+        });
+        final api = AuthApi(
+          _client(
+            store,
+            adapter,
+            onSessionInvalidated: () async => invalidations += 1,
+          ),
+        );
+
+        await expectLater(
+          api.getPatientProfile(),
+          throwsA(
+            isA<ApiException>().having(
+              (error) => error.code,
+              'code',
+              'AUTH_REFRESH_TEMPORARILY_UNAVAILABLE',
+            ),
+          ),
+        );
+
+        expect(await store.readSession(), isNotNull);
+        expect(invalidations, 0);
+        expect(adapter.counts['POST /api/v1/auth/refresh'], 1);
+      },
+    );
+
+    test('refresh transport failure preserves the stored session', () async {
+      final store = SecureTokenStore(backend: FakeSecureTokenStorageBackend());
+      await store.saveSession(_session());
+      final adapter = FakeHttpAdapter({
+        'GET /api/v1/profile': (_, _) =>
+            _json({'code': 'AUTH_SESSION_INVALID', 'message': 'expired'}, 401),
+        'POST /api/v1/auth/refresh': (options, _) => throw DioException(
+          requestOptions: options,
+          type: DioExceptionType.connectionError,
+          error: StateError('offline'),
+        ),
+      });
+
+      await expectLater(
+        AuthApi(_client(store, adapter)).getPatientProfile(),
+        throwsA(
+          isA<ApiException>().having(
+            (error) => error.code,
+            'code',
+            'AUTH_REFRESH_TEMPORARILY_UNAVAILABLE',
+          ),
+        ),
+      );
+
+      expect(await store.readSession(), isNotNull);
+    });
+
+    test('malformed successful refresh preserves the stored session', () async {
+      final store = SecureTokenStore(backend: FakeSecureTokenStorageBackend());
+      await store.saveSession(_session());
+      final adapter = FakeHttpAdapter({
+        'GET /api/v1/profile': (_, _) =>
+            _json({'code': 'AUTH_SESSION_INVALID', 'message': 'expired'}, 401),
+        'POST /api/v1/auth/refresh': (_, _) => _json({'unexpected': true}, 200),
+      });
+
+      await expectLater(
+        AuthApi(_client(store, adapter)).getPatientProfile(),
+        throwsA(
+          isA<ApiException>().having(
+            (error) => error.code,
+            'code',
+            'AUTH_REFRESH_MALFORMED_RESPONSE',
+          ),
+        ),
+      );
+
+      expect(await store.readSession(), isNotNull);
+    });
+
+    test(
+      'generic refresh 400, 401, 403 and 429 preserve credentials',
+      () async {
+        for (final status in const [400, 401, 403, 429]) {
+          final store = SecureTokenStore(
+            backend: FakeSecureTokenStorageBackend(),
+          );
+          await store.saveSession(_session());
+          var invalidations = 0;
+          final adapter = FakeHttpAdapter({
+            'GET /api/v1/profile': (_, _) => _json({
+              'code': 'AUTH_SESSION_INVALID',
+              'message': 'expired access token',
+            }, 401),
+            'POST /api/v1/auth/refresh': (_, _) => _json({
+              'code': 'NON_TERMINAL_REFRESH_FAILURE',
+              'message': 'not credential authority',
+            }, status),
+          });
+
+          await expectLater(
+            AuthApi(
+              _client(
+                store,
+                adapter,
+                onSessionInvalidated: () async => invalidations += 1,
+              ),
+            ).getPatientProfile(),
+            throwsA(isA<ApiException>()),
+          );
+
+          expect(
+            await store.readSession(),
+            isNotNull,
+            reason: 'status $status must preserve credentials',
+          );
+          expect(invalidations, 0, reason: 'status $status is not authority');
+        }
+      },
+    );
+
+    test(
+      'all authoritative terminal refresh codes clear credentials',
+      () async {
+        for (final code in const [
+          'AUTH_REFRESH_TOKEN_INVALID',
+          'AUTH_SESSION_INVALID',
+          'AUTH_SESSION_EXPIRED',
+        ]) {
+          final store = SecureTokenStore(
+            backend: FakeSecureTokenStorageBackend(),
+          );
+          await store.saveSession(_session());
+          var invalidations = 0;
+          final adapter = FakeHttpAdapter({
+            'GET /api/v1/profile': (_, _) => _json({
+              'code': 'AUTH_SESSION_INVALID',
+              'message': 'expired access token',
+            }, 401),
+            'POST /api/v1/auth/refresh': (_, _) => _json({
+              'code': code,
+              'message': 'terminal credential evidence',
+            }, 401),
+          });
+
+          await expectLater(
+            AuthApi(
+              _client(
+                store,
+                adapter,
+                onSessionInvalidated: () async => invalidations += 1,
+              ),
+            ).getPatientProfile(),
+            throwsA(isA<ApiException>()),
+          );
+
+          expect(await store.readSession(), isNull, reason: code);
+          expect(invalidations, 1, reason: code);
+        }
+      },
+    );
+
+    test(
+      'refresh timeout, TLS, DNS and temporary server outcomes preserve credentials',
+      () async {
+        final outcomes = <String, FakeResponder>{
+          'connect timeout': (options, _) => throw DioException(
+            requestOptions: options,
+            type: DioExceptionType.connectionTimeout,
+          ),
+          'send timeout': (options, _) => throw DioException(
+            requestOptions: options,
+            type: DioExceptionType.sendTimeout,
+          ),
+          'receive timeout': (options, _) => throw DioException(
+            requestOptions: options,
+            type: DioExceptionType.receiveTimeout,
+          ),
+          'dns': (options, _) => throw DioException(
+            requestOptions: options,
+            type: DioExceptionType.connectionError,
+            error: Exception('Failed host lookup'),
+          ),
+          'tls': (options, _) => throw DioException(
+            requestOptions: options,
+            type: DioExceptionType.badCertificate,
+          ),
+          '500': (_, _) => _json({'code': 'TEMPORARY'}, 500),
+          '502': (_, _) => _json({'code': 'TEMPORARY'}, 502),
+          '503': (_, _) => _json({'code': 'TEMPORARY'}, 503),
+        };
+
+        for (final outcome in outcomes.entries) {
+          final store = SecureTokenStore(
+            backend: FakeSecureTokenStorageBackend(),
+          );
+          await store.saveSession(_session());
+          final adapter = FakeHttpAdapter({
+            'GET /api/v1/profile': (_, _) => _json({
+              'code': 'AUTH_SESSION_INVALID',
+              'message': 'expired access token',
+            }, 401),
+            'POST /api/v1/auth/refresh': outcome.value,
+          });
+
+          await expectLater(
+            AuthApi(_client(store, adapter)).getPatientProfile(),
+            throwsA(
+              isA<ApiException>().having(
+                (error) => error.code,
+                'code',
+                'AUTH_REFRESH_TEMPORARILY_UNAVAILABLE',
+              ),
+            ),
+          );
+          expect(await store.readSession(), isNotNull, reason: outcome.key);
+        }
+      },
+    );
+
+    test(
+      'idempotent JSON write is rebuilt and retried after refresh',
+      () async {
+        final store = SecureTokenStore(
+          backend: FakeSecureTokenStorageBackend(),
+        );
+        await store.saveSession(_session());
+        final adapter = FakeHttpAdapter({
+          'POST /api/v1/test-command': (_, count) => count == 1
+              ? _json({
+                  'code': 'AUTH_SESSION_INVALID',
+                  'message': 'expired',
+                }, 401)
+              : _json({'status': 'accepted'}, 200),
+          'POST /api/v1/auth/refresh': (_, _) => _json(_loginJson(), 200),
+        });
+        final client = _client(store, adapter);
+
+        await client.dio.post<dynamic>(
+          '/test-command',
+          data: {'value': 1},
+          options: Options(
+            headers: {'Idempotency-Key': 'operation-1'},
+            extra: requestReplayExtra(
+              RequestReplayPolicy.declaredIdempotentWrite,
+            ),
+          ),
+        );
+
+        expect(adapter.counts['POST /api/v1/test-command'], 2);
+        expect(adapter.counts['POST /api/v1/auth/refresh'], 1);
+      },
+    );
+
+    test('idempotency header alone does not authorize JSON replay', () async {
+      final store = SecureTokenStore(backend: FakeSecureTokenStorageBackend());
+      await store.saveSession(_session());
+      final adapter = FakeHttpAdapter({
+        'POST /api/v1/test-command': (_, _) =>
+            _json({'code': 'AUTH_SESSION_INVALID', 'message': 'expired'}, 401),
+        'POST /api/v1/auth/refresh': (_, _) => _json(_loginJson(), 200),
+      });
+      final client = _client(store, adapter);
+
+      await expectLater(
+        client.dio.post<dynamic>(
+          '/test-command',
+          data: {'value': 1},
+          options: Options(headers: {'Idempotency-Key': 'operation-1'}),
+        ),
+        throwsA(
+          isA<DioException>().having(
+            (error) => error.error,
+            'safe replay marker',
+            isA<AuthReplayRequiredException>(),
+          ),
+        ),
+      );
+
+      expect(adapter.counts['POST /api/v1/test-command'], 1);
       expect(adapter.counts['POST /api/v1/auth/refresh'], 1);
     });
+
+    test('HEAD and OPTIONS are automatic safe reads', () async {
+      for (final method in const ['HEAD', 'OPTIONS']) {
+        final store = SecureTokenStore(
+          backend: FakeSecureTokenStorageBackend(),
+        );
+        await store.saveSession(_session());
+        final adapter = FakeHttpAdapter({
+          '$method /api/v1/read-contract': (_, count) => count == 1
+              ? _json({
+                  'code': 'AUTH_SESSION_INVALID',
+                  'message': 'expired',
+                }, 401)
+              : _json({'ok': true}, 200),
+          'POST /api/v1/auth/refresh': (_, _) => _json(_loginJson(), 200),
+        });
+        final client = _client(store, adapter);
+
+        await client.dio.request<dynamic>(
+          '/read-contract',
+          options: Options(method: method),
+        );
+
+        expect(adapter.counts['$method /api/v1/read-contract'], 2);
+        expect(adapter.counts['POST /api/v1/auth/refresh'], 1);
+      }
+    });
+
+    test(
+      'declared JSON PUT and PATCH replay, but DELETE defaults to never',
+      () async {
+        for (final method in const ['PUT', 'PATCH']) {
+          final store = SecureTokenStore(
+            backend: FakeSecureTokenStorageBackend(),
+          );
+          await store.saveSession(_session());
+          final adapter = FakeHttpAdapter({
+            '$method /api/v1/certified-write': (_, count) => count == 1
+                ? _json({
+                    'code': 'AUTH_SESSION_INVALID',
+                    'message': 'expired',
+                  }, 401)
+                : _json({'ok': true}, 200),
+            'POST /api/v1/auth/refresh': (_, _) => _json(_loginJson(), 200),
+          });
+          final client = _client(store, adapter);
+
+          await client.dio.request<dynamic>(
+            '/certified-write',
+            data: {'value': 1},
+            options: Options(
+              method: method,
+              headers: {'Idempotency-Key': 'operation-$method'},
+              extra: requestReplayExtra(
+                RequestReplayPolicy.declaredIdempotentWrite,
+              ),
+            ),
+          );
+
+          expect(adapter.counts['$method /api/v1/certified-write'], 2);
+        }
+
+        final store = SecureTokenStore(
+          backend: FakeSecureTokenStorageBackend(),
+        );
+        await store.saveSession(_session());
+        final adapter = FakeHttpAdapter({
+          'DELETE /api/v1/uncertified-delete': (_, _) => _json({
+            'code': 'AUTH_SESSION_INVALID',
+            'message': 'expired',
+          }, 401),
+          'POST /api/v1/auth/refresh': (_, _) => _json(_loginJson(), 200),
+        });
+        final client = _client(store, adapter);
+
+        await expectLater(
+          client.dio.delete<dynamic>(
+            '/uncertified-delete',
+            options: Options(headers: {'Idempotency-Key': 'delete-1'}),
+          ),
+          throwsA(
+            isA<DioException>().having(
+              (error) => error.error,
+              'safe replay marker',
+              isA<AuthReplayRequiredException>(),
+            ),
+          ),
+        );
+        expect(adapter.counts['DELETE /api/v1/uncertified-delete'], 1);
+      },
+    );
+
+    test('MultipartFile and Stream bodies are never interceptor-replayed', () {
+      for (final body in <Object>[
+        MultipartFile.fromBytes([1, 2, 3], filename: 'file.bin'),
+        Stream<List<int>>.fromIterable(const [
+          <int>[1, 2, 3],
+        ]),
+      ]) {
+        expect(
+          isRequestReplayable(
+            RequestOptions(
+              path: '/unsafe-body',
+              method: 'POST',
+              data: body,
+              headers: {'Idempotency-Key': 'unsafe-1'},
+              extra: requestReplayExtra(
+                RequestReplayPolicy.declaredIdempotentWrite,
+              ),
+            ),
+          ),
+          isFalse,
+        );
+      }
+    });
+
+    test(
+      'cancelling one caller during shared refresh prevents its replay',
+      () async {
+        final store = SecureTokenStore(
+          backend: FakeSecureTokenStorageBackend(),
+        );
+        await store.saveSession(_session());
+        final refreshCompleter = Completer<ResponseBody>();
+        final refreshStarted = Completer<void>();
+        final adapter = FakeHttpAdapter({
+          'GET /api/v1/cancelled-read': (_, _) => _json({
+            'code': 'AUTH_SESSION_INVALID',
+            'message': 'expired',
+          }, 401),
+          'POST /api/v1/auth/refresh': (_, _) {
+            refreshStarted.complete();
+            return refreshCompleter.future;
+          },
+        });
+        final client = _client(store, adapter);
+        final cancelToken = CancelToken();
+
+        final request = client.dio.get<dynamic>(
+          '/cancelled-read',
+          cancelToken: cancelToken,
+        );
+        await refreshStarted.future;
+        cancelToken.cancel('caller left');
+        refreshCompleter.complete(_json(_loginJson(), 200));
+
+        await expectLater(
+          request,
+          throwsA(
+            isA<DioException>().having(
+              CancelToken.isCancel,
+              'cancelled',
+              isTrue,
+            ),
+          ),
+        );
+        expect(adapter.counts['POST /api/v1/auth/refresh'], 1);
+        expect(adapter.counts['GET /api/v1/cancelled-read'], 1);
+        expect(await store.readSession(), isNotNull);
+      },
+    );
+
+    test(
+      'one cancelled caller does not cancel refresh for another caller',
+      () async {
+        final store = SecureTokenStore(
+          backend: FakeSecureTokenStorageBackend(),
+        );
+        await store.saveSession(_session());
+        final refreshCompleter = Completer<ResponseBody>();
+        final refreshStarted = Completer<void>();
+        final adapter = FakeHttpAdapter({
+          'GET /api/v1/shared-read': (_, count) => count <= 2
+              ? _json({
+                  'code': 'AUTH_SESSION_INVALID',
+                  'message': 'expired',
+                }, 401)
+              : _json({'ok': true}, 200),
+          'POST /api/v1/auth/refresh': (_, _) {
+            refreshStarted.complete();
+            return refreshCompleter.future;
+          },
+        });
+        final client = _client(store, adapter);
+        final cancelledToken = CancelToken();
+
+        final cancelled = client.dio.get<dynamic>(
+          '/shared-read',
+          cancelToken: cancelledToken,
+        );
+        final survivor = client.dio.get<dynamic>('/shared-read');
+        await refreshStarted.future;
+        cancelledToken.cancel('caller left');
+        refreshCompleter.complete(_json(_loginJson(), 200));
+
+        await expectLater(cancelled, throwsA(isA<DioException>()));
+        expect((await survivor).data, {'ok': true});
+        expect(adapter.counts['POST /api/v1/auth/refresh'], 1);
+        expect(adapter.counts['GET /api/v1/shared-read'], 3);
+      },
+    );
+
+    test(
+      'retry transport failure is not rewritten as session invalid',
+      () async {
+        final store = SecureTokenStore(
+          backend: FakeSecureTokenStorageBackend(),
+        );
+        await store.saveSession(_session());
+        final adapter = FakeHttpAdapter({
+          'GET /api/v1/profile': (options, count) {
+            if (count == 1) {
+              return _json({
+                'code': 'AUTH_SESSION_INVALID',
+                'message': 'expired',
+              }, 401);
+            }
+            throw DioException(
+              requestOptions: options,
+              type: DioExceptionType.connectionError,
+              error: StateError('handoff interrupted'),
+            );
+          },
+          'POST /api/v1/auth/refresh': (_, _) =>
+              _json(_loginJson(accessToken: 'rotated-access-token'), 200),
+        });
+
+        await expectLater(
+          AuthApi(_client(store, adapter)).getPatientProfile(),
+          throwsA(
+            isA<ApiException>().having(
+              (error) => error.code,
+              'code',
+              'NETWORK_UNAVAILABLE',
+            ),
+          ),
+        );
+
+        expect(await store.readSession(), isNotNull);
+        expect(
+          (await store.readSession())!.accessToken,
+          'rotated-access-token',
+        );
+      },
+    );
+
+    test('multipart body is never replayed by the auth interceptor', () async {
+      final store = SecureTokenStore(backend: FakeSecureTokenStorageBackend());
+      await store.saveSession(_session());
+      final adapter = FakeHttpAdapter({
+        'POST /api/v1/documents': (_, _) =>
+            _json({'code': 'AUTH_SESSION_INVALID', 'message': 'expired'}, 401),
+        'POST /api/v1/auth/refresh': (_, _) =>
+            _json(_loginJson(accessToken: 'rotated-access-token'), 200),
+      });
+      final client = _client(store, adapter);
+
+      await expectLater(
+        client.dio.post<dynamic>(
+          '/documents',
+          data: FormData.fromMap({
+            'file': MultipartFile.fromBytes([1, 2, 3], filename: 'test.pdf'),
+          }),
+          options: Options(headers: {'Idempotency-Key': 'upload-1'}),
+        ),
+        throwsA(
+          isA<DioException>().having(
+            (error) => error.error,
+            'safe replay marker',
+            isA<AuthReplayRequiredException>(),
+          ),
+        ),
+      );
+
+      expect(adapter.counts['POST /api/v1/documents'], 1);
+      expect(adapter.counts['POST /api/v1/auth/refresh'], 1);
+      expect((await store.readSession())!.accessToken, 'rotated-access-token');
+    });
+
+    test(
+      'non-idempotent JSON write requires an explicit caller retry',
+      () async {
+        final store = SecureTokenStore(
+          backend: FakeSecureTokenStorageBackend(),
+        );
+        await store.saveSession(_session());
+        final adapter = FakeHttpAdapter({
+          'POST /api/v1/auth/password/change': (_, _) => _json({
+            'code': 'AUTH_SESSION_INVALID',
+            'message': 'expired',
+          }, 401),
+          'POST /api/v1/auth/refresh': (_, _) =>
+              _json(_loginJson(accessToken: 'rotated-access-token'), 200),
+        });
+        final client = _client(store, adapter);
+
+        await expectLater(
+          AuthApi(client).changePassword(
+            const ChangePasswordRequestDto(
+              currentPassword: 'OldPassword123!',
+              newPassword: 'NewPassword123!',
+            ),
+          ),
+          throwsA(
+            isA<ApiException>().having(
+              (error) => error.code,
+              'code',
+              'AUTH_REPLAY_REQUIRED',
+            ),
+          ),
+        );
+
+        expect(adapter.counts['POST /api/v1/auth/password/change'], 1);
+        expect(adapter.counts['POST /api/v1/auth/refresh'], 1);
+        expect(
+          (await store.readSession())!.accessToken,
+          'rotated-access-token',
+        );
+      },
+    );
 
     test(
       'refresh failure clears session and calls invalidation callback',
@@ -1323,7 +1949,7 @@ void main() {
     );
 
     test(
-      'logout 401 refreshes once, retries logout, and clears session',
+      'logout 401 refreshes but does not replay a non-idempotent body',
       () async {
         final store = SecureTokenStore(
           backend: FakeSecureTokenStorageBackend(),
@@ -1352,7 +1978,7 @@ void main() {
         await repository.logout();
 
         expect(adapter.counts['POST /api/v1/auth/refresh'], 1);
-        expect(adapter.counts['POST /api/v1/auth/logout'], 2);
+        expect(adapter.counts['POST /api/v1/auth/logout'], 1);
         expect(await store.readSession(), isNull);
       },
     );
@@ -1511,6 +2137,49 @@ void main() {
         expect(adapter.counts['POST /api/v1/auth/refresh'], 1);
         expect(await store.readSession(), isNull);
         expect(invalidations, 1);
+      },
+    );
+
+    test(
+      'generic repeated 401 after retry preserves the rotated session',
+      () async {
+        final store = SecureTokenStore(
+          backend: FakeSecureTokenStorageBackend(),
+        );
+        await store.saveSession(_session());
+        var invalidations = 0;
+        final adapter = FakeHttpAdapter({
+          'GET /api/v1/profile': (_, count) => count == 1
+              ? _json({
+                  'code': 'AUTH_SESSION_INVALID',
+                  'message': 'expired access token',
+                }, 401)
+              : _json({
+                  'code': 'UNKNOWN_AUTH_FAILURE',
+                  'message': 'not terminal credential evidence',
+                }, 401),
+          'POST /api/v1/auth/refresh': (_, _) =>
+              _json(_loginJson(accessToken: 'rotated-access-token'), 200),
+        });
+
+        await expectLater(
+          AuthApi(
+            _client(
+              store,
+              adapter,
+              onSessionInvalidated: () async => invalidations += 1,
+            ),
+          ).getPatientProfile(),
+          throwsA(isA<ApiException>()),
+        );
+
+        expect(adapter.counts['GET /api/v1/profile'], 2);
+        expect(adapter.counts['POST /api/v1/auth/refresh'], 1);
+        expect(
+          (await store.readSession())!.accessToken,
+          'rotated-access-token',
+        );
+        expect(invalidations, 0);
       },
     );
   });
@@ -1679,6 +2348,86 @@ void main() {
       expect(adapter.counts['GET /api/v1/auth/me'], 1);
       expect((await store.readSession())!.sessionId, 'session-after-me');
     });
+
+    test(
+      'startup refresh outage is recoverable and preserves session',
+      () async {
+        final store = SecureTokenStore(
+          backend: FakeSecureTokenStorageBackend(),
+        );
+        await store.saveSession(
+          _session(
+            accessExpiresAt: DateTime.now().toUtc().subtract(
+              const Duration(minutes: 1),
+            ),
+          ),
+        );
+        final adapter = FakeHttpAdapter({
+          'POST /api/v1/auth/refresh': (_, _) =>
+              _json({'code': 'SERVICE_UNAVAILABLE', 'message': 'retry'}, 503),
+        });
+        final client = _client(store, adapter);
+        final repository = AuthRepository(
+          api: AuthApi(client),
+          tokenStore: store,
+          deviceIdentityService: DeviceIdentityService(tokenStore: store),
+          refreshCoordinator: client.refreshCoordinator,
+        );
+
+        await expectLater(
+          repository.restoreSession(),
+          throwsA(
+            isA<ApiException>().having(
+              (error) => error.code,
+              'code',
+              'AUTH_REFRESH_TEMPORARILY_UNAVAILABLE',
+            ),
+          ),
+        );
+
+        expect(await store.readSession(), isNotNull);
+        expect(adapter.counts['GET /api/v1/auth/me'], isNull);
+      },
+    );
+
+    test(
+      'auth me 401 plus refresh outage does not clear a valid stored session',
+      () async {
+        final store = SecureTokenStore(
+          backend: FakeSecureTokenStorageBackend(),
+        );
+        await store.saveSession(_session());
+        final adapter = FakeHttpAdapter({
+          'GET /api/v1/auth/me': (_, _) => _json({
+            'code': 'AUTH_SESSION_INVALID',
+            'message': 'access token expired',
+          }, 401),
+          'POST /api/v1/auth/refresh': (_, _) =>
+              _json({'code': 'SERVICE_UNAVAILABLE', 'message': 'retry'}, 503),
+        });
+        final client = _client(store, adapter);
+        final repository = AuthRepository(
+          api: AuthApi(client),
+          tokenStore: store,
+          deviceIdentityService: DeviceIdentityService(tokenStore: store),
+          refreshCoordinator: client.refreshCoordinator,
+        );
+
+        await expectLater(
+          repository.restoreSession(),
+          throwsA(
+            isA<ApiException>().having(
+              (error) => error.code,
+              'code',
+              'AUTH_REFRESH_TEMPORARILY_UNAVAILABLE',
+            ),
+          ),
+        );
+
+        expect(await store.readSession(), isNotNull);
+        expect(adapter.counts['POST /api/v1/auth/refresh'], 1);
+      },
+    );
 
     test(
       'valid access still validates with auth me and can refresh on 401',
@@ -2818,6 +3567,47 @@ void main() {
   });
 
   group('startup routing', () {
+    testWidgets('transient restore failure stays recoverable on splash', (
+      tester,
+    ) async {
+      final repo = FakeAuthRepository()
+        ..error = const ApiException(
+          'Network unavailable.',
+          code: 'AUTH_REFRESH_TEMPORARILY_UNAVAILABLE',
+        );
+      final controller = AuthController(repository: repo);
+      await controller.initialize();
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<AuthController>.value(value: controller),
+            ChangeNotifierProvider(create: (_) => UserProvider()),
+          ],
+          child: MaterialApp(
+            home: const SplashScreen(),
+            routes: {
+              '/login': (_) => const Text('login route'),
+              '/home': (_) => const Text('home route'),
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('splash-retry-session')), findsOneWidget);
+      expect(find.text('login route'), findsNothing);
+
+      repo
+        ..error = null
+        ..restoreResult = _authenticated(onboardingCompleted: true);
+      await tester.tap(find.byKey(const Key('splash-retry-session')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('home route'), findsOneWidget);
+      expect(repo.restoreCalls, 2);
+    });
+
     testWidgets('unauthenticated splash routes to the unified login', (
       tester,
     ) async {

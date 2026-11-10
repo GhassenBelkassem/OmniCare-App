@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../../core/network/app_http_client.dart';
+import '../../../core/network/request_replay_policy.dart';
 import '../../../core/utils/uuid_v4.dart';
 import 'urgent_cabinet_care_subject.dart';
 import 'urgent_cabinet_targeted_request_models.dart';
@@ -514,6 +515,9 @@ class AppUrgentCabinetTargetedRequestRepository
       'Cache-Control': 'no-store',
       'Idempotency-Key': ?idempotencyKey,
     },
+    extra: idempotencyKey == null
+        ? null
+        : requestReplayExtra(RequestReplayPolicy.declaredIdempotentWrite),
   );
 }
 

@@ -5,6 +5,34 @@ import '../storage/secure_token_store.dart';
 typedef SessionInvalidatedCallback = Future<void> Function();
 typedef SessionRefreshedCallback = Future<void> Function(StoredSession session);
 
+enum AuthRefreshStatus {
+  refreshed,
+  noSession,
+  credentialsRejected,
+  temporarilyUnavailable,
+  malformedResponse,
+  sessionEnded,
+}
+
+class AuthRefreshResult {
+  const AuthRefreshResult._(this.status, {this.session, this.cause});
+
+  const AuthRefreshResult.refreshed(StoredSession session)
+    : this._(AuthRefreshStatus.refreshed, session: session);
+
+  const AuthRefreshResult.failure(AuthRefreshStatus status, {Object? cause})
+    : this._(status, cause: cause);
+
+  final AuthRefreshStatus status;
+  final StoredSession? session;
+  final Object? cause;
+
+  bool get succeeded => status == AuthRefreshStatus.refreshed;
+  bool get sessionInvalidated =>
+      status == AuthRefreshStatus.noSession ||
+      status == AuthRefreshStatus.credentialsRejected;
+}
+
 class AuthRefreshCoordinator {
   AuthRefreshCoordinator({
     required Dio refreshDio,
@@ -19,14 +47,18 @@ class AuthRefreshCoordinator {
   final SessionInvalidatedCallback? _onSessionInvalidated;
   SessionRefreshedCallback? onSessionRefreshed;
 
-  Future<StoredSession?>? _refreshInFlight;
+  Future<AuthRefreshResult>? _refreshInFlight;
   Future<void>? _invalidationInFlight;
   Future<void>? _sessionEndInFlight;
   bool _sessionEndStarted = false;
   int _sessionGeneration = 0;
 
-  Future<StoredSession?> refreshSession() {
-    if (_sessionEndStarted) return Future<StoredSession?>.value();
+  Future<AuthRefreshResult> refreshSession() {
+    if (_sessionEndStarted) {
+      return Future<AuthRefreshResult>.value(
+        const AuthRefreshResult.failure(AuthRefreshStatus.sessionEnded),
+      );
+    }
     final current = _refreshInFlight;
     if (current != null) return current;
 
@@ -67,25 +99,26 @@ class AuthRefreshCoordinator {
     });
   }
 
-  Future<StoredSession?> _performRefresh(int generation) async {
-    final existing = await _tokenStore.readSession();
-    if (existing == null ||
-        !existing.refreshTokenExpiresAt.toUtc().isAfter(
-          DateTime.now().toUtc(),
-        )) {
-      await invalidateSession();
-      return null;
-    }
-
+  Future<AuthRefreshResult> _performRefresh(int generation) async {
     try {
+      final existing = await _tokenStore.readSession();
+      if (existing == null ||
+          !existing.refreshTokenExpiresAt.toUtc().isAfter(
+            DateTime.now().toUtc(),
+          )) {
+        await invalidateSession();
+        return const AuthRefreshResult.failure(AuthRefreshStatus.noSession);
+      }
+
       final response = await _refreshDio.post<dynamic>(
         '/auth/refresh',
         data: {'refreshToken': existing.refreshToken},
       );
       final data = response.data;
       if (data is! Map) {
-        await invalidateSession();
-        return null;
+        return const AuthRefreshResult.failure(
+          AuthRefreshStatus.malformedResponse,
+        );
       }
 
       final json = data.cast<String, dynamic>();
@@ -99,8 +132,9 @@ class AuthRefreshCoordinator {
       final userId = _requiredString(user ?? const {}, 'id');
       final userRole = _requiredString(user ?? const {}, 'role');
       if (expiresAt == null || refreshExpiresAt == null) {
-        await invalidateSession();
-        return null;
+        return const AuthRefreshResult.failure(
+          AuthRefreshStatus.malformedResponse,
+        );
       }
 
       final refreshed = StoredSession(
@@ -112,19 +146,42 @@ class AuthRefreshCoordinator {
         userRole: userRole,
         sessionId: existing.sessionId,
       );
-      if (_sessionEndStarted || generation != _sessionGeneration) return null;
+      if (_sessionEndStarted || generation != _sessionGeneration) {
+        return const AuthRefreshResult.failure(AuthRefreshStatus.sessionEnded);
+      }
       await _tokenStore.saveSession(refreshed);
-      if (_sessionEndStarted || generation != _sessionGeneration) return null;
+      if (_sessionEndStarted || generation != _sessionGeneration) {
+        return const AuthRefreshResult.failure(AuthRefreshStatus.sessionEnded);
+      }
       await onSessionRefreshed?.call(refreshed);
-      return refreshed;
-    } catch (_) {
-      await invalidateSession();
-      return null;
+      return AuthRefreshResult.refreshed(refreshed);
+    } on FormatException catch (error) {
+      return AuthRefreshResult.failure(
+        AuthRefreshStatus.malformedResponse,
+        cause: error,
+      );
+    } on DioException catch (error) {
+      if (_isAuthoritativeCredentialRejection(error)) {
+        await invalidateSession();
+        return AuthRefreshResult.failure(
+          AuthRefreshStatus.credentialsRejected,
+          cause: error,
+        );
+      }
+      return AuthRefreshResult.failure(
+        AuthRefreshStatus.temporarilyUnavailable,
+        cause: error,
+      );
+    } catch (error) {
+      return AuthRefreshResult.failure(
+        AuthRefreshStatus.temporarilyUnavailable,
+        cause: error,
+      );
     }
   }
 
   Future<void> _drainRefreshAndClear(
-    Future<StoredSession?>? refreshToDrain,
+    Future<AuthRefreshResult>? refreshToDrain,
   ) async {
     if (refreshToDrain != null) {
       try {
@@ -141,6 +198,16 @@ class AuthRefreshCoordinator {
     await _tokenStore.clearSession();
     await _onSessionInvalidated?.call();
   }
+}
+
+bool _isAuthoritativeCredentialRejection(DioException error) {
+  final data = error.response?.data;
+  if (data is! Map) return false;
+
+  final code = (data['code'] ?? data['errorCode'])?.toString();
+  return code == 'AUTH_REFRESH_TOKEN_INVALID' ||
+      code == 'AUTH_SESSION_INVALID' ||
+      code == 'AUTH_SESSION_EXPIRED';
 }
 
 String _requiredString(Map<String, dynamic> json, String key) {

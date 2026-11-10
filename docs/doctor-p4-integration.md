@@ -392,7 +392,7 @@ without disclosing them. The iOS 14 target, CocoaPods dependencies, bundle ident
 foreground-location configuration are unchanged.
 
 Web Maps JavaScript is loaded once, on demand, from the compile-time
-`GOOGLE_MAPS_API_KEY` Dart define. Copy `config/maps.web.local.example.json` to the ignored
+`GOOGLE_MAPS_WEB_API_KEY` Dart define. Copy `config/maps.web.local.example.json` to the ignored
 `config/maps.web.local.json`, then launch the isolated harness with:
 
 ```sh

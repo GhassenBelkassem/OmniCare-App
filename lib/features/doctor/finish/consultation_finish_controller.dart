@@ -18,7 +18,9 @@ class ConsultationFinishController extends ChangeNotifier {
   final ConsultationFinishApiContract _api;
   final ClinicalRecordController _clinical;
   ConsultationOperationalState? consultation;
+  ConsultationFinishReadiness? readiness;
   bool loading = false;
+  bool reviewing = false;
   bool submitting = false;
   String? failureCode;
   String? _key;
@@ -74,6 +76,35 @@ class ConsultationFinishController extends ChangeNotifier {
     } finally {
       if (!_disposed) {
         submitting = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<void> review() async {
+    final current = consultation;
+    final clinical = _clinical.authoritative;
+    if (current == null || clinical == null || reviewing || _disposed) return;
+    if (_clinical.dirty) {
+      failureCode = 'UNSAVED_CLINICAL_CHANGES';
+      readiness = null;
+      notifyListeners();
+      return;
+    }
+    reviewing = true;
+    failureCode = null;
+    notifyListeners();
+    try {
+      readiness = await _api.readiness(
+        consultationId: consultationId,
+        expectedClinicalRecordVersion: clinical.clinicalRecordVersion,
+      );
+    } catch (e) {
+      readiness = null;
+      failureCode = _code(e);
+    } finally {
+      if (!_disposed) {
+        reviewing = false;
         notifyListeners();
       }
     }

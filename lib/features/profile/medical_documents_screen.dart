@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -9,12 +11,15 @@ import 'package:intl/intl.dart';
 import '../../core/api/account_api.dart';
 import '../../core/api/documents_api.dart';
 import '../../core/network/api_exception.dart';
+import 'medical_document_upload_controller.dart';
 
 class MedicalDocumentsScreen extends StatefulWidget {
   const MedicalDocumentsScreen({
     super.key,
     this.documentsApi,
+    this.uploadController,
     this.accountApi,
+    this.initialAccountId,
     this.initialPatientId,
     this.pickDocumentFile,
     this.pollDelay = const Duration(seconds: 2),
@@ -31,7 +36,9 @@ class MedicalDocumentsScreen extends StatefulWidget {
        assert(retryJitterRatio >= 0 && retryJitterRatio <= 0.50);
 
   final DocumentsApi? documentsApi;
+  final MedicalDocumentUploadController? uploadController;
   final AccountApi? accountApi;
+  final String? initialAccountId;
   final String? initialPatientId;
   final Future<PlatformFile?> Function()? pickDocumentFile;
 
@@ -60,7 +67,9 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen>
   bool _appIsActive = true;
   bool _fallbackPollingActive = false;
 
-  late final DocumentsApi _documentsApi = widget.documentsApi ?? DocumentsApi();
+  late final MedicalDocumentUploadController _uploadController;
+  late final bool _ownsUploadController;
+  late final DocumentsApi _documentsApi;
 
   late final AccountApi _accountApi = widget.accountApi ?? AccountApi();
 
@@ -88,6 +97,8 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen>
   late Duration _sseReconnectDelay;
 
   DocumentUploadOperation? _pendingUpload;
+  CancelToken? _uploadCancelToken;
+  String? _recoveryOwnerKey;
 
   final Map<String, DocumentDeleteOperation> _pendingDeletes = {};
 
@@ -96,6 +107,16 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen>
     super.initState();
 
     WidgetsBinding.instance.addObserver(this);
+
+    _ownsUploadController = widget.uploadController == null;
+    _uploadController =
+        widget.uploadController ??
+        MedicalDocumentUploadController(
+          api: widget.documentsApi ?? DocumentsApi(),
+          receiptStore: SecureMedicalDocumentUploadReceiptStore(),
+        );
+    _documentsApi = _uploadController.api;
+    _uploadController.addListener(_handleUploadControllerChanged);
 
     _nextPollDelay = widget.pollDelay;
     _sseReconnectDelay = widget.defaultSseReconnectDelay;
@@ -106,6 +127,29 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen>
       _patientId = suppliedPatientId;
     }
 
+    unawaited(_loadDocuments());
+  }
+
+  @override
+  void didUpdateWidget(covariant MedicalDocumentsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final previousOwner = oldWidget.initialPatientId?.trim();
+    final nextOwner = widget.initialPatientId?.trim();
+    final previousAccount = oldWidget.initialAccountId?.trim();
+    final nextAccount = widget.initialAccountId?.trim();
+    if (previousOwner == nextOwner && previousAccount == nextAccount) return;
+
+    _uploadCancelToken?.cancel('medical document owner changed');
+    if (previousAccount != null && previousAccount.isNotEmpty) {
+      unawaited(_uploadController.endAccount(previousAccount));
+    }
+    _pendingUpload = null;
+    _recoveryOwnerKey = null;
+    _pendingDeletes.clear();
+    _isLoading = false;
+    _cancelNetworkTransports(invalidateCallbacks: true);
+    _patientId = nextOwner == null || nextOwner.isEmpty ? null : nextOwner;
+    _documents = const [];
     unawaited(_loadDocuments());
   }
 
@@ -142,6 +186,13 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen>
     _cancelNetworkTransports(invalidateCallbacks: true);
 
     _deadlineTimer?.cancel();
+
+    _uploadCancelToken?.cancel('medical documents screen disposed');
+
+    _uploadController.removeListener(_handleUploadControllerChanged);
+    if (_ownsUploadController) {
+      _uploadController.dispose();
+    }
 
     super.dispose();
   }
@@ -188,7 +239,7 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen>
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
-      withData: true,
+      withData: kIsWeb,
     );
 
     return result?.files.single;
@@ -236,6 +287,20 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen>
         _documents = page.documents;
       });
 
+      final accountId = widget.initialAccountId?.trim();
+      final ownerKey = accountId == null || accountId.isEmpty
+          ? null
+          : '$accountId\u001f$patientId';
+      if (ownerKey != null && ownerKey != _recoveryOwnerKey) {
+        _recoveryOwnerKey = ownerKey;
+        unawaited(
+          _uploadController.recoverForOwner(
+            accountId: accountId!,
+            patientId: patientId,
+          ),
+        );
+      }
+
       // Do not automatically monitor old pending
       // documents whenever the page opens.
       final watchedDocumentId = _watchedDocumentId;
@@ -264,39 +329,88 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen>
     required String documentName,
     required String documentType,
     required PlatformFile file,
+    CancelToken? cancelToken,
+    ProgressCallback? onSendProgress,
   }) async {
     if (_isLoading) {
       throw const ApiException('A document operation is already in progress.');
     }
 
     final patientId = _patientId;
+    final accountId = widget.initialAccountId?.trim();
 
-    if (patientId == null) {
+    if (patientId == null || accountId == null || accountId.isEmpty) {
       throw const ApiException('Your patient profile is not ready yet.');
     }
 
-    final bytes = file.bytes;
+    if (file.size <= 0) {
+      throw const ApiException(
+        'The selected file is empty.',
+        code: 'EMPTY_FILE',
+      );
+    }
+    if (file.size > DocumentsApi.maximumUploadBytes) {
+      throw const ApiException(
+        'The file is larger than the 20 MB limit.',
+        code: 'FILE_TOO_LARGE',
+      );
+    }
 
-    if (bytes == null) {
+    final path = file.path?.trim();
+    final filePath = path == null || path.isEmpty ? null : path;
+    final bytes = file.bytes;
+    if (filePath == null && bytes == null) {
       throw const ApiException('The selected file could not be read.');
     }
+
+    final backendDocumentType = _toBackendDocumentType(documentType);
+    final mimeType = _mimeFor(file.name);
+    final existingOperation = _pendingUpload;
+    if (existingOperation == null ||
+        !existingOperation.matches(
+          patientId: patientId,
+          fileSizeBytes: file.size,
+          filePath: filePath,
+          bytes: bytes,
+          filename: file.name,
+          mimeType: mimeType,
+          displayName: documentName,
+          documentType: backendDocumentType,
+        )) {
+      _pendingUpload = _documentsApi.startUpload(
+        patientId: patientId,
+        fileSizeBytes: file.size,
+        filePath: filePath,
+        bytes: filePath == null ? bytes : null,
+        filename: file.name,
+        mimeType: mimeType,
+        displayName: documentName,
+        documentType: backendDocumentType,
+        documentDate: DateTime.now(),
+      );
+    }
+
+    final activeCancelToken = cancelToken ?? CancelToken();
+    _uploadCancelToken = activeCancelToken;
 
     setState(() {
       _isLoading = true;
     });
 
     try {
-      _pendingUpload ??= _documentsApi.startUpload(
-        patientId: patientId,
-        bytes: bytes,
-        filename: file.name,
-        mimeType: _mimeFor(file.name),
-        displayName: documentName,
-        documentType: _toBackendDocumentType(documentType),
-        documentDate: DateTime.now(),
+      final uploaded = await _uploadController.upload(
+        accountId: accountId,
+        operation: _pendingUpload!,
+        cancelToken: activeCancelToken,
+        onSendProgress: onSendProgress,
       );
 
-      final uploaded = await _documentsApi.upload(_pendingUpload!);
+      if (_patientId != patientId) {
+        throw const ApiException(
+          'The account changed while the upload was running. Refresh the document list before retrying.',
+          code: 'UPLOAD_OWNER_CHANGED',
+        );
+      }
 
       _pendingUpload = null;
 
@@ -326,9 +440,16 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen>
 
       return uploaded;
     } catch (error) {
+      if (_uploadController.phase ==
+          MedicalDocumentUploadPhase.terminalFailure) {
+        _pendingUpload = null;
+      }
       _showError(error);
       rethrow;
     } finally {
+      if (identical(_uploadCancelToken, activeCancelToken)) {
+        _uploadCancelToken = null;
+      }
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -730,6 +851,7 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen>
     }
 
     _stopAutomaticWatch(generation);
+    unawaited(_uploadController.acceptAuthoritativeStatus(document));
 
     if (!mounted) {
       return;
@@ -936,12 +1058,34 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen>
     );
   }
 
+  void _handleUploadControllerChanged() {
+    if (!mounted) return;
+    final reconciled = _uploadController.reconciledDocuments;
+    final document = _uploadController.lastDocument;
+    final terminal =
+        _uploadController.phase == MedicalDocumentUploadPhase.terminalFailure;
+    setState(() {
+      if (reconciled != null) {
+        _documents = reconciled;
+      }
+      if (document != null) {
+        _documents = [
+          document,
+          ..._documents.where((item) => item.id != document.id),
+        ];
+      }
+      if (terminal) _pendingUpload = null;
+    });
+    if (document != null &&
+        !document.isTerminal &&
+        _uploadController.phase == MedicalDocumentUploadPhase.processing &&
+        _watchedDocumentId != document.id) {
+      _startAutomaticWatch(document);
+    }
+  }
+
   Future<void> _showAddDocumentDialog() async {
     _pendingUpload = null;
-
-    final nameController = TextEditingController();
-
-    nameController.addListener(() => _pendingUpload = null);
 
     final allowedTypes = [
       'Prescription',
@@ -951,31 +1095,37 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen>
       'Other',
     ];
 
+    var documentName = '';
     var documentType = 'Prescription';
     PlatformFile? selectedFile;
+    var submitting = false;
+    double? uploadProgress;
+    CancelToken? dialogCancelToken;
 
-    try {
-      await showDialog<void>(
-        context: context,
-        builder: (dialogContext) {
-          return StatefulBuilder(
-            builder: (dialogContext, setDialogState) {
-              final documentTypeItems = allowedTypes
-                  .map(
-                    (type) => DropdownMenuItem<String>(
-                      value: type,
-                      child: Text(
-                        type,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 16,
-                          color: const Color(0xFF1D2939),
-                        ),
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            final documentTypeItems = allowedTypes
+                .map(
+                  (type) => DropdownMenuItem<String>(
+                    value: type,
+                    child: Text(
+                      type,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 16,
+                        color: const Color(0xFF1D2939),
                       ),
                     ),
-                  )
-                  .toList(growable: false);
+                  ),
+                )
+                .toList(growable: false);
 
-              return AlertDialog(
+            return PopScope(
+              canPop: !submitting,
+              child: AlertDialog(
                 backgroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
@@ -1003,7 +1153,11 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen>
                       ),
                       const SizedBox(height: 8),
                       TextField(
-                        controller: nameController,
+                        enabled: !submitting,
+                        onChanged: (value) {
+                          documentName = value;
+                          _pendingUpload = null;
+                        },
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 16,
                           color: const Color(0xFF1D2939),
@@ -1049,12 +1203,14 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen>
                       const SizedBox(height: 8),
                       DropdownButtonFormField<String>(
                         initialValue: documentType,
-                        onChanged: (value) {
-                          setDialogState(() {
-                            documentType = value ?? 'Other';
-                            _pendingUpload = null;
-                          });
-                        },
+                        onChanged: submitting
+                            ? null
+                            : (value) {
+                                setDialogState(() {
+                                  documentType = value ?? 'Other';
+                                  _pendingUpload = null;
+                                });
+                              },
                         items: documentTypeItems,
                         decoration: InputDecoration(
                           filled: true,
@@ -1093,32 +1249,37 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen>
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton.icon(
-                          onPressed: () async {
-                            final file = await _pickDocumentFile();
+                          onPressed: submitting
+                              ? null
+                              : () async {
+                                  final file = await _pickDocumentFile();
 
-                            if (!dialogContext.mounted || file == null) {
-                              return;
-                            }
+                                  if (!dialogContext.mounted || file == null) {
+                                    return;
+                                  }
 
-                            if (file.size > 20 * 1024 * 1024) {
-                              ScaffoldMessenger.of(dialogContext).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'The file is larger '
-                                    'than the 20 MB limit.',
-                                  ),
-                                  backgroundColor: Color(0xFFDC2626),
-                                ),
-                              );
+                                  if (file.size >
+                                      DocumentsApi.maximumUploadBytes) {
+                                    ScaffoldMessenger.of(
+                                      dialogContext,
+                                    ).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'The file is larger '
+                                          'than the 20 MB limit.',
+                                        ),
+                                        backgroundColor: Color(0xFFDC2626),
+                                      ),
+                                    );
 
-                              return;
-                            }
+                                    return;
+                                  }
 
-                            setDialogState(() {
-                              selectedFile = file;
-                              _pendingUpload = null;
-                            });
-                          },
+                                  setDialogState(() {
+                                    selectedFile = file;
+                                    _pendingUpload = null;
+                                  });
+                                },
                           icon: const Icon(
                             Icons.attach_file,
                             color: Color(0xFF1FBF9A),
@@ -1141,14 +1302,34 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen>
                           ),
                         ),
                       ),
+                      if (submitting) ...[
+                        const SizedBox(height: 16),
+                        LinearProgressIndicator(
+                          value: uploadProgress,
+                          color: const Color(0xFF1FBF9A),
+                          backgroundColor: const Color(0xFFE5E7EB),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          uploadProgress == null
+                              ? 'Preparing upload…'
+                              : 'Uploading ${(uploadProgress! * 100).round()}%',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13,
+                            color: const Color(0xFF667085),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
                 actions: [
                   TextButton(
-                    onPressed: () => Navigator.pop(dialogContext),
+                    onPressed: submitting
+                        ? () => dialogCancelToken?.cancel('cancelled by user')
+                        : () => Navigator.pop(dialogContext),
                     child: Text(
-                      'Cancel',
+                      submitting ? 'Cancel upload' : 'Cancel',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -1157,49 +1338,77 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen>
                     ),
                   ),
                   ElevatedButton(
-                    onPressed: () async {
-                      if (nameController.text.trim().isEmpty) {
-                        ScaffoldMessenger.of(dialogContext).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Please enter a '
-                              'document name',
-                            ),
-                            backgroundColor: Color(0xFFDC2626),
-                          ),
-                        );
+                    onPressed: submitting
+                        ? null
+                        : () async {
+                            if (documentName.trim().isEmpty) {
+                              ScaffoldMessenger.of(dialogContext).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Please enter a '
+                                    'document name',
+                                  ),
+                                  backgroundColor: Color(0xFFDC2626),
+                                ),
+                              );
 
-                        return;
-                      }
+                              return;
+                            }
 
-                      final file = selectedFile;
+                            final file = selectedFile;
 
-                      if (file == null) {
-                        ScaffoldMessenger.of(dialogContext).showSnackBar(
-                          const SnackBar(
-                            content: Text('Please select a file'),
-                            backgroundColor: Color(0xFFDC2626),
-                          ),
-                        );
+                            if (file == null) {
+                              ScaffoldMessenger.of(dialogContext).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Please select a file'),
+                                  backgroundColor: Color(0xFFDC2626),
+                                ),
+                              );
 
-                        return;
-                      }
+                              return;
+                            }
 
-                      try {
-                        await _uploadDocument(
-                          documentName: nameController.text.trim(),
-                          documentType: documentType,
-                          file: file,
-                        );
+                            final cancelToken = CancelToken();
+                            dialogCancelToken = cancelToken;
+                            setDialogState(() {
+                              submitting = true;
+                              uploadProgress = null;
+                            });
 
-                        if (dialogContext.mounted) {
-                          Navigator.pop(dialogContext);
-                        }
-                      } catch (_) {
-                        // A safe error has already
-                        // been displayed.
-                      }
-                    },
+                            try {
+                              await _uploadDocument(
+                                documentName: documentName.trim(),
+                                documentType: documentType,
+                                file: file,
+                                cancelToken: cancelToken,
+                                onSendProgress: (sent, total) {
+                                  if (!dialogContext.mounted || total <= 0) {
+                                    return;
+                                  }
+                                  setDialogState(() {
+                                    uploadProgress = (sent / total)
+                                        .clamp(0, 1)
+                                        .toDouble();
+                                  });
+                                },
+                              );
+
+                              if (dialogContext.mounted) {
+                                Navigator.pop(dialogContext);
+                              }
+                            } catch (_) {
+                              // A safe error has already
+                              // been displayed.
+                            } finally {
+                              if (dialogContext.mounted) {
+                                setDialogState(() {
+                                  submitting = false;
+                                  uploadProgress = null;
+                                  dialogCancelToken = null;
+                                });
+                              }
+                            }
+                          },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1FBF9A),
                       foregroundColor: Colors.white,
@@ -1217,14 +1426,12 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen>
                     ),
                   ),
                 ],
-              );
-            },
-          );
-        },
-      );
-    } finally {
-      nameController.dispose();
-    }
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override

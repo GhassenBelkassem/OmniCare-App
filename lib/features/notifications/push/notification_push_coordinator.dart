@@ -135,11 +135,12 @@ class NotificationPushCoordinator {
   }
 
   void _onOpenedMessage(RemoteMessage message) {
-    if (_ownerKey == null ||
-        message.data['destination'] != 'URGENT_CABINET_REQUEST') {
-      return;
-    }
-    _alerts.openPayload(Map<String, dynamic>.from(message.data));
+    // Cold/background opens may arrive before session restoration. Retain only
+    // a validated opaque identity; the authenticated resolver claims it later.
+    _alerts.openPayload(
+      Map<String, dynamic>.from(message.data),
+      accountScope: _ownerKey?.split('::').first,
+    );
   }
 
   Future<void> dispose() async {

@@ -4,6 +4,7 @@ import '../config/app_environment.dart';
 import '../storage/secure_token_store.dart';
 import 'auth_interceptor.dart';
 import 'auth_refresh_coordinator.dart';
+import 'network_timeout_policy.dart';
 
 class AppHttpClient {
   AppHttpClient({
@@ -12,10 +13,16 @@ class AppHttpClient {
     Dio? dio,
     Dio? refreshDio,
     SessionInvalidatedCallback? onSessionInvalidated,
-  }) : _dio = dio ?? Dio(_baseOptions(baseUrl)),
-       _refreshDio = refreshDio ?? Dio(_baseOptions(baseUrl)) {
-    _dio.options = _baseOptions(baseUrl);
-    _refreshDio.options = _baseOptions(baseUrl);
+  }) : _dio =
+           dio ?? Dio(_baseOptions(baseUrl, NetworkTimeoutPolicy.standardJson)),
+       _refreshDio =
+           refreshDio ??
+           Dio(_baseOptions(baseUrl, NetworkTimeoutPolicy.authRefresh)) {
+    _dio.options = _baseOptions(baseUrl, NetworkTimeoutPolicy.standardJson);
+    _refreshDio.options = _baseOptions(
+      baseUrl,
+      NetworkTimeoutPolicy.authRefresh,
+    );
     _refreshCoordinator = AuthRefreshCoordinator(
       refreshDio: _refreshDio,
       tokenStore: tokenStore,
@@ -44,11 +51,12 @@ class AppHttpClient {
 
   AuthRefreshCoordinator get refreshCoordinator => _refreshCoordinator;
 
-  static BaseOptions _baseOptions(String? baseUrl) {
+  static BaseOptions _baseOptions(String? baseUrl, NetworkTimeouts timeouts) {
     return BaseOptions(
       baseUrl: _apiV1BaseUrl(baseUrl),
-      connectTimeout: const Duration(seconds: 30),
-      receiveTimeout: const Duration(seconds: 30),
+      connectTimeout: timeouts.connect,
+      sendTimeout: timeouts.send,
+      receiveTimeout: timeouts.receive,
       headers: const {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
