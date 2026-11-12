@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
-import '../../core/network/api_exception.dart';
 import '../../core/theme/omni_theme.dart';
 import 'data/professional_access_request_api.dart';
+import '../../core/network/api_failure.dart';
+import '../../core/network/api_failure_message.dart';
+import '../../l10n/omni_localizations.dart';
 
 class ProfessionalAccessRequestScreen extends StatefulWidget {
   const ProfessionalAccessRequestScreen({super.key, required this.api});
@@ -67,8 +69,15 @@ class _ProfessionalAccessRequestScreenState
         'organization': _optional(_organization),
       });
       if (mounted) setState(() => _submitted = true);
-    } on ApiException catch (error) {
-      if (mounted) setState(() => _error = error.message);
+    } catch (error) {
+      if (!mounted) return;
+      setState(
+        () => _error = apiFailureMessage(
+          ApiFailure.from(error),
+          OmniLocalizations.of(context),
+          fallback: OmniLocalizations.of(context).professionalAccessSendFailed,
+        ),
+      );
     } finally {
       if (mounted) setState(() => _submitting = false);
     }

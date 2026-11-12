@@ -49,6 +49,7 @@ class _ClinicTaskDetailScreenState extends State<ClinicTaskDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_taskId == null) return const _InvalidTaskRouteScreen();
     final clinic = context.watch<ClinicContextController>();
     final bootstrap = clinic.bootstrap;
     if (bootstrap == null ||
@@ -342,6 +343,22 @@ class _ClinicTaskDetailScreenState extends State<ClinicTaskDetailScreen> {
       ),
     );
   }
+}
+
+class _InvalidTaskRouteScreen extends StatelessWidget {
+  const _InvalidTaskRouteScreen();
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: ClinicPalette.background,
+    appBar: AppBar(title: const Text('Task detail')),
+    body: const Center(
+      child: Padding(
+        padding: EdgeInsets.all(24),
+        child: Text('This task is not available.', textAlign: TextAlign.center),
+      ),
+    ),
+  );
 }
 
 class _TaskCapabilityUnavailableScreen extends StatelessWidget {

@@ -5,7 +5,9 @@ import 'package:provider/provider.dart';
 
 import '../../../core/theme/omni_theme.dart';
 import '../../auth/application/auth_role_family.dart';
+import '../../auth/application/auth_controller.dart';
 import '../../notifications/application/notification_center_controller.dart';
+import '../../notifications/application/notification_navigation_resolver.dart';
 import '../../notifications/notifications_screen.dart';
 import '../../notifications/presentation/notification_badge.dart';
 import '../../../services/notification_service.dart';
@@ -113,8 +115,8 @@ class _DoctorAppShellState extends State<DoctorAppShell> {
   late bool _ownsUrgentController;
   late DoctorUrgentCabinetController _urgentCabinetController;
   late bool _ownsUrgentCabinetController;
-  StreamSubscription<UrgentCabinetNotificationOpenIntent>?
-  _urgentCabinetOpenSubscription;
+  StreamSubscription<PendingNotificationOpenIdentity>?
+  _notificationOpenSubscription;
 
   @override
   void initState() {
@@ -140,20 +142,13 @@ class _DoctorAppShellState extends State<DoctorAppShell> {
     );
     widget.homeController?.setRealtimeActive(true);
     final notifications = NotificationService();
-    _urgentCabinetOpenSubscription = notifications.urgentCabinetOpens.listen((
-      intent,
-    ) {
-      final claimed = notifications.claimUrgentCabinetOpen(intent);
-      if (claimed != null) {
-        unawaited(_selectUrgentCabinetRequest(claimed.requestId));
-      }
-    });
+    _notificationOpenSubscription = notifications.notificationOpens.listen(
+      _openPendingNotification,
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final pending = notifications.takePendingUrgentCabinetOpen();
-      if (pending != null) {
-        unawaited(_selectUrgentCabinetRequest(pending.requestId));
-      }
+      final pending = notifications.pendingNotificationOpen;
+      if (pending != null) unawaited(_openPendingNotification(pending));
     });
   }
 
@@ -165,11 +160,50 @@ class _DoctorAppShellState extends State<DoctorAppShell> {
       _onActiveConsultationChanged,
     );
     _urgentCabinetController.removeListener(_onCabinetResponsibilityChanged);
-    _urgentCabinetOpenSubscription?.cancel();
+    _notificationOpenSubscription?.cancel();
     if (widget.agendaController == null) _agendaController.dispose();
     if (_ownsUrgentController) _urgentController.dispose();
     if (_ownsUrgentCabinetController) _urgentCabinetController.dispose();
     super.dispose();
+  }
+
+  Future<void> _openPendingNotification(
+    PendingNotificationOpenIdentity intent,
+  ) async {
+    if (!mounted) return;
+    final auth = context.read<AuthController?>();
+    final accountId = auth?.currentUser?.id.trim();
+    if (auth == null ||
+        !auth.isAuthenticated ||
+        auth.roleFamily != AuthRoleFamily.doctor ||
+        accountId == null ||
+        accountId.isEmpty) {
+      return;
+    }
+    final resolution = NotificationNavigationResolver.resolvePending(
+      intent,
+      AuthRoleFamily.doctor,
+      accountScope: accountId,
+    );
+    final claimed = NotificationService().claimNotificationOpen(intent);
+    if (claimed == null ||
+        resolution.status != NotificationNavigationStatus.target) {
+      return;
+    }
+    final id = resolution.resourceId!;
+    switch (resolution.resource!) {
+      case NotificationNavigationResource.bookingRequest:
+        _openBookingRequest(id);
+      case NotificationNavigationResource.appointment:
+        _openAppointment(id);
+      case NotificationNavigationResource.urgentCabinetRequest:
+        await _selectUrgentCabinetRequest(id);
+      // Patient-only destinations (G-1 D2 / D4): never routed for a doctor.
+      case NotificationNavigationResource.accessRequest:
+      case NotificationNavigationResource.followUpProposal:
+      case NotificationNavigationResource.followUpWithdrawn:
+        return;
+    }
   }
 
   void _configureOwnedUrgentCabinetController() {
@@ -494,6 +528,7 @@ class _DoctorAppShellState extends State<DoctorAppShell> {
         urgentCabinetController: _urgentCabinetController,
         activeConsultationController: widget.activeConsultationController,
         medicalRecordController: widget.medicalRecordController,
+        legacyHomeSimulationEnabled: widget.authoritativeCapabilities == null,
       ),
       DoctorNavigationDestinationId.patients => const DoctorPlaceholderTab(
         title: 'Patients',
@@ -756,6 +791,7 @@ class _UrgentWorkflowContent extends StatelessWidget {
     required this.urgentCabinetController,
     required this.activeConsultationController,
     required this.medicalRecordController,
+    required this.legacyHomeSimulationEnabled,
   });
 
   final _DoctorUrgentWorkflow workflow;
@@ -778,6 +814,7 @@ class _UrgentWorkflowContent extends StatelessWidget {
   final DoctorUrgentCabinetController urgentCabinetController;
   final DoctorActiveConsultationController? activeConsultationController;
   final DoctorMedicalRecordController? medicalRecordController;
+  final bool legacyHomeSimulationEnabled;
 
   @override
   Widget build(BuildContext context) {
@@ -794,10 +831,11 @@ class _UrgentWorkflowContent extends StatelessWidget {
       selectedMode: selectedMode,
       onModeChanged: onModeChanged,
       homeController: urgentController,
-      onOpenHomeQr: onOpenQr,
+      onOpenHomeQr: legacyHomeSimulationEnabled ? onOpenQr : null,
       urgentCabinetController: urgentCabinetController,
       activeConsultationController: activeConsultationController,
     );
+    if (!legacyHomeSimulationEnabled) return workspace;
     if (!capabilities.contains(DoctorCapability.urgentHomeRequests)) {
       return workspace;
     }

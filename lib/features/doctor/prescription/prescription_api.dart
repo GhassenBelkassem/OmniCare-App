@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import '../../../core/network/app_http_client.dart';
+import '../../../core/network/request_replay_policy.dart';
 import 'prescription.dart';
 
 abstract interface class PrescriptionApiContract {
@@ -44,7 +45,7 @@ class PrescriptionApi implements PrescriptionApiContract {
           'expectedPrescriptionVersion': expectedPrescriptionVersion,
           'prescription': prescription.toJson(),
         },
-        options: Options(headers: {'Idempotency-Key': idempotencyKey}),
+        options: _declaredWrite(idempotencyKey),
       )).data,
     ),
   );
@@ -63,9 +64,14 @@ class PrescriptionApi implements PrescriptionApiContract {
           'expectedClinicalRecordVersion': expectedClinicalRecordVersion,
           'confirmation': true,
         },
-        options: Options(headers: {'Idempotency-Key': idempotencyKey}),
+        options: _declaredWrite(idempotencyKey),
       )).data,
     ),
+  );
+
+  static Options _declaredWrite(String idempotencyKey) => Options(
+    headers: {'Idempotency-Key': idempotencyKey},
+    extra: requestReplayExtra(RequestReplayPolicy.declaredIdempotentWrite),
   );
   static Map<String, dynamic> _object(Object? value) {
     if (value is! Map) {

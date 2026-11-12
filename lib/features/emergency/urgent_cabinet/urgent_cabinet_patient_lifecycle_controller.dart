@@ -945,6 +945,9 @@ class UrgentCabinetPatientLifecycleController extends ChangeNotifier {
           UrgentCabinetPatientLifecyclePhase.consultationInProgress,
         UrgentCabinetPatientClinicalPhase.careCompleted =>
           UrgentCabinetPatientLifecyclePhase.careCompleted,
+        // Unreachable: the repository rejects unrecognized snapshots.
+        UrgentCabinetPatientClinicalPhase.unknown =>
+          UrgentCabinetPatientLifecyclePhase.unavailable,
       };
     }
     return switch (snapshot.responseStatus) {
@@ -958,6 +961,8 @@ class UrgentCabinetPatientLifecycleController extends ChangeNotifier {
         UrgentCabinetPatientLifecyclePhase.cancelled,
       UrgentCabinetPatientResponseStatus.expired =>
         UrgentCabinetPatientLifecyclePhase.expired,
+      UrgentCabinetPatientResponseStatus.unknown =>
+        UrgentCabinetPatientLifecyclePhase.unavailable,
     };
   }
 

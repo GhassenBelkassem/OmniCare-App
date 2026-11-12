@@ -6,7 +6,6 @@ import 'package:provider/provider.dart';
 import '../../../core/theme/omni_theme.dart';
 import '../application/doctor_directory_controller.dart';
 import '../data/doctor_detail_models.dart';
-import '../data/doctor_directory_mapper.dart';
 import '../../scheduled_care/application/patient_booking_controller.dart';
 import '../../scheduled_care/presentation/booking_review_screen.dart';
 

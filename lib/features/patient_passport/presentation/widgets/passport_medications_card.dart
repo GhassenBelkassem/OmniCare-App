@@ -3,22 +3,37 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/omni_theme.dart';
 import '../../models/patient_passport_view_models.dart';
 import 'passport_card.dart';
+import 'passport_card_status.dart';
 
 class PassportMedicationsCard extends StatelessWidget {
   final MedicationGroup selectedGroup;
   final ValueChanged<MedicationGroup> onGroupChanged;
   final List<PassportMedication> medications;
 
+  /// Shown in the body when [medications] is empty (G2-FT-3).
+  final String? emptyText;
+
+  /// True when the server has more than the first page: the count reads "20+".
+  final bool hasMore;
+
+  /// Loading or failure in place of the list (G2-FT-3).
+  final PassportCardStatus? status;
+
   const PassportMedicationsCard({
     super.key,
     required this.selectedGroup,
     required this.onGroupChanged,
     required this.medications,
+    this.emptyText,
+    this.hasMore = false,
+    this.status,
   });
 
   @override
   Widget build(BuildContext context) {
     final isCurrent = selectedGroup == MedicationGroup.current;
+    final count = '${medications.length}${hasMore ? '+' : ''}';
+    final emptyText = this.emptyText;
     return PassportCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -27,8 +42,8 @@ class PassportMedicationsCard extends StatelessWidget {
             icon: Icons.medication_outlined,
             title: 'Médicaments',
             subtitle: isCurrent
-                ? '${medications.length} traitement(s) actif(s)'
-                : '${medications.length} ancien(s) traitement(s)',
+                ? '$count traitement(s) actif(s)'
+                : '$count ancien(s) traitement(s)',
             iconColor: OmniColors.infoBlue,
             iconBackground: OmniColors.infoBlueSoft,
           ),
@@ -61,9 +76,23 @@ class PassportMedicationsCard extends StatelessWidget {
               },
               child: Column(
                 key: ValueKey<MedicationGroup>(selectedGroup),
-                children: medications
-                    .map((medication) => _MedicationRow(medication: medication))
-                    .toList(growable: false),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (status case final status?)
+                    PassportCardStatusBody(status: status)
+                  else if (medications.isEmpty && emptyText != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Text(
+                        emptyText,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    )
+                  else
+                    ...medications.map(
+                      (medication) => _MedicationRow(medication: medication),
+                    ),
+                ],
               ),
             ),
           ),

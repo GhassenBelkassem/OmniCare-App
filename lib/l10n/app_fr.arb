@@ -1,0 +1,1326 @@
+{
+  "@@locale": "fr",
+  "allSpecialties": "Toutes les Spécialités",
+  "@allSpecialties": {
+    "description": "Old home screen (unreachable): specialty filter, all specialties."
+  },
+  "availableDoctors": "Médecins Disponibles",
+  "@availableDoctors": {
+    "description": "Old home screen (unreachable): doctor grid title."
+  },
+  "benArous": "Ben Arous",
+  "@benArous": {
+    "description": "Old home screen (unreachable): demo pharmacy locality."
+  },
+  "callAmbulance": "Appeler une Ambulance",
+  "@callAmbulance": {
+    "description": "Old home screen (unreachable): hero button."
+  },
+  "cardiology": "Cardiologie",
+  "@cardiology": {
+    "description": "Old home screen (unreachable): specialty filter."
+  },
+  "chooseLanguage": "Choisissez Votre Langue",
+  "@chooseLanguage": {
+    "description": "Language selection screen (unreachable): title."
+  },
+  "confirmPasswordRequired": "Veuillez confirmer votre mot de passe",
+  "@confirmPasswordRequired": {
+    "description": "Reset password screen: confirmation field is empty."
+  },
+  "dermatology": "Dermatologie",
+  "@dermatology": {
+    "description": "Old home screen (unreachable): specialty filter."
+  },
+  "emailOrPhone": "Email ou Numéro de Téléphone",
+  "@emailOrPhone": {
+    "description": "Forgot password screen (unreachable): field label."
+  },
+  "emailOrPhoneHint": "Entrez votre email ou numéro de téléphone",
+  "@emailOrPhoneHint": {
+    "description": "Forgot password screen (unreachable): field hint."
+  },
+  "emailOrPhoneRequired": "Email ou numéro de téléphone requis",
+  "@emailOrPhoneRequired": {
+    "description": "Forgot password screen (unreachable): field is empty."
+  },
+  "findDoctor": "Trouver un Médecin",
+  "@findDoctor": {
+    "description": "Old home screen (unreachable): search section title."
+  },
+  "generalMedicine": "Médecine Générale",
+  "@generalMedicine": {
+    "description": "Old home screen (unreachable): specialty filter."
+  },
+  "heroSubtitle": "Connectez-vous avec des médecins vérifiés en Tunisie. Obtenez une assistance médicale urgente à tout moment, n'importe où.",
+  "@heroSubtitle": {
+    "description": "Old home screen (unreachable): hero subtitle."
+  },
+  "kmAway": "km",
+  "@kmAway": {
+    "description": "Old home screen (unreachable): distance unit after a number."
+  },
+  "lac2": "Lac 2",
+  "@lac2": {
+    "description": "Old home screen (unreachable): demo pharmacy locality."
+  },
+  "medicalCareOnDemand": "Soins Médicaux à la Demande",
+  "@medicalCareOnDemand": {
+    "description": "Old home screen (unreachable): hero title."
+  },
+  "medicalPassport": "Passeport Médical",
+  "@medicalPassport": {
+    "description": "Old home screen (unreachable): sidebar card title."
+  },
+  "medicalPassportDesc": "Votre historique médical complet en un seul endroit",
+  "@medicalPassportDesc": {
+    "description": "Old home screen (unreachable): sidebar card subtitle."
+  },
+  "open247Today": "Ouvert 24/7 - Aujourd'hui",
+  "@open247Today": {
+    "description": "Old home screen (unreachable): demo pharmacy opening hours."
+  },
+  "orthopedics": "Orthopédie",
+  "@orthopedics": {
+    "description": "Old home screen (unreachable): specialty filter."
+  },
+  "passwordRequired": "Le mot de passe est requis",
+  "@passwordRequired": {
+    "description": "Reset password screen: new password field is empty."
+  },
+  "passwordsNotMatch": "Les mots de passe ne correspondent pas",
+  "@passwordsNotMatch": {
+    "description": "Reset password screen: the two passwords differ."
+  },
+  "pediatrics": "Pédiatrie",
+  "@pediatrics": {
+    "description": "Old home screen (unreachable): specialty filter."
+  },
+  "pharmacieBenArous": "Pharmacie Ben Arous",
+  "@pharmacieBenArous": {
+    "description": "Old home screen (unreachable): demo pharmacy name."
+  },
+  "pharmacieCentrale": "Pharmacie Centrale",
+  "@pharmacieCentrale": {
+    "description": "Old home screen (unreachable): demo pharmacy name."
+  },
+  "pharmacieDeGarde": "Pharmacie de Garde",
+  "@pharmacieDeGarde": {
+    "description": "Old home screen (unreachable): on-duty pharmacy card title."
+  },
+  "pharmacieDuLac": "Pharmacie du Lac",
+  "@pharmacieDuLac": {
+    "description": "Old home screen (unreachable): demo pharmacy name."
+  },
+  "requestUrgentDoctor": "Demander un Médecin Urgent",
+  "@requestUrgentDoctor": {
+    "description": "Old home screen (unreachable): hero button."
+  },
+  "requestVisit": "Demander une Visite",
+  "@requestVisit": {
+    "description": "Old home screen (unreachable): doctor card button."
+  },
+  "resetPassword": "Réinitialiser le mot de passe",
+  "@resetPassword": {
+    "description": "Forgot password screen (unreachable): title."
+  },
+  "resetPasswordSubtitle": "Entrez votre email ou numéro de téléphone pour recevoir un code de vérification",
+  "@resetPasswordSubtitle": {
+    "description": "Forgot password screen (unreachable): subtitle."
+  },
+  "searchDoctors": "Rechercher des médecins...",
+  "@searchDoctors": {
+    "description": "Old home screen (unreachable): search field hint."
+  },
+  "selectLanguage": "Sélectionnez votre langue préférée",
+  "@selectLanguage": {
+    "description": "Language selection screen (unreachable): subtitle."
+  },
+  "sendCode": "Envoyer le code",
+  "@sendCode": {
+    "description": "Forgot password screen (unreachable): submit button."
+  },
+  "talkPsychologist": "Parler à un Psychologue",
+  "@talkPsychologist": {
+    "description": "Old home screen (unreachable): hero button."
+  },
+  "tunisCenter": "Centre de Tunis",
+  "@tunisCenter": {
+    "description": "Old home screen (unreachable): demo pharmacy locality."
+  },
+  "viewFullHistory": "Voir l'Historique Complet",
+  "@viewFullHistory": {
+    "description": "Old home screen (unreachable): medical passport card link."
+  },
+  "viewOnMap": "Voir sur la Carte",
+  "@viewOnMap": {
+    "description": "Old home screen (unreachable): pharmacy card button."
+  },
+  "yearsExperience": "ans d'expérience",
+  "@yearsExperience": {
+    "description": "Old home screen (unreachable): after the number of years on a doctor card."
+  },
+  "bloodTypeUnknown": "Je ne sais pas",
+  "@bloodTypeUnknown": {
+    "description": "Blood type choice when the patient does not know it (onboarding tiles, medical data). G2-1a-2."
+  },
+  "saveInvalidInput": "Certaines informations ne sont pas valides. Vérifiez et réessayez.",
+  "@saveInvalidInput": {
+    "description": "Save failed: the server rejected the values (INVALID_INPUT / VALIDATION_ERROR). G2-1a-2."
+  },
+  "saveNetwork": "Connexion impossible. Réessayez.",
+  "@saveNetwork": {
+    "description": "Save failed: no network. G2-1a-2."
+  },
+  "saveServiceUnavailable": "Service momentanément indisponible. Réessayez plus tard.",
+  "@saveServiceUnavailable": {
+    "description": "Save failed: the medical record service is down (MRS_UNAVAILABLE or 5xx). G2-1a-2."
+  },
+  "saveGeneric": "Enregistrement impossible pour le moment. Réessayez.",
+  "@saveGeneric": {
+    "description": "Save failed for any other reason. G2-1a-2."
+  },
+  "onboardingSaveFailed": "Impossible d'enregistrer. Vérifiez votre connexion et réessayez.",
+  "@onboardingSaveFailed": {
+    "description": "Onboarding Continue could not save the page. G2-1a-6."
+  },
+  "urgentCabinetUnavailableTitle": "Service indisponible",
+  "@urgentCabinetUnavailableTitle": {
+    "description": "Urgent cabinet request not available to this patient: title on doctor search and doctor detail. G2-1a-3 (C9)."
+  },
+  "urgentCabinetUnavailableMessage": "La demande urgente au cabinet n’est pas disponible pour le moment.",
+  "@urgentCabinetUnavailableMessage": {
+    "description": "Urgent cabinet request not available to this patient: message. G2-1a-3 (C9)."
+  },
+  "conditionsAndTreatmentsNotSaved": "Les antécédents et traitements ne peuvent pas encore être enregistrés.",
+  "@conditionsAndTreatmentsNotSaved": {
+    "description": "Medical data edit: changed conditions or medications are not saved yet. G2-1a-2 (C2)."
+  },
+  "requestNoShowLabel": "Rendez-vous manqué",
+  "@requestNoShowLabel": {
+    "description": "Request status NO_SHOW: status chip, status card title and end of the journey. G2-1a-4 (C10)."
+  },
+  "requestNoShowDescription": "La clinique a indiqué que ce rendez-vous n’a pas eu lieu.",
+  "@requestNoShowDescription": {
+    "description": "Request status NO_SHOW: status card description. G2-1a-4 (C10)."
+  },
+  "requestNoShowActionMessage": "Demande terminée",
+  "@requestNoShowActionMessage": {
+    "description": "Request status NO_SHOW: status card action line. G2-1a-4 (C10)."
+  },
+  "onboardingPageAlreadySaved": "Ces informations sont déjà enregistrées. Vous pourrez les modifier plus tard depuis votre profil.",
+  "@onboardingPageAlreadySaved": {
+    "description": "Onboarding: Continue on an already-saved page that was changed; nothing is sent. G2-1a-4."
+  },
+  "apiErrorNetwork": "Connexion impossible. Vérifiez votre connexion et réessayez.",
+  "@apiErrorNetwork": {
+    "description": "Any backend call: no network connection. G2-1b-2."
+  },
+  "apiErrorTimeout": "Le serveur met trop de temps à répondre. Réessayez.",
+  "@apiErrorTimeout": {
+    "description": "Any backend call: the request timed out. G2-1b-2."
+  },
+  "apiErrorUnauthorized": "Votre session a expiré. Reconnectez-vous.",
+  "@apiErrorUnauthorized": {
+    "description": "Any backend call: HTTP 401, the session is no longer valid. G2-1b-2."
+  },
+  "apiErrorForbidden": "Vous n’avez pas accès à cette action.",
+  "@apiErrorForbidden": {
+    "description": "Any backend call: HTTP 403 with no clearer code. G2-1b-2."
+  },
+  "apiErrorNotFound": "Cet élément est introuvable ou n’est plus disponible.",
+  "@apiErrorNotFound": {
+    "description": "Any backend call: HTTP 404/410 with no clearer code. G2-1b-2."
+  },
+  "apiErrorConflict": "Les informations ont changé entre-temps. Actualisez et réessayez.",
+  "@apiErrorConflict": {
+    "description": "Any backend call: HTTP 409/412 with no clearer code. G2-1b-2."
+  },
+  "apiErrorValidation": "Certaines informations ne sont pas valides. Vérifiez et réessayez.",
+  "@apiErrorValidation": {
+    "description": "Any backend call: HTTP 400/422 (input rejected) with no clearer code. G2-1b-2."
+  },
+  "apiErrorRateLimited": "Trop de tentatives. Patientez avant de réessayer.",
+  "@apiErrorRateLimited": {
+    "description": "Any backend call: HTTP 429, too many attempts. G2-1b-2."
+  },
+  "apiErrorServer": "Service momentanément indisponible. Réessayez plus tard.",
+  "@apiErrorServer": {
+    "description": "Any backend call: HTTP 5xx. G2-1b-2."
+  },
+  "apiErrorUnknown": "Une erreur est survenue. Réessayez.",
+  "@apiErrorUnknown": {
+    "description": "Any backend call: unreadable or unexpected error. G2-1b-2."
+  },
+  "fieldErrorRequired": "Ce champ est obligatoire.",
+  "@fieldErrorRequired": {
+    "description": "Form field rejected by the server: required (NotBlank/NotNull/NotEmpty). G2-1b-2."
+  },
+  "fieldErrorTooLong": "Ce texte est trop long.",
+  "@fieldErrorTooLong": {
+    "description": "Form field rejected by the server: too long. G2-1b-2."
+  },
+  "fieldErrorTooShort": "Ce texte est trop court.",
+  "@fieldErrorTooShort": {
+    "description": "Form field rejected by the server: too short. G2-1b-2."
+  },
+  "fieldErrorInvalidLength": "La longueur de ce champ n’est pas valide.",
+  "@fieldErrorInvalidLength": {
+    "description": "Form field rejected by the server: wrong length (Size, direction unknown). G2-1b-2."
+  },
+  "fieldErrorInvalidFormat": "Format invalide.",
+  "@fieldErrorInvalidFormat": {
+    "description": "Form field rejected by the server: format (Pattern/Email). G2-1b-2."
+  },
+  "fieldErrorOutOfRange": "Valeur hors limites.",
+  "@fieldErrorOutOfRange": {
+    "description": "Form field rejected by the server: out of range (Min/Max/Past/Future…). G2-1b-2."
+  },
+  "fieldErrorInvalid": "Vérifiez ce champ.",
+  "@fieldErrorInvalid": {
+    "description": "Form field rejected by the server with no field code (today’s patient endpoints). G2-1b-2."
+  },
+  "securityGoogleUseWebButton": "Utilisez le bouton Google affiché pour confirmer votre identité.",
+  "@securityGoogleUseWebButton": {
+    "description": "Security, set password on web: use the Google button shown. Moved from AccountSecurityProvider. G2-1b-2."
+  },
+  "securityGoogleCancelled": "Réauthentification Google annulée.",
+  "@securityGoogleCancelled": {
+    "description": "Security, set password: the Google re-authentication was cancelled. G2-1b-2."
+  },
+  "securityGoogleNoProof": "Google n’a pas fourni de preuve de réauthentification.",
+  "@securityGoogleNoProof": {
+    "description": "Security, set password: Google returned no ID token. G2-1b-2."
+  },
+  "securityActionInProgress": "Une opération est déjà en cours.",
+  "@securityActionInProgress": {
+    "description": "Security, phone change: another action is running. G2-1b-2."
+  },
+  "securityInvalidOtp": "Le code est incorrect ou a expiré.",
+  "@securityInvalidOtp": {
+    "description": "Security screens: AUTH_INVALID_OTP. G2-1b-2."
+  },
+  "securityPhoneAlreadyUsed": "Ce numéro est déjà associé à un autre compte.",
+  "@securityPhoneAlreadyUsed": {
+    "description": "Security, phone change: AUTH_PHONE_ALREADY_USED. G2-1b-2."
+  },
+  "securityPhoneChangeInProgress": "Un changement de numéro est déjà en cours.",
+  "@securityPhoneChangeInProgress": {
+    "description": "Security, phone change: CONFLICT. G2-1b-2."
+  },
+  "securityStepExpired": "Cette étape a expiré. Recommencez la vérification.",
+  "@securityStepExpired": {
+    "description": "Security, phone change: INVALID_STATE. G2-1b-2."
+  },
+  "securityLinkInvalid": "Ce lien est invalide, expiré ou a déjà été utilisé.",
+  "@securityLinkInvalid": {
+    "description": "Security, phone-change reversal link: AUTH_INVALID_TOKEN. G2-1b-2."
+  },
+  "profileLoadFailed": "Impossible de charger le profil.",
+  "@profileLoadFailed": {
+    "description": "Profile could not be loaded (fallback when no clearer reason). G2-1b-2."
+  },
+  "profileSaveFailed": "Impossible d’enregistrer les modifications.",
+  "@profileSaveFailed": {
+    "description": "Profile changes could not be saved (fallback). G2-1b-2."
+  },
+  "avatarUpdateFailed": "Impossible de modifier la photo de profil.",
+  "@avatarUpdateFailed": {
+    "description": "Profile photo upload/removal failed (fallback). G2-1b-2."
+  },
+  "avatarSelectionFailed": "Impossible d’accéder à cette image.",
+  "@avatarSelectionFailed": {
+    "description": "The picked profile photo could not be read on the device. G2-1b-2."
+  },
+  "familyLoadFailed": "Impossible de charger les membres.",
+  "@familyLoadFailed": {
+    "description": "Family members could not be loaded (fallback). G2-1b-2."
+  },
+  "familySaveFailed": "Impossible d’enregistrer le membre.",
+  "@familySaveFailed": {
+    "description": "Family member could not be saved (fallback). G2-1b-2."
+  },
+  "familyRemoveFailed": "Impossible de retirer ce membre.",
+  "@familyRemoveFailed": {
+    "description": "Family member could not be removed (fallback). G2-1b-2."
+  },
+  "professionalAccessSendFailed": "Impossible d’envoyer la demande.",
+  "@professionalAccessSendFailed": {
+    "description": "Professional access request form: sending failed (fallback). G2-1b-2."
+  },
+  "apiCodeMrsUnavailable": "Le dossier médical est temporairement indisponible. Réessayez plus tard.",
+  "@apiCodeMrsUnavailable": {
+    "description": "Backend code MRS_UNAVAILABLE (503): the medical record service is down. G2-1b-2."
+  },
+  "apiCodeObjectStorageUnavailable": "Le stockage des fichiers est temporairement indisponible. Réessayez plus tard.",
+  "@apiCodeObjectStorageUnavailable": {
+    "description": "Backend code OBJECT_STORAGE_UNAVAILABLE (503): file storage is down. G2-1b-2."
+  },
+  "apiCodeFileTooLarge": "Ce fichier est trop volumineux.",
+  "@apiCodeFileTooLarge": {
+    "description": "Backend code FILE_TOO_LARGE (413): file over the size limit. G2-1b-2."
+  },
+  "apiCodeUnsupportedFileType": "Ce type de fichier n’est pas accepté.",
+  "@apiCodeUnsupportedFileType": {
+    "description": "Backend code UNSUPPORTED_FILE_TYPE (415): file type not allowed. G2-1b-2."
+  },
+  "apiCodeProfessionalAccessAlreadyPending": "Une demande est déjà en cours pour cette adresse e-mail ou cet identifiant professionnel.",
+  "@apiCodeProfessionalAccessAlreadyPending": {
+    "description": "Backend code PROFESSIONAL_ACCESS_REQUEST_ALREADY_PENDING (409). G2-1b-2."
+  },
+  "apiCodePasswordCompromised": "Ce mot de passe est compromis. Choisissez-en un autre.",
+  "@apiCodePasswordCompromised": {
+    "description": "Backend code AUTH_PASSWORD_COMPROMISED (400): password found in a known breach. Same wording as the auth screens. G2-1b-2."
+  },
+  "apiCodeInvalidCredentials": "Les identifiants sont incorrects.",
+  "@apiCodeInvalidCredentials": {
+    "description": "Backend code AUTH_INVALID_CREDENTIALS (401): wrong password (login, or current password on change/set). G2-1b-2."
+  },
+  "apiCodeAuthProviderUnavailable": "Service de connexion momentanément indisponible. Réessayez plus tard.",
+  "@apiCodeAuthProviderUnavailable": {
+    "description": "Backend code AUTH_PROVIDER_UNAVAILABLE (503): the SMS, Google or password-check provider is down. Same text on every screen. G2-1b-2c."
+  },
+  "requestInterrupted": "Votre dernière demande a été interrompue. Réessayez.",
+  "@requestInterrupted": {
+    "description": "Care request: a submission was in flight when the app stopped. G2-1b-2c."
+  },
+  "requestResponseInvalid": "La réponse reçue ne peut pas être vérifiée. Réessayez.",
+  "@requestResponseInvalid": {
+    "description": "Care request: the server answer could not be read safely. G2-1b-2c."
+  },
+  "requestCancelled": "La demande a été interrompue. Réessayez.",
+  "@requestCancelled": {
+    "description": "Care request: the call was cancelled locally. G2-1b-2c."
+  },
+  "requestServerUnavailable": "Les demandes de soins sont momentanément indisponibles. Réessayez.",
+  "@requestServerUnavailable": {
+    "description": "Care request: server error (5xx). G2-1b-2c."
+  },
+  "requestSubjectForbidden": "Cette demande ne peut pas être envoyée pour la personne choisie.",
+  "@requestSubjectForbidden": {
+    "description": "Care request: REQUEST_SUBJECT_FORBIDDEN / 403. G2-1b-2c."
+  },
+  "requestTargetUnavailable": "Cette clinique ne peut pas recevoir de demandes pour le moment.",
+  "@requestTargetUnavailable": {
+    "description": "Care request: REQUEST_TARGET_UNAVAILABLE / 422. G2-1b-2c."
+  },
+  "requestInvalid": "Certaines informations ne sont pas valides. Vérifiez-les puis réessayez.",
+  "@requestInvalid": {
+    "description": "Care request: REQUEST_INVALID / 400. G2-1b-2c."
+  },
+  "requestVersionConflict": "Cette demande a changé. Actualisez pour voir son dernier état.",
+  "@requestVersionConflict": {
+    "description": "Care request: REQUEST_VERSION_CONFLICT / 409. G2-1b-2c."
+  },
+  "requestTransitionInvalid": "Cette modification n’est plus possible pour cette demande.",
+  "@requestTransitionInvalid": {
+    "description": "Care request: REQUEST_TRANSITION_INVALID. G2-1b-2c."
+  },
+  "requestIdempotencyConflict": "Cette demande a déjà servi à un autre envoi. Commencez une nouvelle demande.",
+  "@requestIdempotencyConflict": {
+    "description": "Care request: REQUEST_IDEMPOTENCY_CONFLICT. G2-1b-2c."
+  },
+  "requestNotFound": "Cette demande n’est plus disponible.",
+  "@requestNotFound": {
+    "description": "Care request: REQUEST_NOT_FOUND / 404. G2-1b-2c."
+  },
+  "requestIntentIncomplete": "Choisissez une clinique avant d’envoyer votre demande.",
+  "@requestIntentIncomplete": {
+    "description": "Care request: local guard, no clinic chosen yet. G2-1b-2c."
+  },
+  "requestSignInAgain": "Reconnectez-vous avant d’envoyer cette demande.",
+  "@requestSignInAgain": {
+    "description": "Care request: local guard, the account scope is unavailable. G2-1b-2c."
+  },
+  "requestCannotSendSafely": "Cette demande ne peut pas être envoyée en toute sécurité pour le moment. Réessayez.",
+  "@requestCannotSendSafely": {
+    "description": "Care request: local guard, the recovery store is unavailable. G2-1b-2c."
+  },
+  "clinicListTimeout": "La liste des cliniques met trop de temps à répondre. Réessayez.",
+  "@clinicListTimeout": {
+    "description": "Clinic directory: timeout. G2-1b-2c."
+  },
+  "clinicListInvalid": "La liste des cliniques n’a pas pu être lue. Réessayez.",
+  "@clinicListInvalid": {
+    "description": "Clinic directory: unreadable answer or rejected call. G2-1b-2c."
+  },
+  "clinicListUnavailable": "L’annuaire des cliniques est momentanément indisponible. Réessayez.",
+  "@clinicListUnavailable": {
+    "description": "Clinic directory: server error (5xx). G2-1b-2c."
+  },
+  "clinicListLoadFailed": "Impossible de charger les cliniques.",
+  "@clinicListLoadFailed": {
+    "description": "Clinic directory screen: fallback when no failure is known. G2-1b-2c."
+  },
+  "clinicDetailLoadFailed": "Impossible de charger cette clinique.",
+  "@clinicDetailLoadFailed": {
+    "description": "Clinic detail screen: fallback when no failure is known. G2-1b-2c."
+  },
+  "doctorDirectoryTimeout": "Le répertoire des médecins met trop de temps à répondre. Réessayez.",
+  "@doctorDirectoryTimeout": {
+    "description": "Doctor directory: timeout. G2-1b-2c."
+  },
+  "doctorDirectoryInvalid": "Le répertoire des médecins n’a pas pu être lu. Réessayez.",
+  "@doctorDirectoryInvalid": {
+    "description": "Doctor directory: unreadable answer or rejected call. G2-1b-2c."
+  },
+  "doctorDirectoryNotFound": "Ce médecin n’existe plus ou n’est plus disponible.",
+  "@doctorDirectoryNotFound": {
+    "description": "Doctor directory: 404, the doctor is gone. Same text as before. G2-1b-2c."
+  },
+  "doctorDirectoryUnavailable": "Le répertoire des médecins est momentanément indisponible. Réessayez.",
+  "@doctorDirectoryUnavailable": {
+    "description": "Doctor directory: server error (5xx). G2-1b-2c."
+  },
+  "documentProfileNotReady": "Votre profil patient n’est pas encore prêt.",
+  "@documentProfileNotReady": {
+    "description": "Medical documents snackbar: local PROFILE_NOT_READY. G2-1b-2c."
+  },
+  "documentOperationInProgress": "Une opération sur les documents est déjà en cours.",
+  "@documentOperationInProgress": {
+    "description": "Medical documents snackbar: local OPERATION_IN_PROGRESS. G2-1b-2c."
+  },
+  "documentFileEmpty": "Le fichier choisi est vide.",
+  "@documentFileEmpty": {
+    "description": "Medical documents snackbar: local EMPTY_FILE. G2-1b-2c."
+  },
+  "documentFileTooLarge": "Ce fichier dépasse la limite de 20 Mo.",
+  "@documentFileTooLarge": {
+    "description": "Medical documents snackbar: FILE_TOO_LARGE (local check or 413). G2-1b-2c."
+  },
+  "documentFileUnreadable": "Le fichier choisi n’a pas pu être lu.",
+  "@documentFileUnreadable": {
+    "description": "Medical documents snackbar: local FILE_SOURCE_INVALID / FILE_READ_FAILED. G2-1b-2c."
+  },
+  "documentFileChanged": "Le fichier choisi a changé avant l’envoi.",
+  "@documentFileChanged": {
+    "description": "Medical documents snackbar: local FILE_SIZE_MISMATCH. G2-1b-2c."
+  },
+  "documentFileTypeUnsupported": "Choisissez un fichier PDF, PNG, JPG ou JPEG.",
+  "@documentFileTypeUnsupported": {
+    "description": "Medical documents snackbar: UNSUPPORTED_FILE_TYPE (415). G2-1b-2c."
+  },
+  "documentAccountChanged": "Le compte a changé pendant l’envoi. Actualisez la liste des documents avant de réessayer.",
+  "@documentAccountChanged": {
+    "description": "Medical documents snackbar: local UPLOAD_OWNER_CHANGED. G2-1b-2c."
+  },
+  "documentOwnerUnavailable": "Le titulaire des documents n’est pas disponible. Reconnectez-vous puis réessayez.",
+  "@documentOwnerUnavailable": {
+    "description": "Medical documents snackbar: local UPLOAD_OWNER_UNAVAILABLE / UPLOAD_RECOVERY_IDENTITY_INVALID. G2-1b-2c."
+  },
+  "documentUploadNotStarted": "L’envoi n’a pas pu démarrer en toute sécurité. Réessayez.",
+  "@documentUploadNotStarted": {
+    "description": "Medical documents snackbar: local UPLOAD_RECEIPT_STORAGE_FAILED. G2-1b-2c."
+  },
+  "documentRecoveryGone": "L’envoi précédent ne peut plus être récupéré. Recommencez l’envoi si nécessaire.",
+  "@documentRecoveryGone": {
+    "description": "Medical documents snackbar: DOCUMENT_UPLOAD_RECOVERY_NOT_FOUND / _EXPIRED. G2-1b-2c."
+  },
+  "documentUploadFailed": "L’envoi précédent n’a pas abouti. Recommencez l’envoi si nécessaire.",
+  "@documentUploadFailed": {
+    "description": "Medical documents snackbar: local DOCUMENT_UPLOAD_FAILED. G2-1b-2c."
+  },
+  "documentRecoveryRequired": "Le résultat de l’envoi précédent doit d’abord être récupéré. Actualisez quand la connexion est disponible.",
+  "@documentRecoveryRequired": {
+    "description": "Medical documents snackbar: local UPLOAD_RECOVERY_REQUIRED. G2-1b-2c."
+  },
+  "documentUploadInProgress": "L’envoi du document est encore en cours de traitement.",
+  "@documentUploadInProgress": {
+    "description": "Medical documents snackbar: DOCUMENT_UPLOAD_COMMAND_IN_PROGRESS. G2-1b-2c."
+  },
+  "documentConflict": "Cette opération entre en conflit avec une demande précédente. Actualisez puis réessayez.",
+  "@documentConflict": {
+    "description": "Medical documents snackbar: DOCUMENT_UPLOAD_IDEMPOTENCY_CONFLICT / IDEMPOTENCY_KEY_REUSED / CONFLICT. G2-1b-2c."
+  },
+  "documentTransferStopped": "Le transfert s’est arrêté. Actualisez la liste des documents avant de réessayer : le résultat est incertain.",
+  "@documentTransferStopped": {
+    "description": "Medical documents snackbar: local UPLOAD_CANCELLED_LOCAL. G2-1b-2c."
+  },
+  "documentSessionRefreshFailed": "Votre session n’a pas pu être renouvelée. Vérifiez votre connexion et réessayez.",
+  "@documentSessionRefreshFailed": {
+    "description": "Medical documents snackbar: local AUTH_REFRESH_TEMPORARILY_UNAVAILABLE. G2-1b-2c."
+  },
+  "documentRetryAfterRefresh": "Votre session a été renouvelée. Relancez l’envoi pour le reprendre en toute sécurité.",
+  "@documentRetryAfterRefresh": {
+    "description": "Medical documents snackbar: local AUTH_REPLAY_REQUIRED. G2-1b-2c."
+  },
+  "documentProcessingUnavailable": "Le traitement des documents est momentanément indisponible. Réessayez plus tard.",
+  "@documentProcessingUnavailable": {
+    "description": "Medical documents snackbar: MRS_UNAVAILABLE / OBJECT_STORAGE_UNAVAILABLE. G2-1b-2c."
+  },
+  "documentNotAccepted": "Le document n’a pas pu être accepté. Vérifiez le fichier puis réessayez.",
+  "@documentNotAccepted": {
+    "description": "Medical documents snackbar: INVALID_INPUT / VALIDATION_ERROR. G2-1b-2c."
+  },
+  "documentResponseInvalid": "La réponse du serveur est inattendue. Réessayez.",
+  "@documentResponseInvalid": {
+    "description": "Medical documents snackbar: local MALFORMED_RESPONSE. G2-1b-2c."
+  },
+  "documentStatusInterrupted": "Le suivi du document a été interrompu. Actualisez la liste.",
+  "@documentStatusInterrupted": {
+    "description": "Medical documents snackbar: local SSE_CONNECTION_LOST. G2-1b-2c."
+  },
+  "documentForbidden": "Vous n’avez pas accès à ces documents.",
+  "@documentForbidden": {
+    "description": "Medical documents snackbar: FORBIDDEN / 403. G2-1b-2c."
+  },
+  "documentOperationFailed": "L’opération sur le document n’a pas pu aboutir. Réessayez.",
+  "@documentOperationFailed": {
+    "description": "Medical documents snackbar: fallback for any other failure. G2-1b-2c."
+  },
+  "authInvalidOtp": "Code invalide ou expiré.",
+  "@authInvalidOtp": {
+    "description": "Auth screens (login, signup, OTP, Google): AUTH_INVALID_OTP. Same text as before. G2-1b-2c."
+  },
+  "authSessionExpired": "Session expirée. Veuillez vous reconnecter.",
+  "@authSessionExpired": {
+    "description": "Auth screens (login, signup, OTP, Google): AUTH_SESSION_INVALID / AUTH_REFRESH_TOKEN_INVALID. Same text as before. G2-1b-2c."
+  },
+  "authAccountNotAllowed": "Ce compte ne peut pas utiliser cette application.",
+  "@authAccountNotAllowed": {
+    "description": "Auth screens (login, signup, OTP, Google): AUTH_ACCOUNT_NOT_ALLOWED. Same text as before. G2-1b-2c."
+  },
+  "authOtpNotVerified": "Veuillez vérifier le code envoyé avant de continuer.",
+  "@authOtpNotVerified": {
+    "description": "Auth screens (login, signup, OTP, Google): OTP_NOT_VERIFIED. Same text as before. G2-1b-2c."
+  },
+  "authUserNotFound": "Aucun compte patient trouvé pour ce numéro.",
+  "@authUserNotFound": {
+    "description": "Auth screens (login, signup, OTP, Google): USER_NOT_FOUND. Same text as before. G2-1b-2c."
+  },
+  "authTooManyAttempts": "Trop de tentatives. Réessayez plus tard.",
+  "@authTooManyAttempts": {
+    "description": "Auth screens (login, signup, OTP, Google): TOO_MANY_REQUESTS. Same text as before. G2-1b-2c."
+  },
+  "authCheckDetails": "Veuillez vérifier les informations saisies.",
+  "@authCheckDetails": {
+    "description": "Auth screens (login, signup, OTP, Google): VALIDATION_ERROR. Same text as before. G2-1b-2c."
+  },
+  "authPhoneAlreadyUsed": "Ce numéro est déjà utilisé.",
+  "@authPhoneAlreadyUsed": {
+    "description": "Auth screens (login, signup, OTP, Google): AUTH_PHONE_ALREADY_USED. Same text as before. G2-1b-2c."
+  },
+  "authEmailAlreadyUsed": "Un compte OmniCare existe déjà avec cette adresse. Connectez-vous avec votre mot de passe.",
+  "@authEmailAlreadyUsed": {
+    "description": "Auth screens (login, signup, OTP, Google): AUTH_EMAIL_ALREADY_USED. Same text as before. G2-1b-2c."
+  },
+  "authChooseDifferentPassword": "Veuillez choisir un nouveau mot de passe différent.",
+  "@authChooseDifferentPassword": {
+    "description": "Auth screens (login, signup, OTP, Google): INVALID_INPUT (password change). Accent fixed (différent). G2-1b-2c."
+  },
+  "authGoogleSignupExpired": "Session Google expirée. Recommencez avec Google.",
+  "@authGoogleSignupExpired": {
+    "description": "Auth screens (login, signup, OTP, Google): AUTH_GOOGLE_SIGNUP_EXPIRED. Same text as before. G2-1b-2c."
+  },
+  "authGoogleSignupInvalid": "Session Google invalide. Recommencez avec Google.",
+  "@authGoogleSignupInvalid": {
+    "description": "Auth screens (login, signup, OTP, Google): AUTH_GOOGLE_SIGNUP_INVALID. Same text as before. G2-1b-2c."
+  },
+  "authGoogleLinkExpired": "Cette tentative d’association a expiré.",
+  "@authGoogleLinkExpired": {
+    "description": "Auth screens (login, signup, OTP, Google): AUTH_GOOGLE_LINK_EXPIRED. Same text as before. G2-1b-2c."
+  },
+  "authGoogleLinkInvalid": "Cette tentative d’association n’est plus valide.",
+  "@authGoogleLinkInvalid": {
+    "description": "Auth screens (login, signup, OTP, Google): AUTH_GOOGLE_LINK_INVALID. Same text as before. G2-1b-2c."
+  },
+  "authGoogleLinkPasswordInvalid": "Mot de passe incorrect.",
+  "@authGoogleLinkPasswordInvalid": {
+    "description": "Auth screens (login, signup, OTP, Google): AUTH_GOOGLE_LINK_PASSWORD_INVALID. Same text as before. G2-1b-2c."
+  },
+  "authGoogleLinkPasswordUnavailable": "Ce compte ne peut pas être associé avec un mot de passe pour le moment.",
+  "@authGoogleLinkPasswordUnavailable": {
+    "description": "Auth screens (login, signup, OTP, Google): AUTH_GOOGLE_LINK_PASSWORD_UNAVAILABLE. Same text as before. G2-1b-2c."
+  },
+  "authGoogleIdentityConflict": "Ce compte Google est déjà associé à un autre compte.",
+  "@authGoogleIdentityConflict": {
+    "description": "Auth screens (login, signup, OTP, Google): AUTH_GOOGLE_IDENTITY_CONFLICT. Same text as before. G2-1b-2c."
+  },
+  "authDuplicateIdentity": "Un compte existe déjà avec ces informations.",
+  "@authDuplicateIdentity": {
+    "description": "Auth screens (login, signup, OTP, Google): DUPLICATE_IDENTITY. Same text as before. G2-1b-2c."
+  },
+  "authMalformedResponse": "Réponse serveur invalide.",
+  "@authMalformedResponse": {
+    "description": "Auth screens (login, signup, OTP, Google): local MALFORMED_RESPONSE. Same text as before. G2-1b-2c."
+  },
+  "authUnsupportedRole": "Ce compte ne correspond pas à un compte patient.",
+  "@authUnsupportedRole": {
+    "description": "Auth screens (login, signup, OTP, Google): UNSUPPORTED_ROLE. Same text as before. G2-1b-2c."
+  },
+  "apiErrorFeatureUnavailable": "Cette fonctionnalité est indisponible pour le moment.",
+  "@apiErrorFeatureUnavailable": {
+    "description": "A feature with no real data source yet (formerly mock-backed, cut off in G2-1b-3). Generic text of ApiFailureKind.featureUnavailable."
+  },
+  "passportSelfRelationship": "Mon passeport",
+  "@passportSelfRelationship": {
+    "description": "« Dossier médical » family selector and header: the account holder's own entry (G2-1b-3b). Same text as the former fixture."
+  },
+  "medicalRecordNotRecorded": "Non renseigné",
+  "@medicalRecordNotRecorded": {
+    "description": "« Dossier médical »: a value the record does not hold (blood type, measurements, unknown allergies or conditions, missing identity field, unknown doctor or reason). G2-1b-3b / FT-3."
+  },
+  "passportAllergiesNoneKnown": "Aucune allergie connue",
+  "@passportAllergiesNoneKnown": {
+    "description": "« Dossier médical » allergies row: the record says the patient has no known allergy (status NONE_KNOWN). G2-FT-3."
+  },
+  "passportConditionsNoneKnown": "Aucun antécédent connu",
+  "@passportConditionsNoneKnown": {
+    "description": "« Dossier médical » chronic conditions: the record says the patient has no known condition (status NONE_KNOWN). G2-FT-3."
+  },
+  "passportNoCurrentMedications": "Aucun traitement en cours prescrit sur OmniCare.",
+  "@passportNoCurrentMedications": {
+    "description": "« Dossier médical » medications card, current tab, empty list. Text set by the CTO. G2-FT-3."
+  },
+  "passportNoPastMedications": "Aucun ancien traitement prescrit sur OmniCare.",
+  "@passportNoPastMedications": {
+    "description": "« Dossier médical » medications card, past tab, empty list. Text set by the CTO. G2-FT-3."
+  },
+  "passportRetry": "Réessayer",
+  "@passportRetry": {
+    "description": "« Dossier médical »: button that reloads one card after a failed request. G2-FT-3."
+  },
+  "passportSectionLoadFailed": "Impossible de charger ces informations.",
+  "@passportSectionLoadFailed": {
+    "description": "« Dossier médical »: fallback text of a card whose request failed, when the failure has no more precise message. G2-FT-3."
+  },
+  "passportDoctorName": "Dr {name}",
+  "@passportDoctorName": {
+    "description": "« Dossier médical » history card: the doctor of a completed consultation. G2-FT-3.",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Karim Mansour"
+      }
+    }
+  },
+  "passportTimesPerDay": "{count}× par jour",
+  "@passportTimesPerDay": {
+    "description": "« Dossier médical » medications card: frequency when the prescription gives only a number of intakes per day. Same form as the former fixture. G2-FT-3.",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "2"
+      }
+    }
+  },
+  "authTrustDeviceTitle": "Faire confiance à cet appareil",
+  "@authTrustDeviceTitle": {
+    "description": "Trusted-device switch title (login / sign-up). Same text as the current checkbox. G3-P1."
+  },
+  "authTrustDeviceSubtitle": "À utiliser uniquement sur un appareil personnel.",
+  "@authTrustDeviceSubtitle": {
+    "description": "Trusted-device switch subtitle. Same text as the current sign-up checkbox. G3-P1."
+  },
+  "authContinueWithGoogle": "Continuer avec Google",
+  "@authContinueWithGoogle": {
+    "description": "Label of the Google button on Android/iOS. Same text as today. G3-P1."
+  },
+  "birthDatePickerTitle": "Date de naissance",
+  "@birthDatePickerTitle": {
+    "description": "Title of the birth-date wheel picker sheet. G3-P1."
+  },
+  "birthDatePickerDay": "JOUR",
+  "@birthDatePickerDay": {
+    "description": "Birth-date picker: day column label (uppercase). G3-P1."
+  },
+  "birthDatePickerMonth": "MOIS",
+  "@birthDatePickerMonth": {
+    "description": "Birth-date picker: month column label (uppercase). G3-P1."
+  },
+  "birthDatePickerYear": "ANNÉE",
+  "@birthDatePickerYear": {
+    "description": "Birth-date picker: year column label (uppercase). G3-P1."
+  },
+  "birthDatePickerConfirm": "Valider",
+  "@birthDatePickerConfirm": {
+    "description": "Birth-date picker: confirm button. G3-P1."
+  },
+  "stepProgressLabel": "Étape {current} sur {total} · {name}",
+  "@stepProgressLabel": {
+    "description": "Step progress bar label, e.g. « Étape 2 sur 3 · Identité ». G3-P1.",
+    "placeholders": {
+      "current": {
+        "type": "int",
+        "example": "2"
+      },
+      "total": {
+        "type": "int",
+        "example": "3"
+      },
+      "name": {
+        "type": "String",
+        "example": "Identité"
+      }
+    }
+  },
+  "authLogoLabel": "Logo OmniCare",
+  "@authLogoLabel": {
+    "description": "Screen-reader label of the OmniCare logo (welcome screen, login sheet). G3-P2a."
+  },
+  "welcomeBrandName": "OmniCare",
+  "@welcomeBrandName": {
+    "description": "Brand name next to the logo on the welcome screen. G3-P2a."
+  },
+  "welcomeAudienceChip": "Médecins · Infirmiers · Kinés",
+  "@welcomeAudienceChip": {
+    "description": "Welcome screen chip above the title. G3-P2a."
+  },
+  "welcomeTitleLine1": "Votre santé,",
+  "@welcomeTitleLine1": {
+    "description": "Welcome title, first line (white). G3-P2a."
+  },
+  "welcomeTitleLine2": "au même endroit.",
+  "@welcomeTitleLine2": {
+    "description": "Welcome title, second line (mint). G3-P2a."
+  },
+  "welcomeSubtitle": "Trouvez un professionnel près de chez vous, prenez rendez-vous et gardez votre dossier médical en sécurité.",
+  "@welcomeSubtitle": {
+    "description": "Welcome screen subtitle. G3-P2a."
+  },
+  "authCreateAccount": "Créer un compte",
+  "@authCreateAccount": {
+    "description": "Opens the patient sign-up (welcome button, login-sheet footer). G3-P2a."
+  },
+  "authSignIn": "Se connecter",
+  "@authSignIn": {
+    "description": "Welcome button that opens the login sheet, and the login sheet submit button. Same text as today. G3-P2a."
+  },
+  "authProfessionalPrompt": "Professionnel de santé ?",
+  "@authProfessionalPrompt": {
+    "description": "Welcome footer prompt before the professional request link. Same text as today (tests pin the full sentence). G3-P2a."
+  },
+  "authProfessionalAction": "Demander à rejoindre OmniCare",
+  "@authProfessionalAction": {
+    "description": "Welcome footer link to the professional access request. Same text as today. G3-P2a."
+  },
+  "loginSheetTitle": "Bon retour",
+  "@loginSheetTitle": {
+    "description": "Login sheet title. G3-P2a."
+  },
+  "loginSheetSubtitle": "Connectez-vous pour retrouver votre espace OmniCare.",
+  "@loginSheetSubtitle": {
+    "description": "Login sheet subtitle. Same text as the former login screen. G3-P2a."
+  },
+  "authEmailLabel": "Adresse e-mail",
+  "@authEmailLabel": {
+    "description": "Label above the e-mail field (login sheet). G3-P2a."
+  },
+  "authPasswordLabel": "Mot de passe",
+  "@authPasswordLabel": {
+    "description": "Label above the password field (login sheet). G3-P2a."
+  },
+  "authShowPassword": "Afficher le mot de passe",
+  "@authShowPassword": {
+    "description": "Tooltip / screen-reader label of the eye button when the password is hidden. Same text as today. G3-P2a."
+  },
+  "authHidePassword": "Masquer le mot de passe",
+  "@authHidePassword": {
+    "description": "Tooltip / screen-reader label of the eye button when the password is visible. Same text as today. G3-P2a."
+  },
+  "authOrDivider": "ou",
+  "@authOrDivider": {
+    "description": "Word in the « ou » divider between password login and Google. G3-P2a."
+  },
+  "authPhoneLogin": "Continuer avec un numéro de téléphone",
+  "@authPhoneLogin": {
+    "description": "Phone login button, shown only when phone verification is enabled. Same text as today. G3-P2a."
+  },
+  "authNewToOmniCare": "Nouveau sur OmniCare ?",
+  "@authNewToOmniCare": {
+    "description": "Login sheet footer prompt before « Créer un compte ». Same text as today. G3-P2a."
+  },
+  "authLoginFailed": "Connexion impossible.",
+  "@authLoginFailed": {
+    "description": "Login sheet fallback when a password login fails without a mapped message. Same text as before (was hardcoded). G3-P2a-fix."
+  },
+  "authGoogleLoginFailed": "Connexion Google impossible.",
+  "@authGoogleLoginFailed": {
+    "description": "Login sheet fallback when Google sign-in fails. Same text as before (was hardcoded). G3-P2a-fix."
+  },
+  "authGoogleRetryHint": "Sélectionnez à nouveau « Continuer avec Google ».",
+  "@authGoogleRetryHint": {
+    "description": "Web only: neutral hint after « Réessayer avec Google » in the account-link sheet. Same text as before (was hardcoded). G3-P2a-fix."
+  },
+  "authEmailRequired": "Adresse e-mail requise",
+  "@authEmailRequired": {
+    "description": "Login e-mail validator: empty field. Same text and rule as before. G3-P2a-fix."
+  },
+  "authEmailInvalid": "Saisissez une adresse e-mail valide",
+  "@authEmailInvalid": {
+    "description": "Login e-mail validator: wrong format. Same text and rule as before. G3-P2a-fix."
+  },
+  "authPasswordMissing": "Mot de passe requis",
+  "@authPasswordMissing": {
+    "description": "Login password validator: empty field. Same text and rule as before. G3-P2a-fix."
+  },
+  "commonClose": "Fermer",
+  "@commonClose": {
+    "description": "Generic close button tooltip / screen-reader label (auth: login sheet, sign-up, phone, birth-date picker). G3-P2b."
+  },
+  "authBack": "Retour",
+  "@authBack": {
+    "description": "Back button tooltip in the auth flow frame (sign-up, phone). Same text as before. G3-P2b."
+  },
+  "passwordRuleMet": "respecté",
+  "@passwordRuleMet": {
+    "description": "Screen-reader state of a password rule chip when the rule is met. G3-P2b."
+  },
+  "passwordRuleNotMet": "non respecté",
+  "@passwordRuleNotMet": {
+    "description": "Screen-reader state of a password rule chip when the rule is not (yet) met. G3-P2b."
+  },
+  "signupTitle": "Créer un compte patient",
+  "@signupTitle": {
+    "description": "Header title of the sign-up flow (sign-up steps, phone step of the e-mail sign-up). Same text as before. G3-P2b."
+  },
+  "signupStepAccount": "Compte",
+  "@signupStepAccount": {
+    "description": "Sign-up step 1 name in the step progress. G3-P2b."
+  },
+  "signupStepIdentity": "Identité",
+  "@signupStepIdentity": {
+    "description": "Sign-up step 2 name in the step progress. G3-P2b."
+  },
+  "signupStepPhone": "Téléphone",
+  "@signupStepPhone": {
+    "description": "Sign-up step 3 name in the step progress. G3-P2b."
+  },
+  "signupAccountTitle": "Vos identifiants",
+  "@signupAccountTitle": {
+    "description": "Sign-up step 1 title. G3-P2b."
+  },
+  "signupAccountSubtitle": "Ils vous serviront à vous connecter à OmniCare.",
+  "@signupAccountSubtitle": {
+    "description": "Sign-up step 1 subtitle. G3-P2b."
+  },
+  "signupOrWithEmail": "ou avec votre e-mail",
+  "@signupOrWithEmail": {
+    "description": "Divider between Google and the e-mail form on sign-up step 1. G3-P2b."
+  },
+  "signupConfirmPasswordLabel": "Confirmer le mot de passe",
+  "@signupConfirmPasswordLabel": {
+    "description": "Label of the confirm-password field. Same text as before. G3-P2b."
+  },
+  "signupPasswordRuleMinLength": "12 caractères minimum",
+  "@signupPasswordRuleMinLength": {
+    "description": "Password rule chip label (server rule: 12–128 characters). G3-P2b."
+  },
+  "signupPasswordsMatch": "Les mots de passe correspondent",
+  "@signupPasswordsMatch": {
+    "description": "Success message under the confirm-password field when both passwords match. G3-P2b."
+  },
+  "signupFieldRequired": "Champ requis",
+  "@signupFieldRequired": {
+    "description": "Sign-up validators: empty field. Same text and rule as before. G3-P2b."
+  },
+  "signupEmailInvalid": "Adresse e-mail invalide",
+  "@signupEmailInvalid": {
+    "description": "Sign-up e-mail validator: wrong format. Same text and rule as before. G3-P2b."
+  },
+  "signupPasswordTooShort": "Utilisez au moins 12 caractères",
+  "@signupPasswordTooShort": {
+    "description": "Sign-up password validator: shorter than 12. Same text and rule as before. G3-P2b."
+  },
+  "signupPasswordTooLong": "Utilisez 128 caractères maximum",
+  "@signupPasswordTooLong": {
+    "description": "Sign-up password validator: longer than 128. Same text and rule as before. G3-P2b."
+  },
+  "signupIdentityTitle": "Qui êtes-vous ?",
+  "@signupIdentityTitle": {
+    "description": "Sign-up step 2 title. G3-P2b."
+  },
+  "signupIdentitySubtitle": "Ces informations permettent à vos professionnels de santé de vous identifier.",
+  "@signupIdentitySubtitle": {
+    "description": "Sign-up step 2 subtitle. G3-P2b."
+  },
+  "signupFirstNameLabel": "Prénom",
+  "@signupFirstNameLabel": {
+    "description": "First-name field label. Same text as before. G3-P2b."
+  },
+  "signupLastNameLabel": "Nom",
+  "@signupLastNameLabel": {
+    "description": "Last-name field label. Same text as before. G3-P2b."
+  },
+  "signupAgeRequirement": "Vous devez avoir au moins 18 ans pour créer un compte.",
+  "@signupAgeRequirement": {
+    "description": "18+ rule text: birth-date helper, picker error and submit check. Same text as before. G3-P2b."
+  },
+  "signupAgeTooYoung": "Vous devez avoir au moins 18 ans",
+  "@signupAgeTooYoung": {
+    "description": "Birth-date field validator: under 18. Same text and rule as before. G3-P2b."
+  },
+  "signupGenderLabel": "Genre",
+  "@signupGenderLabel": {
+    "description": "Gender control label and screen-reader group name. Same text as before. G3-P2b."
+  },
+  "signupGenderMale": "Homme",
+  "@signupGenderMale": {
+    "description": "Gender option (value M). Same text as before. G3-P2b."
+  },
+  "signupGenderFemale": "Femme",
+  "@signupGenderFemale": {
+    "description": "Gender option (value F). Same text as before. G3-P2b."
+  },
+  "signupSelectGender": "Sélectionnez votre genre.",
+  "@signupSelectGender": {
+    "description": "Inline error when no gender is chosen (was a SnackBar). Same text. G3-P2b."
+  },
+  "signupSelectBirthDate": "Sélectionnez votre date de naissance.",
+  "@signupSelectBirthDate": {
+    "description": "Inline error when no birth date is chosen (was a SnackBar). Same text. G3-P2b."
+  },
+  "signupGoogleFailed": "Inscription avec Google impossible.",
+  "@signupGoogleFailed": {
+    "description": "Sign-up fallback when Google sign-up fails. Same text as before. G3-P2b."
+  },
+  "authContinue": "Continuer",
+  "@authContinue": {
+    "description": "Primary button: sign-up steps 1–2, phone step when phone verification is off. Same text as before. G3-P2b."
+  },
+  "signupHaveAccount": "Vous avez déjà un compte ?",
+  "@signupHaveAccount": {
+    "description": "Sign-up step 1 footer prompt before « Se connecter ». Same text as before. G3-P2b."
+  },
+  "signupTermsIntro": "En créant un compte, vous acceptez nos",
+  "@signupTermsIntro": {
+    "description": "Terms sentence, part 1 (before « conditions »). Same text as before. G3-P2b."
+  },
+  "signupTermsConditions": "conditions",
+  "@signupTermsConditions": {
+    "description": "Terms sentence, highlighted « conditions ». Same text as before. G3-P2b."
+  },
+  "signupTermsAnd": "et notre",
+  "@signupTermsAnd": {
+    "description": "Terms sentence, part between the two highlighted words. Same text as before. G3-P2b."
+  },
+  "signupTermsPrivacy": "politique de confidentialité",
+  "@signupTermsPrivacy": {
+    "description": "Terms sentence, highlighted « politique de confidentialité ». Same text as before. G3-P2b."
+  },
+  "signupSummaryTitle": "Récapitulatif",
+  "@signupSummaryTitle": {
+    "description": "Title of the summary card on the sign-up phone step. G3-P2b."
+  },
+  "signupEdit": "Modifier",
+  "@signupEdit": {
+    "description": "Visible text of the summary « Modifier » links. G3-P2b."
+  },
+  "signupEditAccount": "Modifier vos identifiants",
+  "@signupEditAccount": {
+    "description": "Screen-reader label of the summary link back to step 1. G3-P2b."
+  },
+  "signupEditIdentity": "Modifier votre identité",
+  "@signupEditIdentity": {
+    "description": "Screen-reader label of the summary link back to step 2. G3-P2b."
+  },
+  "signupCreateAccount": "Créer mon compte",
+  "@signupCreateAccount": {
+    "description": "Primary button of the sign-up phone step (e-mail sign-up only). G3-P2b."
+  },
+  "phoneScreenTitle": "Numéro de téléphone",
+  "@phoneScreenTitle": {
+    "description": "Phone screen header title and phone field label. Same text as before. G3-P2b."
+  },
+  "phoneLoginTitle": "Connexion par téléphone",
+  "@phoneLoginTitle": {
+    "description": "Phone screen title in the phone-login flow. Same text as before. G3-P2b."
+  },
+  "phoneVerifyTitle": "Vérifiez votre téléphone",
+  "@phoneVerifyTitle": {
+    "description": "Phone screen title in sign-up when phone verification is on. Same text as before. G3-P2b."
+  },
+  "phoneContactTitle": "Votre numéro de téléphone",
+  "@phoneContactTitle": {
+    "description": "Phone screen title in sign-up when phone verification is off. Same text as before. G3-P2b."
+  },
+  "phoneLoginSubtitle": "Saisissez votre numéro pour recevoir un code de connexion.",
+  "@phoneLoginSubtitle": {
+    "description": "Phone screen subtitle, phone-login flow. Same text as before. G3-P2b."
+  },
+  "phoneVerifySubtitle": "Nous devons vérifier votre numéro avant de continuer.",
+  "@phoneVerifySubtitle": {
+    "description": "Phone screen subtitle, sign-up with verification. Same text as before. G3-P2b."
+  },
+  "phoneContactSubtitle": "Ajoutez un numéro de contact pour finaliser votre compte.",
+  "@phoneContactSubtitle": {
+    "description": "Phone screen subtitle, sign-up without verification. Same text as before. G3-P2b."
+  },
+  "phoneHint": "12 345 678",
+  "@phoneHint": {
+    "description": "Phone field hint. Same text as before. G3-P2b."
+  },
+  "phoneFormatHelper": "Format tunisien à 8 chiffres",
+  "@phoneFormatHelper": {
+    "description": "Phone field helper. Same text as before. G3-P2b."
+  },
+  "phonePrefix": "+216",
+  "@phonePrefix": {
+    "description": "Phone field country prefix segment. Same as before. G3-P2b."
+  },
+  "phoneRequired": "Numéro de téléphone requis",
+  "@phoneRequired": {
+    "description": "Phone validator: empty field (was English « Phone number is required »). G3-P2b."
+  },
+  "phoneDigitsInvalid": "Saisissez les 8 chiffres de votre numéro.",
+  "@phoneDigitsInvalid": {
+    "description": "Phone validator: not 8 Tunisian digits (was the English normalizer message). Same rule. G3-P2b."
+  },
+  "phoneUnableToContinue": "Impossible de continuer.",
+  "@phoneUnableToContinue": {
+    "description": "Phone screen fallback when the controller returns no message (was English « Unable to continue. »). G3-P2b."
+  },
+  "signupReceiveCode": "Recevoir le code",
+  "@signupReceiveCode": {
+    "description": "E-mail sign-up, phone step: main button when phone verification is on (the button sends the SMS code). G3-P2b-fix."
+  },
+  "splashSessionError": "Nous n'avons pas pu vérifier votre session. Vérifiez votre connexion et réessayez.",
+  "@splashSessionError": {
+    "description": "Splash: saved session could not be checked (was English « We could not verify your saved session. Check your connection and try again. »). G3-P2c."
+  },
+  "splashRetry": "Réessayer",
+  "@splashRetry": {
+    "description": "Splash: retry button of the session error card (was English « Try again »). G3-P2c."
+  },
+  "forcedPasswordTitle": "Changez votre mot de passe",
+  "@forcedPasswordTitle": {
+    "description": "Forced password change (/change-password-required): page title. G3-P2c."
+  },
+  "forcedPasswordReason": "Pour la sécurité de votre compte, choisissez un nouveau mot de passe avant de continuer.",
+  "@forcedPasswordReason": {
+    "description": "Forced password change: one-line reason under the title. G3-P2c."
+  },
+  "onboardingSkip": "Passer",
+  "@onboardingSkip": {
+    "description": "Onboarding frame: skip text button at the top right. G3-ONB1."
+  },
+  "onboardingProgressLabel": "Progression",
+  "@onboardingProgressLabel": {
+    "description": "Onboarding frame: screen-reader name of the thin progress bar (its value is a percentage). G3-ONB1."
+  },
+  "commonEdit": "Modifier",
+  "@commonEdit": {
+    "description": "Generic « Modifier » action (profile summary card, summary list rows). G3-ONB1."
+  },
+  "commonEditItem": "Modifier : {item}",
+  "@commonEditItem": {
+    "description": "Screen-reader label of a « Modifier » action, naming what it edits. G3-ONB1.",
+    "placeholders": {
+      "item": {
+        "type": "String",
+        "example": "Groupe sanguin"
+      }
+    }
+  },
+  "pickerNoValue": "Non renseigné",
+  "@pickerNoValue": {
+    "description": "Number wheel / weight ruler: screen-reader value while nothing is chosen yet (the readout shows « — »). G3-ONB1."
+  },
+  "onboardingIntroChipBlood": "Groupe sanguin",
+  "@onboardingIntroChipBlood": {"description": "Onboarding intro: label chip on the dark header. G3-ONB2."},
+  "onboardingIntroChipAllergies": "Allergies",
+  "@onboardingIntroChipAllergies": {"description": "Onboarding intro: label chip on the dark header. G3-ONB2."},
+  "onboardingIntroChipMedications": "Médicaments",
+  "@onboardingIntroChipMedications": {"description": "Onboarding intro: label chip on the dark header. G3-ONB2."},
+  "onboardingIntroChipFollowUp": "Suivi",
+  "@onboardingIntroChipFollowUp": {"description": "Onboarding intro: label chip on the dark header. G3-ONB2."},
+  "onboardingIntroTitle": "Préparons votre dossier médical",
+  "@onboardingIntroTitle": {"description": "Onboarding intro: card title. G3-ONB2."},
+  "onboardingIntroBody": "Quelques questions pour que vos soignants disposent des bonnes informations.",
+  "@onboardingIntroBody": {"description": "Onboarding intro: card text. G3-ONB2."},
+  "onboardingIntroDuration": "Environ 1 minute",
+  "@onboardingIntroDuration": {"description": "Onboarding intro: duration line. G3-ONB2."},
+  "onboardingIntroEditable": "Vous pourrez les modifier à tout moment",
+  "@onboardingIntroEditable": {"description": "Onboarding intro: reassurance line. G3-ONB2."},
+  "onboardingIntroStart": "Commencer",
+  "@onboardingIntroStart": {"description": "Onboarding intro: main button, shows the first page. G3-ONB2."},
+  "onboardingIntroLater": "Plus tard",
+  "@onboardingIntroLater": {"description": "Onboarding intro: secondary button, same action as « Passer » (go home). G3-ONB2."},
+  "onboardingContinue": "Continuer",
+  "@onboardingContinue": {"description": "Onboarding: main button (was English « Continue »). G3-ONB2."},
+  "onboardingFinish": "Terminer",
+  "@onboardingFinish": {"description": "Onboarding: main button of the last page (was English « Complete »). G3-ONB2."},
+  "onboardingProfileTitle": "C’est bien vous ?",
+  "@onboardingProfileTitle": {"description": "Onboarding page 1 « Profil »: title (was « Confirm your profile »). G3-ONB2."},
+  "onboardingProfileSubtitle": "Vérifiez les informations de votre compte.",
+  "@onboardingProfileSubtitle": {"description": "Onboarding « Profil »: subtitle. G3-ONB2."},
+  "onboardingProfileConfirm": "C’est bien moi",
+  "@onboardingProfileConfirm": {"description": "Onboarding « Profil »: main button while the summary card is shown (same save as « Continuer »). G3-ONB2."},
+  "onboardingFirstName": "Prénom",
+  "@onboardingFirstName": {"description": "Onboarding « Profil »: field label (was « First name »). G3-ONB2."},
+  "onboardingLastName": "Nom",
+  "@onboardingLastName": {"description": "Onboarding « Profil »: field label (was « Last name »). G3-ONB2."},
+  "onboardingBirthDate": "Date de naissance",
+  "@onboardingBirthDate": {"description": "Onboarding « Profil » field label and summary row (was « Birth date »). G3-ONB2."},
+  "onboardingGender": "Genre",
+  "@onboardingGender": {"description": "Onboarding « Profil » field label and summary row (was « Gender »). G3-ONB2."},
+  "onboardingGenderMale": "Homme",
+  "@onboardingGenderMale": {"description": "Onboarding gender option, stored value M (was « Male »). G3-ONB2."},
+  "onboardingGenderFemale": "Femme",
+  "@onboardingGenderFemale": {"description": "Onboarding gender option, stored value F (was « Female »). G3-ONB2."},
+  "onboardingGenderOther": "Autre",
+  "@onboardingGenderOther": {"description": "Onboarding gender option, stored value autre (was « Other »). G3-ONB2."},
+  "onboardingErrorFirstName": "Saisissez votre prénom.",
+  "@onboardingErrorFirstName": {"description": "Onboarding validation (was « Please enter your first name. »), same rule. G3-ONB2."},
+  "onboardingErrorLastName": "Saisissez votre nom.",
+  "@onboardingErrorLastName": {"description": "Onboarding validation (was « Please enter your last name. »), same rule. G3-ONB2."},
+  "onboardingErrorBirthDate": "Sélectionnez votre date de naissance.",
+  "@onboardingErrorBirthDate": {"description": "Onboarding validation (was « Please select your birth date. »), same rule. G3-ONB2."},
+  "onboardingErrorBirthDatePast": "Choisissez une date de naissance dans le passé.",
+  "@onboardingErrorBirthDatePast": {"description": "Onboarding validation (was « Please select a birth date in the past. »), same rule. G3-ONB2."},
+  "onboardingErrorGender": "Sélectionnez votre genre.",
+  "@onboardingErrorGender": {"description": "Onboarding validation (was « Please select your gender. »), same rule. G3-ONB2."},
+  "onboardingErrorHeight": "Indiquez votre taille.",
+  "@onboardingErrorHeight": {"description": "Onboarding validation (was « Please enter your height. »), same rule. G3-ONB2."},
+  "onboardingErrorWeight": "Indiquez votre poids.",
+  "@onboardingErrorWeight": {"description": "Onboarding validation (was « Please enter your weight. »), same rule. G3-ONB2."},
+  "onboardingErrorHeightInvalid": "Indiquez une taille valide.",
+  "@onboardingErrorHeightInvalid": {"description": "Onboarding validation (was « Please enter a valid height. »), same rule. G3-ONB2."},
+  "onboardingErrorWeightInvalid": "Indiquez un poids valide.",
+  "@onboardingErrorWeightInvalid": {"description": "Onboarding validation (was « Please enter a valid weight. »), same rule. G3-ONB2."},
+  "onboardingErrorAllergyName": "Indiquez le nom de l’allergie.",
+  "@onboardingErrorAllergyName": {"description": "Onboarding validation (was « Please enter the allergy name. »), same rule. G3-ONB2."},
+  "onboardingErrorAllergySeverity": "Choisissez la gravité de l’allergie.",
+  "@onboardingErrorAllergySeverity": {"description": "Onboarding validation (was « Please select allergy severity. »), same rule. G3-ONB2."},
+  "onboardingErrorMedicationSelect": "Choisissez un médicament dans la liste.",
+  "@onboardingErrorMedicationSelect": {"description": "Onboarding medication check (was « Please select a medication from the list. »), same rule. G3-ONB2."},
+  "onboardingErrorMedicationDosage": "Indiquez la posologie du médicament choisi.",
+  "@onboardingErrorMedicationDosage": {"description": "Onboarding medication check (was « Please enter a dosage for the selected medication. »), same rule. G3-ONB2."},
+  "onboardingBloodTitle": "Quel est votre groupe sanguin ?",
+  "@onboardingBloodTitle": {"description": "Onboarding « Groupe sanguin »: title (was « What is your blood type? »). G3-ONB2."},
+  "onboardingBloodSubtitle": "Vous pourrez le modifier plus tard dans votre dossier.",
+  "@onboardingBloodSubtitle": {"description": "Onboarding « Groupe sanguin »: subtitle (replaces the « blood supply » claim). G3-ONB2."},
+  "onboardingHeightTitle": "Quelle est votre taille ?",
+  "@onboardingHeightTitle": {"description": "Onboarding « Taille »: title. G3-ONB2."},
+  "onboardingHeightLabel": "Taille",
+  "@onboardingHeightLabel": {"description": "Onboarding: height wheel name for screen readers and summary row (was « Height »). G3-ONB2."},
+  "onboardingWeightTitle": "Quel est votre poids ?",
+  "@onboardingWeightTitle": {"description": "Onboarding « Poids »: title. G3-ONB2."},
+  "onboardingWeightLabel": "Poids",
+  "@onboardingWeightLabel": {"description": "Onboarding: weight ruler name for screen readers and summary row (was « Weight »). G3-ONB2."},
+  "onboardingWeightTypeIn": "Saisir au clavier",
+  "@onboardingWeightTypeIn": {"description": "Onboarding « Poids »: opens the type-in weight field. G3-ONB2."},
+  "onboardingWeightFieldLabel": "Poids (kg)",
+  "@onboardingWeightFieldLabel": {"description": "Onboarding « Poids »: type-in field label (decimals allowed as before). G3-ONB2."},
+  "onboardingUnitCm": "cm",
+  "@onboardingUnitCm": {"description": "Unit after a height value. G3-ONB2."},
+  "onboardingUnitKg": "kg",
+  "@onboardingUnitKg": {"description": "Unit after a weight value. G3-ONB2."},
+  "onboardingBmi": "Votre IMC : {value}",
+  "@onboardingBmi": {
+    "description": "Onboarding « Poids »: screen-reader label of the BMI card, final value with one French decimal (G3-ONB2 « IMC {value} », reworded in G3-ONB3a).",
+    "placeholders": {"value": {"type": "String", "example": "22,5"}}
+  },
+  "onboardingBmiPending": "L’IMC sera calculé à partir de votre taille et de votre poids.",
+  "@onboardingBmiPending": {"description": "Onboarding « Poids »: BMI preview before both values exist (was English). G3-ONB2."},
+  "onboardingYes": "Oui",
+  "@onboardingYes": {"description": "Onboarding yes/no question: « Oui ». G3-ONB2."},
+  "onboardingNo": "Non",
+  "@onboardingNo": {"description": "Onboarding yes/no question: « Non » (chronic conditions). G3-ONB2."},
+  "onboardingAllergiesTitle": "Avez-vous des allergies ?",
+  "@onboardingAllergiesTitle": {"description": "Onboarding « Allergies »: title (was « Any allergies? »). G3-ONB2."},
+  "onboardingAllergiesSubtitle": "Médicaments, aliments ou autres (ex. latex).",
+  "@onboardingAllergiesSubtitle": {"description": "Onboarding « Allergies »: subtitle. G3-ONB2."},
+  "onboardingAllergiesNo": "Non, aucune allergie connue",
+  "@onboardingAllergiesNo": {"description": "Onboarding « Allergies »: « Non » option = the existing clear action (noKnownAllergies). G3-ONB2."},
+  "onboardingAllergyCardTitle": "Allergie {index}",
+  "@onboardingAllergyCardTitle": {
+    "description": "Onboarding allergy card title (was « Allergy n »). G3-ONB2.",
+    "placeholders": {"index": {"type": "int", "example": "1"}}
+  },
+  "onboardingAllergyRemove": "Supprimer l’allergie {index}",
+  "@onboardingAllergyRemove": {
+    "description": "Onboarding allergy card: remove button tooltip (was « Remove allergy »). G3-ONB2.",
+    "placeholders": {"index": {"type": "int", "example": "2"}}
+  },
+  "onboardingAllergyName": "Nom de l’allergie",
+  "@onboardingAllergyName": {"description": "Onboarding allergy card: name field (was « Allergy name »). G3-ONB2."},
+  "onboardingAllergySeverity": "Gravité",
+  "@onboardingAllergySeverity": {"description": "Onboarding allergy card: severity label (was « Severity »). G3-ONB2."},
+  "onboardingSeverityMild": "Légère",
+  "@onboardingSeverityMild": {"description": "Allergy severity, stored value « légère » (was « Mild »). REQUIRES MEDICAL VALIDATION. G3-ONB2."},
+  "onboardingSeverityModerate": "Modérée",
+  "@onboardingSeverityModerate": {"description": "Allergy severity, stored value « modérée », default (was « Moderate »). REQUIRES MEDICAL VALIDATION. G3-ONB2."},
+  "onboardingSeveritySevere": "Sévère",
+  "@onboardingSeveritySevere": {"description": "Allergy severity, stored value « sévère » (was « Severe »). REQUIRES MEDICAL VALIDATION. G3-ONB2."},
+  "onboardingAllergyLifeThreatening": "Risque vital",
+  "@onboardingAllergyLifeThreatening": {"description": "Onboarding allergy card: life-threatening switch (was « Life-threatening »). REQUIRES MEDICAL VALIDATION. G3-ONB2."},
+  "onboardingAllergyLifeThreateningHint": "Elle sera mise en évidence pour les soignants.",
+  "@onboardingAllergyLifeThreateningHint": {"description": "Onboarding allergy card: switch subtitle (was « Highlight this allergy for emergency care. »). G3-ONB2."},
+  "onboardingAllergyAdd": "Ajouter une allergie",
+  "@onboardingAllergyAdd": {"description": "Onboarding « Allergies »: add-card button (was « Add Another Allergy »). G3-ONB2."},
+  "onboardingConditionsTitle": "Avez-vous une maladie chronique ?",
+  "@onboardingConditionsTitle": {"description": "Onboarding « Maladies »: title (was « Any chronic conditions? »). G3-ONB2."},
+  "onboardingConditionsSubtitle": "Vos médecins en tiennent compte pour votre suivi.",
+  "@onboardingConditionsSubtitle": {"description": "Onboarding « Maladies »: subtitle (replaces the « 100% safe » claim). G3-ONB2."},
+  "onboardingConditionsSearch": "Rechercher une maladie…",
+  "@onboardingConditionsSearch": {"description": "Onboarding « Maladies »: search field (was « Search conditions... »); matches the French labels. G3-ONB2."},
+  "onboardingConditionsNoMatch": "Aucune maladie ne correspond à votre recherche.",
+  "@onboardingConditionsNoMatch": {"description": "Onboarding « Maladies »: shown when the search matches nothing. G3-ONB2."},
+  "onboardingConditionRemove": "Retirer : {name}",
+  "@onboardingConditionRemove": {
+    "description": "Onboarding « Maladies »: screen-reader label of a selected chip (tap removes it). G3-ONB2.",
+    "placeholders": {"name": {"type": "String", "example": "Diabète"}}
+  },
+  "onboardingConditionDiabetes": "Diabète",
+  "@onboardingConditionDiabetes": {"description": "Label of the stored condition « Diabetes » (value sent unchanged). REQUIRES MEDICAL VALIDATION. G3-ONB2."},
+  "onboardingConditionHypertension": "Hypertension artérielle",
+  "@onboardingConditionHypertension": {"description": "Label of the stored condition « Hypertension » (value sent unchanged). G3-ONB2."},
+  "onboardingConditionAsthma": "Asthme",
+  "@onboardingConditionAsthma": {"description": "Label of the stored condition « Asthma » (value sent unchanged). G3-ONB2."},
+  "onboardingConditionHeartDisease": "Maladie cardiaque",
+  "@onboardingConditionHeartDisease": {"description": "Label of the stored condition « Heart Disease » (value sent unchanged). G3-ONB2."},
+  "onboardingConditionArthritis": "Arthrite",
+  "@onboardingConditionArthritis": {"description": "Label of the stored condition « Arthritis » (value sent unchanged). G3-ONB2."},
+  "onboardingConditionThyroid": "Trouble de la thyroïde",
+  "@onboardingConditionThyroid": {"description": "Label of the stored condition « Thyroid Disorder » (value sent unchanged). G3-ONB2."},
+  "onboardingConditionKidney": "Maladie rénale",
+  "@onboardingConditionKidney": {"description": "Label of the stored condition « Kidney Disease » (value sent unchanged). G3-ONB2."},
+  "onboardingConditionLiver": "Maladie du foie",
+  "@onboardingConditionLiver": {"description": "Label of the stored condition « Liver Disease » (value sent unchanged). G3-ONB2."},
+  "onboardingConditionCancer": "Cancer",
+  "@onboardingConditionCancer": {"description": "Label of the stored condition « Cancer » (value sent unchanged). G3-ONB2."},
+  "onboardingConditionEpilepsy": "Épilepsie",
+  "@onboardingConditionEpilepsy": {"description": "Label of the stored condition « Epilepsy » (value sent unchanged). G3-ONB2."},
+  "onboardingConditionCopd": "BPCO",
+  "@onboardingConditionCopd": {"description": "Label of the stored condition « COPD » (value sent unchanged). G3-ONB2."},
+  "onboardingConditionDepression": "Dépression",
+  "@onboardingConditionDepression": {"description": "Label of the stored condition « Depression » (value sent unchanged). G3-ONB2."},
+  "onboardingConditionAnxiety": "Anxiété",
+  "@onboardingConditionAnxiety": {"description": "Label of the stored condition « Anxiety » (value sent unchanged). G3-ONB2."},
+  "onboardingConditionMigraine": "Migraine",
+  "@onboardingConditionMigraine": {"description": "Label of the stored condition « Migraine » (value sent unchanged). G3-ONB2."},
+  "onboardingMedicationsTitle": "Prenez-vous des médicaments ?",
+  "@onboardingMedicationsTitle": {"description": "Onboarding « Médicaments »: title (was « Current Medications »). G3-ONB2."},
+  "onboardingMedicationsSubtitle": "Indiquez ceux que vous prenez en ce moment.",
+  "@onboardingMedicationsSubtitle": {"description": "Onboarding « Médicaments »: subtitle. G3-ONB2."},
+  "onboardingMedicationsNo": "Non, aucun médicament",
+  "@onboardingMedicationsNo": {"description": "Onboarding « Médicaments »: « Non » option = the existing « not taking any » action (noKnownMedications). G3-ONB2."},
+  "onboardingMedicationsSoonTitle": "L’ajout de médicaments sera bientôt disponible",
+  "@onboardingMedicationsSoonTitle": {"description": "Onboarding « Médicaments »: note shown for « Oui » (no medication can be added yet). G3-ONB2."},
+  "onboardingMedicationsSoonBody": "Vous pourrez les ajouter depuis votre dossier médical.",
+  "@onboardingMedicationsSoonBody": {"description": "Onboarding « Médicaments »: note body. G3-ONB2."},
+  "onboardingDoneTitle": "Vos informations sont enregistrées",
+  "@onboardingDoneTitle": {"description": "Onboarding final screen: title (was « Thank You! »). G3-ONB2."},
+  "onboardingDoneBody": "Vous pourrez les compléter à tout moment depuis « Dossier médical ».",
+  "@onboardingDoneBody": {"description": "Onboarding final screen: text. G3-ONB2."},
+  "onboardingDoneCta": "Accéder à mon espace",
+  "@onboardingDoneCta": {"description": "Onboarding final screen: main button, goes to /home as before (was « Go to Dashboard »). G3-ONB2."},
+  "onboardingSummaryName": "Nom",
+  "@onboardingSummaryName": {"description": "Onboarding final screen: summary row, full name. G3-ONB2."},
+  "onboardingSummaryBlood": "Groupe sanguin",
+  "@onboardingSummaryBlood": {"description": "Onboarding final screen: summary row. G3-ONB2."},
+  "onboardingSummaryAllergies": "Allergies",
+  "@onboardingSummaryAllergies": {"description": "Onboarding final screen: summary row (shown only when allergies were entered). G3-ONB2."},
+  "onboardingSummaryConditions": "Maladies chroniques",
+  "@onboardingSummaryConditions": {"description": "Onboarding final screen: summary row (shown only when conditions were selected). G3-ONB2."},
+  "onboardingLoading": "Chargement de votre profil",
+  "@onboardingLoading": {"description": "Onboarding: screen-reader label of the initial-load spinner. G3-ONB2."},
+  "onboardingBmiTitle": "Votre IMC",
+  "@onboardingBmiTitle": {"description": "Onboarding « Poids »: BMI card heading (display only, no category). G3-ONB3a."},
+  "onboardingBmiHeightNote": "Calculé avec votre taille ({height} cm)",
+  "@onboardingBmiHeightNote": {
+    "description": "Onboarding « Poids »: BMI card footnote with the height used. G3-ONB3a.",
+    "placeholders": {"height": {"type": "int", "example": "171"}}
+  }
+}

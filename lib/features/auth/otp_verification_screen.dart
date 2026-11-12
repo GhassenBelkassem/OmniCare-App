@@ -6,6 +6,7 @@ import '../../core/theme/omni_theme.dart';
 import 'application/auth_controller.dart';
 import 'application/auth_flow_models.dart';
 import 'application/post_auth_navigation.dart';
+import '../../l10n/omni_localizations.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
   final AuthFlowMode mode;
@@ -102,7 +103,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     }
 
     setState(() {
-      _errorMessage = auth.errorMessage ?? 'Unable to verify code.';
+      _errorMessage =
+          auth.errorMessage(OmniLocalizations.of(context)) ??
+          'Unable to verify code.';
     });
   }
 
@@ -117,7 +120,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       _isLoading = false;
       _errorMessage = success
           ? null
-          : context.read<AuthController>().errorMessage ??
+          : context.read<AuthController>().errorMessage(
+                  OmniLocalizations.of(context),
+                ) ??
                 'Unable to resend code.';
     });
     if (success) _startResendTimer();

@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../auth/application/tunisian_phone_number.dart';
 import 'account_security_api.dart';
 import 'account_security_provider.dart';
+import '../../l10n/omni_localizations.dart';
 
 const _teal = Color(0xFF087A65);
 const _muted = Color(0xFF667085);
@@ -83,9 +84,13 @@ class _PhoneChangeScreenState extends State<PhoneChangeScreen> {
                   children: [
                     if (provider.isPhoneActionBusy && status == null)
                       const LinearProgressIndicator(color: _teal),
-                    if (provider.phoneError != null || _localError != null) ...[
+                    if (provider.hasPhoneError || _localError != null) ...[
                       _PhoneError(
-                        message: _localError ?? provider.phoneError!,
+                        message:
+                            _localError ??
+                            provider.phoneErrorMessage(
+                              OmniLocalizations.of(context),
+                            )!,
                         onDismiss: () {
                           provider.clearPhoneError();
                           setState(() => _localError = null);

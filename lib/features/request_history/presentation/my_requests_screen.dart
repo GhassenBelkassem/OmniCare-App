@@ -6,6 +6,7 @@ import '../../request_core/domain/request_vocabulary.dart';
 import '../application/patient_requests_controller.dart';
 import 'patient_request_detail_screen.dart';
 import 'request_status_copy.dart';
+import '../../../l10n/omni_localizations.dart';
 
 class MyRequestsScreen extends StatefulWidget {
   const MyRequestsScreen({super.key});
@@ -68,7 +69,7 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
             children: [
               const Icon(Icons.error_outline, size: 40, color: OmniColors.textTertiary),
               const SizedBox(height: 12),
-              Text(c.listFailure!.message, textAlign: TextAlign.center, style: const TextStyle(color: OmniColors.textSecondary)),
+              Text(c.listFailure!.message(OmniLocalizations.of(context)), textAlign: TextAlign.center, style: const TextStyle(color: OmniColors.textSecondary)),
             ],
           ),
         ),
@@ -156,7 +157,10 @@ class RequestCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final status = RequestStatusCopy.of(request.patientStatus);
+    final status = RequestStatusCopy.of(
+      request.patientStatus,
+      OmniLocalizations.of(context),
+    );
     final localizations = MaterialLocalizations.of(context);
     final submittedAt = request.submittedAt.toLocal();
     final submittedLabel =

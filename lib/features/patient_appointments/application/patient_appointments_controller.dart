@@ -1,13 +1,15 @@
 import 'package:flutter/foundation.dart';
 
 import '../data/patient_appointment_models.dart';
-import '../data/patient_appointment_mock_data.dart';
 
+/// State of the appointments list. It only shows the appointments it is
+/// given: there is no mock default any more (G-2 1b-3). Production does not
+/// build it; `PatientAppointmentsScreen` without a controller renders the real
+/// scheduled-care screen.
 class PatientAppointmentsController extends ChangeNotifier {
-  PatientAppointmentsController({List<PatientAppointment>? appointments})
-    : _appointments = List.unmodifiable(
-        appointments ?? createPatientAppointmentMocks(),
-      );
+  PatientAppointmentsController({
+    required List<PatientAppointment> appointments,
+  }) : _appointments = List.unmodifiable(appointments);
 
   List<PatientAppointment> _appointments;
   PatientAppointmentTab _tab = PatientAppointmentTab.upcoming;

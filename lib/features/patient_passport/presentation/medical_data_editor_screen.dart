@@ -67,8 +67,8 @@ class _MedicalDataEditorScreenState extends State<MedicalDataEditorScreen> {
       text: _formatMeasurement(widget.initialData.weightKg),
     );
     _bmi = _calculateBmi(
-      widget.initialData.heightCm,
-      widget.initialData.weightKg,
+      widget.initialData.heightCm ?? 0,
+      widget.initialData.weightKg ?? 0,
     );
     _selectedConditions = widget.initialData.chronicConditions.toSet();
     _customConditions = widget.initialData.chronicConditions
@@ -101,8 +101,8 @@ class _MedicalDataEditorScreenState extends State<MedicalDataEditorScreen> {
         widget.initialData.bloodGroup.trim().isNotEmpty ||
         widget.initialData.chronicConditions.isNotEmpty ||
         widget.initialData.medications.isNotEmpty ||
-        widget.initialData.heightCm > 0 ||
-        widget.initialData.weightKg > 0;
+        (widget.initialData.heightCm ?? 0) > 0 ||
+        (widget.initialData.weightKg ?? 0) > 0;
     final title = hasMedicalData
         ? 'Modifier les Données de $firstName'
         : 'Ajouter les Données de $firstName';
@@ -275,7 +275,9 @@ class _MedicalDataEditorScreenState extends State<MedicalDataEditorScreen> {
     Navigator.of(context).pop(updatedData);
   }
 
-  static String _formatMeasurement(double value) {
+  /// An empty field when the record holds no value (G2-1b-3b: no default).
+  static String _formatMeasurement(double? value) {
+    if (value == null) return '';
     return value == value.roundToDouble()
         ? value.toInt().toString()
         : value.toStringAsFixed(1);

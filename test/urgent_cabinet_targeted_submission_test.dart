@@ -432,12 +432,15 @@ void main() {
       );
     });
 
-    test('rejects unsupported enums and impossible terminal combinations', () {
+    test('parses unknown enums as unrecognized; rejects impossible '
+        'terminal combinations', () {
+      // G2-1a-3: an unknown server value no longer fails the whole snapshot;
+      // it is parsed as unrecognized and shown as « indisponible ».
       expect(
-        () => UrgentCabinetTargetedRequestSnapshot.fromJson(
+        UrgentCabinetTargetedRequestSnapshot.fromJson(
           _snapshotJson(responseStatus: 'WAITING'),
-        ),
-        throwsFormatException,
+        ).isRecognized,
+        isFalse,
       );
       expect(
         () => UrgentCabinetTargetedRequestSnapshot.fromJson(

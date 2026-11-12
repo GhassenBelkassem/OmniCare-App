@@ -1,5 +1,8 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/network/api_failure.dart';
+import '../../../core/network/api_failure_message.dart';
+import '../../../l10n/omni_localizations.dart';
 import '../domain/request_vocabulary.dart';
 
 /// How a Module 05 operation failed, expressed in terms the UI can act on.
@@ -51,23 +54,26 @@ enum RequestFailureKind {
 
 /// A safe, patient-presentable failure.
 ///
-/// [message] is chosen from this file's constants. It never contains the
-/// backend `detail`, `title`, `instance`, correlation `requestId`, a SQL or
-/// framework message, or any clinic / patient / family identifier — and it is
-/// never `error.toString()`.
+/// Its text comes from [message] (French, `app_fr.arb`). It never contains
+/// the backend `detail`, `title`, `instance`, correlation `requestId`, a SQL
+/// or framework message, or any clinic / patient / family identifier — and it
+/// is never `error.toString()`.
 ///
 /// [diagnosticCode] is our own stable constant for branching and tests. It is
 /// not the backend correlation id and must never be rendered.
 class RequestFailure implements Exception {
   const RequestFailure({
     required this.kind,
-    required this.message,
     required this.retryable,
     required this.diagnosticCode,
+    this.api,
   });
 
   final RequestFailureKind kind;
-  final String message;
+
+  /// The parsed backend failure, when there was one (code, status, fields,
+  /// request id). Never holds server text.
+  final ApiFailure? api;
 
   /// True only when retrying **the same operation id** is safe and useful.
   ///
@@ -89,14 +95,12 @@ class RequestFailure implements Exception {
 
   static const RequestFailure networkUnavailable = RequestFailure(
     kind: RequestFailureKind.network,
-    message: 'Connection unavailable. Check your network and try again.',
     retryable: true,
     diagnosticCode: 'REQUEST_NETWORK_UNAVAILABLE',
   );
 
   static const RequestFailure timedOut = RequestFailure(
     kind: RequestFailureKind.timeout,
-    message: 'The request is taking too long. Please try again.',
     retryable: true,
     diagnosticCode: 'REQUEST_TIMEOUT',
   );
@@ -106,93 +110,78 @@ class RequestFailure implements Exception {
   /// original operation id rather than resent as a new request.
   static const RequestFailure interrupted = RequestFailure(
     kind: RequestFailureKind.network,
-    message: 'Your last request was interrupted. Please try again.',
     retryable: true,
     diagnosticCode: 'REQUEST_INTERRUPTED',
   );
 
   static const RequestFailure invalidResponse = RequestFailure(
     kind: RequestFailureKind.contract,
-    message: 'Your request could not be read safely. Please try again.',
     retryable: true,
     diagnosticCode: 'REQUEST_RESPONSE_INVALID',
   );
 
   static const RequestFailure sessionExpired = RequestFailure(
     kind: RequestFailureKind.sessionExpired,
-    message: 'Your session has expired. Please sign in again.',
     retryable: false,
     diagnosticCode: 'REQUEST_SESSION_EXPIRED',
   );
 
   static const RequestFailure cancelled = RequestFailure(
     kind: RequestFailureKind.cancelled,
-    message: 'The request was interrupted. Please try again.',
     retryable: false,
     diagnosticCode: 'REQUEST_CANCELLED',
   );
 
   static const RequestFailure serverUnavailable = RequestFailure(
     kind: RequestFailureKind.server,
-    message: 'Care requests are temporarily unavailable. Please try again.',
     retryable: true,
     diagnosticCode: 'REQUEST_SERVER_ERROR',
   );
 
   static const RequestFailure unexpected = RequestFailure(
     kind: RequestFailureKind.unexpected,
-    message: 'Something went wrong. Please try again.',
     retryable: true,
     diagnosticCode: 'REQUEST_UNEXPECTED',
   );
 
   static const RequestFailure subjectForbidden = RequestFailure(
     kind: RequestFailureKind.subjectForbidden,
-    message: 'This request cannot be sent for the selected person.',
     retryable: false,
     diagnosticCode: 'REQUEST_SUBJECT_FORBIDDEN',
   );
 
   static const RequestFailure targetUnavailable = RequestFailure(
     kind: RequestFailureKind.targetUnavailable,
-    message: 'This clinic cannot receive requests right now.',
     retryable: false,
     diagnosticCode: 'REQUEST_TARGET_UNAVAILABLE',
   );
 
   static const RequestFailure invalidRequest = RequestFailure(
     kind: RequestFailureKind.invalid,
-    message: 'Some of the details are not valid. Please review and try again.',
     retryable: false,
     diagnosticCode: 'REQUEST_INVALID',
   );
 
   static const RequestFailure versionConflict = RequestFailure(
     kind: RequestFailureKind.versionConflict,
-    message: 'This request has changed. Refresh to see the latest status.',
     retryable: false,
     diagnosticCode: 'REQUEST_VERSION_CONFLICT',
   );
 
   static const RequestFailure transitionInvalid = RequestFailure(
     kind: RequestFailureKind.transitionInvalid,
-    message: 'This change is no longer possible for this request.',
     retryable: false,
     diagnosticCode: 'REQUEST_TRANSITION_INVALID',
   );
 
   static const RequestFailure idempotencyConflict = RequestFailure(
     kind: RequestFailureKind.idempotencyConflict,
-    message:
-        'This request was already used for a different submission. '
-        'Please start a new request.',
     retryable: false,
     diagnosticCode: 'REQUEST_IDEMPOTENCY_CONFLICT',
   );
 
   static const RequestFailure notFound = RequestFailure(
     kind: RequestFailureKind.notFound,
-    message: 'This request is no longer available.',
     retryable: false,
     diagnosticCode: 'REQUEST_NOT_FOUND',
   );
@@ -201,12 +190,24 @@ class RequestFailure implements Exception {
   /// reaches the network.
   static const RequestFailure intentIncomplete = RequestFailure(
     kind: RequestFailureKind.invalid,
-    message: 'Choose a clinic before sending your request.',
     retryable: false,
     diagnosticCode: 'REQUEST_INTENT_INCOMPLETE',
   );
 
-  /// Maps any thrown object into a safe failure.
+  static const RequestFailure recoveryIdentityUnavailable = RequestFailure(
+    kind: RequestFailureKind.invalid,
+    retryable: false,
+    diagnosticCode: 'REQUEST_ACCOUNT_SCOPE_UNAVAILABLE',
+  );
+
+  static const RequestFailure recoveryPersistenceUnavailable = RequestFailure(
+    kind: RequestFailureKind.unexpected,
+    retryable: true,
+    diagnosticCode: 'REQUEST_RECOVERY_PERSISTENCE_UNAVAILABLE',
+  );
+
+  /// Maps any thrown object into a safe failure. Backend errors are read
+  /// once, by [ApiFailure.fromDio]; this only gives them request meaning.
   static RequestFailure from(Object error) {
     if (error is RequestFailure) return error;
     if (error is RequestContractException) return invalidResponse;
@@ -216,36 +217,24 @@ class RequestFailure implements Exception {
   }
 
   static RequestFailure _fromDio(DioException error) {
-    switch (error.type) {
-      case DioExceptionType.connectionTimeout:
-      case DioExceptionType.sendTimeout:
-      case DioExceptionType.receiveTimeout:
+    if (error.type == DioExceptionType.cancel) return cancelled;
+    final api = ApiFailure.fromDio(error);
+    switch (api.kind) {
+      case ApiFailureKind.timeout when api.statusCode == null:
         return timedOut;
-      case DioExceptionType.connectionError:
+      case ApiFailureKind.network:
         return networkUnavailable;
-      case DioExceptionType.cancel:
-        return cancelled;
-      case DioExceptionType.badCertificate:
-      case DioExceptionType.unknown:
-        if (error.response == null) return networkUnavailable;
-      case DioExceptionType.badResponse:
+      default:
         break;
     }
+    final status = api.statusCode ?? 0;
+    if (status == 401) return sessionExpired._with(api);
 
-    final response = error.response;
-    if (response == null) return networkUnavailable;
+    final mapped = _fromProblemCode(api.code?.toUpperCase());
+    if (mapped != null) return mapped._with(api);
 
-    final status = response.statusCode ?? 0;
-    if (status == 401) return sessionExpired;
-
-    // RFC 9457: only `errorCode` is read. `detail`, `title`, `instance`,
-    // `type`, `timestamp` and the correlation `requestId` are ignored on
-    // purpose — none of them may reach a patient-visible string.
-    final mapped = _fromProblemCode(_problemErrorCode(response.data));
-    if (mapped != null) return mapped;
-
-    if (status >= 500) return serverUnavailable;
-    return switch (status) {
+    if (status >= 500) return serverUnavailable._with(api);
+    final byStatus = switch (status) {
       400 => invalidRequest,
       403 => subjectForbidden,
       404 => notFound,
@@ -253,6 +242,7 @@ class RequestFailure implements Exception {
       422 => targetUnavailable,
       _ => unexpected,
     };
+    return byStatus._with(api);
   }
 
   static RequestFailure? _fromProblemCode(String? errorCode) {
@@ -268,13 +258,36 @@ class RequestFailure implements Exception {
     };
   }
 
-  static String? _problemErrorCode(Object? data) {
-    if (data is! Map) return null;
-    final value = data['errorCode'];
-    if (value is! String) return null;
-    final normalized = value.trim().toUpperCase();
-    return normalized.isEmpty ? null : normalized;
-  }
+  RequestFailure _with(ApiFailure api) => RequestFailure(
+    kind: kind,
+    retryable: retryable,
+    diagnosticCode: diagnosticCode,
+    api: api,
+  );
+
+  /// The French text for this failure. A failure with no request meaning
+  /// gets the generic text of its backend kind (for example « Trop de
+  /// tentatives… » on a 429).
+  String message(OmniLocalizations l10n) => switch (diagnosticCode) {
+    'REQUEST_NETWORK_UNAVAILABLE' => l10n.apiErrorNetwork,
+    'REQUEST_TIMEOUT' => l10n.apiErrorTimeout,
+    'REQUEST_INTERRUPTED' => l10n.requestInterrupted,
+    'REQUEST_RESPONSE_INVALID' => l10n.requestResponseInvalid,
+    'REQUEST_SESSION_EXPIRED' => l10n.apiErrorUnauthorized,
+    'REQUEST_CANCELLED' => l10n.requestCancelled,
+    'REQUEST_SERVER_ERROR' => l10n.requestServerUnavailable,
+    'REQUEST_SUBJECT_FORBIDDEN' => l10n.requestSubjectForbidden,
+    'REQUEST_TARGET_UNAVAILABLE' => l10n.requestTargetUnavailable,
+    'REQUEST_INVALID' => l10n.requestInvalid,
+    'REQUEST_VERSION_CONFLICT' => l10n.requestVersionConflict,
+    'REQUEST_TRANSITION_INVALID' => l10n.requestTransitionInvalid,
+    'REQUEST_IDEMPOTENCY_CONFLICT' => l10n.requestIdempotencyConflict,
+    'REQUEST_NOT_FOUND' => l10n.requestNotFound,
+    'REQUEST_INTENT_INCOMPLETE' => l10n.requestIntentIncomplete,
+    'REQUEST_ACCOUNT_SCOPE_UNAVAILABLE' => l10n.requestSignInAgain,
+    'REQUEST_RECOVERY_PERSISTENCE_UNAVAILABLE' => l10n.requestCannotSendSafely,
+    _ => api == null ? l10n.apiErrorUnknown : apiFailureMessage(api!, l10n),
+  };
 
   /// Renders only our own kind and diagnostic constant.
   @override

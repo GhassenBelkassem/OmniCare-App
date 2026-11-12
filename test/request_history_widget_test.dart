@@ -13,6 +13,7 @@ import 'package:omnicare_mobile/features/request_history/application/patient_req
 import 'package:omnicare_mobile/features/request_history/presentation/my_requests_screen.dart';
 import 'package:omnicare_mobile/features/request_history/presentation/patient_request_detail_screen.dart';
 import 'package:provider/provider.dart';
+import 'package:omnicare_mobile/l10n/omni_localizations.dart';
 
 final _requestId = RequestOperationId.parse(
   '33333333-3333-4333-8333-333333333333',
@@ -114,7 +115,11 @@ class _Gateway implements PatientRequestGateway {
 Widget _host(PatientRequestsController controller, Widget child) =>
     ChangeNotifierProvider.value(
       value: controller,
-      child: MaterialApp(home: child),
+      child: MaterialApp(
+        localizationsDelegates: OmniLocalizations.localizationsDelegates,
+        supportedLocales: OmniLocalizations.supportedLocales,
+        home: child,
+      ),
     );
 
 void main() {
@@ -139,7 +144,14 @@ void main() {
       await error.loadFirst();
       await tester.pumpWidget(_host(error, const MyRequestsScreen()));
       await tester.pumpAndSettle();
-      expect(find.text(RequestFailure.unexpected.message), findsOneWidget);
+      expect(
+        find.text(
+          RequestFailure.unexpected.message(
+            lookupOmniLocalizations(const Locale('fr')),
+          ),
+        ),
+        findsOneWidget,
+      );
       await tester.pumpWidget(const SizedBox());
       error.dispose();
 
@@ -391,6 +403,8 @@ void main() {
       ChangeNotifierProvider.value(
         value: controller,
         child: MaterialApp(
+          localizationsDelegates: OmniLocalizations.localizationsDelegates,
+          supportedLocales: OmniLocalizations.supportedLocales,
           home: const PatientHomeFeed(displayName: 'Sarah'),
           routes: {'/m05/requests': (_) => const MyRequestsScreen()},
         ),

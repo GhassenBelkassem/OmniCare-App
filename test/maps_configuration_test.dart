@@ -26,7 +26,7 @@ void main() {
     test('rejects missing and placeholder values without exposing them', () {
       expect(isConfiguredGoogleMapsApiKey(''), isFalse);
       expect(isConfiguredGoogleMapsApiKey(r'$(MAPS_API_KEY)'), isFalse);
-      expect(isConfiguredGoogleMapsApiKey('%GOOGLE_MAPS_API_KEY%'), isFalse);
+      expect(isConfiguredGoogleMapsApiKey('%GOOGLE_MAPS_WEB_API_KEY%'), isFalse);
       expect(
         isConfiguredGoogleMapsApiKey('REPLACE_WITH_RESTRICTED_WEB_MAPS_KEY'),
         isFalse,

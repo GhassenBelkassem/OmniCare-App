@@ -91,36 +91,22 @@ DoctorDetail buildDoctorDetail(DoctorDirectoryDetail dto) {
   );
 }
 
-/// Groups raw slot instants by local date and period, sorted chronologically.
+/// Groups server slots by Africa/Tunis calendar day, sorted chronologically.
+///
+/// Each slot keeps the server instants unchanged; only the day key is derived
+/// from the Tunis wall clock (a slot at 23:30Z belongs to the next Tunis day).
+/// One pass to group (O(n)), then each day is sorted (O(n log n) overall).
 List<DoctorDayAvailability> groupAvailabilitySlots(
   List<AvailabilitySlotDto> slots,
 ) {
   final byDay = <DateTime, List<DoctorAvailabilitySlot>>{};
   for (final dto in slots) {
-    final startUtc = DateTime.tryParse(dto.start);
-    final endUtc = DateTime.tryParse(dto.end);
-    if (startUtc == null || endUtc == null) {
-      throw const DoctorContractException(
-        'Slot carries an unparseable instant.',
-      );
-    }
-    final start = toTunisWallClock(startUtc);
-    final end = toTunisWallClock(endUtc);
-    final date = DateTime(start.year, start.month, start.day);
-    byDay
-        .putIfAbsent(date, () => [])
-        .add(
-          DoctorAvailabilitySlot(
-            time: _formatTime(start),
-            timeOfDay: _periodFor(start),
-            startIso: dto.start,
-            endIso: dto.end,
-            start: start,
-            end: end,
-            durationMinutes:
-                dto.durationMinutes ?? endUtc.difference(startUtc).inMinutes,
-          ),
-        );
+    final slot = DoctorAvailabilitySlot.fromServer(
+      startIso: dto.start,
+      endIso: dto.end,
+      durationMinutes: dto.durationMinutes,
+    );
+    byDay.putIfAbsent(slot.tunisDate, () => []).add(slot);
   }
 
   final days = byDay.entries.map((entry) {
@@ -153,11 +139,12 @@ DoctorDetail attachAvailability(
 /// earliest returned slot, or null when there is no availability at all.
 String? nextAvailableLabelFor(List<DoctorDayAvailability> days) {
   final now = toTunisWallClock(DateTime.now());
+  final today = DateTime(now.year, now.month, now.day);
   for (final day in days) {
-    if (day.date.isAfter(now.subtract(const Duration(days: 1))) &&
-        day.hasSlots) {
+    final dayDate = DateTime(day.date.year, day.date.month, day.date.day);
+    if (!dayDate.isBefore(today) && day.hasSlots) {
       final slot = day.slots.first;
-      return '${_dayLabel(day.date, now)} · ${slot.time}';
+      return '${_dayLabel(dayDate, today)} · ${slot.time}';
     }
   }
   return null;
@@ -166,8 +153,9 @@ String? nextAvailableLabelFor(List<DoctorDayAvailability> days) {
 String _dayLabel(DateTime date, DateTime now) {
   final today = DateTime(now.year, now.month, now.day);
   final tomorrow = DateTime(now.year, now.month, now.day + 1);
-  if (date.isAtSameMomentAs(today)) return 'Aujourd\'hui';
-  if (date.isAtSameMomentAs(tomorrow)) return 'Demain';
+  final calendarDate = DateTime(date.year, date.month, date.day);
+  if (calendarDate == today) return 'Aujourd\'hui';
+  if (calendarDate == tomorrow) return 'Demain';
   const dayNames = [
     'Lundi',
     'Mardi',
@@ -177,7 +165,7 @@ String _dayLabel(DateTime date, DateTime now) {
     'Samedi',
     'Dimanche',
   ];
-  return dayNames[(date.weekday - 1).clamp(0, 6)];
+  return dayNames[(calendarDate.weekday - 1).clamp(0, 6)];
 }
 
 PracticeLocation _toPracticeLocation(DoctorPracticeLocationDto dto) {
@@ -216,22 +204,4 @@ PracticeLocation _toPracticeLocation(DoctorPracticeLocationDto dto) {
     coverage: const [],
     appointmentInstructions: dto.patientInstructions,
   );
-}
-
-/// Africa/Tunis has been UTC+01:00 without DST throughout the supported
-/// scheduling horizon. This conversion is intentionally centralized so the
-/// device timezone never influences Cabinet slot grouping or labels.
-DateTime toTunisWallClock(DateTime instant) =>
-    instant.toUtc().add(const Duration(hours: 1));
-
-String _formatTime(DateTime value) {
-  final hour = value.hour.toString().padLeft(2, '0');
-  final minute = value.minute.toString().padLeft(2, '0');
-  return '$hour:$minute';
-}
-
-String _periodFor(DateTime value) {
-  if (value.hour < 12) return 'Matin';
-  if (value.hour < 18) return 'Après-midi';
-  return 'Soir';
 }

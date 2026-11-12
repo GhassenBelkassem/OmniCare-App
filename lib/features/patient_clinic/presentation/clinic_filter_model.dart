@@ -272,7 +272,9 @@ bool _matchesCareNeeds(
 
     // Keyword expansion for presentation-only matching.
     if (needle == 'general consultation' &&
-        allText.contains('general')) {
+        (allText.contains('general medicine') ||
+            allText.contains('general practice') ||
+            item.clinicType.toLowerCase().contains('general clinic'))) {
       return true;
     }
     if (needle == 'specialist consultation' &&

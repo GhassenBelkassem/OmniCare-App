@@ -17,6 +17,9 @@ import 'package:omnicare_mobile/features/request_flow/widgets/care_subject_card.
 import 'package:omnicare_mobile/providers/family_provider.dart';
 import 'package:omnicare_mobile/providers/user_provider.dart';
 import 'package:omnicare_mobile/repositories/family_repository.dart';
+import 'package:omnicare_mobile/core/result/result.dart';
+import 'package:omnicare_mobile/core/network/api_failure.dart';
+import 'package:omnicare_mobile/l10n/omni_localizations.dart';
 
 class _FakeFamilyRepository extends FamilyRepository {
   _FakeFamilyRepository({this.members = const [], this.createError})
@@ -27,10 +30,10 @@ class _FakeFamilyRepository extends FamilyRepository {
   int createCalls = 0;
 
   @override
-  Future<List<FamilyMember>> getFamilyMembers() async => members;
+  Future<Result<List<FamilyMember>>> getFamilyMembers() async => Ok(members);
 
   @override
-  Future<FamilyMember> createFamilyMember({
+  Future<Result<FamilyMember>> createFamilyMember({
     required String firstName,
     required String lastName,
     required DateTime dateOfBirth,
@@ -40,17 +43,19 @@ class _FakeFamilyRepository extends FamilyRepository {
   }) async {
     createCalls++;
     final error = createError;
-    if (error != null) throw error;
-    return FamilyMember(
-      id: 'created-$createCalls',
-      accountHolderId: 'holder',
-      firstName: firstName,
-      lastName: lastName,
-      dateOfBirth: dateOfBirth,
-      gender: gender,
-      relationship: relationship,
-      graduated: false,
-      photoUrl: photoUrl,
+    if (error != null) return Err(ApiFailure.from(error));
+    return Ok(
+      FamilyMember(
+        id: 'created-$createCalls',
+        accountHolderId: 'holder',
+        firstName: firstName,
+        lastName: lastName,
+        dateOfBirth: dateOfBirth,
+        gender: gender,
+        relationship: relationship,
+        graduated: false,
+        photoUrl: photoUrl,
+      ),
     );
   }
 }
@@ -110,6 +115,8 @@ Widget _buildApp({
       ),
     ],
     child: MaterialApp(
+      localizationsDelegates: OmniLocalizations.localizationsDelegates,
+      supportedLocales: OmniLocalizations.supportedLocales,
       theme: buildOmniTheme(),
       routes: {
         UrgentCabinetFlowRoutes.doctorDirectory: (_) =>

@@ -14,6 +14,7 @@ import 'package:omnicare_mobile/features/emergency/urgent_cabinet/urgent_cabinet
 import 'package:omnicare_mobile/features/patient_clinic/presentation/widgets/clinic_full_screen_gallery.dart';
 import 'package:omnicare_mobile/features/patient_doctor/presentation/doctor_availability_sheet.dart';
 import 'package:omnicare_mobile/features/patient_doctor/presentation/doctor_detail_screen.dart';
+import 'package:omnicare_mobile/l10n/omni_localizations.dart';
 
 class _StaticDetailSource extends UrgentCabinetDoctorSource {
   const _StaticDetailSource({
@@ -74,6 +75,8 @@ Widget _buildDetail({
   return ChangeNotifierProvider<UrgentCabinetFlowController>.value(
     value: controller,
     child: MaterialApp(
+      localizationsDelegates: OmniLocalizations.localizationsDelegates,
+      supportedLocales: OmniLocalizations.supportedLocales,
       theme: buildOmniTheme(),
       routes: {
         UrgentCabinetFlowRoutes.requestConfirmation: (_) => const Scaffold(

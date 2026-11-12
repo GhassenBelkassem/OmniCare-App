@@ -2,8 +2,10 @@ import 'package:dio/dio.dart';
 
 import '../../../core/models/patient_profile.dart';
 import '../../../core/network/api_exception.dart';
+import '../../../core/network/api_failure.dart';
 import '../../../core/network/app_http_client.dart';
-import '../../../core/storage/secure_token_store.dart';
+import '../../../core/network/auth_interceptor.dart';
+import '../../../core/network/auth_refresh_coordinator.dart';
 import 'models/auth_dtos.dart';
 
 class AuthApi {
@@ -91,7 +93,7 @@ class AuthApi {
     );
   }
 
-  Future<StoredSession?> refreshSession() {
+  Future<AuthRefreshResult> refreshSession() {
     return _httpClient.refreshCoordinator.refreshSession();
   }
 
@@ -181,56 +183,31 @@ class AuthApi {
   }
 
   ApiException _mapDioException(DioException error) {
-    final statusCode = error.response?.statusCode;
-    final data = error.response?.data;
-
-    if (data is Map) {
-      try {
-        final apiError = ApiErrorResponse.fromJson(
-          data.cast<String, dynamic>(),
-        );
-        return ApiException(
-          apiError.message,
-          code: apiError.code,
-          statusCode: statusCode,
-          fieldErrors: apiError.fieldErrors,
-          cause: error,
-        );
-      } catch (_) {
-        return ApiException(
-          'Unexpected server error response.',
-          code: 'MALFORMED_ERROR_RESPONSE',
-          statusCode: statusCode,
-          cause: error,
-        );
-      }
+    if (error.error is AuthReplayRequiredException) {
+      return ApiException(
+        'Your session was refreshed. Retry the operation so it can be sent safely.',
+        code: 'AUTH_REPLAY_REQUIRED',
+        cause: error,
+      );
     }
 
-    return switch (error.type) {
-      DioExceptionType.connectionTimeout => ApiException(
-        'Connection timed out.',
-        code: 'NETWORK_CONNECTION_TIMEOUT',
-        statusCode: statusCode,
-        cause: error,
-      ),
-      DioExceptionType.receiveTimeout => ApiException(
-        'Server response timed out.',
-        code: 'NETWORK_RECEIVE_TIMEOUT',
-        statusCode: statusCode,
-        cause: error,
-      ),
-      DioExceptionType.connectionError => ApiException(
-        'Network unavailable.',
-        code: 'NETWORK_UNAVAILABLE',
-        statusCode: statusCode,
-        cause: error,
-      ),
-      _ => ApiException(
-        'Network request failed.',
-        code: 'NETWORK_REQUEST_FAILED',
-        statusCode: statusCode,
-        cause: error,
-      ),
-    };
+    final refreshFailure = error.error;
+    if (refreshFailure is AuthRefreshUnavailableException) {
+      final malformed =
+          refreshFailure.status == AuthRefreshStatus.malformedResponse;
+      return ApiException(
+        malformed
+            ? 'The session refresh service returned an unexpected response.'
+            : 'Your session could not be refreshed because the network or server is temporarily unavailable.',
+        code: malformed
+            ? 'AUTH_REFRESH_MALFORMED_RESPONSE'
+            : 'AUTH_REFRESH_TEMPORARILY_UNAVAILABLE',
+        cause: refreshFailure.cause ?? error,
+      );
+    }
+
+    // Backend and transport errors are read once, by the single parser: the
+    // code, status, field kinds and retry delay, never the server's text.
+    return ApiException.fromFailure(ApiFailure.fromDio(error), cause: error);
   }
 }

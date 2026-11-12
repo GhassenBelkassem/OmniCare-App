@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../../core/network/app_http_client.dart';
 import '../../../core/theme/omni_theme.dart';
+import '../../../l10n/omni_localizations.dart';
 import '../../patient_clinic/data/patient_clinic_models.dart';
 import '../../patient_clinic/presentation/clinic_presentation_metadata.dart'
     as clinic;
@@ -12,7 +13,7 @@ import '../../patient_clinic/presentation/widgets/clinic_image_renderer.dart';
 import 'urgent_cabinet_doctor_detail.dart';
 import 'urgent_cabinet_discovery_mapper.dart';
 import 'urgent_cabinet_discovery_repository.dart';
-import 'urgent_cabinet_doctor_fixture.dart';
+import 'urgent_cabinet_doctor_source.dart';
 import 'urgent_cabinet_doctor_list_item.dart';
 import 'urgent_cabinet_flow_controller.dart';
 import 'urgent_cabinet_flow_routes.dart';
@@ -130,8 +131,7 @@ class _UrgentCabinetDoctorDetailScreenState
       setState(() {
         _loadState = failure.isNotFound
             ? _DetailLoadState.missingDoctor
-            : failure.kind ==
-                  UrgentCabinetDiscoveryFailureKind.developmentGateUnavailable
+            : failure.isFeatureUnavailable
             ? _DetailLoadState.unavailable
             : _DetailLoadState.error;
       });
@@ -175,12 +175,11 @@ class _UrgentCabinetDoctorDetailScreenState
         actionLabel: 'Réessayer',
         onAction: _loadDetail,
       ),
-      _DetailLoadState.unavailable => const _DetailMessageState(
-        key: ValueKey('urgent-cabinet-detail-unavailable'),
+      _DetailLoadState.unavailable => _DetailMessageState(
+        key: const ValueKey('urgent-cabinet-detail-unavailable'),
         icon: Icons.info_outline_rounded,
-        title: 'Service bientôt disponible',
-        message:
-            'Les détails de ce médecin ne sont pas disponibles dans cet environnement.',
+        title: OmniLocalizations.of(context).urgentCabinetUnavailableTitle,
+        message: OmniLocalizations.of(context).urgentCabinetUnavailableMessage,
       ),
       _DetailLoadState.missingSelection => const _DetailMessageState(
         key: ValueKey('urgent-cabinet-detail-missing-selection'),
@@ -273,6 +272,8 @@ class _UrgentCabinetDoctorDetailScreenState
       if (!mounted || failure.isCancelled) return;
       if (failure.isNotFound) {
         setState(() => _loadState = _DetailLoadState.missingDoctor);
+      } else if (failure.isFeatureUnavailable) {
+        setState(() => _loadState = _DetailLoadState.unavailable);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

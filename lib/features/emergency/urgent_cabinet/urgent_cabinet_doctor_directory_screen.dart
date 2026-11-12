@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../../core/network/app_http_client.dart';
 import '../../../core/theme/omni_theme.dart';
+import '../../../l10n/omni_localizations.dart';
 import '../../../providers/user_provider.dart';
 import '../../patient_doctor/presentation/widgets/doctor_result_card.dart';
 import '../../patient_doctor/presentation/widgets/doctor_search_field.dart';
@@ -14,7 +15,7 @@ import 'urgent_cabinet_discovery_models.dart';
 import 'urgent_cabinet_discovery_repository.dart';
 import 'urgent_cabinet_doctor_filter.dart';
 import 'urgent_cabinet_doctor_filter_sheet.dart';
-import 'urgent_cabinet_doctor_fixture.dart';
+import 'urgent_cabinet_doctor_source.dart';
 import 'urgent_cabinet_doctor_list_item.dart';
 import 'urgent_cabinet_flow_controller.dart';
 import 'urgent_cabinet_flow_routes.dart';
@@ -349,6 +350,7 @@ class _UrgentCabinetDoctorDirectoryScreenState
               child: DoctorSearchField(
                 controller: _searchController,
                 onChanged: _search,
+                inputFormatters: urgentCabinetSearchInputFormatters,
               ),
             ),
             Expanded(child: _buildBody(excludedDoctorIds)),
@@ -515,8 +517,8 @@ class _UrgentCabinetDoctorDirectoryScreenState
       UrgentCabinetDiscoveryFailureKind.sessionRejected =>
         'Votre session a expiré.',
       UrgentCabinetDiscoveryFailureKind.forbidden => 'Accès patient requis',
-      UrgentCabinetDiscoveryFailureKind.developmentGateUnavailable =>
-        'Service de développement indisponible',
+      UrgentCabinetDiscoveryFailureKind.featureUnavailable =>
+        OmniLocalizations.of(context).urgentCabinetUnavailableTitle,
       _ => 'Impossible de charger les médecins.',
     };
   }
@@ -528,8 +530,8 @@ class _UrgentCabinetDoctorDirectoryScreenState
         'Reconnectez-vous pour consulter les médecins.',
       UrgentCabinetDiscoveryFailureKind.forbidden =>
         'Cette recherche est réservée à une session Patient autorisée.',
-      UrgentCabinetDiscoveryFailureKind.developmentGateUnavailable =>
-        'La découverte urgente au cabinet n’est pas activée dans cet environnement.',
+      UrgentCabinetDiscoveryFailureKind.featureUnavailable =>
+        OmniLocalizations.of(context).urgentCabinetUnavailableMessage,
       UrgentCabinetDiscoveryFailureKind.invalidResponse =>
         'La réponse du service n’a pas pu être vérifiée.',
       _ => 'Vérifiez votre connexion puis réessayez.',

@@ -1,7 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
-import '../../core/network/api_exception.dart';
+import '../../core/network/api_failure.dart';
+import '../../core/network/api_failure_message.dart';
+import '../../l10n/omni_localizations.dart';
 import 'account_security_api.dart';
 
 class AccountSecurityProvider extends ChangeNotifier {
@@ -23,16 +25,16 @@ class AccountSecurityProvider extends ChangeNotifier {
   bool _isSavingPassword = false;
   bool _isRevokingOthers = false;
   String? _revokingDeviceId;
-  String? _error;
+  Object? _error;
   List<AccountDevice> _devices = const [];
   PhoneChangeStatus? _phoneChangeStatus;
   bool _isPhoneActionBusy = false;
-  String? _phoneError;
+  Object? _phoneError;
   List<AuthHistoryEvent> _history = const [];
   bool _isHistoryLoading = false;
   bool _historyHasNext = false;
   int _historyPage = 0;
-  String? _historyError;
+  Object? _historyError;
   String? _reportingEventId;
 
   bool get hasPassword => _hasPassword;
@@ -40,15 +42,22 @@ class AccountSecurityProvider extends ChangeNotifier {
   bool get isSavingPassword => _isSavingPassword;
   bool get isRevokingOthers => _isRevokingOthers;
   String? get revokingDeviceId => _revokingDeviceId;
-  String? get error => _error;
+  bool get hasError => _error != null;
+
+  /// French text for the last device/password error; never server text.
+  String? errorMessage(OmniLocalizations l10n) => _textOf(_error, l10n);
   List<AccountDevice> get devices => List.unmodifiable(_devices);
   PhoneChangeStatus? get phoneChangeStatus => _phoneChangeStatus;
   bool get isPhoneActionBusy => _isPhoneActionBusy;
-  String? get phoneError => _phoneError;
+  bool get hasPhoneError => _phoneError != null;
+  String? phoneErrorMessage(OmniLocalizations l10n) =>
+      _textOf(_phoneError, l10n);
   List<AuthHistoryEvent> get history => List.unmodifiable(_history);
   bool get isHistoryLoading => _isHistoryLoading;
   bool get historyHasNext => _historyHasNext;
-  String? get historyError => _historyError;
+  bool get hasHistoryError => _historyError != null;
+  String? historyErrorMessage(OmniLocalizations l10n) =>
+      _textOf(_historyError, l10n);
   String? get reportingEventId => _reportingEventId;
 
   Future<void> load({bool devicesOnly = false}) async {
@@ -71,7 +80,7 @@ class AccountSecurityProvider extends ChangeNotifier {
         _phoneChangeStatus = results[2] as PhoneChangeStatus;
       }
     } catch (error) {
-      _error = _message(error);
+      _error = _capture(error);
       rethrow;
     } finally {
       _isLoading = false;
@@ -95,27 +104,27 @@ class AccountSecurityProvider extends ChangeNotifier {
         String? idToken = googleIdToken?.trim();
         if ((idToken ?? '').isEmpty) {
           if (kIsWeb) {
-            throw const ApiException(
-              'Utilisez le bouton Google affiché pour confirmer votre identité.',
+            throw const SecurityLocalException(
+              SecurityLocalError.googleUseWebButton,
             );
           }
           final account = await GoogleSignIn(scopes: const ['email']).signIn();
           if (account == null) {
-            throw const ApiException('Réauthentification Google annulée.');
+            throw const SecurityLocalException(
+              SecurityLocalError.googleCancelled,
+            );
           }
           idToken = (await account.authentication).idToken;
         }
         if (idToken == null || idToken.trim().isEmpty) {
-          throw const ApiException(
-            'Google n’a pas fourni de preuve de réauthentification.',
-          );
+          throw const SecurityLocalException(SecurityLocalError.googleNoProof);
         }
         await _api.setPassword(idToken.trim(), newPassword);
         _hasPassword = true;
       }
       _devices = await _api.loadDevices();
     } catch (error) {
-      _error = _message(error);
+      _error = _capture(error);
       rethrow;
     } finally {
       _isSavingPassword = false;
@@ -136,7 +145,7 @@ class AccountSecurityProvider extends ChangeNotifier {
         _devices = await _api.loadDevices();
       }
     } catch (error) {
-      _error = _message(error);
+      _error = _capture(error);
       rethrow;
     } finally {
       _revokingDeviceId = null;
@@ -153,7 +162,7 @@ class AccountSecurityProvider extends ChangeNotifier {
       await _api.revokeOtherDevices();
       _devices = await _api.loadDevices();
     } catch (error) {
-      _error = _message(error);
+      _error = _capture(error);
       rethrow;
     } finally {
       _isRevokingOthers = false;
@@ -174,7 +183,7 @@ class AccountSecurityProvider extends ChangeNotifier {
     try {
       _phoneChangeStatus = await _api.loadPhoneChangeStatus();
     } catch (error) {
-      _phoneError = _message(error);
+      _phoneError = _capture(error);
       rethrow;
     } finally {
       _isPhoneActionBusy = false;
@@ -215,7 +224,7 @@ class AccountSecurityProvider extends ChangeNotifier {
       _phoneChangeStatus = await _api.reversePhoneChange();
       await _forceLocalLogout();
     } catch (error) {
-      _phoneError = _message(error);
+      _phoneError = _capture(error);
       rethrow;
     } finally {
       _isPhoneActionBusy = false;
@@ -258,7 +267,7 @@ class AccountSecurityProvider extends ChangeNotifier {
       _historyPage = page.page;
       _historyHasNext = page.hasNext;
     } catch (error) {
-      _historyError = _message(error);
+      _historyError = _capture(error);
       rethrow;
     } finally {
       _isHistoryLoading = false;
@@ -280,7 +289,7 @@ class AccountSecurityProvider extends ChangeNotifier {
       await _api.reportHistoryEvent(event.id);
       await _forceLocalLogout();
     } catch (error) {
-      _historyError = _message(error);
+      _historyError = _capture(error);
       rethrow;
     } finally {
       _reportingEventId = null;
@@ -290,7 +299,7 @@ class AccountSecurityProvider extends ChangeNotifier {
 
   Future<T> _runPhoneAction<T>(Future<T> Function() action) async {
     if (_isPhoneActionBusy) {
-      throw const ApiException('Une opération est déjà en cours.');
+      throw const SecurityLocalException(SecurityLocalError.actionInProgress);
     }
     _isPhoneActionBusy = true;
     _phoneError = null;
@@ -298,7 +307,7 @@ class AccountSecurityProvider extends ChangeNotifier {
     try {
       return await action();
     } catch (error) {
-      _phoneError = _message(error);
+      _phoneError = _capture(error);
       rethrow;
     } finally {
       _isPhoneActionBusy = false;
@@ -316,25 +325,49 @@ class AccountSecurityProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  String _message(Object error) {
-    if (error is ApiException) {
-      final localized = switch (error.code) {
-        'AUTH_INVALID_OTP' => 'Le code est incorrect ou a expiré.',
-        'AUTH_PHONE_ALREADY_USED' =>
-          'Ce numéro est déjà associé à un autre compte.',
-        'AUTH_PROVIDER_UNAVAILABLE' =>
-          'Le service SMS est temporairement indisponible.',
-        'TOO_MANY_REQUESTS' =>
-          'Trop de tentatives. Patientez avant de réessayer.',
-        'CONFLICT' => 'Un changement de numéro est déjà en cours.',
-        'INVALID_STATE' => 'Cette étape a expiré. Recommencez la vérification.',
-        'AUTH_INVALID_TOKEN' =>
-          'Ce lien est invalide, expiré ou a déjà été utilisé.',
-        _ => null,
-      };
-      if (localized != null) return localized;
-      if (error.message.trim().isNotEmpty) return error.message.trim();
-    }
-    return 'Une erreur est survenue. Réessayez.';
+  /// Keeps a local reason as is; anything else becomes a parsed
+  /// [ApiFailure] (no server text, no raw response kept).
+  static Object _capture(Object error) =>
+      error is SecurityLocalException ? error : ApiFailure.from(error);
+
+  static String? _textOf(Object? error, OmniLocalizations l10n) =>
+      error == null ? null : securityErrorMessage(error, l10n);
+}
+
+/// Errors raised by the app itself on the security screens.
+enum SecurityLocalError {
+  googleUseWebButton,
+  googleCancelled,
+  googleNoProof,
+  actionInProgress,
+}
+
+class SecurityLocalException implements Exception {
+  const SecurityLocalException(this.reason);
+  final SecurityLocalError reason;
+
+  @override
+  String toString() => 'SecurityLocalException(${reason.name})';
+}
+
+/// French text for a security-screen error: a local reason, a code with a
+/// security-specific wording, or the shared mapping. Never server text.
+String securityErrorMessage(Object error, OmniLocalizations l10n) {
+  if (error is SecurityLocalException) {
+    return switch (error.reason) {
+      SecurityLocalError.googleUseWebButton => l10n.securityGoogleUseWebButton,
+      SecurityLocalError.googleCancelled => l10n.securityGoogleCancelled,
+      SecurityLocalError.googleNoProof => l10n.securityGoogleNoProof,
+      SecurityLocalError.actionInProgress => l10n.securityActionInProgress,
+    };
   }
+  final failure = ApiFailure.from(error);
+  return switch (failure.code) {
+    'AUTH_INVALID_OTP' => l10n.securityInvalidOtp,
+    'AUTH_PHONE_ALREADY_USED' => l10n.securityPhoneAlreadyUsed,
+    'CONFLICT' => l10n.securityPhoneChangeInProgress,
+    'INVALID_STATE' => l10n.securityStepExpired,
+    'AUTH_INVALID_TOKEN' => l10n.securityLinkInvalid,
+    _ => apiFailureMessage(failure, l10n),
+  };
 }

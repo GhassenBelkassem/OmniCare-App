@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../../core/network/app_http_client.dart';
+import '../../../core/network/request_replay_policy.dart';
 import 'clinical_record.dart';
 
 abstract interface class ClinicalRecordApiContract {
@@ -40,7 +41,10 @@ class ClinicalRecordApi implements ClinicalRecordApiContract {
         'expectedClinicalRecordVersion': expectedClinicalRecordVersion,
         'clinicalRecord': record.toJson(),
       },
-      options: Options(headers: {'Idempotency-Key': idempotencyKey}),
+      options: Options(
+        headers: {'Idempotency-Key': idempotencyKey},
+        extra: requestReplayExtra(RequestReplayPolicy.declaredIdempotentWrite),
+      ),
     );
     return ClinicalRecordEnvelope.fromJson(_object(response.data));
   }

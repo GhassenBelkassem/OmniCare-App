@@ -172,6 +172,8 @@ class _GoogleWebSignInButtonState extends State<GoogleWebSignInButton> {
       'text': 'continue_with',
       'shape': 'rectangular',
       'logo_alignment': 'left',
+      // GIS: « Display button text using the specified locale » (G3-P2a).
+      'locale': 'fr',
     });
 
     _renderedWidth = width;

@@ -181,65 +181,75 @@ prepareUrgentCabinetTargetedSubmission({
   );
 }
 
+/// Wire value of every server enum's fallback for a value this app version
+/// does not know. A snapshot carrying it is parsed but not recognized.
+const String _unknownWireValue = 'UNKNOWN';
+
+T _parseOrUnknown<T extends Enum>(
+  List<T> values,
+  String Function(T value) wireValueOf,
+  String value,
+  T unknown,
+) => values.firstWhere(
+  (candidate) => candidate != unknown && wireValueOf(candidate) == value,
+  orElse: () => unknown,
+);
+
 enum UrgentCabinetPatientResponseStatus {
   pending('PENDING'),
   accepted('ACCEPTED'),
   declined('DECLINED'),
   cancelled('CANCELLED'),
-  expired('EXPIRED');
+  expired('EXPIRED'),
+  unknown(_unknownWireValue);
 
   const UrgentCabinetPatientResponseStatus(this.wireValue);
   final String wireValue;
 
   static UrgentCabinetPatientResponseStatus parse(String value) =>
-      values.firstWhere(
-        (status) => status.wireValue == value,
-        orElse: () => throw FormatException(
-          'Unsupported urgent CABINET response status: $value.',
-        ),
-      );
+      _parseOrUnknown(values, (status) => status.wireValue, value, unknown);
 }
 
+/// Backend `UrgentAttemptState`, CABINET side.
+///
+/// `HOME_*` states cannot belong to a CABINET request (DB constraint
+/// `chk_urgent_attempt_mode_state`), so they parse to [unknown].
 enum UrgentCabinetPatientAttemptState {
+  /// Initial attempt state, moved to CABINET_PENDING before the first save
+  /// (`UrgentCabinetTargetedWriter.submit`); shown as pending if ever read.
+  cabinetCreated('CABINET_CREATED'),
   cabinetPending('CABINET_PENDING'),
   cabinetCommitted('CABINET_COMMITTED'),
-  cabinetCancelled('CABINET_CANCELLED');
+  cabinetCancelled('CABINET_CANCELLED'),
+  unknown(_unknownWireValue);
 
   const UrgentCabinetPatientAttemptState(this.wireValue);
   final String wireValue;
 
   static UrgentCabinetPatientAttemptState parse(String value) =>
-      values.firstWhere(
-        (state) => state.wireValue == value,
-        orElse: () => throw FormatException(
-          'Unsupported urgent CABINET attempt state: $value.',
-        ),
-      );
+      _parseOrUnknown(values, (state) => state.wireValue, value, unknown);
 }
 
 enum UrgentCabinetPatientCommitmentStatus {
   active('ACTIVE'),
   cancelled('CANCELLED'),
   invalidated('INVALIDATED'),
-  completed('COMPLETED');
+  completed('COMPLETED'),
+  unknown(_unknownWireValue);
 
   const UrgentCabinetPatientCommitmentStatus(this.wireValue);
   final String wireValue;
 
   static UrgentCabinetPatientCommitmentStatus parse(String value) =>
-      values.firstWhere(
-        (status) => status.wireValue == value,
-        orElse: () => throw FormatException(
-          'Unsupported urgent CABINET commitment status: $value.',
-        ),
-      );
+      _parseOrUnknown(values, (status) => status.wireValue, value, unknown);
 }
 
 enum UrgentCabinetPatientClinicalPhase {
   confirmedTravelToCabinet('CONFIRMED_TRAVEL_TO_CABINET'),
   arrivedWaitingForDoctor('ARRIVED_WAITING_FOR_DOCTOR'),
   consultationInProgress('CONSULTATION_IN_PROGRESS'),
-  careCompleted('CARE_COMPLETED');
+  careCompleted('CARE_COMPLETED'),
+  unknown(_unknownWireValue);
 
   const UrgentCabinetPatientClinicalPhase(this.wireValue);
   final String wireValue;
@@ -249,12 +259,7 @@ enum UrgentCabinetPatientClinicalPhase {
     if (value is! String) {
       throw const FormatException('Invalid urgent CABINET clinical phase.');
     }
-    return values.firstWhere(
-      (phase) => phase.wireValue == value,
-      orElse: () => throw FormatException(
-        'Unsupported urgent CABINET clinical phase: $value.',
-      ),
-    );
+    return _parseOrUnknown(values, (phase) => phase.wireValue, value, unknown);
   }
 }
 
@@ -262,19 +267,34 @@ enum UrgentCabinetPatientTerminalReason {
   doctorDeclined('DOCTOR_DECLINED'),
   patientCancelled('PATIENT_CANCELLED'),
   patientWithdrewAfterAcceptance('PATIENT_WITHDREW_AFTER_ACCEPTANCE'),
-  responseDeadlineElapsed('RESPONSE_DEADLINE_ELAPSED');
+  responseDeadlineElapsed('RESPONSE_DEADLINE_ELAPSED'),
+
+  /// Administrative closure of a legacy request. The DB allows it only on a
+  /// CANCELLED request that was never answered (`0530` response-shape check).
+  legacyLifecycleRemediation('LEGACY_LIFECYCLE_REMEDIATION'),
+  unknown(_unknownWireValue);
 
   const UrgentCabinetPatientTerminalReason(this.wireValue);
   final String wireValue;
 
   static UrgentCabinetPatientTerminalReason parse(String value) =>
-      values.firstWhere(
-        (reason) => reason.wireValue == value,
-        orElse: () => throw FormatException(
-          'Unsupported urgent CABINET terminal reason: $value.',
-        ),
-      );
+      _parseOrUnknown(values, (reason) => reason.wireValue, value, unknown);
 }
+
+/// Backend `ConsultationStatus` values the patient projection can carry.
+const Set<String> _knownConsultationStatuses = {
+  'IN_PROGRESS',
+  'FINALIZING',
+  'COMPLETED',
+  'ABORTED',
+};
+
+/// Patient actions this app can offer; any other server action is ignored.
+const Set<String> _knownPatientActions = {
+  'CANCEL',
+  'WITHDRAW',
+  'ISSUE_ARRIVAL_QR',
+};
 
 @immutable
 class UrgentCabinetTargetedRequestSnapshot {
@@ -317,6 +337,7 @@ class UrgentCabinetTargetedRequestSnapshot {
     required this.clinicalPhase,
     required this.consultationId,
     required this.consultationStatus,
+    required this.isRecognized,
   });
 
   final String requestId;
@@ -357,6 +378,12 @@ class UrgentCabinetTargetedRequestSnapshot {
   final UrgentCabinetPatientClinicalPhase? clinicalPhase;
   final String? consultationId;
   final String? consultationStatus;
+
+  /// False when the server sent a lifecycle value this app version does not
+  /// know. Such a snapshot is parsed (never a whole-snapshot failure), its
+  /// state combination is not validated, and it must be shown as
+  /// « indisponible » rather than interpreted.
+  final bool isRecognized;
 
   bool get isTerminal =>
       responseStatus == UrgentCabinetPatientResponseStatus.declined ||
@@ -402,7 +429,7 @@ class UrgentCabinetTargetedRequestSnapshot {
       'terminalReason',
       UrgentCabinetPatientTerminalReason.parse,
     );
-    final actions = _requiredStringList(json, 'allowedActions');
+    final actions = _knownActions(_requiredStringList(json, 'allowedActions'));
     final createdAt = _requiredInstant(json, 'createdAt');
     final deadline = _requiredInstant(json, 'responseDeadlineAt');
     final evaluatedAt = _requiredInstant(json, 'evaluatedAt');
@@ -434,29 +461,34 @@ class UrgentCabinetTargetedRequestSnapshot {
       throw const FormatException('Invalid urgent CABINET timestamps.');
     }
 
-    _validateStateCombination(
-      responseStatus: responseStatus,
-      attemptState: attemptState,
-      respondedAt: respondedAt,
-      commitmentId: commitmentId,
-      commitmentStatus: commitmentStatus,
-      commitmentRevision: commitmentRevision,
-      committedAt: committedAt,
-      arrivalVerifiedAt: arrivalVerifiedAt,
-      terminalAt: terminalAt,
-      terminalReason: terminalReason,
-      allowedActions: actions,
-      deadline: deadline,
-      evaluatedAt: evaluatedAt,
-    );
-    _validateClinicalProjection(
-      responseStatus: responseStatus,
-      commitmentStatus: commitmentStatus,
-      arrivalVerifiedAt: arrivalVerifiedAt,
-      clinicalPhase: clinicalPhase,
-      consultationId: consultationId,
-      consultationStatus: consultationStatus,
-    );
+    final isRecognized =
+        responseStatus != UrgentCabinetPatientResponseStatus.unknown &&
+        attemptState != UrgentCabinetPatientAttemptState.unknown &&
+        commitmentStatus != UrgentCabinetPatientCommitmentStatus.unknown &&
+        terminalReason != UrgentCabinetPatientTerminalReason.unknown &&
+        clinicalPhase != UrgentCabinetPatientClinicalPhase.unknown &&
+        (consultationStatus == null ||
+            _knownConsultationStatuses.contains(consultationStatus));
+    if (isRecognized) {
+      _validateRecognizedState(
+        responseStatus: responseStatus,
+        attemptState: attemptState,
+        respondedAt: respondedAt,
+        commitmentId: commitmentId,
+        commitmentStatus: commitmentStatus,
+        commitmentRevision: commitmentRevision,
+        committedAt: committedAt,
+        arrivalVerifiedAt: arrivalVerifiedAt,
+        terminalAt: terminalAt,
+        terminalReason: terminalReason,
+        allowedActions: actions,
+        deadline: deadline,
+        evaluatedAt: evaluatedAt,
+        clinicalPhase: clinicalPhase,
+        consultationId: consultationId,
+        consultationStatus: consultationStatus,
+      );
+    }
 
     final currency = _requiredString(json, 'currency');
     final fee = _parseMilliTnd(json['quotedFeeTnd']);
@@ -509,8 +541,60 @@ class UrgentCabinetTargetedRequestSnapshot {
       clinicalPhase: clinicalPhase,
       consultationId: consultationId,
       consultationStatus: consultationStatus,
+      isRecognized: isRecognized,
     );
   }
+}
+
+/// Drops server actions this app cannot offer. Duplicates remain invalid.
+List<String> _knownActions(List<String> actions) {
+  if (actions.toSet().length != actions.length) {
+    throw const FormatException('Invalid urgent CABINET patient actions.');
+  }
+  return actions.where(_knownPatientActions.contains).toList(growable: false);
+}
+
+void _validateRecognizedState({
+  required UrgentCabinetPatientResponseStatus responseStatus,
+  required UrgentCabinetPatientAttemptState attemptState,
+  required DateTime? respondedAt,
+  required String? commitmentId,
+  required UrgentCabinetPatientCommitmentStatus? commitmentStatus,
+  required int? commitmentRevision,
+  required DateTime? committedAt,
+  required DateTime? arrivalVerifiedAt,
+  required DateTime? terminalAt,
+  required UrgentCabinetPatientTerminalReason? terminalReason,
+  required List<String> allowedActions,
+  required DateTime deadline,
+  required DateTime evaluatedAt,
+  required UrgentCabinetPatientClinicalPhase? clinicalPhase,
+  required String? consultationId,
+  required String? consultationStatus,
+}) {
+  _validateStateCombination(
+    responseStatus: responseStatus,
+    attemptState: attemptState,
+    respondedAt: respondedAt,
+    commitmentId: commitmentId,
+    commitmentStatus: commitmentStatus,
+    commitmentRevision: commitmentRevision,
+    committedAt: committedAt,
+    arrivalVerifiedAt: arrivalVerifiedAt,
+    terminalAt: terminalAt,
+    terminalReason: terminalReason,
+    allowedActions: allowedActions,
+    deadline: deadline,
+    evaluatedAt: evaluatedAt,
+  );
+  _validateClinicalProjection(
+    responseStatus: responseStatus,
+    commitmentStatus: commitmentStatus,
+    arrivalVerifiedAt: arrivalVerifiedAt,
+    clinicalPhase: clinicalPhase,
+    consultationId: consultationId,
+    consultationStatus: consultationStatus,
+  );
 }
 
 void _validateClinicalProjection({
@@ -538,11 +622,13 @@ void _validateClinicalProjection({
           arrivalVerifiedAt == null &&
           consultationId == null &&
           consultationStatus == null,
+    // The backend also reports this phase, with the consultation id, once
+    // that consultation was ABORTED (UrgentCabinetPatientClinicalProjection).
     UrgentCabinetPatientClinicalPhase.arrivedWaitingForDoctor =>
       commitmentStatus == UrgentCabinetPatientCommitmentStatus.active &&
           arrivalVerifiedAt != null &&
-          consultationId == null &&
-          consultationStatus == null,
+          ((consultationId == null && consultationStatus == null) ||
+              (consultationId != null && consultationStatus == 'ABORTED')),
     UrgentCabinetPatientClinicalPhase.consultationInProgress =>
       commitmentStatus == UrgentCabinetPatientCommitmentStatus.active &&
           arrivalVerifiedAt != null &&
@@ -554,6 +640,7 @@ void _validateClinicalProjection({
           arrivalVerifiedAt != null &&
           consultationId != null &&
           consultationStatus == 'COMPLETED',
+    UrgentCabinetPatientClinicalPhase.unknown => false,
   };
   if (!valid) {
     throw const FormatException(
@@ -659,15 +746,6 @@ void _validateStateCombination({
   required DateTime deadline,
   required DateTime evaluatedAt,
 }) {
-  if (allowedActions.toSet().length != allowedActions.length ||
-      allowedActions.any(
-        (action) =>
-            action != 'CANCEL' &&
-            action != 'WITHDRAW' &&
-            action != 'ISSUE_ARRIVAL_QR',
-      )) {
-    throw const FormatException('Invalid urgent CABINET patient actions.');
-  }
   final hasCommitment =
       commitmentId != null ||
       commitmentStatus != null ||
@@ -675,13 +753,22 @@ void _validateStateCombination({
       committedAt != null;
   switch (responseStatus) {
     case UrgentCabinetPatientResponseStatus.pending:
-      if (attemptState != UrgentCabinetPatientAttemptState.cabinetPending ||
+      // CABINET_PENDING offers exactly CANCEL. A CABINET_CREATED attempt
+      // (pre-pending) gets no patient action from the backend.
+      final actionsMatchState = switch (attemptState) {
+        UrgentCabinetPatientAttemptState.cabinetPending =>
+          allowedActions.length == 1 && allowedActions.contains('CANCEL'),
+        UrgentCabinetPatientAttemptState.cabinetCreated =>
+          allowedActions.isEmpty,
+        UrgentCabinetPatientAttemptState.cabinetCommitted ||
+        UrgentCabinetPatientAttemptState.cabinetCancelled ||
+        UrgentCabinetPatientAttemptState.unknown => false,
+      };
+      if (!actionsMatchState ||
           respondedAt != null ||
           hasCommitment ||
           terminalAt != null ||
           terminalReason != null ||
-          allowedActions.length != 1 ||
-          !allowedActions.contains('CANCEL') ||
           !deadline.isAfter(evaluatedAt)) {
         throw const FormatException('Invalid pending urgent CABINET state.');
       }
@@ -720,7 +807,11 @@ void _validateStateCombination({
       final pendingCancellation =
           respondedAt == null &&
           !hasCommitment &&
-          terminalReason == UrgentCabinetPatientTerminalReason.patientCancelled;
+          (terminalReason ==
+                  UrgentCabinetPatientTerminalReason.patientCancelled ||
+              terminalReason ==
+                  UrgentCabinetPatientTerminalReason
+                      .legacyLifecycleRemediation);
       final acceptedWithdrawal =
           respondedAt != null &&
           commitmentId != null &&
@@ -746,6 +837,8 @@ void _validateStateCombination({
           allowedActions.isNotEmpty) {
         throw const FormatException('Invalid expired urgent CABINET state.');
       }
+    case UrgentCabinetPatientResponseStatus.unknown:
+      throw StateError('Unrecognized snapshots are not validated.');
   }
 }
 

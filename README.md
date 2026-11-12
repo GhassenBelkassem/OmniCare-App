@@ -12,8 +12,12 @@ OMNICARE_API_BASE_URL=https://omnicare-backend-dev.up.railway.app
 Google Maps is optional. When enabled, provide a browser-restricted key:
 
 ```text
-GOOGLE_MAPS_API_KEY=replace_with_restricted_web_key
+GOOGLE_MAPS_WEB_API_KEY=replace_with_restricted_dev_web_key
 ```
+
+This value is consumed at Flutter Web build time and is intentionally visible
+to browsers. Restrict it to the Maps JavaScript API and the exact DEV HTTPS
+origins. It must be different from the backend's server-side Google Routes key.
 
 Leave Railway's custom build and start commands empty. The Docker image builds
 Flutter Web and starts Caddy on Railway's injected `PORT`. Configure the
@@ -27,6 +31,15 @@ For native development against the hosted backend:
 ```bash
 flutter run \
   --dart-define=OMNICARE_API_BASE_URL=https://omnicare-backend-dev.up.railway.app
+```
+
+For local Web Maps development, copy
+`config/maps.web.local.example.json` to the Git-ignored
+`config/maps.web.local.json`, set the restricted DEV Web key, and run:
+
+```bash
+flutter run -d chrome \
+  --dart-define-from-file=config/maps.web.local.json
 ```
 
 A new Flutter project.

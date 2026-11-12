@@ -1,0 +1,10 @@
+# Flutter gen-l10n configuration (docs.flutter.dev/ui/internationalization,
+# "Configuring the l10n.yaml file"). V1 is French only (roadmap G-2 §4.1 Q10):
+# app_fr.arb is the template; app_ar.arb / app_en.arb can be added later.
+# Generated files are written next to the ARB files (lib/l10n/) and committed.
+arb-dir: lib/l10n
+template-arb-file: app_fr.arb
+output-localization-file: omni_localizations.dart
+output-class: OmniLocalizations
+nullable-getter: false
+required-resource-attributes: true

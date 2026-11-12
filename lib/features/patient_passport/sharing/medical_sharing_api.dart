@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 
 import '../../../core/network/api_exception.dart';
 import '../../../core/network/app_http_client.dart';
+import '../../../core/network/request_replay_policy.dart';
 import 'medical_sharing_models.dart';
 
 abstract interface class MedicalSharingApiContract {
@@ -138,6 +139,7 @@ class MedicalSharingApi implements MedicalSharingApiContract {
     return Options(
       contentType: Headers.jsonContentType,
       headers: {'Cache-Control': 'no-store', 'Idempotency-Key': key},
+      extra: requestReplayExtra(RequestReplayPolicy.declaredIdempotentWrite),
     );
   }
 

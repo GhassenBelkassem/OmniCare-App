@@ -25,6 +25,13 @@ enum RequestSubmissionStatus {
   /// A call is in flight.
   submitting,
 
+  /// An opaque persisted identity is being reconciled through an owner-
+  /// authorized GET. No POST is performed in this state.
+  recovering,
+
+  /// The backend confirmed the request represented by the persisted identity.
+  recovered,
+
   /// The server created (`201`) or replayed (`200`) the request.
   succeeded,
 
@@ -57,15 +64,18 @@ class RequestSubmissionController extends ChangeNotifier {
   RequestSubmissionController({
     required RequestRepository repository,
     InFlightRequestStore? inFlightStore,
+    DateTime Function()? clock,
     RequestOperationIdFactory operationIdFactory =
         const SecureRequestOperationIdFactory(),
   }) : _repository = repository,
        _inFlightStore = inFlightStore ?? InFlightRequestStore(),
+       _clock = clock ?? _utcNow,
        _operationIdFactory = operationIdFactory;
 
   final RequestRepository _repository;
   final InFlightRequestStore _inFlightStore;
   final RequestOperationIdFactory _operationIdFactory;
+  final DateTime Function() _clock;
 
   RequestOperationId? _operationId;
   String? _clinicId;
@@ -75,6 +85,9 @@ class RequestSubmissionController extends ChangeNotifier {
   RequestSubmissionStatus _status = RequestSubmissionStatus.idle;
   RequestFailure? _failure;
   SubmitClinicRequestResult? _result;
+  PatientRequest? _recoveredRequest;
+  String? _accountScope;
+  bool _durableOperationUnresolved = false;
 
   /// True once this operation id has actually been sent. Until then, changing
   /// the intent is free; afterwards it forces a new operation id.
@@ -87,6 +100,9 @@ class RequestSubmissionController extends ChangeNotifier {
   RequestSubmissionStatus get status => _status;
   RequestFailure? get failure => _failure;
   SubmitClinicRequestResult? get result => _result;
+  PatientRequest? get recoveredRequest => _recoveredRequest;
+  RequestOperationId? get recoveredRequestId => _recoveredRequest?.requestId;
+  bool get hasUnresolvedOperation => _durableOperationUnresolved;
   bool get isSubmitting => _status == RequestSubmissionStatus.submitting;
   bool get hasSucceeded => _status == RequestSubmissionStatus.succeeded;
   RequestSubject get subject => _subject;
@@ -140,6 +156,12 @@ class RequestSubmissionController extends ChangeNotifier {
     RequestSubject subject = const RequestSubject.self(),
     String? clinicId,
   }) async {
+    // Opening a route is not abandonment. The unresolved identity must first
+    // be reconciled or explicitly abandoned by the patient.
+    if (_durableOperationUnresolved ||
+        _status == RequestSubmissionStatus.recovering) {
+      return;
+    }
     _beginOperation();
     _operationId = _operationIdFactory.next();
     final target = clinicId?.trim();
@@ -150,9 +172,20 @@ class RequestSubmissionController extends ChangeNotifier {
     _status = RequestSubmissionStatus.draft;
     _failure = null;
     _result = null;
+    _recoveredRequest = null;
     _attempted = false;
     _notify();
+  }
+
+  /// Explicit patient action that abandons a resolved/not-found local
+  /// recovery identity before beginning a genuinely new request.
+  Future<void> abandonAndBeginNewRequest({
+    RequestSubject subject = const RequestSubject.self(),
+    String? clinicId,
+  }) async {
+    _durableOperationUnresolved = false;
     await _inFlightStore.clear();
+    await beginNewRequest(subject: subject, clinicId: clinicId);
   }
 
   /// Sets or changes the target clinic.
@@ -224,25 +257,51 @@ class RequestSubmissionController extends ChangeNotifier {
 
     final operationId = _operationId;
     final intent = this.intent;
+    final accountScope = _accountScope?.trim();
     if (operationId == null || intent == null) {
       _failure = RequestFailure.intentIncomplete;
       _status = RequestSubmissionStatus.failed;
       _notify();
       return;
     }
+    if (accountScope == null || accountScope.isEmpty) {
+      _failure = RequestFailure.recoveryIdentityUnavailable;
+      _status = RequestSubmissionStatus.failed;
+      _notify();
+      return;
+    }
 
     final generation = _beginOperation();
-    _attempted = true;
     _status = RequestSubmissionStatus.submitting;
     _failure = null;
     _notify();
 
     // Persisted *before* the call: if the process dies mid-flight, the next
     // launch can retry this exact operation instead of creating a duplicate.
-    await _inFlightStore.save(
-      InFlightRequestOperation(operationId: operationId, intent: intent),
+    final durableOperation = InFlightRequestOperation(
+      accountScope: accountScope,
+      operationId: operationId,
+      clinicId: intent.clinicId,
+      subject: intent.subject,
+      dispatchState: InFlightRequestDispatchState.prepared,
+      createdAt: _clock().toUtc(),
     );
+    try {
+      await _inFlightStore.save(durableOperation);
+      if (generation != _generation) return;
+      await _inFlightStore.markDispatchAttempted(durableOperation);
+    } on InFlightRequestStorageException {
+      if (generation != _generation) return;
+      _attempted = false;
+      _durableOperationUnresolved = false;
+      _failure = RequestFailure.recoveryPersistenceUnavailable;
+      _status = RequestSubmissionStatus.failed;
+      _notify();
+      return;
+    }
     if (generation != _generation) return;
+    _attempted = true;
+    _durableOperationUnresolved = true;
 
     try {
       final result = await _repository.submitClinicRequest(
@@ -255,10 +314,12 @@ class RequestSubmissionController extends ChangeNotifier {
       // The response is captured before the persisted intent is dropped, so a
       // crash between the two leaves a retryable record rather than nothing.
       _result = result;
+      _recoveredRequest = null;
       _failure = null;
       _status = RequestSubmissionStatus.succeeded;
       _notify();
       await _inFlightStore.clear();
+      _durableOperationUnresolved = false;
     } catch (error) {
       final failure = RequestFailure.from(error);
       if (generation != _generation) return;
@@ -271,6 +332,7 @@ class RequestSubmissionController extends ChangeNotifier {
       // A terminal one drops it, so no later resume can reuse a burned id.
       if (!failure.retryable) {
         await _inFlightStore.clear();
+        _durableOperationUnresolved = false;
       }
     }
   }
@@ -282,6 +344,14 @@ class RequestSubmissionController extends ChangeNotifier {
   /// explicit [beginNewRequest].
   Future<void> retry() async {
     if (!canRetry) return;
+    final accountScope = _accountScope;
+    if (_attempted && accountScope != null) {
+      final recovered = await recoverAfterAuthentication(
+        accountId: accountScope,
+        allowInMemoryReplayAfterNotFound: true,
+      );
+      if (recovered || _failure?.kind != RequestFailureKind.notFound) return;
+    }
     await submit();
   }
 
@@ -289,27 +359,91 @@ class RequestSubmissionController extends ChangeNotifier {
   ///
   /// Returns `true` when a usable operation was restored. It only restores
   /// state; it never submits by itself, and it is never called from `build()`.
-  Future<bool> restoreInFlightOperation() async {
-    if (_disposed) return false;
-    if (_status == RequestSubmissionStatus.submitting) return false;
-
-    final stored = await _inFlightStore.read();
-    if (_disposed || stored == null) return false;
-
-    _beginOperation();
+  Future<bool> recoverAfterAuthentication({
+    required String accountId,
+    bool allowInMemoryReplayAfterNotFound = false,
+  }) async {
+    if (_disposed || _status == RequestSubmissionStatus.submitting) {
+      return false;
+    }
+    final owner = accountId.trim();
+    if (owner.isEmpty) return false;
+    _accountScope = owner;
+    final read = await _inFlightStore.readForAccount(owner);
+    if (_disposed || read.status == InFlightRequestReadStatus.absent) {
+      return false;
+    }
+    if (read.status == InFlightRequestReadStatus.ownerMismatch) {
+      // Never consume or expose another account's operation identity.
+      return false;
+    }
+    final stored = read.operation!;
+    final generation = _beginOperation();
     _operationId = stored.operationId;
-    _clinicId = stored.intent.clinicId;
-    _subject = stored.intent.subject;
-    _situation = stored.intent.situation;
-    _pickup = stored.intent.pickupLocation;
+    _clinicId = stored.clinicId;
+    _subject = stored.subject;
     _result = null;
-    // Presented as a retryable failure so the UI offers "try again" rather
-    // than silently re-sending something the patient may no longer want.
-    _failure = RequestFailure.interrupted;
-    _status = RequestSubmissionStatus.failed;
-    _attempted = true;
+    _recoveredRequest = null;
+    _failure = null;
+    _status = RequestSubmissionStatus.recovering;
+    _attempted =
+        stored.dispatchState == InFlightRequestDispatchState.dispatchAttempted;
+    _durableOperationUnresolved = true;
     _notify();
-    return true;
+
+    try {
+      final request = await _repository.getRequest(
+        stored.operationId,
+        cancelToken: _inFlightToken,
+      );
+      if (_disposed || generation != _generation || _accountScope != owner) {
+        return false;
+      }
+      _recoveredRequest = request;
+      _failure = null;
+      _status = RequestSubmissionStatus.recovered;
+      _durableOperationUnresolved = false;
+      _notify();
+      await _inFlightStore.clear();
+      return true;
+    } catch (error) {
+      if (_disposed || generation != _generation || _accountScope != owner) {
+        return false;
+      }
+      final failure = RequestFailure.from(error);
+      _failure = failure;
+      _status = RequestSubmissionStatus.failed;
+      if (failure.kind == RequestFailureKind.notFound) {
+        await _inFlightStore.clear();
+        _durableOperationUnresolved = false;
+        // Only a live controller retaining the exact immutable intent may
+        // replay after an authoritative not-found. A cold restart cannot.
+        if (!allowInMemoryReplayAfterNotFound || intent == null) {
+          _attempted = false;
+        }
+      } else if (!failure.retryable) {
+        await _inFlightStore.clear();
+        _durableOperationUnresolved = false;
+      }
+      _notify();
+      return false;
+    }
+  }
+
+  /// Compatibility shim for isolated callers. Production uses the explicit
+  /// post-auth owner-aware method above.
+  Future<bool> restoreInFlightOperation() async {
+    final owner = _accountScope;
+    return owner == null ? false : recoverAfterAuthentication(accountId: owner);
+  }
+
+  void attachAuthenticatedAccount(String accountId) {
+    final owner = accountId.trim();
+    if (owner.isEmpty || owner == _accountScope) return;
+    _beginOperation();
+    _accountScope = owner;
+    _resetMemory();
+    _notify();
   }
 
   /// Clears every trace of this patient's submission.
@@ -319,15 +453,8 @@ class RequestSubmissionController extends ChangeNotifier {
   /// Nothing about one patient's request may survive into another session.
   Future<void> clear() async {
     _beginOperation();
-    _operationId = null;
-    _clinicId = null;
-    _subject = const RequestSubject.self();
-    _situation = null;
-    _pickup = null;
-    _status = RequestSubmissionStatus.idle;
-    _failure = null;
-    _result = null;
-    _attempted = false;
+    _accountScope = null;
+    _resetMemory();
     _notify();
     await _inFlightStore.clear();
   }
@@ -342,6 +469,7 @@ class RequestSubmissionController extends ChangeNotifier {
   void _updateIntent(VoidCallback mutate) {
     if (_status == RequestSubmissionStatus.submitting) return;
     if (_status == RequestSubmissionStatus.succeeded) return;
+    if (_durableOperationUnresolved) return;
 
     mutate();
 
@@ -350,6 +478,7 @@ class RequestSubmissionController extends ChangeNotifier {
       _operationId = _operationIdFactory.next();
       _attempted = false;
       _result = null;
+      _recoveredRequest = null;
       // Fire-and-forget: the stale record describes an abandoned operation and
       // its removal must not block the UI.
       unawaited(_inFlightStore.clear());
@@ -370,6 +499,22 @@ class RequestSubmissionController extends ChangeNotifier {
     _inFlightToken = CancelToken();
     return _generation;
   }
+
+  void _resetMemory() {
+    _operationId = null;
+    _clinicId = null;
+    _subject = const RequestSubject.self();
+    _situation = null;
+    _pickup = null;
+    _status = RequestSubmissionStatus.idle;
+    _failure = null;
+    _result = null;
+    _recoveredRequest = null;
+    _attempted = false;
+    _durableOperationUnresolved = false;
+  }
+
+  static DateTime _utcNow() => DateTime.now().toUtc();
 
   void _notify() {
     if (!_disposed) notifyListeners();

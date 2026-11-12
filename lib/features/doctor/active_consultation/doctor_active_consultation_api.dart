@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 
 import '../../../core/network/api_exception.dart';
 import '../../../core/network/app_http_client.dart';
+import '../../../core/network/request_replay_policy.dart';
 import 'doctor_active_consultation.dart';
 
 abstract interface class DoctorActiveConsultationApiContract {
@@ -88,6 +89,7 @@ class DoctorActiveConsultationApi
       options: Options(
         contentType: Headers.jsonContentType,
         headers: <String, String>{'Idempotency-Key': idempotencyKey},
+        extra: requestReplayExtra(RequestReplayPolicy.declaredIdempotentWrite),
       ),
     );
     final data = response.data;

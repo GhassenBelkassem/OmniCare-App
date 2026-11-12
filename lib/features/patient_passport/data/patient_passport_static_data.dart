@@ -9,6 +9,11 @@ abstract final class PatientPassportStaticData {
     omniCareId: 'OMNI-12345',
     bloodGroup: 'A+',
     allergies: 'Aucune allergie connue',
+    // Explicit since G2-1b-3b removed the model defaults; kept so the doctor
+    // preview (lib/features/doctor/**, G-1) that still reads this fixture is
+    // unchanged.
+    heightCm: 180,
+    weightKg: 78,
     chronicConditions: ['Diabète Type 2', 'Hypertension'],
     medications: [
       PassportMedication(

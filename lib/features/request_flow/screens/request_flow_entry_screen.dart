@@ -25,7 +25,11 @@ class _RequestFlowEntryScreenState extends State<RequestFlowEntryScreen> {
     // frame instead of notifying Provider dependants while this route builds.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      context.read<RequestSubmissionController>().beginNewRequest();
+      final request = context.read<RequestSubmissionController>();
+      if (request.status == RequestSubmissionStatus.idle &&
+          !request.hasUnresolvedOperation) {
+        request.beginNewRequest();
+      }
     });
   }
 

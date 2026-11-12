@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import '../../core/models/blood_type.dart';
 import 'edit_medical_data_screen.dart';
 import 'document_viewer_screen.dart';
 import 'qr_code_modal.dart';
 import '../patient_passport/sharing/medical_sharing_models.dart';
 
 import '../../providers/family_provider.dart';
+import '../../core/l10n/blood_type_label.dart';
+import '../../l10n/omni_localizations.dart';
 
 class FamilyMember {
   String id;
@@ -14,7 +17,9 @@ class FamilyMember {
   int age;
   String relationship;
   String avatar;
-  String bloodType;
+
+  /// Null when not provided (shown as "-").
+  BloodType? bloodType;
   List<String> chronicConditions;
   List<Medication> currentMedications;
   List<MedicalDocument> documents;
@@ -65,18 +70,24 @@ class _FamilyMemberDetailScreenState extends State<FamilyMemberDetailScreen> {
           chronicConditions: _member.chronicConditions,
           medications: _member.currentMedications,
           documents: _member.documents,
-          onSave: (bloodType, conditions, medications, documents) async {
-            await context.read<FamilyProvider>().updateMedicalPassport(
-              id: _member.id,
-              bloodGroup: bloodType,
-            );
+          onSave: (edit) async {
+            // Only a changed blood type is sent: the displayed value is not
+            // loaded from the server yet, so an untouched one must never
+            // overwrite the stored value.
+            final bloodType = edit.bloodType;
+            if (bloodType != null) {
+              await context.read<FamilyProvider>().updateMedicalPassport(
+                id: _member.id,
+                bloodType: bloodType,
+              );
+            }
 
             if (!mounted) return;
+            // Conditions and medications cannot be saved yet (the editor
+            // tells the patient), so they are not shown as if they were.
             setState(() {
-              _member.bloodType = bloodType;
-              _member.chronicConditions = conditions;
-              _member.currentMedications = medications;
-              _member.documents = documents;
+              if (bloodType != null) _member.bloodType = bloodType;
+              _member.documents = edit.documents;
             });
           },
         ),
@@ -449,7 +460,8 @@ class _FamilyMemberDetailScreenState extends State<FamilyMemberDetailScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      _member.bloodType,
+                      _member.bloodType?.label(OmniLocalizations.of(context)) ??
+                          '-',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 24,
                         fontWeight: FontWeight.w800,

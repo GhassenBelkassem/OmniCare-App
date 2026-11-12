@@ -7,11 +7,11 @@ class DoctorSelectionScreen extends StatefulWidget {
   const DoctorSelectionScreen({
     super.key,
     required this.emergencyData,
-    this.matchingSource,
+    required this.matchingSource,
   });
 
   final Map<String, dynamic> emergencyData;
-  final DoctorMatchingSource? matchingSource;
+  final DoctorMatchingSource matchingSource;
 
   @override
   State<DoctorSelectionScreen> createState() => _DoctorSelectionScreenState();
@@ -24,9 +24,7 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
   void initState() {
     super.initState();
     _matchingController = DoctorMatchingController(
-      source:
-          widget.matchingSource ??
-          DemoDoctorMatchingSource(doctors: createDemoUrgentDoctors()),
+      source: widget.matchingSource,
     );
     _matchingController.start();
   }

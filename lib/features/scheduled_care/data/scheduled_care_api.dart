@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../../core/network/app_http_client.dart';
+import '../../../core/network/request_replay_policy.dart';
 import '../domain/patient_scheduled_care_models.dart';
 import '../domain/scheduled_care_models.dart';
 
@@ -97,6 +98,7 @@ class ScheduledCareApi {
     return Options(
       contentType: Headers.jsonContentType,
       headers: {'Idempotency-Key': key},
+      extra: requestReplayExtra(RequestReplayPolicy.declaredIdempotentWrite),
     );
   }
 
@@ -196,6 +198,7 @@ class ScheduledAppointmentCancellationApi
       options: Options(
         contentType: Headers.jsonContentType,
         headers: {'Idempotency-Key': key},
+        extra: requestReplayExtra(RequestReplayPolicy.declaredIdempotentWrite),
       ),
     );
     if (response.data is! Map) {

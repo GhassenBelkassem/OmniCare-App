@@ -422,25 +422,25 @@ void main() {
 
     group('nextAvailableLabelFor', () {
       test('today label uses Aujourd\'hui', () {
-        final now = DateTime.now();
+        final now = toTunisWallClock(DateTime.now());
         final today = DateTime(now.year, now.month, now.day);
         final days = [
-          _day(today, ['09:30', '10:00'], ['Matin', 'Matin']),
+          _day(today, ['09:30', '10:00']),
         ];
         expect(nextAvailableLabelFor(days), 'Aujourd\'hui · 09:30');
       });
 
       test('tomorrow label uses Demain', () {
-        final now = DateTime.now();
+        final now = toTunisWallClock(DateTime.now());
         final tomorrow = DateTime(now.year, now.month, now.day + 1);
         final days = [
-          _day(tomorrow, ['10:00'], ['Matin']),
+          _day(tomorrow, ['10:00']),
         ];
         expect(nextAvailableLabelFor(days), 'Demain · 10:00');
       });
 
       test('later days use the French weekday name', () {
-        final now = DateTime.now();
+        final now = toTunisWallClock(DateTime.now());
         final later = DateTime(now.year, now.month, now.day + 4);
         const names = [
           'Lundi',
@@ -453,7 +453,7 @@ void main() {
         ];
         final expectedDay = names[later.weekday - 1];
         final days = [
-          _day(later, ['14:00'], ['Après-midi']),
+          _day(later, ['14:00']),
         ];
         expect(nextAvailableLabelFor(days), '$expectedDay · 14:00');
       });
@@ -623,35 +623,47 @@ void main() {
   });
 }
 
-AvailabilitySlotDto _slotUtc(DateTime local) {
-  final start = local;
+/// Server slot whose Africa/Tunis wall clock (UTC+01:00) is [tunis].
+/// Independent of the device timezone.
+AvailabilitySlotDto _slotUtc(DateTime tunis) {
+  final start = DateTime.utc(
+    tunis.year,
+    tunis.month,
+    tunis.day,
+    tunis.hour,
+    tunis.minute,
+  ).subtract(const Duration(hours: 1));
   final end = start.add(const Duration(minutes: 30));
   return AvailabilitySlotDto(
-    start: start.toUtc().toIso8601String(),
-    end: end.toUtc().toIso8601String(),
+    start: start.toIso8601String(),
+    end: end.toIso8601String(),
   );
 }
 
-DoctorDayAvailability _day(
-  DateTime date,
-  List<String> times,
-  List<String> periods,
-) {
-  assert(times.length == periods.length);
+/// A day of slots built from server instants whose Africa/Tunis wall clock
+/// (UTC+01:00) is [date] at each of [times].
+DoctorDayAvailability _day(DateTime date, List<String> times) {
   return DoctorDayAvailability(
     date: DateTime(date.year, date.month, date.day),
     slots: List.unmodifiable([
-      for (var i = 0; i < times.length; i++)
-        DoctorAvailabilitySlot(
-          time: times[i],
-          timeOfDay: periods[i],
-          startIso: '2026-09-24T${times[i]}:00Z',
-          endIso: '2026-09-24T${times[i]}:30Z',
-          start: DateTime(date.year, date.month, date.day, 9),
-          end: DateTime(date.year, date.month, date.day, 9, 30),
-          durationMinutes: 30,
-        ),
+      for (final time in times) _tunisSlot(date, time),
     ]),
+  );
+}
+
+DoctorAvailabilitySlot _tunisSlot(DateTime date, String time) {
+  final parts = time.split(':');
+  final start = DateTime.utc(
+    date.year,
+    date.month,
+    date.day,
+    int.parse(parts[0]),
+    int.parse(parts[1]),
+  ).subtract(const Duration(hours: 1));
+  final end = start.add(const Duration(minutes: 30));
+  return DoctorAvailabilitySlot.fromServer(
+    startIso: start.toIso8601String(),
+    endIso: end.toIso8601String(),
   );
 }
 

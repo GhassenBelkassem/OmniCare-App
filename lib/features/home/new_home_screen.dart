@@ -8,13 +8,16 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../core/theme/omni_theme.dart';
 import '../../core/api/account_api.dart';
+import '../../core/network/app_http_client.dart';
 import '../../core/services/file_picker_service.dart';
+import '../../core/models/blood_type.dart';
 import '../../core/models/family_models.dart' as core_models;
 import '../auth/application/auth_controller.dart';
 import '../../providers/user_onboarding_provider.dart' hide MedicalDocument;
 import '../../providers/user_provider.dart';
 import '../../providers/family_provider.dart';
 import 'edit_medical_data_screen.dart';
+import 'medical_data_save.dart';
 import 'add_family_member_screen.dart';
 import 'family_member_detail_screen.dart';
 import 'document_viewer_screen.dart';
@@ -46,14 +49,13 @@ import '../emergency/urgent_cabinet/urgent_cabinet_flow_shell.dart';
 import '../emergency/emergency_request_step2.dart';
 import '../emergency/emergency_request_step3.dart';
 import '../emergency/emergency_review_screen.dart';
-import '../emergency/doctor_selection_screen.dart';
-import '../emergency/review_confirm_screen.dart';
-import '../emergency/doctor_calling_screen.dart';
-import '../emergency/doctor_arriving_screen.dart';
-import '../emergency/consultation_qr_screen.dart';
-import '../emergency/consultation_complete_screen.dart';
+import '../clinical_safety/clinical_feature_unavailable_screen.dart';
 import '../notifications/application/notification_center_controller.dart';
 import '../notifications/presentation/notification_badge.dart';
+import '../../core/l10n/blood_type_label.dart';
+import '../../l10n/omni_localizations.dart';
+import '../../core/network/api_failure.dart';
+import '../../core/network/api_failure_message.dart';
 
 class NewHomeScreen extends StatefulWidget {
   const NewHomeScreen({super.key});
@@ -79,7 +81,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
         member.relationship,
       ),
       avatar: member.photoUrl ?? '',
-      bloodType: '-',
+      bloodType: null,
       chronicConditions: const [],
       currentMedications: const [],
       documents: const <MedicalDocument>[],
@@ -150,7 +152,11 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            provider.mutationError ?? 'Impossible de retirer ce membre.',
+            apiFailureMessageOr(
+              provider.mutationFailure,
+              OmniLocalizations.of(context),
+              fallback: OmniLocalizations.of(context).familyRemoveFailed,
+            ),
           ),
           backgroundColor: const Color(0xFFB42318),
         ),
@@ -186,7 +192,12 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e.toString()),
+          content: Text(
+            apiFailureMessage(
+              ApiFailure.from(e),
+              OmniLocalizations.of(context),
+            ),
+          ),
           backgroundColor: const Color(0xFFDC2626),
         ),
       );
@@ -239,8 +250,13 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                         ),
                         const SizedBox(height: 14),
                         Text(
-                          userProvider.loadError ??
-                              'Impossible de charger le profil.',
+                          apiFailureMessageOr(
+                            userProvider.loadFailure,
+                            OmniLocalizations.of(context),
+                            fallback: OmniLocalizations.of(
+                              context,
+                            ).profileLoadFailed,
+                          ),
                           textAlign: TextAlign.center,
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 14,
@@ -375,52 +391,31 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
             settings: settings,
           );
         }
-        if (settings.name == '/doctor-selection') {
-          final args = settings.arguments as Map<String, dynamic>;
+        if (const <String>{
+          '/doctor-selection',
+          '/review-confirm',
+          '/doctor-calling',
+          '/doctor-arriving',
+          '/consultation-qr',
+          '/consultation-complete',
+          '/consultation-type',
+          '/provider-list',
+          '/time-selection',
+          '/appointment-confirmation',
+          '/booking-confirmed',
+        }.contains(settings.name)) {
           return _buildPatientPageRoute(
-            builder: (_) => DoctorSelectionScreen(emergencyData: args),
-            settings: settings,
-          );
-        }
-        if (settings.name == '/review-confirm') {
-          final args = settings.arguments as Map<String, dynamic>;
-          return _buildPatientPageRoute(
-            builder: (_) => ReviewConfirmScreen(requestData: args),
-            settings: settings,
-          );
-        }
-        if (settings.name == '/doctor-calling') {
-          final args = settings.arguments as Map<String, dynamic>;
-          return _buildPatientPageRoute(
-            builder: (_) => DoctorCallingScreen(requestData: args),
-            settings: settings,
-          );
-        }
-        if (settings.name == '/doctor-arriving') {
-          final args = settings.arguments as Map<String, dynamic>;
-          return _buildPatientPageRoute(
-            builder: (_) => DoctorArrivingScreen(requestData: args),
-            settings: settings,
-          );
-        }
-        if (settings.name == '/consultation-qr') {
-          final args = settings.arguments as Map<String, dynamic>;
-          return _buildPatientPageRoute(
-            builder: (_) => ConsultationQRScreen(requestData: args),
-            settings: settings,
-          );
-        }
-        if (settings.name == '/consultation-complete') {
-          final args = settings.arguments as Map<String, dynamic>;
-          return _buildPatientPageRoute(
-            builder: (_) => ConsultationCompleteScreen(requestData: args),
+            builder: (_) => const ClinicalFeatureUnavailableScreen(),
             settings: settings,
           );
         }
         if (settings.name == '/m05/doctor-detail') {
-          final args = settings.arguments as String;
+          final args = settings.arguments;
+          final doctorId = args is String ? args.trim() : '';
           return _buildPatientPageRoute(
-            builder: (_) => DoctorDetailScreen(doctorId: args),
+            builder: (_) => doctorId.isEmpty
+                ? const _InvalidDoctorDetailRouteScreen()
+                : DoctorDetailScreen(doctorId: doctorId),
             settings: settings,
           );
         }
@@ -434,6 +429,8 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
             const UrgentCareModeSelectionScreen(),
           '/urgent-cabinet/care-subject' => const UrgentCabinetFlowShell(),
           '/emergency-step1' => const EmergencyRequestStep1(),
+          '/clinical-request-unavailable' =>
+            const ClinicalFeatureUnavailableScreen(),
           '/m05/request' => const RequestFlowEntryScreen(),
           '/doctor/cabinet/who-needs-care' => const DoctorCabinetEntryScreen(),
           '/m05/who-needs-care' => const WhoNeedsCareScreen(),
@@ -1222,8 +1219,22 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
       isSaving: userProvider.isSaving,
       isAvatarUploading: userProvider.isAvatarUploading,
       avatarUploadProgress: userProvider.avatarUploadProgress,
-      avatarErrorMessage: userProvider.avatarError,
-      errorMessage: userProvider.saveError,
+      avatarErrorMessage: userProvider.avatarSelectionFailed
+          ? OmniLocalizations.of(context).avatarSelectionFailed
+          : userProvider.avatarFailure == null
+          ? null
+          : apiFailureMessage(
+              userProvider.avatarFailure!,
+              OmniLocalizations.of(context),
+              fallback: OmniLocalizations.of(context).avatarUpdateFailed,
+            ),
+      errorMessage: userProvider.saveFailure == null
+          ? null
+          : apiFailureMessage(
+              userProvider.saveFailure!,
+              OmniLocalizations.of(context),
+              fallback: OmniLocalizations.of(context).profileSaveFailed,
+            ),
       onRetry: userProvider.clearSaveError,
       onAvatarSourceSelected: _selectAndUploadAvatar,
       onAvatarRemove: () async {
@@ -1236,7 +1247,13 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
           : null,
       onAvatarErrorDismiss: userProvider.clearAvatarError,
       familyIsLoading: familyProvider.isLoading,
-      familyErrorMessage: familyProvider.error,
+      familyErrorMessage: familyProvider.loadFailure == null
+          ? null
+          : apiFailureMessage(
+              familyProvider.loadFailure!,
+              OmniLocalizations.of(context),
+              fallback: OmniLocalizations.of(context).familyLoadFailed,
+            ),
       onRetryFamily: familyProvider.loadFamilyMembers,
       onPersonalInformationChanged:
           ({
@@ -1566,7 +1583,10 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    bloodGroup.isNotEmpty ? bloodGroup : '-',
+                    BloodType.fromWire(
+                          bloodGroup,
+                        )?.label(OmniLocalizations.of(context)) ??
+                        '-',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 20,
                       fontWeight: FontWeight.w800,
@@ -1713,42 +1733,21 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                   context,
                   MaterialPageRoute(
                     builder: (context) => EditMedicalDataScreen(
-                      bloodType: bloodGroup.isNotEmpty ? bloodGroup : '-',
+                      bloodType: BloodType.fromWire(bloodGroup),
                       chronicConditions: chronicConditions,
                       medications: editMedications,
                       documents: [],
-                      onSave:
-                          (
-                            bloodType,
-                            conditions,
-                            medications,
-                            documents,
-                          ) async {
-                            final medsJson = medications
-                                .map(
-                                  (m) => {
-                                    'medicationId': m.medicationId,
-                                    'name': m.name,
-                                    'dosage': m.dosage,
-                                    'frequency': m.frequency,
-                                  },
-                                )
-                                .toList();
-
-                            await AccountApi().patchMedicalPassport(
-                              bloodGroup: bloodType,
-                              medicalInfo: {
-                                'chronicConditions': conditions,
-                                'currentMedications': medsJson,
-                              },
-                            );
-
-                            if (!context.mounted) return;
-                            await Provider.of<UserProvider>(
-                              context,
-                              listen: false,
-                            ).refresh();
-                          },
+                      onSave: (edit) async {
+                        final saved = await saveOwnMedicalEdit(
+                          AccountApi(httpClient: context.read<AppHttpClient>()),
+                          edit,
+                        );
+                        if (!saved || !context.mounted) return;
+                        await Provider.of<UserProvider>(
+                          context,
+                          listen: false,
+                        ).refresh();
+                      },
                     ),
                   ),
                 );
@@ -1910,6 +1909,11 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     );
   }
 
+  /// Hidden (G2-1a-2b): the documents "+" opened an editor filled with
+  /// invented data whose save did nothing. The call site is deleted with the
+  /// Ma Santé fixtures in G2-1c.
+  static const bool _showDemoDocumentEditorEntry = false;
+
   Widget _buildMedicalDocumentsSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1941,52 +1945,47 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                 ],
               ),
             ),
-            IconButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => EditMedicalDataScreen(
-                      bloodType: 'A+',
-                      chronicConditions: ['Diabète Type 2', 'Hypertension'],
-                      medications: [
-                        Medication(
-                          name: 'Metformine',
-                          dosage: '500mg',
-                          frequency: '2x par jour',
-                        ),
-                        Medication(
-                          name: 'Lisinopril',
-                          dosage: '10mg',
-                          frequency: '1x par jour',
-                        ),
-                        Medication(
-                          name: 'Aspirine',
-                          dosage: '81mg',
-                          frequency: '1x par jour',
-                        ),
-                      ],
-                      documents: [],
-                      onSave:
-                          (
-                            bloodType,
-                            conditions,
-                            medications,
-                            documents,
-                          ) async {
-                            setState(() {
-                              // Update profile data here
-                            });
-                          },
+            if (_showDemoDocumentEditorEntry)
+              IconButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => EditMedicalDataScreen(
+                        bloodType: BloodType.aPositive,
+                        chronicConditions: ['Diabète Type 2', 'Hypertension'],
+                        medications: [
+                          Medication(
+                            name: 'Metformine',
+                            dosage: '500mg',
+                            frequency: '2x par jour',
+                          ),
+                          Medication(
+                            name: 'Lisinopril',
+                            dosage: '10mg',
+                            frequency: '1x par jour',
+                          ),
+                          Medication(
+                            name: 'Aspirine',
+                            dosage: '81mg',
+                            frequency: '1x par jour',
+                          ),
+                        ],
+                        documents: [],
+                        onSave: (_) async {
+                          setState(() {
+                            // Update profile data here
+                          });
+                        },
+                      ),
                     ),
-                  ),
-                );
-              },
-              icon: Icon(
-                Icons.add_circle_outline,
-                color: const Color(0xFF1FBF9A),
+                  );
+                },
+                icon: Icon(
+                  Icons.add_circle_outline,
+                  color: const Color(0xFF1FBF9A),
+                ),
               ),
-            ),
           ],
         ),
         const SizedBox(height: 16),
@@ -3662,4 +3661,22 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
       child: Image.asset('assets/images/app_logo.png', fit: BoxFit.contain),
     );
   }
+}
+
+class _InvalidDoctorDetailRouteScreen extends StatelessWidget {
+  const _InvalidDoctorDetailRouteScreen();
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Médecin')),
+    body: const Center(
+      child: Padding(
+        padding: EdgeInsets.all(24),
+        child: Text(
+          'Ce médecin n’est pas disponible.',
+          textAlign: TextAlign.center,
+        ),
+      ),
+    ),
+  );
 }

@@ -6,6 +6,7 @@
 /// real bookable time slot parsed from the availability endpoint.
 library;
 
+import 'doctor_directory_models.dart';
 import 'doctor_models.dart';
 
 /// Scheduling timezone mandated by the current Tunisia doctor contract.
@@ -16,11 +17,26 @@ import 'doctor_models.dart';
 /// authoritative IANA timezone.
 const String doctorSchedulingTimezone = 'Africa/Tunis';
 
-/// A single available time slot for a specific date.
+const Duration _tunisUtcOffset = Duration(hours: 1);
+
+/// Converts an instant to the Africa/Tunis wall clock, for DISPLAY ONLY.
+///
+/// Africa/Tunis has been UTC+01:00 without DST throughout the supported
+/// scheduling horizon. The result carries Tunis wall-clock fields, so it must
+/// never be sent to the server or compared with a server instant.
+DateTime toTunisWallClock(DateTime instant) =>
+    instant.toUtc().add(_tunisUtcOffset);
+
+const int _afternoonStartHour = 12;
+const int _eveningStartHour = 18;
+
+/// A single bookable slot, holding the server instants unchanged.
+///
+/// [start] and [end] are the backend `Instant`s (UTC) and are the only time
+/// values of the slot. Everything shown to the patient ([time], [timeOfDay],
+/// the Tunis calendar day) is derived from them at display time.
 class DoctorAvailabilitySlot {
-  const DoctorAvailabilitySlot({
-    required this.time,
-    required this.timeOfDay,
+  const DoctorAvailabilitySlot._({
     required this.startIso,
     required this.endIso,
     required this.start,
@@ -28,26 +44,72 @@ class DoctorAvailabilitySlot {
     required this.durationMinutes,
   });
 
-  /// The time label (e.g. '09:00', '14:30').
-  final String time;
+  /// Builds a slot from the backend `start`/`end` instants.
+  ///
+  /// Throws [DoctorContractException] when an instant is unparseable or has
+  /// no UTC offset (an offset-less value would be read in the device zone).
+  factory DoctorAvailabilitySlot.fromServer({
+    required String startIso,
+    required String endIso,
+    int? durationMinutes,
+  }) {
+    final start = _parseInstant(startIso);
+    final end = _parseInstant(endIso);
+    return DoctorAvailabilitySlot._(
+      startIso: startIso,
+      endIso: endIso,
+      start: start,
+      end: end,
+      durationMinutes: durationMinutes ?? end.difference(start).inMinutes,
+    );
+  }
 
-  /// Period of day grouping: 'Matin', 'Après-midi', 'Soir'.
-  final String timeOfDay;
-
-  /// The exact backend `start` Instant (`BookingRequest.startTime`).
+  /// The backend `start` value, verbatim. Used as the slot identity.
   final String startIso;
 
-  /// The exact backend `end` Instant (`BookingRequest.endTime`).
+  /// The backend `end` value, verbatim.
   final String endIso;
 
-  /// Parsed local start ([startIso] in local time).
+  /// The backend start instant, in UTC. Sent back to the server as is.
   final DateTime start;
 
-  /// Parsed local end ([endIso] in local time).
+  /// The backend end instant, in UTC. Sent back to the server as is.
   final DateTime end;
 
   /// Backend-provided duration; never inferred as a scheduling rule.
   final int durationMinutes;
+
+  /// Africa/Tunis calendar day of [start] (date only), for grouping.
+  DateTime get tunisDate {
+    final wallClock = toTunisWallClock(start);
+    return DateTime(wallClock.year, wallClock.month, wallClock.day);
+  }
+
+  /// Africa/Tunis time label of [start] (e.g. '09:00', '14:30').
+  String get time {
+    final wallClock = toTunisWallClock(start);
+    final hour = wallClock.hour.toString().padLeft(2, '0');
+    final minute = wallClock.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+
+  /// Africa/Tunis period of [start]: 'Matin', 'Après-midi', 'Soir'.
+  String get timeOfDay {
+    final hour = toTunisWallClock(start).hour;
+    if (hour < _afternoonStartHour) return 'Matin';
+    if (hour < _eveningStartHour) return 'Après-midi';
+    return 'Soir';
+  }
+
+  static DateTime _parseInstant(String value) {
+    final parsed = DateTime.tryParse(value);
+    if (parsed == null || !parsed.isUtc) {
+      throw const DoctorContractException(
+        'Slot carries an unparseable instant.',
+      );
+    }
+    return parsed;
+  }
 }
 
 /// Date-level availability: which day has which slots.

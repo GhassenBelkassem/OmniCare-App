@@ -5,7 +5,11 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 
 import '../network/api_exception.dart';
+import '../network/api_failure.dart';
 import '../network/app_http_client.dart';
+import '../network/auth_interceptor.dart';
+import '../network/network_timeout_policy.dart';
+import '../network/request_replay_policy.dart';
 import '../network/sse_decoder.dart';
 import '../storage/secure_token_store.dart';
 
@@ -86,6 +90,59 @@ class MedicalDocumentPage {
           )
           .toList(growable: false),
       nextCursor: json['nextCursor']?.toString(),
+    );
+  }
+}
+
+enum DocumentUploadRecoveryState { inProgress, succeeded, failed }
+
+class DocumentUploadRecoveryResult {
+  const DocumentUploadRecoveryResult({
+    required this.state,
+    this.document,
+    this.failureCode,
+  });
+
+  final DocumentUploadRecoveryState state;
+  final MedicalDocumentRecord? document;
+  final String? failureCode;
+
+  factory DocumentUploadRecoveryResult.fromJson(
+    Map<String, dynamic> json, {
+    required String expectedPatientId,
+  }) {
+    final state = switch (_requiredString(json, 'state')) {
+      'IN_PROGRESS' => DocumentUploadRecoveryState.inProgress,
+      'SUCCEEDED' => DocumentUploadRecoveryState.succeeded,
+      'FAILED' => DocumentUploadRecoveryState.failed,
+      _ => throw const FormatException('Invalid upload recovery state.'),
+    };
+    final documentJson = json['document'];
+    if (documentJson != null && documentJson is! Map) {
+      throw const FormatException('Invalid recovered document.');
+    }
+    final document = documentJson == null
+        ? null
+        : MedicalDocumentRecord.fromJson(
+            (documentJson as Map).cast<String, dynamic>(),
+          );
+    if (document != null && document.patientId != expectedPatientId) {
+      throw const FormatException('Upload recovery owner mismatch.');
+    }
+    final failureCode = json['failureCode']?.toString().trim();
+    if (state == DocumentUploadRecoveryState.succeeded && document == null) {
+      throw const FormatException('Missing recovered document.');
+    }
+    if (state == DocumentUploadRecoveryState.failed &&
+        (failureCode == null || failureCode.isEmpty)) {
+      throw const FormatException('Missing upload recovery failure.');
+    }
+    return DocumentUploadRecoveryResult(
+      state: state,
+      document: document,
+      failureCode: failureCode == null || failureCode.isEmpty
+          ? null
+          : failureCode,
     );
   }
 }
@@ -184,22 +241,46 @@ class DocumentUploadOperation {
   DocumentUploadOperation._({
     required this.idempotencyKey,
     required this.patientId,
-    required this.bytes,
+    required this.fileSizeBytes,
     required this.filename,
     required this.mimeType,
     required this.displayName,
     required this.documentType,
     required this.documentDate,
+    this.filePath,
+    this.bytes,
   });
 
   final String idempotencyKey;
   final String patientId;
-  final Uint8List bytes;
+  final int fileSizeBytes;
+  final String? filePath;
+  final Uint8List? bytes;
   final String filename;
   final String mimeType;
   final String displayName;
   final String documentType;
   final DateTime documentDate;
+
+  bool matches({
+    required String patientId,
+    required int fileSizeBytes,
+    required String? filePath,
+    required Uint8List? bytes,
+    required String filename,
+    required String mimeType,
+    required String displayName,
+    required String documentType,
+  }) {
+    return this.patientId == patientId &&
+        this.fileSizeBytes == fileSizeBytes &&
+        this.filePath == filePath &&
+        identical(this.bytes, bytes) &&
+        this.filename == filename &&
+        this.mimeType == mimeType &&
+        this.displayName == displayName &&
+        this.documentType == documentType;
+  }
 }
 
 class DocumentDeleteOperation {
@@ -215,6 +296,9 @@ class DocumentDeleteOperation {
 }
 
 class DocumentsApi {
+  static const maximumUploadBytes = 20 * 1024 * 1024;
+  static const uploadSendTimeout = Duration(minutes: 2);
+
   DocumentsApi({
     AppHttpClient? httpClient,
     Random? random,
@@ -244,16 +328,48 @@ class DocumentsApi {
 
   DocumentUploadOperation startUpload({
     required String patientId,
-    required Uint8List bytes,
+    required int fileSizeBytes,
+    String? filePath,
+    Uint8List? bytes,
     required String filename,
     required String mimeType,
     required String displayName,
     required String documentType,
     required DateTime documentDate,
   }) {
+    if (fileSizeBytes <= 0) {
+      throw const ApiException(
+        'The selected file is empty.',
+        code: 'EMPTY_FILE',
+      );
+    }
+    if (fileSizeBytes > maximumUploadBytes) {
+      throw const ApiException(
+        'The file is larger than the 20 MB limit.',
+        code: 'FILE_TOO_LARGE',
+      );
+    }
+    final normalizedPath = filePath?.trim();
+    final hasPath = normalizedPath != null && normalizedPath.isNotEmpty;
+    final hasBytes = bytes != null;
+    if (hasPath == hasBytes) {
+      throw const ApiException(
+        'The selected file could not be read.',
+        code: 'FILE_SOURCE_INVALID',
+      );
+    }
+    if (bytes != null && bytes.lengthInBytes != fileSizeBytes) {
+      throw const ApiException(
+        'The selected file changed before upload.',
+        code: 'FILE_SIZE_MISMATCH',
+      );
+    }
+
     return DocumentUploadOperation._(
       idempotencyKey: _newIdempotencyKey('upload'),
       patientId: patientId,
+      fileSizeBytes: fileSizeBytes,
+      filePath: hasPath ? normalizedPath : null,
       bytes: bytes,
       filename: filename,
       mimeType: mimeType,
@@ -263,36 +379,121 @@ class DocumentsApi {
     );
   }
 
-  Future<MedicalDocumentRecord> upload(DocumentUploadOperation operation) {
+  Future<MedicalDocumentRecord> upload(
+    DocumentUploadOperation operation, {
+    CancelToken? cancelToken,
+    ProgressCallback? onSendProgress,
+    void Function()? onRequestDispatched,
+  }) async {
+    var rebuiltAfterRefresh = false;
+    while (true) {
+      try {
+        return await _uploadAttempt(
+          operation,
+          cancelToken: cancelToken,
+          onSendProgress: onSendProgress,
+          onRequestDispatched: onRequestDispatched,
+        );
+      } on ApiException catch (error) {
+        if (!rebuiltAfterRefresh &&
+            error.code == 'AUTH_REPLAY_REQUIRED' &&
+            !(cancelToken?.isCancelled ?? false)) {
+          rebuiltAfterRefresh = true;
+          continue;
+        }
+        rethrow;
+      }
+    }
+  }
+
+  Future<MedicalDocumentRecord> _uploadAttempt(
+    DocumentUploadOperation operation, {
+    CancelToken? cancelToken,
+    ProgressCallback? onSendProgress,
+    void Function()? onRequestDispatched,
+  }) async {
+    if (cancelToken?.isCancelled ?? false) {
+      throw _safeApiException(cancelToken!.cancelError!);
+    }
+
     final metadata = jsonEncode({
       'displayName': operation.displayName,
       'documentType': operation.documentType,
       'documentDate': _dateOnly(operation.documentDate),
     });
 
+    late final MultipartFile filePart;
+    try {
+      filePart = operation.filePath != null
+          ? await MultipartFile.fromFile(
+              operation.filePath!,
+              filename: operation.filename,
+              contentType: DioMediaType.parse(operation.mimeType),
+            )
+          : MultipartFile.fromBytes(
+              operation.bytes!,
+              filename: operation.filename,
+              contentType: DioMediaType.parse(operation.mimeType),
+            );
+    } on DioException catch (error) {
+      throw _safeApiException(error);
+    } catch (error) {
+      throw ApiException(
+        'The selected file could not be read.',
+        code: 'FILE_READ_FAILED',
+        cause: error,
+      );
+    }
+
     final form = FormData.fromMap({
-      'file': MultipartFile.fromBytes(
-        operation.bytes,
-        filename: operation.filename,
-        contentType: DioMediaType.parse(operation.mimeType),
-      ),
+      'file': filePart,
       'metadata': MultipartFile.fromString(
         metadata,
         contentType: DioMediaType.parse('application/json'),
       ),
     });
 
-    return _request(
-      () => _httpClient.dio.post<dynamic>(
+    return _request(() {
+      onRequestDispatched?.call();
+      return _httpClient.dio.post<dynamic>(
         '/documents',
         queryParameters: {'patientId': operation.patientId},
         data: form,
+        cancelToken: cancelToken,
+        onSendProgress: onSendProgress,
         options: Options(
           headers: {'Idempotency-Key': operation.idempotencyKey},
           contentType: null,
+          sendTimeout: uploadSendTimeout,
+          receiveTimeout: NetworkTimeoutPolicy.medicalUpload.receive,
+          extra: requestReplayExtra(RequestReplayPolicy.never),
         ),
+      );
+    }, MedicalDocumentRecord.fromJson);
+  }
+
+  Future<DocumentUploadRecoveryResult> recoverUpload({
+    required String patientId,
+    required String idempotencyKey,
+  }) {
+    final normalizedPatientId = patientId.trim();
+    final normalizedKey = idempotencyKey.trim();
+    if (normalizedPatientId.isEmpty || normalizedKey.isEmpty) {
+      throw const ApiException(
+        'The upload recovery identity is invalid.',
+        code: 'UPLOAD_RECOVERY_IDENTITY_INVALID',
+      );
+    }
+    return _request(
+      () => _httpClient.dio.get<dynamic>(
+        '/documents/uploads/recovery',
+        queryParameters: {'patientId': normalizedPatientId},
+        options: Options(headers: {'Idempotency-Key': normalizedKey}),
       ),
-      MedicalDocumentRecord.fromJson,
+      (json) => DocumentUploadRecoveryResult.fromJson(
+        json,
+        expectedPatientId: normalizedPatientId,
+      ),
     );
   }
 
@@ -328,7 +529,7 @@ class DocumentsApi {
         options: Options(
           responseType: ResponseType.stream,
           receiveTimeout: eventStreamSilenceTimeout,
-          sendTimeout: const Duration(seconds: 5),
+          sendTimeout: NetworkTimeoutPolicy.documentEvents.send,
           headers: {
             'Accept': 'text/event-stream',
             'Cache-Control': 'no-cache',
@@ -416,6 +617,9 @@ class DocumentsApi {
         queryParameters: {'patientId': operation.patientId},
         options: Options(
           headers: {'Idempotency-Key': operation.idempotencyKey},
+          extra: requestReplayExtra(
+            RequestReplayPolicy.declaredIdempotentWrite,
+          ),
         ),
       ),
       (json) => json,
@@ -473,74 +677,26 @@ class DocumentsApi {
   }
 }
 
+/// A documents error from the single parser ([ApiFailure.fromDio]). The
+/// local codes (session refresh, replay, local cancel) win over the server's
+/// code. No text is chosen here: screens use `documentErrorMessage`.
 ApiException _safeApiException(DioException error) {
-  final status = error.response?.statusCode;
-  final data = error.response?.data;
-
-  final parsedRetryAfterSeconds = int.tryParse(
-    error.response?.headers.value('retry-after')?.trim() ?? '',
-  );
-
-  final retryAfterSeconds =
-      parsedRetryAfterSeconds != null && parsedRetryAfterSeconds >= 0
-      ? parsedRetryAfterSeconds
-      : null;
-
-  final code = data is Map
-      ? (data['code'] ?? data['errorCode'])?.toString()
-      : null;
-
-  final message = switch (code) {
-    'UNAUTHORIZED' ||
-    'AUTH_SESSION_EXPIRED' ||
-    'AUTH_SESSION_INVALID' => 'Your session has expired. Please sign in again.',
-
-    'FORBIDDEN' => 'You do not have permission to access these documents.',
-
-    'UNSUPPORTED_FILE_TYPE' => 'Choose a PDF, PNG, JPG, or JPEG file.',
-
-    'FILE_TOO_LARGE' => 'The file is larger than the 20 MB limit.',
-
-    'IDEMPOTENCY_KEY_REUSED' || 'CONFLICT' =>
-      'This operation conflicts with an earlier request. '
-          'Please refresh and try again.',
-
-    'MRS_UNAVAILABLE' || 'OBJECT_STORAGE_UNAVAILABLE' =>
-      'Document processing is temporarily unavailable. '
-          'Please try again later.',
-
-    'INVALID_INPUT' || 'VALIDATION_ERROR' =>
-      'The document could not be accepted. '
-          'Check the file and try again.',
-
-    _
-        when error.type == DioExceptionType.connectionTimeout ||
-            error.type == DioExceptionType.sendTimeout ||
-            error.type == DioExceptionType.receiveTimeout =>
-      'The request timed out. Please try again.',
-
-    _ when error.type == DioExceptionType.connectionError =>
-      'The document service is unavailable. '
-          'Please try again later.',
-
-    _ when status == 401 => 'Your session has expired. Please sign in again.',
-
-    _ when status == 403 =>
-      'You do not have permission to access these documents.',
-
-    _ =>
-      'The document operation could not be completed. '
-          'Please try again.',
-  };
-
+  final failure = ApiFailure.fromDio(error);
+  final cause = error.error;
+  final code = cause is AuthRefreshUnavailableException
+      ? 'AUTH_REFRESH_TEMPORARILY_UNAVAILABLE'
+      : cause is AuthReplayRequiredException
+      ? 'AUTH_REPLAY_REQUIRED'
+      : CancelToken.isCancel(error)
+      ? 'UPLOAD_CANCELLED_LOCAL'
+      : failure.code;
   return ApiException(
-    message,
+    failure.logSummary,
     code: code,
-    statusCode: status,
-    retryAfter: retryAfterSeconds == null
-        ? null
-        : Duration(seconds: retryAfterSeconds),
+    statusCode: error.response?.statusCode,
+    retryAfter: failure.retryAfter,
     cause: error,
+    failure: failure,
   );
 }
 

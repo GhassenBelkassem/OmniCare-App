@@ -142,6 +142,7 @@ class PatientRequest {
     required this.version,
     required this.availableActions,
     required this.informationRequest,
+    this.scheduleProposal,
   });
 
   final RequestOperationId requestId;
@@ -164,6 +165,10 @@ class PatientRequest {
   /// Server-decided. The client renders these and never derives its own.
   final Set<PatientRequestAction> availableActions;
   final PatientInformationRequest? informationRequest;
+
+  /// The clinic's current schedule proposal or confirmed schedule. Parsed so
+  /// no data is lost; no screen shows or answers it yet (G-2 C11, design gap).
+  final PatientScheduleProposal? scheduleProposal;
 
   bool get canCancel => availableActions.contains(PatientRequestAction.cancel);
   bool get canProvideInformation =>
@@ -189,6 +194,9 @@ class PatientRequest {
       availableActions: _parseActions(json['availableActions']),
       informationRequest: PatientInformationRequest.tryParse(
         json['informationRequest'],
+      ),
+      scheduleProposal: PatientScheduleProposal.tryParse(
+        json['scheduleProposal'],
       ),
     );
   }
@@ -250,6 +258,132 @@ class PatientInformationRequest {
       throw const RequestContractException('Information request is malformed.');
     }
     return PatientInformationRequest.fromJson(value.cast<String, dynamic>());
+  }
+}
+
+/// `scheduleProposal` of `GET /appointment-requests/{id}`, mirroring the
+/// backend `PatientScheduleReadPort.Summary`. Data only: no UI uses it yet
+/// (G-2 C11). [proposalId] and [scheduleVersion] are what an accept/reject
+/// command will need.
+class PatientScheduleProposal {
+  const PatientScheduleProposal({
+    required this.proposalId,
+    required this.changeType,
+    required this.status,
+    required this.revisionNumber,
+    required this.proposedStartAt,
+    required this.confirmedStartAt,
+    required this.expectedDurationMinutes,
+    required this.proposalExpiresAt,
+    required this.scheduleVersion,
+    required this.actionable,
+    this.currentConfirmedSchedule,
+    this.activeDelay,
+  });
+
+  final String proposalId;
+  final ScheduleProposalChangeType changeType;
+  final ScheduleProposalStatus status;
+  final int revisionNumber;
+  final DateTime? proposedStartAt;
+  final DateTime? confirmedStartAt;
+  final int expectedDurationMinutes;
+  final DateTime? proposalExpiresAt;
+  final int scheduleVersion;
+
+  /// Server-decided: the proposal can be answered now.
+  final bool actionable;
+  final PatientConfirmedSchedule? currentConfirmedSchedule;
+  final PatientScheduleDelay? activeDelay;
+
+  factory PatientScheduleProposal.fromJson(Map<String, dynamic> json) {
+    return PatientScheduleProposal(
+      proposalId: _requiredString(json, 'proposalId'),
+      changeType: ScheduleProposalChangeType.parse(
+        _optionalString(json['changeType']),
+      ),
+      status: ScheduleProposalStatus.parse(_optionalString(json['status'])),
+      revisionNumber: _requiredInt(json, 'revisionNumber'),
+      proposedStartAt: _optionalInstant(json['proposedStartAt']),
+      confirmedStartAt: _optionalInstant(json['confirmedStartAt']),
+      expectedDurationMinutes: _requiredInt(json, 'expectedDurationMinutes'),
+      proposalExpiresAt: _optionalInstant(json['proposalExpiresAt']),
+      scheduleVersion: _requiredInt(json, 'scheduleVersion'),
+      actionable: json['actionable'] == true,
+      currentConfirmedSchedule: PatientConfirmedSchedule.tryParse(
+        json['currentConfirmedSchedule'],
+      ),
+      activeDelay: PatientScheduleDelay.tryParse(json['activeDelay']),
+    );
+  }
+
+  static PatientScheduleProposal? tryParse(Object? value) {
+    if (value == null) return null;
+    if (value is! Map) {
+      throw const RequestContractException('Schedule proposal is malformed.');
+    }
+    return PatientScheduleProposal.fromJson(value.cast<String, dynamic>());
+  }
+
+  @override
+  String toString() => 'PatientScheduleProposal(${status.wireValue})';
+}
+
+/// `scheduleProposal.currentConfirmedSchedule` (backend `ConfirmedSchedule`).
+class PatientConfirmedSchedule {
+  const PatientConfirmedSchedule({
+    required this.scheduleRevisionId,
+    required this.revisionNumber,
+    required this.confirmedStartAt,
+    required this.expectedDurationMinutes,
+    required this.scheduleVersion,
+  });
+
+  final String scheduleRevisionId;
+  final int revisionNumber;
+  final DateTime? confirmedStartAt;
+  final int expectedDurationMinutes;
+  final int scheduleVersion;
+
+  static PatientConfirmedSchedule? tryParse(Object? value) {
+    if (value == null) return null;
+    if (value is! Map) {
+      throw const RequestContractException('Confirmed schedule is malformed.');
+    }
+    final json = value.cast<String, dynamic>();
+    return PatientConfirmedSchedule(
+      scheduleRevisionId: _requiredString(json, 'scheduleRevisionId'),
+      revisionNumber: _requiredInt(json, 'revisionNumber'),
+      confirmedStartAt: _optionalInstant(json['confirmedStartAt']),
+      expectedDurationMinutes: _requiredInt(json, 'expectedDurationMinutes'),
+      scheduleVersion: _requiredInt(json, 'scheduleVersion'),
+    );
+  }
+}
+
+/// `scheduleProposal.activeDelay` (backend `ActiveDelay`).
+class PatientScheduleDelay {
+  const PatientScheduleDelay({
+    required this.delayEventId,
+    required this.reportedAt,
+    required this.estimatedStartAt,
+  });
+
+  final String delayEventId;
+  final DateTime? reportedAt;
+  final DateTime? estimatedStartAt;
+
+  static PatientScheduleDelay? tryParse(Object? value) {
+    if (value == null) return null;
+    if (value is! Map) {
+      throw const RequestContractException('Schedule delay is malformed.');
+    }
+    final json = value.cast<String, dynamic>();
+    return PatientScheduleDelay(
+      delayEventId: _requiredString(json, 'delayEventId'),
+      reportedAt: _optionalInstant(json['reportedAt']),
+      estimatedStartAt: _optionalInstant(json['estimatedStartAt']),
+    );
   }
 }
 

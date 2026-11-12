@@ -23,6 +23,7 @@ class _PrescriptionCardState extends State<PrescriptionCard> {
   PrescriptionController? _controller;
   PrescriptionRealtimeTarget? _target;
   VoidCallback? _unregister;
+  final FocusNode _newMedicationFocus = FocusNode();
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -54,6 +55,9 @@ class _PrescriptionCardState extends State<PrescriptionCard> {
         PrescriptionMedication(itemId: generateUuidV4()),
       ),
     );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _newMedicationFocus.requestFocus();
+    });
   }
 
   void _removeMedication(PrescriptionController controller, int index) {
@@ -72,6 +76,7 @@ class _PrescriptionCardState extends State<PrescriptionCard> {
     _target?.dispose();
     _unregister?.call();
     _controller?.dispose();
+    _newMedicationFocus.dispose();
     super.dispose();
   }
 
@@ -140,6 +145,10 @@ class _PrescriptionCardState extends State<PrescriptionCard> {
               index: entry.key,
               medication: entry.value,
               readOnly: readOnly,
+              nameFocusNode:
+                  entry.key == controller.draft.medications.length - 1
+                  ? _newMedicationFocus
+                  : null,
               changed: () => controller.update((_) {}),
               remove: () => _removeMedication(controller, entry.key),
             ),
@@ -257,12 +266,14 @@ class _MedicationEditor extends StatelessWidget {
     required this.index,
     required this.medication,
     required this.readOnly,
+    required this.nameFocusNode,
     required this.changed,
     required this.remove,
   });
   final int index;
   final PrescriptionMedication medication;
   final bool readOnly;
+  final FocusNode? nameFocusNode;
   final VoidCallback changed, remove;
   @override
   Widget build(BuildContext context) => Container(
@@ -278,10 +289,10 @@ class _MedicationEditor extends StatelessWidget {
           'Medication ${index + 1}',
           style: const TextStyle(fontWeight: FontWeight.w700),
         ),
-        _field('Name', medication.name, (v) {
+        _field('Medication', medication.name, (v) {
           medication.name = nullablePrescriptionText(v);
           changed();
-        }),
+        }, focusNode: nameFocusNode),
         Row(
           children: [
             Expanded(
@@ -348,6 +359,28 @@ class _MedicationEditor extends StatelessWidget {
           }
           changed();
         }),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Wrap(
+            spacing: 8,
+            children: [1, 2, 3]
+                .map(
+                  (times) => ChoiceChip(
+                    label: Text('${times}x/day'),
+                    selected: medication.timesPerDay == times,
+                    onSelected: readOnly
+                        ? null
+                        : (_) {
+                            medication.timesPerDay = times;
+                            medication.frequencyText = null;
+                            _deriveQuantity();
+                            changed();
+                          },
+                  ),
+                )
+                .toList(growable: false),
+          ),
+        ),
         Row(
           children: [
             Expanded(
@@ -385,6 +418,30 @@ class _MedicationEditor extends StatelessWidget {
             ),
           ],
         ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Wrap(
+            spacing: 8,
+            children: [3, 5, 7, 10]
+                .map(
+                  (days) => ChoiceChip(
+                    label: Text('$days days'),
+                    selected:
+                        medication.durationUnit == 'DAY' &&
+                        medication.durationValue == days,
+                    onSelected: readOnly
+                        ? null
+                        : (_) {
+                            medication.durationValue = days;
+                            medication.durationUnit = 'DAY';
+                            _deriveQuantity();
+                            changed();
+                          },
+                  ),
+                )
+                .toList(growable: false),
+          ),
+        ),
         _field('Quantity', medication.quantity?.toString(), (v) {
           medication.quantity = int.tryParse(v);
           changed();
@@ -407,6 +464,7 @@ class _MedicationEditor extends StatelessWidget {
     ValueChanged<String> onChanged, {
     bool number = false,
     int lines = 1,
+    FocusNode? focusNode,
   }) => Padding(
     padding: const EdgeInsets.only(top: 8),
     child: TextFormField(
@@ -414,10 +472,23 @@ class _MedicationEditor extends StatelessWidget {
       enabled: !readOnly,
       keyboardType: number ? TextInputType.number : TextInputType.text,
       maxLines: lines,
+      focusNode: focusNode,
       decoration: _decoration(label),
       onChanged: onChanged,
     ),
   );
+
+  void _deriveQuantity() {
+    final times = medication.timesPerDay;
+    final days = medication.durationUnit == 'DAY'
+        ? medication.durationValue
+        : null;
+    if (times == null || days == null) return;
+    final quantity = medication.doseAmount * times * days;
+    if (quantity == quantity.roundToDouble()) {
+      medication.quantity = quantity.toInt();
+    }
+  }
 }
 
 InputDecoration _decoration(String label) => InputDecoration(

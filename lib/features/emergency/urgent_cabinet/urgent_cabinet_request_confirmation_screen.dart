@@ -10,7 +10,7 @@ import 'urgent_cabinet_care_subject.dart';
 import 'urgent_cabinet_doctor_detail.dart';
 import 'urgent_cabinet_discovery_mapper.dart';
 import 'urgent_cabinet_discovery_repository.dart';
-import 'urgent_cabinet_doctor_fixture.dart';
+import 'urgent_cabinet_doctor_source.dart';
 import 'urgent_cabinet_flow_controller.dart';
 import 'urgent_cabinet_flow_routes.dart';
 import 'urgent_cabinet_patient_lifecycle_controller.dart';
@@ -144,7 +144,7 @@ class _UrgentCabinetRequestConfirmationScreenState
         _doctor = null;
         _cabinet = null;
         _feeQuote = null;
-        _loadState = failure.isNotFound
+        _loadState = failure.isNotFound || failure.isFeatureUnavailable
             ? _ConfirmationLoadState.unavailable
             : _ConfirmationLoadState.error;
       });
@@ -316,7 +316,9 @@ class _UrgentCabinetRequestConfirmationScreenState
           UrgentCabinetFlowRoutes.requestAccepted,
         UrgentCabinetPatientResponseStatus.declined ||
         UrgentCabinetPatientResponseStatus.cancelled ||
-        UrgentCabinetPatientResponseStatus.expired =>
+        UrgentCabinetPatientResponseStatus.expired ||
+        // Unreachable: the repository rejects unrecognized snapshots.
+        UrgentCabinetPatientResponseStatus.unknown =>
           UrgentCabinetFlowRoutes.requestRecovery,
       };
       await Navigator.of(context).pushReplacementNamed<void, void>(destination);

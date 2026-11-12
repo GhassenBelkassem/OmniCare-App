@@ -41,13 +41,23 @@ class DoctorMedicalRecordController extends ChangeNotifier {
       clear();
       return;
     }
-    final changed = _consultationId != consultation.consultationId;
+    synchronizeAccess(
+      consultationId: consultation.consultationId,
+      accessStatus: consultation.medicalAccessStatus,
+    );
+  }
+
+  void synchronizeAccess({
+    required String consultationId,
+    required DoctorConsultationMedicalAccessStatus accessStatus,
+  }) {
+    final changed = _consultationId != consultationId;
     if (changed) {
       _generation++;
-      _consultationId = consultation.consultationId;
+      _consultationId = consultationId;
       _workspace = null;
     }
-    switch (consultation.medicalAccessStatus) {
+    switch (accessStatus) {
       case DoctorConsultationMedicalAccessStatus.none:
         _setDenied(DoctorMedicalRecordState.accessRequired);
       case DoctorConsultationMedicalAccessStatus.expired:

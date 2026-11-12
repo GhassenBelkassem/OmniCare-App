@@ -1,11 +1,30 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:qr_flutter/qr_flutter.dart';
+import 'package:intl/intl.dart' show DateFormat, NumberFormat;
 import 'package:provider/provider.dart';
-import 'package:confetti/confetti.dart';
-import 'dart:math';
-import '../../providers/user_onboarding_provider.dart';
 
+import '../../core/l10n/blood_type_label.dart';
+import '../../core/models/blood_type.dart';
+import '../../core/theme/omni_theme.dart';
+import '../../core/widgets/omni_pressable.dart';
+import '../../l10n/omni_localizations.dart';
+import '../../providers/user_onboarding_provider.dart';
+import 'onboarding_labels.dart';
+import 'widgets/onboarding_summary_list.dart';
+
+/// Bundled family (pubspec, weights 500–800). The theme's google_fonts
+/// text styles keep their 400 face when only the weight changes.
+const String _bundledFont = 'Plus Jakarta Sans';
+
+/// End of onboarding (G3-ONB2): check « pop », « Vos informations sont
+/// enregistrées », a summary of the values already in memory
+/// ([UserOnboardingProvider]) and « Accéder à mon espace » (same
+/// navigation to /home as before). The QR code, the confetti and the demo
+/// button are gone.
+///
+/// A row is shown only when its value is available. Lists (allergies,
+/// conditions) are shown only when not empty: an empty list in memory can
+/// also mean « saved in an earlier session », so it is never shown as
+/// « none ».
 class OnboardingCompleteScreen extends StatefulWidget {
   const OnboardingCompleteScreen({super.key});
 
@@ -14,265 +33,240 @@ class OnboardingCompleteScreen extends StatefulWidget {
       _OnboardingCompleteScreenState();
 }
 
-class _OnboardingCompleteScreenState extends State<OnboardingCompleteScreen> {
-  late ConfettiController _confettiController;
+class _OnboardingCompleteScreenState extends State<OnboardingCompleteScreen>
+    with SingleTickerProviderStateMixin {
+  static const double _maxContentWidth = 480;
+  static const double _buttonRadius = 14;
+
+  late final AnimationController _pop = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 520),
+  );
+  late final Animation<double> _scale = CurvedAnimation(
+    parent: _pop,
+    curve: Curves.easeOutBack,
+  );
+
+  bool _started = false;
 
   @override
-  void initState() {
-    super.initState();
-    _confettiController = ConfettiController(
-      duration: const Duration(seconds: 4),
-    );
-    // Start confetti animation when screen loads
-    Future.delayed(const Duration(milliseconds: 500), () {
-      _confettiController.play();
-    });
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    final reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    if (reduceMotion) {
+      _pop.value = 1;
+    } else {
+      _pop.forward();
+    }
   }
 
   @override
   void dispose() {
-    _confettiController.dispose();
+    _pop.dispose();
     super.dispose();
+  }
+
+  List<OnboardingSummaryItem> _items(
+    UserOnboardingProvider provider,
+    OmniLocalizations l10n,
+  ) {
+    final locale = Localizations.localeOf(context).toLanguageTag();
+    final name = '${provider.firstName ?? ''} ${provider.lastName ?? ''}'
+        .trim();
+    final dateOfBirth = provider.dateOfBirth;
+    final gender = (provider.gender ?? '').trim();
+    final bloodType = BloodType.fromWire(provider.bloodGroup);
+    final height = provider.heightCm;
+    final weight = provider.weightKg;
+    final allergies = provider.allergies
+        .map((allergy) => allergy.name.trim())
+        .where((name) => name.isNotEmpty)
+        .toList();
+    final conditions = provider.chronicConditions
+        .map((condition) => onboardingConditionLabel(condition, l10n))
+        .toList();
+    return [
+      if (name.isNotEmpty)
+        OnboardingSummaryItem(label: l10n.onboardingSummaryName, value: name),
+      if (dateOfBirth != null)
+        OnboardingSummaryItem(
+          label: l10n.onboardingBirthDate,
+          value: DateFormat('dd/MM/yyyy').format(dateOfBirth),
+        ),
+      if (gender.isNotEmpty)
+        OnboardingSummaryItem(
+          label: l10n.onboardingGender,
+          value: onboardingGenderLabel(gender, l10n),
+        ),
+      if (bloodType != null)
+        OnboardingSummaryItem(
+          label: l10n.onboardingSummaryBlood,
+          value: bloodType.label(l10n),
+        ),
+      if (height != null)
+        OnboardingSummaryItem(
+          label: l10n.onboardingHeightLabel,
+          value: '$height ${l10n.onboardingUnitCm}',
+        ),
+      if (weight != null)
+        OnboardingSummaryItem(
+          label: l10n.onboardingWeightLabel,
+          value:
+              '${NumberFormat('0.#', locale).format(weight)} '
+              '${l10n.onboardingUnitKg}',
+        ),
+      if (allergies.isNotEmpty)
+        OnboardingSummaryItem(
+          label: l10n.onboardingSummaryAllergies,
+          value: allergies.join(', '),
+        ),
+      if (conditions.isNotEmpty)
+        OnboardingSummaryItem(
+          label: l10n.onboardingSummaryConditions,
+          value: conditions.join(', '),
+        ),
+    ];
   }
 
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<UserOnboardingProvider>(context);
-
-    // Generate unique QR code data based on user info
-    final qrData =
-        'OMNICARE_USER_${provider.email ?? provider.phoneNumber}_${DateTime.now().millisecondsSinceEpoch}';
+    final l10n = OmniLocalizations.of(context);
+    final items = _items(provider, l10n);
 
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: Stack(
-        children: [
-          SafeArea(
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 32),
-                    // Success Icon
-                    Container(
-                      width: 120,
-                      height: 120,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF0FDF9),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Icon(
-                          Icons.check_circle_rounded,
-                          size: 80,
-                          color: const Color(0xFF1FBF9A),
-                        ),
-                      ),
+      backgroundColor: OmniColors.surfacePrimary,
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final side = ((constraints.maxWidth - _maxContentWidth) / 2).clamp(
+              OmniSpacing.pageHorizontal,
+              double.infinity,
+            );
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.fromLTRB(
+                      side,
+                      OmniSpacing.xxxl,
+                      side,
+                      OmniSpacing.xl,
                     ),
-                    const SizedBox(height: 24),
-                    // Thank you title
-                    Text(
-                      'Thank You! 🎉',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 32,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF101828),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    // Explanation text
-                    Text(
-                      'Your medical information helps our doctors provide you with personalized care and make better health decisions tailored just for you.',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w400,
-                        color: const Color(0xFF667085),
-                        height: 1.5,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    // QR Code Section
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: const Color(0xFF1FBF9A).withOpacity(0.3),
-                          width: 2,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF1FBF9A).withOpacity(0.1),
-                            blurRadius: 20,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        children: [
-                          Text(
-                            'Your Medical QR Code',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFF0F6F73),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          // QR Code
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: const Color(0xFFE5E7EB),
-                              ),
-                            ),
-                            child: QrImageView(
-                              data: qrData,
-                              version: QrVersions.auto,
-                              size: 160.0,
-                              backgroundColor: Colors.white,
-                              foregroundColor: const Color(0xFF0F6F73),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          // Security message
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFEF3C7),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.shield_rounded,
-                                  size: 20,
-                                  color: const Color(0xFFD97706),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    'To secure your personal data, only share this QR code with your doctors',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                      color: const Color(0xFF92400E),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                    // Buttons
-                    Column(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // Quick Demo Button
-                        SizedBox(
-                          width: double.infinity,
-                          height: 56,
-                          child: ElevatedButton(
-                            onPressed: () {
-                              // TODO: Navigate to demo/tutorial
-                              Navigator.pushReplacementNamed(context, '/home');
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF1FBF9A),
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.play_circle_outline, size: 20),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Take a Quick Demo',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
+                        Center(
+                          child: ScaleTransition(
+                            scale: _scale,
+                            child: const ExcludeSemantics(
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: OmniColors.mintSoft,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: SizedBox.square(
+                                  dimension: 96,
+                                  child: Icon(
+                                    Icons.check_rounded,
+                                    size: 52,
+                                    color: OmniColors.deepTeal,
                                   ),
                                 ),
-                              ],
+                              ),
                             ),
                           ),
                         ),
-                        const SizedBox(height: 12),
-                        // Go to Dashboard Button
-                        SizedBox(
-                          width: double.infinity,
-                          height: 56,
-                          child: OutlinedButton(
-                            onPressed: () {
-                              Navigator.pushReplacementNamed(context, '/home');
-                            },
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: const Color(0xFF1FBF9A),
-                              side: const BorderSide(
-                                color: Color(0xFF1FBF9A),
-                                width: 1.5,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.dashboard_outlined, size: 20),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Go to Dashboard',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
+                        const SizedBox(height: OmniSpacing.xl),
+                        Semantics(
+                          header: true,
+                          child: Text(
+                            l10n.onboardingDoneTitle,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontFamily: _bundledFont,
+                              fontSize: 26,
+                              height: 1.2,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.5,
+                              color: OmniColors.textPrimary,
                             ),
                           ),
                         ),
+                        const SizedBox(height: OmniSpacing.sm),
+                        Text(
+                          l10n.onboardingDoneBody,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontFamily: _bundledFont,
+                            fontSize: 15,
+                            height: 1.45,
+                            fontWeight: FontWeight.w500,
+                            color: OmniColors.textSecondary,
+                          ),
+                        ),
+                        if (items.isNotEmpty) ...[
+                          const SizedBox(height: OmniSpacing.xl),
+                          OnboardingSummaryList(items: items),
+                        ],
                       ],
                     ),
-                    const SizedBox(height: 24),
-                  ],
+                  ),
                 ),
-              ),
-            ),
-          ),
-          // Confetti from bottom center - gentle upward burst
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: ConfettiWidget(
-              confettiController: _confettiController,
-              blastDirection: -pi / 2, // upward
-              emissionFrequency: 0.03,
-              numberOfParticles: 12,
-              maxBlastForce: 25,
-              minBlastForce: 15,
-              gravity: 0.2,
-              colors: const [
-                Color(0xFF1FBF9A), // Seafoam green
-                Color(0xFF6BE3B2), // Soft mint
-                Color(0xFF0F6F73), // Deep teal
-                Colors.white,
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    side,
+                    OmniSpacing.sm,
+                    side,
+                    OmniSpacing.base,
+                  ),
+                  child: OmniPressable(
+                    borderRadius: _buttonRadius,
+                    builder: (context, states) => ElevatedButton(
+                      statesController: states,
+                      onPressed: OmniPressable.withHaptic(() {
+                        Navigator.pushReplacementNamed(context, '/home');
+                      }),
+                      style: ButtonStyle(
+                        minimumSize: const WidgetStatePropertyAll(
+                          Size.fromHeight(52),
+                        ),
+                        elevation: const WidgetStatePropertyAll(0),
+                        backgroundColor: const WidgetStatePropertyAll(
+                          OmniColors.primaryAction,
+                        ),
+                        foregroundColor: const WidgetStatePropertyAll(
+                          OmniColors.textOnDark,
+                        ),
+                        shape: const WidgetStatePropertyAll(
+                          RoundedRectangleBorder(
+                            borderRadius: BorderRadius.all(
+                              Radius.circular(_buttonRadius),
+                            ),
+                          ),
+                        ),
+                        overlayColor: OmniPressable.overlay(
+                          OmniColors.textOnDark,
+                        ),
+                      ),
+                      child: Text(
+                        l10n.onboardingDoneCta,
+                        style: const TextStyle(
+                          fontFamily: _bundledFont,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ],
-            ),
-          ),
-        ],
+            );
+          },
+        ),
       ),
     );
   }

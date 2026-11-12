@@ -3,13 +3,13 @@ import 'package:image_picker/image_picker.dart';
 
 import '../core/models/account_models.dart';
 import '../core/models/patient_profile.dart';
-import '../core/network/api_exception.dart';
+import '../core/network/api_failure.dart';
 import '../core/utils/console_log.dart';
 import '../repositories/user_repository.dart';
 
 class UserProvider extends ChangeNotifier {
   UserProvider({UserRepository? repository})
-    : _repository = repository ?? (UserRepository()..useMock());
+    : _repository = repository ?? UserRepository();
 
   final UserRepository _repository;
 
@@ -17,12 +17,13 @@ class UserProvider extends ChangeNotifier {
   AccountUser? _accountIdentity;
   bool _loading = false;
   bool _saving = false;
-  String? _loadError;
-  String? _saveError;
-  Map<String, String> _saveFieldErrors = const {};
+  ApiFailure? _loadFailure;
+  ApiFailure? _saveFailure;
+  Map<String, ApiFieldErrorKind> _saveFieldErrors = const {};
   bool _avatarUploading = false;
   double? _avatarUploadProgress;
-  String? _avatarError;
+  ApiFailure? _avatarFailure;
+  bool _avatarSelectionFailed = false;
   XFile? _pendingAvatarFile;
   Future<void>? _refreshFuture;
 
@@ -33,23 +34,30 @@ class UserProvider extends ChangeNotifier {
 
   bool get isLoading => _loading;
   bool get isSaving => _saving;
-  String? get loadError => _loadError;
-  String? get saveError => _saveError;
-  Map<String, String> get saveFieldErrors => _saveFieldErrors;
+
+  /// Failures are typed; the screen turns them into French text
+  /// (`apiFailureMessage`), never the server's.
+  ApiFailure? get loadFailure => _loadFailure;
+  ApiFailure? get saveFailure => _saveFailure;
+  Map<String, ApiFieldErrorKind> get saveFieldErrors => _saveFieldErrors;
   bool get isAvatarUploading => _avatarUploading;
   double? get avatarUploadProgress => _avatarUploadProgress;
-  String? get avatarError => _avatarError;
+  ApiFailure? get avatarFailure => _avatarFailure;
+
+  /// The picked image could not be read (no backend call).
+  bool get avatarSelectionFailed => _avatarSelectionFailed;
+  bool get hasAvatarError => _avatarFailure != null || _avatarSelectionFailed;
   bool get canRetryAvatar => _pendingAvatarFile != null && !_avatarUploading;
-  String? get error => _loadError ?? _saveError;
 
   void setPatientProfile(PatientProfile profile) {
     _acceptProfile(profile);
-    _loadError = null;
-    _saveError = null;
+    _loadFailure = null;
+    _saveFailure = null;
     _saveFieldErrors = const {};
     _avatarUploading = false;
     _avatarUploadProgress = null;
-    _avatarError = null;
+    _avatarFailure = null;
+    _avatarSelectionFailed = false;
     _pendingAvatarFile = null;
     _loading = false;
     notifyListeners();
@@ -72,17 +80,14 @@ class UserProvider extends ChangeNotifier {
 
   Future<void> _refreshImpl() async {
     _loading = true;
-    _loadError = null;
+    _loadFailure = null;
     notifyListeners();
 
     try {
       _acceptProfile(await _repository.getProfile());
     } catch (error) {
-      _loadError = _safeMessage(
-        error,
-        fallback: 'Impossible de charger le profil.',
-      );
-      consoleLog('[UserProvider] profile refresh failed');
+      final failure = _loadFailure = ApiFailure.from(error);
+      consoleLog('[UserProvider] profile refresh failed ${failure.logSummary}');
       rethrow;
     } finally {
       _loading = false;
@@ -96,7 +101,7 @@ class UserProvider extends ChangeNotifier {
     }
 
     _saving = true;
-    _saveError = null;
+    _saveFailure = null;
     _saveFieldErrors = const {};
     notifyListeners();
 
@@ -105,14 +110,9 @@ class UserProvider extends ChangeNotifier {
       _acceptProfile(saved);
       return saved;
     } catch (error) {
-      if (error is ApiException) {
-        _saveFieldErrors = Map.unmodifiable(error.fieldErrors);
-      }
-      _saveError = _safeMessage(
-        error,
-        fallback: 'Impossible d’enregistrer les modifications.',
-      );
-      consoleLog('[UserProvider] profile update failed');
+      final failure = _saveFailure = ApiFailure.from(error);
+      _saveFieldErrors = failure.fieldErrors;
+      consoleLog('[UserProvider] profile update failed ${failure.logSummary}');
       rethrow;
     } finally {
       _saving = false;
@@ -180,21 +180,23 @@ class UserProvider extends ChangeNotifier {
   }
 
   void clearAvatarError() {
-    if (_avatarError == null) return;
-    _avatarError = null;
+    if (!hasAvatarError) return;
+    _avatarFailure = null;
+    _avatarSelectionFailed = false;
     _pendingAvatarFile = null;
     notifyListeners();
   }
 
   void reportAvatarSelectionFailure() {
-    _avatarError = 'Impossible d’accéder à cette image.';
+    _avatarFailure = null;
+    _avatarSelectionFailed = true;
     _pendingAvatarFile = null;
     notifyListeners();
   }
 
   void clearSaveError() {
-    if (_saveError == null) return;
-    _saveError = null;
+    if (_saveFailure == null) return;
+    _saveFailure = null;
     _saveFieldErrors = const {};
     notifyListeners();
   }
@@ -202,14 +204,15 @@ class UserProvider extends ChangeNotifier {
   Future<void> logout() async {
     _profile = null;
     _accountIdentity = null;
-    _loadError = null;
-    _saveError = null;
+    _loadFailure = null;
+    _saveFailure = null;
     _saveFieldErrors = const {};
     _loading = false;
     _saving = false;
     _avatarUploading = false;
     _avatarUploadProgress = null;
-    _avatarError = null;
+    _avatarFailure = null;
+    _avatarSelectionFailed = false;
     _pendingAvatarFile = null;
     notifyListeners();
   }
@@ -237,7 +240,8 @@ class UserProvider extends ChangeNotifier {
 
     _avatarUploading = true;
     _avatarUploadProgress = 0;
-    _avatarError = null;
+    _avatarFailure = null;
+    _avatarSelectionFailed = false;
     notifyListeners();
     try {
       final saved = await operation();
@@ -248,11 +252,8 @@ class UserProvider extends ChangeNotifier {
       if (!_isRetryableAvatarError(error)) {
         _pendingAvatarFile = null;
       }
-      _avatarError = _safeMessage(
-        error,
-        fallback: 'Impossible de modifier la photo de profil.',
-      );
-      consoleLog('[UserProvider] avatar update failed');
+      final failure = _avatarFailure = ApiFailure.from(error);
+      consoleLog('[UserProvider] avatar update failed ${failure.logSummary}');
       rethrow;
     } finally {
       _avatarUploading = false;
@@ -272,18 +273,13 @@ class UserProvider extends ChangeNotifier {
 }
 
 bool _isRetryableAvatarError(Object error) {
-  if (error is! ApiException) return true;
-  final statusCode = error.statusCode;
-  return error.code == 'NETWORK_REQUEST_FAILED' ||
-      error.code == 'OBJECT_STORAGE_UNAVAILABLE' ||
-      statusCode == 408 ||
-      statusCode == 429 ||
-      (statusCode != null && statusCode >= 500);
-}
-
-String _safeMessage(Object error, {required String fallback}) {
-  if (error is ApiException && error.message.trim().isNotEmpty) {
-    return error.message.trim();
-  }
-  return fallback;
+  final failure = ApiFailure.from(error);
+  return switch (failure.kind) {
+    ApiFailureKind.network ||
+    ApiFailureKind.timeout ||
+    ApiFailureKind.rateLimited ||
+    ApiFailureKind.server => true,
+    ApiFailureKind.unknown => failure.statusCode == null,
+    _ => failure.code == 'OBJECT_STORAGE_UNAVAILABLE',
+  };
 }

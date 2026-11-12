@@ -10,6 +10,8 @@ import 'auth_flow_models.dart';
 import 'auth_role_family.dart';
 import 'google_sign_in_session_contract.dart';
 import 'tunisian_phone_number.dart';
+import '../../../core/network/api_failure.dart';
+import '../../../l10n/omni_localizations.dart';
 
 enum AuthStatus {
   initializing,
@@ -44,8 +46,8 @@ class AuthController extends ChangeNotifier {
   String? _pendingGoogleEmailHint;
   bool _pendingRememberDevice = false;
   String? _errorCode;
-  String? _errorMessage;
-  Map<String, String> _fieldErrors = const {};
+  Object? _error;
+  Map<String, ApiFieldErrorKind> _fieldErrors = const {};
   bool _initializationCompleted = false;
   bool _submitting = false;
   bool _disposed = false;
@@ -62,8 +64,17 @@ class AuthController extends ChangeNotifier {
   bool get hasPendingGoogleAccountLink => _pendingGoogleAccountLink;
   String? get pendingGoogleEmailHint => _pendingGoogleEmailHint;
   String? get errorCode => _errorCode;
-  String? get errorMessage => _errorMessage;
-  Map<String, String> get fieldErrors => _fieldErrors;
+
+  /// French text of the current failure (G2-1b-2c), chosen from its code or
+  /// kind, never from server text; null when there is no failure.
+  String? errorMessage(OmniLocalizations l10n) {
+    final error = _error;
+    if (error != null) return AuthErrorMessages.message(error, l10n);
+    return AuthErrorMessages.fromCode(_errorCode, l10n);
+  }
+
+  /// Rejected field → why (from the backend's field codes when present).
+  Map<String, ApiFieldErrorKind> get fieldErrors => _fieldErrors;
   bool get initializationCompleted => _initializationCompleted;
   bool get isAuthenticated => _status == AuthStatus.authenticated;
   bool get isSubmitting => _submitting;
@@ -253,7 +264,7 @@ class AuthController extends ChangeNotifier {
     _pendingGoogleAccountLink = false;
     _pendingGoogleEmailHint = null;
     _errorCode = null;
-    _errorMessage = null;
+    _error = null;
     _fieldErrors = const {};
     _status = AuthStatus.unauthenticated;
     _notify();
@@ -453,7 +464,7 @@ class AuthController extends ChangeNotifier {
     _status = AuthStatus.unauthenticated;
     _initializationCompleted = true;
     _errorCode = 'AUTH_SESSION_INVALID';
-    _errorMessage = AuthErrorMessages.fromCode(_errorCode);
+    _error = null;
     _notify();
     try {
       await _googleSignInSession?.signOut();
@@ -464,7 +475,7 @@ class AuthController extends ChangeNotifier {
 
   void clearError() {
     _errorCode = null;
-    _errorMessage = null;
+    _error = null;
     _fieldErrors = const {};
     _notify();
   }
@@ -494,7 +505,7 @@ class AuthController extends ChangeNotifier {
     _initializationCompleted = false;
     _submitting = false;
     _errorCode = null;
-    _errorMessage = null;
+    _error = null;
     _fieldErrors = const {};
     _notify();
   }
@@ -516,7 +527,7 @@ class AuthController extends ChangeNotifier {
     _pendingGoogleEmailHint = null;
     _pendingRememberDevice = false;
     _errorCode = null;
-    _errorMessage = null;
+    _error = null;
     _fieldErrors = const {};
     _status = AuthStatus.authenticated;
   }
@@ -524,7 +535,7 @@ class AuthController extends ChangeNotifier {
   void _setFailure(Object error) {
     final presentation = AuthErrorMessages.fromObject(error);
     _errorCode = presentation.code;
-    _errorMessage = presentation.message;
+    _error = presentation.error;
     _fieldErrors = presentation.fieldErrors;
     _status = AuthStatus.failure;
   }
@@ -533,7 +544,7 @@ class AuthController extends ChangeNotifier {
     _submitting = true;
     _status = AuthStatus.submitting;
     _errorCode = null;
-    _errorMessage = null;
+    _error = null;
     _fieldErrors = const {};
     _notify();
 
@@ -560,7 +571,7 @@ class AuthController extends ChangeNotifier {
     _pendingGoogleEmailHint = null;
     _pendingRememberDevice = false;
     _errorCode = null;
-    _errorMessage = null;
+    _error = null;
     _fieldErrors = const {};
   }
 

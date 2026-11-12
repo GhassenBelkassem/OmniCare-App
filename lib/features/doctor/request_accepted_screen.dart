@@ -4,11 +4,13 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:provider/provider.dart';
 import 'dart:async';
 import 'navigation_screen.dart';
 import '../../core/api/consultations_api.dart';
 import '../../core/api/api_error_utils.dart';
 import '../../core/api/family_api.dart';
+import '../../core/network/app_http_client.dart';
 import '../../core/api/patients_api.dart';
 import '../../core/models/consultation.dart';
 import '../../core/models/patient_models.dart';
@@ -169,7 +171,9 @@ class _RequestAcceptedScreenState extends State<RequestAcceptedScreen> {
     final familyMemberId = widget.patient?.familyMemberId;
     if (familyMemberId == null || familyMemberId.trim().isEmpty) return;
     try {
-      final list = await FamilyApi().getFamilyMembers();
+      final list = await FamilyApi(
+        httpClient: context.read<AppHttpClient>(),
+      ).getFamilyMembers();
       if (!mounted) return;
       final match = list.where((m) => m.id == familyMemberId.trim()).toList();
       if (match.isEmpty) return;

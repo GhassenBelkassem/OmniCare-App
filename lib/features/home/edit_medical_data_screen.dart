@@ -1,6 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../l10n/omni_localizations.dart';
+import '../../core/models/blood_type.dart';
+import '../../core/network/save_error_message.dart';
 import '../../core/widgets/medication_search_field.dart';
 
 class Medication {
@@ -33,18 +37,39 @@ class MedicalDocument {
   });
 }
 
-class EditMedicalDataScreen extends StatefulWidget {
-  final String bloodType;
+/// What the patient changed in [EditMedicalDataScreen], handed to `onSave`.
+class MedicalDataEdit {
+  const MedicalDataEdit({
+    required this.bloodType,
+    required this.conditionsOrMedicationsChanged,
+    required this.chronicConditions,
+    required this.medications,
+    required this.documents,
+  });
+
+  /// The newly chosen blood type, or null when the patient did not change it
+  /// (or chose "-"). A null blood type must not be sent to the server.
+  final BloodType? bloodType;
+
+  /// True when conditions or medications differ from what the screen opened
+  /// with. They cannot be saved yet (G-2 Phase 3).
+  final bool conditionsOrMedicationsChanged;
+
   final List<String> chronicConditions;
   final List<Medication> medications;
   final List<MedicalDocument> documents;
-  final Future<void> Function(
-    String,
-    List<String>,
-    List<Medication>,
-    List<MedicalDocument>,
-  )
-  onSave;
+}
+
+class EditMedicalDataScreen extends StatefulWidget {
+  /// Current blood type; null when not provided.
+  final BloodType? bloodType;
+  final List<String> chronicConditions;
+  final List<Medication> medications;
+  final List<MedicalDocument> documents;
+
+  /// Persists the edit. A thrown error keeps the screen open and shows a
+  /// French message; server text is never displayed.
+  final Future<void> Function(MedicalDataEdit edit) onSave;
 
   const EditMedicalDataScreen({
     super.key,
@@ -71,8 +96,13 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
 
   bool _isSaving = false;
 
+  /// Value of the "-" option: blood type not provided.
+  static const String _notProvided = '-';
+
+  late final List<(String?, String, String, String)> _initialMedications;
+
   final List<String> _bloodTypes = [
-    '-',
+    _notProvided,
     'A+',
     'A-',
     'B+',
@@ -107,12 +137,23 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
   @override
   void initState() {
     super.initState();
-    _bloodType = widget.bloodType;
-    if (_bloodType.trim().isEmpty || !_bloodTypes.contains(_bloodType)) {
-      _bloodType = '-';
-    }
+    final initialWire = widget.bloodType?.wireValue;
+    _bloodType = _bloodTypes.contains(initialWire)
+        ? initialWire!
+        : _notProvided;
     _chronicConditions = List.from(widget.chronicConditions);
-    _medications = List.from(widget.medications);
+    // Copies, so editing never mutates the caller's objects before a save.
+    _medications = widget.medications
+        .map(
+          (m) => Medication(
+            medicationId: m.medicationId,
+            name: m.name,
+            dosage: m.dosage,
+            frequency: m.frequency,
+          ),
+        )
+        .toList();
+    _initialMedications = _medicationValues(widget.medications);
     _documents = List.from(widget.documents);
 
     for (final med in _medications) {
@@ -214,14 +255,8 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
           .toList();
       if (invalid.isNotEmpty) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Veuillez sélectionner le médicament depuis la liste (autocomplete) avant d\'enregistrer.',
-                style: GoogleFonts.plusJakartaSans(fontSize: 13),
-              ),
-              backgroundColor: const Color(0xFFEF4444),
-            ),
+          _showError(
+            'Veuillez sélectionner le médicament depuis la liste (autocomplete) avant d\'enregistrer.',
           );
         }
         return;
@@ -230,14 +265,39 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
       final validMedications = _medications
           .where((med) => med.name.trim().isNotEmpty)
           .toList();
-      await widget.onSave(
-        _bloodType,
-        _chronicConditions,
-        validMedications,
-        _documents,
+      final edit = MedicalDataEdit(
+        bloodType: _changedBloodType(),
+        conditionsOrMedicationsChanged:
+            !setEquals(
+              _chronicConditions.toSet(),
+              widget.chronicConditions.toSet(),
+            ) ||
+            !listEquals(
+              _medicationValues(validMedications),
+              _initialMedications,
+            ),
+        chronicConditions: List.unmodifiable(_chronicConditions),
+        medications: List.unmodifiable(validMedications),
+        documents: List.unmodifiable(_documents),
       );
+      try {
+        await widget.onSave(edit);
+      } catch (error) {
+        if (mounted) {
+          _showError(saveErrorMessage(error, OmniLocalizations.of(context)));
+        }
+        return;
+      }
       if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
       Navigator.pop(context);
+      if (edit.conditionsOrMedicationsChanged) {
+        messenger.showSnackBar(
+          _errorSnackBar(
+            OmniLocalizations.of(context).conditionsAndTreatmentsNotSaved,
+          ),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -245,6 +305,30 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
         });
       }
     }
+  }
+
+  /// The chosen blood type when it differs from the initial one; null when
+  /// untouched or "-" (never sent).
+  BloodType? _changedBloodType() {
+    if (_bloodType == _notProvided) return null;
+    final chosen = BloodType.fromWire(_bloodType);
+    return chosen == widget.bloodType ? null : chosen;
+  }
+
+  static List<(String?, String, String, String)> _medicationValues(
+    List<Medication> medications,
+  ) => medications
+      .where((m) => m.name.trim().isNotEmpty)
+      .map((m) => (m.medicationId, m.name, m.dosage, m.frequency))
+      .toList(growable: false);
+
+  SnackBar _errorSnackBar(String message) => SnackBar(
+    content: Text(message, style: GoogleFonts.plusJakartaSans(fontSize: 13)),
+    backgroundColor: const Color(0xFFEF4444),
+  );
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(_errorSnackBar(message));
   }
 
   @override
@@ -313,7 +397,9 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
             border: Border.all(color: const Color(0xFFE2E8F0)),
           ),
           child: DropdownButtonFormField<String>(
-            initialValue: _bloodTypes.contains(_bloodType) ? _bloodType : '-',
+            initialValue: _bloodTypes.contains(_bloodType)
+                ? _bloodType
+                : _notProvided,
             decoration: const InputDecoration(
               contentPadding: EdgeInsets.symmetric(
                 horizontal: 16,
@@ -340,7 +426,7 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
             onChanged: (value) {
               setState(() {
                 _bloodType = (value == null || value.trim().isEmpty)
-                    ? '-'
+                    ? _notProvided
                     : value;
               });
             },

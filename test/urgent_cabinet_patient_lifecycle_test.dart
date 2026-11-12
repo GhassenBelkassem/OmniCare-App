@@ -29,6 +29,7 @@ import 'package:omnicare_mobile/features/emergency/urgent_cabinet/urgent_cabinet
 import 'package:omnicare_mobile/providers/family_provider.dart';
 import 'package:omnicare_mobile/providers/user_provider.dart';
 import 'package:omnicare_mobile/repositories/family_repository.dart';
+import 'package:omnicare_mobile/core/result/result.dart';
 
 const _accountId = 'patient-account';
 const _doctorId = '11111111-1111-4111-8111-111111111111';
@@ -361,7 +362,7 @@ final class _EmptyFamilyRepository extends FamilyRepository {
   _EmptyFamilyRepository() : super(api: FamilyApi());
 
   @override
-  Future<List<FamilyMember>> getFamilyMembers() async => const [];
+  Future<Result<List<FamilyMember>>> getFamilyMembers() async => Ok(const []);
 }
 
 UrgentCabinetTargetedSubmissionValidation _validSubmission() =>

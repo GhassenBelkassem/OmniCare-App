@@ -317,14 +317,33 @@ class AuthRepository implements AuthRepositoryContract {
     }
 
     if (!stored.accessTokenExpiresAt.toUtc().isAfter(DateTime.now().toUtc())) {
-      final refreshed = await _refreshCoordinator.refreshSession();
-      if (refreshed == null) return null;
+      final refresh = await _refreshCoordinator.refreshSession();
+      switch (refresh.status) {
+        case AuthRefreshStatus.refreshed:
+          break;
+        case AuthRefreshStatus.noSession:
+        case AuthRefreshStatus.credentialsRejected:
+        case AuthRefreshStatus.sessionEnded:
+          return null;
+        case AuthRefreshStatus.temporarilyUnavailable:
+          throw ApiException(
+            'Your session could not be restored because the network or server is temporarily unavailable.',
+            code: 'AUTH_REFRESH_TEMPORARILY_UNAVAILABLE',
+            cause: refresh.cause,
+          );
+        case AuthRefreshStatus.malformedResponse:
+          throw ApiException(
+            'The session refresh service returned an unexpected response.',
+            code: 'AUTH_REFRESH_MALFORMED_RESPONSE',
+            cause: refresh.cause,
+          );
+      }
     }
 
     try {
       return await loadCurrentProfile();
     } on ApiException catch (e) {
-      if (e.statusCode == 401 ||
+      if (e.code == 'AUTH_SESSION_EXPIRED' ||
           e.code == 'AUTH_SESSION_INVALID' ||
           e.code == 'AUTH_REFRESH_TOKEN_INVALID') {
         await _tokenStore.clearSession();

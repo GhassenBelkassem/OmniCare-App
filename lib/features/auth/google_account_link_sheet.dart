@@ -3,7 +3,9 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme/omni_theme.dart';
+import '../../core/widgets/omni_text_field.dart';
 import 'application/auth_controller.dart';
+import '../../l10n/omni_localizations.dart';
 
 enum GoogleAccountLinkAction { linked, cancelled, retryGoogle }
 
@@ -140,30 +142,24 @@ class _GoogleAccountLinkSheetState extends State<GoogleAccountLinkSheet> {
                   ),
                 ],
                 const SizedBox(height: OmniSpacing.lg),
-                TextFormField(
-                  key: const Key('google-link-password'),
+                OmniTextField(
+                  fieldKey: const Key('google-link-password'),
+                  label: 'Mot de passe',
                   controller: _password,
                   obscureText: _obscurePassword,
                   enabled: !auth.isSubmitting && !challengeExpired,
                   autofillHints: const [AutofillHints.password],
-                  decoration: InputDecoration(
-                    labelText: 'Mot de passe',
-                    prefixIcon: const Icon(
-                      Icons.lock_outline,
-                      size: 20,
-                      color: OmniColors.textSecondary,
-                    ),
-                    suffixIcon: IconButton(
-                      tooltip: _obscurePassword
-                          ? 'Afficher le mot de passe'
-                          : 'Masquer le mot de passe',
-                      onPressed: () =>
-                          setState(() => _obscurePassword = !_obscurePassword),
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined,
-                      ),
+                  prefixIcon: Icons.lock_outline,
+                  suffix: IconButton(
+                    tooltip: _obscurePassword
+                        ? 'Afficher le mot de passe'
+                        : 'Masquer le mot de passe',
+                    onPressed: () =>
+                        setState(() => _obscurePassword = !_obscurePassword),
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
                     ),
                   ),
                   validator: (value) => value == null || value.isEmpty
@@ -171,7 +167,8 @@ class _GoogleAccountLinkSheetState extends State<GoogleAccountLinkSheet> {
                       : null,
                   onFieldSubmitted: challengeExpired ? null : (_) => _submit(),
                 ),
-                if (auth.errorMessage != null) ...[
+                if (auth.errorMessage(OmniLocalizations.of(context)) !=
+                    null) ...[
                   const SizedBox(height: OmniSpacing.md),
                   Container(
                     padding: const EdgeInsets.all(OmniSpacing.md),
@@ -180,7 +177,7 @@ class _GoogleAccountLinkSheetState extends State<GoogleAccountLinkSheet> {
                       borderRadius: BorderRadius.circular(OmniRadii.field),
                     ),
                     child: Text(
-                      auth.errorMessage!,
+                      auth.errorMessage(OmniLocalizations.of(context))!,
                       key: const Key('google-link-error'),
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         fontSize: 13,

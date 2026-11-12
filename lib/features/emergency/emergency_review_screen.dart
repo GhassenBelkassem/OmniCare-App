@@ -88,22 +88,7 @@ class _EmergencyReviewScreenState extends State<EmergencyReviewScreen> {
   }
 
   void _sendUrgentRequest() {
-    final consultationType =
-        _requestData['consultationType'] as String? ?? 'home';
-    final providerType = _requestData['providerType'] as String? ?? 'doctor';
-    if (consultationType == 'home') {
-      Navigator.pushNamed(
-        context,
-        '/doctor-selection',
-        arguments: _requestData,
-      );
-      return;
-    }
-    Navigator.pushNamed(
-      context,
-      '/provider-list',
-      arguments: {..._requestData, 'providerType': providerType},
-    );
+    Navigator.pushNamed(context, '/clinical-request-unavailable');
   }
 
   @override

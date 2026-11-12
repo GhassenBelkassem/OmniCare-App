@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'features/auth/splash_screen.dart';
@@ -12,6 +11,7 @@ import 'features/auth/data/professional_access_request_api.dart';
 import 'features/profile/vital_info_screen.dart';
 import 'features/profile/medications_screen.dart';
 import 'features/profile/medical_documents_screen.dart';
+import 'features/profile/medical_document_upload_controller.dart';
 import 'features/onboarding/conversational_onboarding_screen.dart';
 import 'features/home/new_home_screen.dart';
 import 'features/emergency/emergency_request_step0.dart';
@@ -25,28 +25,18 @@ import 'features/emergency/urgent_cabinet/urgent_cabinet_targeted_request_reposi
 import 'features/emergency/emergency_request_step2.dart';
 import 'features/emergency/emergency_request_step3.dart';
 import 'features/emergency/emergency_review_screen.dart';
-import 'features/emergency/doctor_selection_screen.dart';
-import 'features/emergency/review_confirm_screen.dart';
-import 'features/emergency/doctor_calling_screen.dart';
-import 'features/emergency/doctor_arriving_screen.dart';
-import 'features/emergency/consultation_qr_screen.dart';
-import 'features/emergency/consultation_complete_screen.dart';
+import 'features/clinical_safety/clinical_feature_unavailable_screen.dart';
 import 'features/doctor/doctor_auth_shell_screen.dart';
 import 'features/request/provider_selection_screen.dart';
-import 'features/request/consultation_type_screen.dart';
-import 'features/request/provider_list_screen.dart';
 import 'features/notifications/notifications_screen.dart';
-import 'features/notifications/appointment_confirmation_screen.dart';
-import 'features/notifications/booking_confirmed_screen.dart';
-import 'features/request/clinic_request_screen.dart';
-import 'features/request/time_selection_screen.dart';
 import 'providers/user_onboarding_provider.dart';
 import 'providers/user_provider.dart';
 import 'providers/family_provider.dart';
-import 'providers/reservation_provider.dart';
 import 'services/notification_service.dart';
-import 'l10n/app_localizations.dart';
+import 'core/l10n/app_locale.dart';
+import 'l10n/omni_localizations.dart';
 import 'core/nav/app_nav.dart';
+import 'core/maps/maps_configuration.dart';
 import 'core/theme/omni_theme.dart';
 import 'core/device/device_identity_service.dart';
 import 'core/network/app_http_client.dart';
@@ -79,6 +69,8 @@ import 'features/notifications/data/notification_api.dart';
 import 'features/notifications/data/notification_repository.dart';
 import 'features/notifications/realtime/notification_realtime_coordinator.dart';
 import 'features/notifications/push/notification_push_coordinator.dart';
+import 'features/notifications/application/notification_navigation_resolver.dart';
+import 'features/scheduled_care/presentation/scheduled_care_resource_resolver.dart';
 import 'features/request_flow/screens/request_flow_entry_screen.dart';
 import 'features/request_flow/screens/doctor_cabinet_entry_screen.dart';
 import 'features/request_flow/screens/who_needs_care_screen.dart';
@@ -102,10 +94,18 @@ import 'features/security/account_security_provider.dart';
 import 'features/security/app_lock_gate.dart';
 import 'features/security/app_lock_service.dart';
 import 'features/security/phone_change_reversal_screen.dart';
+import 'features/patient_passport/application/medical_record_view_model.dart';
+import 'features/patient_passport/data/medical_record_api.dart';
+import 'features/patient_passport/data/medical_record_repository.dart';
 import 'features/patient_passport/sharing/medical_sharing_api.dart';
 import 'features/patient_passport/sharing/medical_sharing_controller.dart';
 import 'features/patient_passport/sharing/medical_share_qr_api.dart';
 import 'features/patient_passport/sharing/medical_share_qr_controller.dart';
+import 'features/patient_passport/sharing/direct_patient_authorization_api.dart';
+import 'features/patient_passport/sharing/direct_patient_authorization_controller.dart';
+import 'features/pending_answers/application/pending_answers_controller.dart';
+import 'features/pending_answers/data/pending_answers_api.dart';
+import 'features/pending_answers/presentation/pending_answers_entry.dart';
 
 Future<void> main() => startOmniCare();
 
@@ -116,11 +116,13 @@ Future<void> startOmniCare({
   final appLockService = AppLockService();
 
   // App-lock state is local and security-sensitive, so resolve it before any
-  // authenticated screen can be displayed. Load dotenv at the same time to
-  // avoid making these independent startup operations wait on each other.
+  // authenticated screen can be displayed. Load browser-safe dotenv values
+  // and initialize the existing Maps platform loader at the same time so Web
+  // maps cannot render before the JavaScript API has received its build key.
   await Future.wait<void>([
     dotenv.load(fileName: '.env'),
     appLockService.initialize(),
+    loadMapsConfiguration().then((_) {}),
   ]);
   final resolvedUrgentCabinetGate =
       submissionActivationGate ??
@@ -229,6 +231,7 @@ class OmniCareApp extends StatelessWidget {
         resolvedHttpClient,
       ),
     );
+    final documentsApi = DocumentsApi(httpClient: resolvedHttpClient);
     return MultiProvider(
       providers: [
         Provider<UrgentCabinetSubmissionActivationGate>.value(
@@ -262,6 +265,14 @@ class OmniCareApp extends StatelessWidget {
           },
         ),
         ChangeNotifierProvider<AuthController>.value(value: authController),
+        ChangeNotifierProvider(
+          lazy: false,
+          create: (_) => MedicalDocumentUploadController(
+            api: documentsApi,
+            receiptStore: SecureMedicalDocumentUploadReceiptStore(),
+            authController: authController,
+          ),
+        ),
         if (notificationController != null)
           ChangeNotifierProvider<NotificationCenterController>.value(
             value: notificationController!,
@@ -295,9 +306,28 @@ class OmniCareApp extends StatelessWidget {
           create: (_) =>
               MedicalSharingController(MedicalSharingApi(resolvedHttpClient)),
         ),
+        // G-2 FT-3: the « Dossier médical » record.
+        ChangeNotifierProvider(
+          create: (_) => MedicalRecordViewModel(
+            repository: MedicalRecordRepository(
+              MedicalRecordApi(resolvedHttpClient),
+            ),
+          ),
+        ),
         ChangeNotifierProvider(
           create: (_) =>
               MedicalShareQrController(MedicalShareQrApi(resolvedHttpClient)),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => DirectPatientAuthorizationController(
+            DirectPatientAuthorizationApi(resolvedHttpClient),
+          ),
+        ),
+        // G-1 D2 / D4: the patient's pending access requests and follow-ups.
+        ChangeNotifierProvider(
+          create: (_) => PendingAnswersController(
+            PendingAnswersApi(resolvedHttpClient),
+          ),
         ),
         ChangeNotifierProvider(
           create: (context) => AccountSecurityProvider(
@@ -356,24 +386,17 @@ class OmniCareApp extends StatelessWidget {
             repository: scheduledCareRepository,
           ),
         ),
-        ChangeNotifierProvider(create: (_) => ReservationProvider()),
       ],
       child: Consumer2<UserOnboardingProvider, UserProvider>(
-        builder: (context, onboarding, userProvider, child) {
-          Locale locale = const Locale('en');
-          final profileLanguage = userProvider.profile?.preferredLanguage;
-          if (profileLanguage != null) {
-            locale = Locale(profileLanguage);
-          } else if (onboarding.language != null) {
-            locale = Locale(onboarding.language!);
-          }
-
+        // Still rebuilds on account changes as before; the app language no
+        // longer depends on them (V1 is French only, G2-1b-1).
+        builder: (context, _, _, child) {
           return MaterialApp(
             title: 'OmniCare',
             debugShowCheckedModeBanner: false,
             navigatorKey: AppNav.navigatorKey,
             scaffoldMessengerKey: AppNav.scaffoldMessengerKey,
-            locale: locale,
+            locale: appLocale,
             builder: (context, child) {
               final mq = MediaQuery.of(context);
               final clampedInsets = EdgeInsets.fromLTRB(
@@ -391,13 +414,8 @@ class OmniCareApp extends StatelessWidget {
                 ),
               );
             },
-            supportedLocales: const [Locale('en'), Locale('fr'), Locale('ar')],
-            localizationsDelegates: const [
-              AppLocalizations.delegate,
-              GlobalMaterialLocalizations.delegate,
-              GlobalWidgetsLocalizations.delegate,
-              GlobalCupertinoLocalizations.delegate,
-            ],
+            supportedLocales: OmniLocalizations.supportedLocales,
+            localizationsDelegates: OmniLocalizations.localizationsDelegates,
             theme: buildOmniTheme(),
             home: const SplashScreen(),
             navigatorObservers: [AppNav.routeObserver],
@@ -414,15 +432,22 @@ class OmniCareApp extends StatelessWidget {
               '/medical-profile': (context) => const VitalInfoScreen(),
               '/medications': (context) => const MedicationsScreen(),
               '/medical-documents': (context) => MedicalDocumentsScreen(
-                documentsApi: DocumentsApi(httpClient: resolvedHttpClient),
+                uploadController: context
+                    .read<MedicalDocumentUploadController>(),
                 accountApi: AccountApi(httpClient: resolvedHttpClient),
+                initialAccountId: context
+                    .read<AuthController>()
+                    .currentUser
+                    ?.id,
                 initialPatientId: context
                     .read<UserProvider>()
                     .profile
                     ?.patientId,
               ),
               '/conversational-onboarding': (context) =>
-                  const ConversationalOnboardingScreen(),
+                  ConversationalOnboardingScreen(
+                    accountApi: AccountApi(httpClient: resolvedHttpClient),
+                  ),
               '/change-password-required': (context) =>
                   const ResetPasswordScreen(),
               '/home': (context) => const NewHomeScreen(),
@@ -433,10 +458,13 @@ class OmniCareApp extends StatelessWidget {
               '/urgent-cabinet/care-subject': (context) =>
                   const UrgentCabinetFlowShell(),
               '/emergency-step1': (context) => const EmergencyRequestStep1(),
+              '/clinical-request-unavailable': (context) =>
+                  const ClinicalFeatureUnavailableScreen(),
               '/request-care': (context) => const ProviderSelectionScreen(),
               '/provider-selection': (context) =>
                   const ProviderSelectionScreen(),
-              '/clinic-request': (context) => const ClinicRequestScreen(),
+              '/clinic-request': (context) =>
+                  const ClinicalFeatureUnavailableScreen(),
               '/notifications': (context) => const NotificationsScreen(),
               '/m05/request': (context) => const RequestFlowEntryScreen(),
               '/doctor/cabinet/who-needs-care': (context) =>
@@ -485,86 +513,23 @@ class OmniCareApp extends StatelessWidget {
                       EmergencyReviewScreen(requestData: args),
                 );
               }
-              if (settings.name == '/doctor-selection') {
-                final args = settings.arguments as Map<String, dynamic>;
+              if (const <String>{
+                '/doctor-selection',
+                '/review-confirm',
+                '/doctor-calling',
+                '/doctor-arriving',
+                '/consultation-qr',
+                '/consultation-complete',
+                '/consultation-type',
+                '/provider-list',
+                '/time-selection',
+                '/appointment-confirmation',
+                '/booking-confirmed',
+              }.contains(settings.name)) {
                 return MaterialPageRoute(
+                  settings: settings,
                   builder: (context) =>
-                      DoctorSelectionScreen(emergencyData: args),
-                );
-              }
-              if (settings.name == '/review-confirm') {
-                final args = settings.arguments as Map<String, dynamic>;
-                return MaterialPageRoute(
-                  builder: (context) => ReviewConfirmScreen(requestData: args),
-                );
-              }
-              if (settings.name == '/doctor-calling') {
-                final args = settings.arguments as Map<String, dynamic>;
-                return MaterialPageRoute(
-                  builder: (context) => DoctorCallingScreen(requestData: args),
-                );
-              }
-              if (settings.name == '/doctor-arriving') {
-                final args = settings.arguments as Map<String, dynamic>;
-                return MaterialPageRoute(
-                  builder: (context) => DoctorArrivingScreen(requestData: args),
-                );
-              }
-              if (settings.name == '/consultation-type') {
-                final args = settings.arguments as Map<String, dynamic>;
-                return MaterialPageRoute(
-                  builder: (context) => ConsultationTypeScreen(
-                    providerType: args['providerType'],
-                  ),
-                );
-              }
-              if (settings.name == '/provider-list') {
-                final args = settings.arguments as Map<String, dynamic>;
-                return MaterialPageRoute(
-                  builder: (context) => ProviderListScreen(
-                    providerType: args['providerType'],
-                    initialVisitType: args['visitType']?.toString(),
-                    initialIsEmergency: args['isEmergency'] == true,
-                  ),
-                );
-              }
-              if (settings.name == '/consultation-qr') {
-                final args = settings.arguments as Map<String, dynamic>;
-                return MaterialPageRoute(
-                  builder: (context) => ConsultationQRScreen(requestData: args),
-                );
-              }
-              if (settings.name == '/consultation-complete') {
-                final args = settings.arguments as Map<String, dynamic>;
-                return MaterialPageRoute(
-                  builder: (context) =>
-                      ConsultationCompleteScreen(requestData: args),
-                );
-              }
-              if (settings.name == '/appointment-confirmation') {
-                final args = settings.arguments as Map<String, dynamic>;
-                return MaterialPageRoute(
-                  builder: (context) =>
-                      AppointmentConfirmationScreen(doctorData: args),
-                );
-              }
-              if (settings.name == '/booking-confirmed') {
-                final args = settings.arguments as Map<String, dynamic>;
-                return MaterialPageRoute(
-                  builder: (context) =>
-                      BookingConfirmedScreen(bookingData: args),
-                );
-              }
-              if (settings.name == '/time-selection') {
-                final args = settings.arguments is Map<String, dynamic>
-                    ? (settings.arguments as Map<String, dynamic>)
-                    : <String, dynamic>{};
-                return MaterialPageRoute(
-                  builder: (context) => TimeSelectionScreen(
-                    providerId: args['providerId']?.toString() ?? '',
-                    visitType: args['visitType']?.toString(),
-                    isEmergency: args['isEmergency'] == true,
-                  ),
+                      const ClinicalFeatureUnavailableScreen(),
                 );
               }
               return null;
@@ -595,8 +560,8 @@ class _AuthStateListenerState extends State<_AuthStateListener>
   NotificationRealtimeCoordinator? _notificationRealtimeCoordinator;
   NotificationPushCoordinator? _notificationPushCoordinator;
   NotificationService? _notificationAlerts;
-  StreamSubscription<UrgentCabinetNotificationOpenIntent>?
-  _urgentCabinetOpenSubscription;
+  StreamSubscription<PendingNotificationOpenIdentity>?
+  _notificationOpenSubscription;
   PatientScheduledCareRealtimeTarget? _patientRealtimeTarget;
   VoidCallback? _unregisterPatientRealtimeTarget;
 
@@ -604,6 +569,7 @@ class _AuthStateListenerState extends State<_AuthStateListener>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    AppNav.patientHomeInStack.addListener(_onPatientHomeInStackChanged);
   }
 
   @override
@@ -614,10 +580,10 @@ class _AuthStateListenerState extends State<_AuthStateListener>
     _notificationPushCoordinator = context.read<NotificationPushCoordinator?>();
     final notificationAlerts = NotificationService();
     if (!identical(notificationAlerts, _notificationAlerts)) {
-      _urgentCabinetOpenSubscription?.cancel();
+      _notificationOpenSubscription?.cancel();
       _notificationAlerts = notificationAlerts;
-      _urgentCabinetOpenSubscription = notificationAlerts.urgentCabinetOpens
-          .listen(_openPatientUrgentCabinetNotification);
+      _notificationOpenSubscription = notificationAlerts.notificationOpens
+          .listen(_openPatientNotification);
     }
     final coordinator = context.read<ScheduledCareRealtimeCoordinator?>();
     if (identical(coordinator, _realtimeCoordinator)) return;
@@ -642,6 +608,7 @@ class _AuthStateListenerState extends State<_AuthStateListener>
           .applicationResumed();
       unawaited(_realtimeCoordinator?.foregroundResync());
       unawaited(_notificationRealtimeCoordinator?.foregroundResync());
+      unawaited(_offerAccessRequestWindow());
     } else if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden ||
@@ -655,28 +622,53 @@ class _AuthStateListenerState extends State<_AuthStateListener>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    AppNav.patientHomeInStack.removeListener(_onPatientHomeInStackChanged);
     _unregisterPatientRealtimeTarget?.call();
     _patientRealtimeTarget?.dispose();
-    _urgentCabinetOpenSubscription?.cancel();
+    _notificationOpenSubscription?.cancel();
     super.dispose();
   }
 
-  Future<void> _openPatientUrgentCabinetNotification(
-    UrgentCabinetNotificationOpenIntent intent,
+  Future<void> _openPatientNotification(
+    PendingNotificationOpenIdentity intent,
   ) async {
     if (!mounted) return;
     final auth = context.read<AuthController>();
     if (!auth.isAuthenticated || auth.globalRole != 'PATIENT') return;
     final accountId = auth.currentUser?.id.trim();
     if (accountId == null || accountId.isEmpty) return;
-    final claimed = NotificationService().claimUrgentCabinetOpen(intent);
+    final resolution = NotificationNavigationResolver.resolvePending(
+      intent,
+      auth.roleFamily,
+      accountScope: accountId,
+    );
+    final claimed = NotificationService().claimNotificationOpen(intent);
     if (claimed == null) return;
+    if (resolution.status != NotificationNavigationStatus.target) return;
+    if (isPendingAnswerResource(resolution.resource)) {
+      await _openPendingAnswer(resolution);
+      return;
+    }
+    if (resolution.resource == NotificationNavigationResource.bookingRequest) {
+      await ScheduledCareResourceResolver.openRequest(
+        context,
+        resolution.resourceId!,
+      );
+      return;
+    }
+    if (resolution.resource == NotificationNavigationResource.appointment) {
+      await ScheduledCareResourceResolver.openAppointment(
+        context,
+        resolution.resourceId!,
+      );
+      return;
+    }
     final navigator = Navigator.of(context);
     final recovered = await context
         .read<UrgentCabinetPatientLifecycleController>()
         .recoverFromNotification(
           accountId: accountId,
-          requestId: claimed.requestId,
+          requestId: resolution.resourceId!,
         );
     if (!context.mounted ||
         !recovered ||
@@ -685,6 +677,78 @@ class _AuthStateListenerState extends State<_AuthStateListener>
       return;
     }
     await navigator.pushNamed<void>('/urgent-cabinet/care-subject');
+  }
+
+  /// G-1 D2 / D4 pushes. Returns false for any other destination.
+  Future<bool> _openPendingAnswer(
+    NotificationNavigationResolution resolution,
+  ) async {
+    final resource = resolution.resource;
+    if (!isPendingAnswerResource(resource)) return false;
+    final controller = context.read<PendingAnswersController>();
+    // A cold-start push waits for the patient home, so nothing it opens is
+    // replaced by the splash → home navigation.
+    await _patientHomeReady();
+    if (!mounted) return true;
+    final navigator = AppNav.navigatorKey.currentState;
+    final id = resolution.resourceId!;
+    switch (resource) {
+      case NotificationNavigationResource.accessRequest:
+        if (navigator != null) {
+          await PendingAnswersEntry.openAccessRequest(navigator, controller, id);
+        }
+        return true;
+      case NotificationNavigationResource.followUpProposal:
+        if (navigator != null) {
+          await PendingAnswersEntry.openFollowUpProposal(
+            navigator,
+            controller,
+            id,
+          );
+        }
+        return true;
+      case NotificationNavigationResource.followUpWithdrawn:
+        if (navigator != null) {
+          await PendingAnswersEntry.openFollowUpWithdrawn(navigator, controller);
+        }
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  Future<void> _patientHomeReady() {
+    final home = AppNav.patientHomeInStack;
+    if (home.value) return Future.value();
+    final ready = Completer<void>();
+    void listener() {
+      if (home.value && !ready.isCompleted) ready.complete();
+    }
+
+    home.addListener(listener);
+    return ready.future
+        .timeout(const Duration(seconds: 20), onTimeout: () {})
+        .whenComplete(() => home.removeListener(listener));
+  }
+
+  void _onPatientHomeInStackChanged() {
+    if (AppNav.patientHomeInStack.value) unawaited(_offerAccessRequestWindow());
+  }
+
+  /// G-1 D2 (B): on app open and resume, a pending access request opens the
+  /// window once per app session. Patients only.
+  Future<void> _offerAccessRequestWindow() async {
+    if (!mounted) return;
+    final auth = context.read<AuthController>();
+    if (!auth.isAuthenticated || auth.globalRole != 'PATIENT') return;
+    if (NotificationService().pendingNotificationOpen != null) return;
+    if (!AppNav.patientHomeInStack.value) return;
+    final navigator = AppNav.navigatorKey.currentState;
+    if (navigator == null) return;
+    await PendingAnswersEntry.offerAccessRequestWindow(
+      navigator,
+      context.read<PendingAnswersController>(),
+    );
   }
 
   @override
@@ -715,6 +779,14 @@ class _AuthStateListenerState extends State<_AuthStateListener>
           unawaited(
             _notificationPushCoordinator?.startSession(nextRealtimeOwnerKey),
           );
+          if (nextRole == 'PATIENT') {
+            final pending = NotificationService().pendingNotificationOpen;
+            if (pending != null) {
+              unawaited(_openPatientNotification(pending));
+            } else {
+              unawaited(_offerAccessRequestWindow());
+            }
+          }
           unawaited(
             _realtimeCoordinator?.startSession(
               RealtimeSessionOwner(userId: realtimeUserId, role: realtimeRole),
@@ -737,15 +809,28 @@ class _AuthStateListenerState extends State<_AuthStateListener>
           previousUserId != nextUserId) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
+          NotificationService().clearPendingNotificationOpen();
           unawaited(
             context
                 .read<UrgentCabinetPatientLifecycleController>()
                 .invalidateSession(previousUserId),
           );
+          final request = context.read<RequestSubmissionController>();
+          final currentAuth = context.read<AuthController>();
+          unawaited(
+            request.clear().then((_) {
+              if (mounted && currentAuth.currentUser?.id == nextUserId) {
+                request.attachAuthenticatedAccount(nextUserId);
+              }
+            }),
+          );
           context.read<PatientBookingController>().clear();
           context.read<PatientScheduledCareController>().clear();
           context.read<MedicalSharingController>().clear();
           context.read<MedicalShareQrController>().clear();
+          context.read<DirectPatientAuthorizationController>().clear();
+          context.read<MedicalRecordViewModel>().clear();
+          context.read<PendingAnswersController>().clear();
         });
       }
       _wasAuthenticated = true;
@@ -760,6 +845,7 @@ class _AuthStateListenerState extends State<_AuthStateListener>
       _realtimeOwnerKey = null;
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted) return;
+        NotificationService().clearPendingNotificationOpen();
         if (urgentCabinetOwnerUserId != null) {
           await context
               .read<UrgentCabinetPatientLifecycleController>()
@@ -792,6 +878,13 @@ class _AuthStateListenerState extends State<_AuthStateListener>
         context.read<MedicalSharingController>().clear();
         if (!context.mounted) return;
         context.read<MedicalShareQrController>().clear();
+        if (!context.mounted) return;
+        context.read<DirectPatientAuthorizationController>().clear();
+        if (!context.mounted) return;
+        context.read<PendingAnswersController>().clear();
+        if (!context.mounted) return;
+        // Medical data must not outlive the session (G-2 FT-3).
+        context.read<MedicalRecordViewModel>().clear();
         if (!context.mounted) return;
         if (stayOnPublicSecurityRoute) return;
         AppNav.navigatorKey.currentState?.pushNamedAndRemoveUntil(

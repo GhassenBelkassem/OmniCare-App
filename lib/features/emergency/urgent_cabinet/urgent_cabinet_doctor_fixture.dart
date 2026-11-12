@@ -3,25 +3,11 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import 'urgent_cabinet_doctor_detail.dart';
+import 'urgent_cabinet_doctor_source.dart';
 import 'urgent_cabinet_doctor_list_item.dart';
 import 'urgent_cabinet_request_review.dart';
 
-abstract class UrgentCabinetDoctorSource {
-  const UrgentCabinetDoctorSource();
-
-  bool get isDevelopmentFixture;
-
-  Future<List<UrgentCabinetDoctorListItem>> loadDoctors();
-
-  Future<UrgentCabinetDoctorDetail?> loadDoctorDetail(String doctorId);
-
-  Future<UrgentCabinetFeeQuote?> loadUrgentCabinetFeeQuote({
-    required String doctorId,
-    required String cabinetId,
-  }) {
-    throw const UrgentCabinetDoctorSourceUnavailable();
-  }
-}
+export 'urgent_cabinet_doctor_source.dart';
 
 enum UrgentCabinetDoctorFixtureScenario {
   populated,
@@ -382,27 +368,6 @@ class UrgentCabinetDoctorSources {
   }
 }
 
-class UrgentCabinetDoctorUnavailableSource extends UrgentCabinetDoctorSource {
-  const UrgentCabinetDoctorUnavailableSource();
-
-  @override
-  bool get isDevelopmentFixture => false;
-
-  @override
-  Future<List<UrgentCabinetDoctorListItem>> loadDoctors() {
-    throw const UrgentCabinetDoctorSourceUnavailable();
-  }
-
-  @override
-  Future<UrgentCabinetDoctorDetail?> loadDoctorDetail(String doctorId) {
-    throw const UrgentCabinetDoctorSourceUnavailable();
-  }
-}
-
 class UrgentCabinetDoctorFixtureException implements Exception {
   const UrgentCabinetDoctorFixtureException();
-}
-
-class UrgentCabinetDoctorSourceUnavailable implements Exception {
-  const UrgentCabinetDoctorSourceUnavailable();
 }

@@ -489,6 +489,11 @@ class UrgentCabinetFlowController extends ChangeNotifier {
         isDevelopmentSimulation: false,
         authoritativeSnapshot: snapshot,
       ),
+      // Unreachable: the repository rejects unrecognized snapshots.
+      UrgentCabinetPatientResponseStatus.unknown =>
+        const UrgentCabinetRequestAuthorityUnavailable(
+          message: 'Réponse CABINET incompatible avec cette application.',
+        ),
     };
     notifyListeners();
     return true;

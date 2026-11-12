@@ -140,7 +140,13 @@ void main() {
   testWidgets('appointment list renders doctor, clinic, and family subjects', (
     tester,
   ) async {
-    await tester.pumpWidget(_host(PatientAppointmentsController()));
+    await tester.pumpWidget(
+      _host(
+        PatientAppointmentsController(
+          appointments: createPatientAppointmentMocks(),
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('Mes rendez-vous'), findsOneWidget);
@@ -158,7 +164,13 @@ void main() {
   });
 
   testWidgets('tabs, search, and filtered empty state work', (tester) async {
-    await tester.pumpWidget(_host(PatientAppointmentsController()));
+    await tester.pumpWidget(
+      _host(
+        PatientAppointmentsController(
+          appointments: createPatientAppointmentMocks(),
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Passés'));
@@ -181,7 +193,13 @@ void main() {
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(390, 844));
       addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(_host(PatientAppointmentsController()));
+      await tester.pumpWidget(
+        _host(
+          PatientAppointmentsController(
+            appointments: createPatientAppointmentMocks(),
+          ),
+        ),
+      );
       await tester.pumpAndSettle();
 
       await tester.tap(find.byKey(const ValueKey('appointment-filter-button')));

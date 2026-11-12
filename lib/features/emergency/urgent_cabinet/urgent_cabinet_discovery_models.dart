@@ -1,6 +1,30 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 enum UrgentCabinetDiscoverySort { name, distance }
+
+/// Backend `UrgentCabinetDiscoverySearchRequest.query` is `@Size(max = 120)`.
+const int urgentCabinetSearchQueryMaxLength = 120;
+
+/// Input formatters for the urgent CABINET search field: no more than
+/// [urgentCabinetSearchQueryMaxLength] characters can be typed or pasted.
+final List<TextInputFormatter> urgentCabinetSearchInputFormatters = [
+  LengthLimitingTextInputFormatter(urgentCabinetSearchQueryMaxLength),
+];
+
+/// Truncates [value] to at most [maxCodeUnits] UTF-16 code units (what Java
+/// `@Size` counts) without splitting a character.
+@visibleForTesting
+String clampToUtf16Length(String value, int maxCodeUnits) {
+  if (value.length <= maxCodeUnits) return value;
+  final buffer = StringBuffer();
+  for (final rune in value.runes) {
+    final runeLength = rune > 0xFFFF ? 2 : 1;
+    if (buffer.length + runeLength > maxCodeUnits) break;
+    buffer.writeCharCode(rune);
+  }
+  return buffer.toString();
+}
 
 @immutable
 class UrgentCabinetGovernorateFacet {
@@ -112,7 +136,12 @@ class UrgentCabinetDiscoveryCriteria {
       'page': page,
       'size': size,
     };
-    final normalizedQuery = _normalized(query);
+    final trimmedQuery = _normalized(query);
+    final normalizedQuery = trimmedQuery == null
+        ? null
+        : _normalized(
+            clampToUtf16Length(trimmedQuery, urgentCabinetSearchQueryMaxLength),
+          );
     final normalizedSpecialty = _normalized(specialty);
     final normalizedGovernorate = _normalized(governorate);
     final normalizedCity = _normalized(city);

@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../../core/network/api_exception.dart';
+import '../../core/network/api_failure.dart';
+import '../../core/network/api_failure_message.dart';
+import '../../l10n/omni_localizations.dart';
 
 const _ink = Color(0xFF111827);
 const _muted = Color(0xFF667085);
@@ -1756,7 +1758,7 @@ class _PersonalInformationFormState extends State<_PersonalInformationForm> {
       if (mounted) Navigator.of(context).pop();
     } catch (error) {
       if (!mounted) return;
-      final failure = _profileFormFailure(error);
+      final failure = _profileFormFailure(error, OmniLocalizations.of(context));
       setState(() {
         _fieldErrors = failure.fieldErrors;
         _errorMessage = failure.message;
@@ -1870,7 +1872,10 @@ class _LanguagePreferenceFormState extends State<_LanguagePreferenceForm> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = _profileFormFailure(error).message;
+        _errorMessage = _profileFormFailure(
+          error,
+          OmniLocalizations.of(context),
+        ).message;
         _retrying = true;
       });
     } finally {
@@ -1986,7 +1991,10 @@ class _NotificationPreferencesFormState
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = _profileFormFailure(error).message;
+        _errorMessage = _profileFormFailure(
+          error,
+          OmniLocalizations.of(context),
+        ).message;
         _retrying = true;
       });
     } finally {
@@ -2054,18 +2062,13 @@ class _ProfileFormFailure {
   final Map<String, String> fieldErrors;
 }
 
-_ProfileFormFailure _profileFormFailure(Object error) {
-  if (error is ApiException) {
-    return _ProfileFormFailure(
-      message: error.message.trim().isEmpty
-          ? 'Impossible d’enregistrer les modifications.'
-          : error.message.trim(),
-      fieldErrors: error.fieldErrors,
-    );
-  }
-  return const _ProfileFormFailure(
-    message: 'Impossible d’enregistrer les modifications. Réessayez.',
-    fieldErrors: {},
+/// French message and per-field French texts for a failed profile save.
+/// Never the server's text.
+_ProfileFormFailure _profileFormFailure(Object error, OmniLocalizations l10n) {
+  final failure = ApiFailure.from(error);
+  return _ProfileFormFailure(
+    message: apiFailureMessage(failure, l10n, fallback: l10n.profileSaveFailed),
+    fieldErrors: apiFieldErrorMessages(failure.fieldErrors, l10n),
   );
 }
 

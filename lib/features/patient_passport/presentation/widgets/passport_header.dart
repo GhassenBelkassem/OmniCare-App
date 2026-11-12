@@ -6,14 +6,16 @@ import '../../models/patient_passport_view_models.dart';
 class PassportHeader extends StatelessWidget {
   final PassportFamilyMember selectedMember;
   final VoidCallback onSelectPassport;
-  final VoidCallback onEdit;
+
+  /// The edit pencil; hidden when null (G2-1b-3b: editing comes in Phase 3).
+  final VoidCallback? onEdit;
   final VoidCallback onShare;
 
   const PassportHeader({
     super.key,
     required this.selectedMember,
     required this.onSelectPassport,
-    required this.onEdit,
+    this.onEdit,
     required this.onShare,
   });
 
@@ -68,12 +70,14 @@ class PassportHeader extends StatelessWidget {
             ),
           ),
         ),
-        _HeaderAction(
-          icon: Icons.edit_outlined,
-          label: 'Modifier le passeport',
-          onPressed: onEdit,
-        ),
-        const SizedBox(width: 8),
+        if (onEdit case final onEdit?) ...[
+          _HeaderAction(
+            icon: Icons.edit_outlined,
+            label: 'Modifier le passeport',
+            onPressed: onEdit,
+          ),
+          const SizedBox(width: 8),
+        ],
         _HeaderAction(
           icon: Icons.share_outlined,
           label: 'Partager le passeport',

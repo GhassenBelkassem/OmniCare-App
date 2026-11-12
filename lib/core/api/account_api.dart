@@ -1,9 +1,10 @@
 import 'package:dio/dio.dart';
 
-import '../../features/auth/data/models/auth_dtos.dart';
 import '../network/api_exception.dart';
+import '../network/api_failure.dart';
 import '../network/app_http_client.dart';
 import '../storage/secure_token_store.dart';
+import '../models/blood_type.dart';
 import '../models/patient_profile.dart';
 
 class AccountApi {
@@ -18,6 +19,17 @@ class AccountApi {
       PatientProfile.fromJson,
       queryParameters: const {'includeMedical': false},
     );
+  }
+
+  /// The patient's stored blood type, height and weight from
+  /// `GET /profile/medical-data` (`lifeSafety.bloodType`,
+  /// `bodyMeasurements.heightCm/weightKg`).
+  ///
+  /// Narrow read for onboarding (pre-fill, resume, blood-type guard) only;
+  /// the full medical-data repository comes with G-2 Phase 3. Throws
+  /// [ApiException] on failure or on an unexpected shape.
+  Future<StoredMedicalBasics> getStoredMedicalBasics() {
+    return _getJson('/profile/medical-data', StoredMedicalBasics.fromJson);
   }
 
   Future<PatientProfile> updateProfile(PatientProfileUpdate update) {
@@ -35,18 +47,18 @@ class AccountApi {
     );
   }
 
+  /// PATCH /profile/passport. A null argument is omitted from the body, and
+  /// the backend keeps the stored value for an omitted field.
   Future<void> patchMedicalPassport({
-    String? bloodGroup,
+    BloodType? bloodType,
     int? heightCm,
     double? weightKg,
-    Map<String, dynamic>? medicalInfo,
   }) async {
     final data = <String, dynamic>{
-      'bloodType': bloodGroup,
-      'heightCm': heightCm,
-      'weightKg': weightKg,
-      'medicalInfo': medicalInfo,
-    }..removeWhere((_, value) => value == null);
+      'bloodType': ?bloodType?.wireValue,
+      'heightCm': ?heightCm,
+      'weightKg': ?weightKg,
+    };
     await _patchJson('/profile/passport', data);
   }
 
@@ -125,39 +137,9 @@ class AccountApi {
     throw const FormatException('Expected JSON object.');
   }
 
-  ApiException _mapDioException(DioException error) {
-    final statusCode = error.response?.statusCode;
-    final data = error.response?.data;
-
-    if (data is Map) {
-      try {
-        final apiError = ApiErrorResponse.fromJson(
-          data.cast<String, dynamic>(),
-        );
-        return ApiException(
-          apiError.message,
-          code: apiError.code,
-          statusCode: statusCode,
-          fieldErrors: apiError.fieldErrors,
-          cause: error,
-        );
-      } catch (_) {
-        return ApiException(
-          'Unexpected server error response.',
-          code: 'MALFORMED_ERROR_RESPONSE',
-          statusCode: statusCode,
-          cause: error,
-        );
-      }
-    }
-
-    return ApiException(
-      'Network request failed.',
-      code: 'NETWORK_REQUEST_FAILED',
-      statusCode: statusCode,
-      cause: error,
-    );
-  }
+  /// One parser for every backend error shape; no server text is kept.
+  ApiException _mapDioException(DioException error) =>
+      ApiException.fromFailure(ApiFailure.fromDio(error), cause: error);
 }
 
 class OnboardingStepResponseDto {
@@ -179,6 +161,49 @@ class OnboardingStepResponseDto {
       nextStep: (json['nextStep'] as num?)?.toInt() ?? 0,
       onboardingCompleted: json['onboardingCompleted'] == true,
       message: json['message']?.toString(),
+    );
+  }
+}
+
+/// Blood type and body measurements already stored on the server.
+class StoredMedicalBasics {
+  const StoredMedicalBasics({
+    required this.bloodType,
+    required this.heightCm,
+    required this.weightKg,
+  });
+
+  /// Null when no blood type is stored.
+  final BloodType? bloodType;
+  final int? heightCm;
+  final double? weightKg;
+
+  /// Height and weight are only ever stored together (backend rule).
+  bool get hasBodyMeasurements => heightCm != null && weightKg != null;
+
+  factory StoredMedicalBasics.fromJson(Map<String, dynamic> json) {
+    final lifeSafety = json['lifeSafety'];
+    if (lifeSafety is! Map) {
+      throw const FormatException('Missing lifeSafety section.');
+    }
+    final bloodType = lifeSafety['bloodType'];
+    if (bloodType != null && bloodType is! String) {
+      throw const FormatException('bloodType must be a string or null.');
+    }
+    final body = json['bodyMeasurements'];
+    if (body != null && body is! Map) {
+      throw const FormatException('bodyMeasurements must be an object.');
+    }
+    final height = body is Map ? body['heightCm'] : null;
+    final weight = body is Map ? body['weightKg'] : null;
+    if ((height != null && height is! num) ||
+        (weight != null && weight is! num)) {
+      throw const FormatException('Body measurements must be numbers.');
+    }
+    return StoredMedicalBasics(
+      bloodType: BloodType.fromWire(bloodType as String?),
+      heightCm: (height as num?)?.toInt(),
+      weightKg: (weight as num?)?.toDouble(),
     );
   }
 }

@@ -21,12 +21,13 @@ import 'package:omnicare_mobile/features/emergency/urgent_cabinet/urgent_cabinet
 import 'package:omnicare_mobile/providers/family_provider.dart';
 import 'package:omnicare_mobile/providers/user_provider.dart';
 import 'package:omnicare_mobile/repositories/family_repository.dart';
+import 'package:omnicare_mobile/core/result/result.dart';
 
 class _EmptyFamilyRepository extends FamilyRepository {
   _EmptyFamilyRepository() : super(api: FamilyApi());
 
   @override
-  Future<List<FamilyMember>> getFamilyMembers() async => const [];
+  Future<Result<List<FamilyMember>>> getFamilyMembers() async => Ok(const []);
 }
 
 PatientProfile _profile([String userId = 'patient-user-1']) {
