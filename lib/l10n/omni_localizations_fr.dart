@@ -909,4 +909,337 @@ class OmniLocalizationsFr extends OmniLocalizations {
   @override
   String get forcedPasswordReason =>
       'Pour la sécurité de votre compte, choisissez un nouveau mot de passe avant de continuer.';
+
+  @override
+  String get onboardingSkip => 'Passer';
+
+  @override
+  String get onboardingProgressLabel => 'Progression';
+
+  @override
+  String get commonEdit => 'Modifier';
+
+  @override
+  String commonEditItem(String item) {
+    return 'Modifier : $item';
+  }
+
+  @override
+  String get pickerNoValue => 'Non renseigné';
+
+  @override
+  String get onboardingIntroChipBlood => 'Groupe sanguin';
+
+  @override
+  String get onboardingIntroChipAllergies => 'Allergies';
+
+  @override
+  String get onboardingIntroChipMedications => 'Médicaments';
+
+  @override
+  String get onboardingIntroChipFollowUp => 'Suivi';
+
+  @override
+  String get onboardingIntroTitle => 'Préparons votre dossier médical';
+
+  @override
+  String get onboardingIntroBody =>
+      'Quelques questions pour que vos soignants disposent des bonnes informations.';
+
+  @override
+  String get onboardingIntroDuration => 'Environ 1 minute';
+
+  @override
+  String get onboardingIntroEditable =>
+      'Vous pourrez les modifier à tout moment';
+
+  @override
+  String get onboardingIntroStart => 'Commencer';
+
+  @override
+  String get onboardingIntroLater => 'Plus tard';
+
+  @override
+  String get onboardingContinue => 'Continuer';
+
+  @override
+  String get onboardingFinish => 'Terminer';
+
+  @override
+  String get onboardingProfileTitle => 'C’est bien vous ?';
+
+  @override
+  String get onboardingProfileSubtitle =>
+      'Vérifiez les informations de votre compte.';
+
+  @override
+  String get onboardingProfileConfirm => 'C’est bien moi';
+
+  @override
+  String get onboardingFirstName => 'Prénom';
+
+  @override
+  String get onboardingLastName => 'Nom';
+
+  @override
+  String get onboardingBirthDate => 'Date de naissance';
+
+  @override
+  String get onboardingGender => 'Genre';
+
+  @override
+  String get onboardingGenderMale => 'Homme';
+
+  @override
+  String get onboardingGenderFemale => 'Femme';
+
+  @override
+  String get onboardingGenderOther => 'Autre';
+
+  @override
+  String get onboardingErrorFirstName => 'Saisissez votre prénom.';
+
+  @override
+  String get onboardingErrorLastName => 'Saisissez votre nom.';
+
+  @override
+  String get onboardingErrorBirthDate =>
+      'Sélectionnez votre date de naissance.';
+
+  @override
+  String get onboardingErrorBirthDatePast =>
+      'Choisissez une date de naissance dans le passé.';
+
+  @override
+  String get onboardingErrorGender => 'Sélectionnez votre genre.';
+
+  @override
+  String get onboardingErrorHeight => 'Indiquez votre taille.';
+
+  @override
+  String get onboardingErrorWeight => 'Indiquez votre poids.';
+
+  @override
+  String get onboardingErrorHeightInvalid => 'Indiquez une taille valide.';
+
+  @override
+  String get onboardingErrorWeightInvalid => 'Indiquez un poids valide.';
+
+  @override
+  String get onboardingErrorAllergyName => 'Indiquez le nom de l’allergie.';
+
+  @override
+  String get onboardingErrorAllergySeverity =>
+      'Choisissez la gravité de l’allergie.';
+
+  @override
+  String get onboardingErrorMedicationSelect =>
+      'Choisissez un médicament dans la liste.';
+
+  @override
+  String get onboardingErrorMedicationDosage =>
+      'Indiquez la posologie du médicament choisi.';
+
+  @override
+  String get onboardingBloodTitle => 'Quel est votre groupe sanguin ?';
+
+  @override
+  String get onboardingBloodSubtitle =>
+      'Vous pourrez le modifier plus tard dans votre dossier.';
+
+  @override
+  String get onboardingHeightTitle => 'Quelle est votre taille ?';
+
+  @override
+  String get onboardingHeightLabel => 'Taille';
+
+  @override
+  String get onboardingWeightTitle => 'Quel est votre poids ?';
+
+  @override
+  String get onboardingWeightLabel => 'Poids';
+
+  @override
+  String get onboardingWeightTypeIn => 'Saisir au clavier';
+
+  @override
+  String get onboardingWeightFieldLabel => 'Poids (kg)';
+
+  @override
+  String get onboardingUnitCm => 'cm';
+
+  @override
+  String get onboardingUnitKg => 'kg';
+
+  @override
+  String onboardingBmi(String value) {
+    return 'Votre IMC : $value';
+  }
+
+  @override
+  String get onboardingBmiPending =>
+      'L’IMC sera calculé à partir de votre taille et de votre poids.';
+
+  @override
+  String get onboardingYes => 'Oui';
+
+  @override
+  String get onboardingNo => 'Non';
+
+  @override
+  String get onboardingAllergiesTitle => 'Avez-vous des allergies ?';
+
+  @override
+  String get onboardingAllergiesSubtitle =>
+      'Médicaments, aliments ou autres (ex. latex).';
+
+  @override
+  String get onboardingAllergiesNo => 'Non, aucune allergie connue';
+
+  @override
+  String onboardingAllergyCardTitle(int index) {
+    return 'Allergie $index';
+  }
+
+  @override
+  String onboardingAllergyRemove(int index) {
+    return 'Supprimer l’allergie $index';
+  }
+
+  @override
+  String get onboardingAllergyName => 'Nom de l’allergie';
+
+  @override
+  String get onboardingAllergySeverity => 'Gravité';
+
+  @override
+  String get onboardingSeverityMild => 'Légère';
+
+  @override
+  String get onboardingSeverityModerate => 'Modérée';
+
+  @override
+  String get onboardingSeveritySevere => 'Sévère';
+
+  @override
+  String get onboardingAllergyLifeThreatening => 'Risque vital';
+
+  @override
+  String get onboardingAllergyLifeThreateningHint =>
+      'Elle sera mise en évidence pour les soignants.';
+
+  @override
+  String get onboardingAllergyAdd => 'Ajouter une allergie';
+
+  @override
+  String get onboardingConditionsTitle => 'Avez-vous une maladie chronique ?';
+
+  @override
+  String get onboardingConditionsSubtitle =>
+      'Vos médecins en tiennent compte pour votre suivi.';
+
+  @override
+  String get onboardingConditionsSearch => 'Rechercher une maladie…';
+
+  @override
+  String get onboardingConditionsNoMatch =>
+      'Aucune maladie ne correspond à votre recherche.';
+
+  @override
+  String onboardingConditionRemove(String name) {
+    return 'Retirer : $name';
+  }
+
+  @override
+  String get onboardingConditionDiabetes => 'Diabète';
+
+  @override
+  String get onboardingConditionHypertension => 'Hypertension artérielle';
+
+  @override
+  String get onboardingConditionAsthma => 'Asthme';
+
+  @override
+  String get onboardingConditionHeartDisease => 'Maladie cardiaque';
+
+  @override
+  String get onboardingConditionArthritis => 'Arthrite';
+
+  @override
+  String get onboardingConditionThyroid => 'Trouble de la thyroïde';
+
+  @override
+  String get onboardingConditionKidney => 'Maladie rénale';
+
+  @override
+  String get onboardingConditionLiver => 'Maladie du foie';
+
+  @override
+  String get onboardingConditionCancer => 'Cancer';
+
+  @override
+  String get onboardingConditionEpilepsy => 'Épilepsie';
+
+  @override
+  String get onboardingConditionCopd => 'BPCO';
+
+  @override
+  String get onboardingConditionDepression => 'Dépression';
+
+  @override
+  String get onboardingConditionAnxiety => 'Anxiété';
+
+  @override
+  String get onboardingConditionMigraine => 'Migraine';
+
+  @override
+  String get onboardingMedicationsTitle => 'Prenez-vous des médicaments ?';
+
+  @override
+  String get onboardingMedicationsSubtitle =>
+      'Indiquez ceux que vous prenez en ce moment.';
+
+  @override
+  String get onboardingMedicationsNo => 'Non, aucun médicament';
+
+  @override
+  String get onboardingMedicationsSoonTitle =>
+      'L’ajout de médicaments sera bientôt disponible';
+
+  @override
+  String get onboardingMedicationsSoonBody =>
+      'Vous pourrez les ajouter depuis votre dossier médical.';
+
+  @override
+  String get onboardingDoneTitle => 'Vos informations sont enregistrées';
+
+  @override
+  String get onboardingDoneBody =>
+      'Vous pourrez les compléter à tout moment depuis « Dossier médical ».';
+
+  @override
+  String get onboardingDoneCta => 'Accéder à mon espace';
+
+  @override
+  String get onboardingSummaryName => 'Nom';
+
+  @override
+  String get onboardingSummaryBlood => 'Groupe sanguin';
+
+  @override
+  String get onboardingSummaryAllergies => 'Allergies';
+
+  @override
+  String get onboardingSummaryConditions => 'Maladies chroniques';
+
+  @override
+  String get onboardingLoading => 'Chargement de votre profil';
+
+  @override
+  String get onboardingBmiTitle => 'Votre IMC';
+
+  @override
+  String onboardingBmiHeightNote(int height) {
+    return 'Calculé avec votre taille ($height cm)';
+  }
 }

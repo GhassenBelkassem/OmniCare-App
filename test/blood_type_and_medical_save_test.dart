@@ -351,6 +351,9 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      // G3-ONB2: a fresh start opens on the intro, above the PageView.
+      await tester.tap(find.text('Commencer'));
+      await tester.pumpAndSettle();
       await tester.fling(find.byType(PageView), const Offset(-300, 0), 1000);
       await tester.pumpAndSettle();
 

@@ -46,10 +46,14 @@ class OmniTextField extends StatelessWidget {
     this.helperText,
     this.successText,
     this.isSuccess = false,
+    this.textCapitalization = TextCapitalization.none,
   });
 
   /// Text shown above the field (14 w600).
   final String label;
+
+  /// Keyboard capitalization (e.g. words for names). G3-ONB2, additive.
+  final TextCapitalization textCapitalization;
 
   /// Key given to the inner [TextFormField] (tests find fields by key).
   final Key? fieldKey;
@@ -145,6 +149,7 @@ class OmniTextField extends StatelessWidget {
           onTap: onTap,
           inputFormatters: inputFormatters,
           maxLength: maxLength,
+          textCapitalization: textCapitalization,
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
             fontFamily: _bundledFont,
             fontSize: 15,

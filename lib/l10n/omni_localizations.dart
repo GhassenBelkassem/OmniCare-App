@@ -1689,6 +1689,612 @@ abstract class OmniLocalizations {
   /// In fr, this message translates to:
   /// **'Pour la sécurité de votre compte, choisissez un nouveau mot de passe avant de continuer.'**
   String get forcedPasswordReason;
+
+  /// Onboarding frame: skip text button at the top right. G3-ONB1.
+  ///
+  /// In fr, this message translates to:
+  /// **'Passer'**
+  String get onboardingSkip;
+
+  /// Onboarding frame: screen-reader name of the thin progress bar (its value is a percentage). G3-ONB1.
+  ///
+  /// In fr, this message translates to:
+  /// **'Progression'**
+  String get onboardingProgressLabel;
+
+  /// Generic « Modifier » action (profile summary card, summary list rows). G3-ONB1.
+  ///
+  /// In fr, this message translates to:
+  /// **'Modifier'**
+  String get commonEdit;
+
+  /// Screen-reader label of a « Modifier » action, naming what it edits. G3-ONB1.
+  ///
+  /// In fr, this message translates to:
+  /// **'Modifier : {item}'**
+  String commonEditItem(String item);
+
+  /// Number wheel / weight ruler: screen-reader value while nothing is chosen yet (the readout shows « — »). G3-ONB1.
+  ///
+  /// In fr, this message translates to:
+  /// **'Non renseigné'**
+  String get pickerNoValue;
+
+  /// Onboarding intro: label chip on the dark header. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Groupe sanguin'**
+  String get onboardingIntroChipBlood;
+
+  /// Onboarding intro: label chip on the dark header. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Allergies'**
+  String get onboardingIntroChipAllergies;
+
+  /// Onboarding intro: label chip on the dark header. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Médicaments'**
+  String get onboardingIntroChipMedications;
+
+  /// Onboarding intro: label chip on the dark header. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Suivi'**
+  String get onboardingIntroChipFollowUp;
+
+  /// Onboarding intro: card title. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Préparons votre dossier médical'**
+  String get onboardingIntroTitle;
+
+  /// Onboarding intro: card text. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Quelques questions pour que vos soignants disposent des bonnes informations.'**
+  String get onboardingIntroBody;
+
+  /// Onboarding intro: duration line. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Environ 1 minute'**
+  String get onboardingIntroDuration;
+
+  /// Onboarding intro: reassurance line. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Vous pourrez les modifier à tout moment'**
+  String get onboardingIntroEditable;
+
+  /// Onboarding intro: main button, shows the first page. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Commencer'**
+  String get onboardingIntroStart;
+
+  /// Onboarding intro: secondary button, same action as « Passer » (go home). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Plus tard'**
+  String get onboardingIntroLater;
+
+  /// Onboarding: main button (was English « Continue »). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Continuer'**
+  String get onboardingContinue;
+
+  /// Onboarding: main button of the last page (was English « Complete »). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Terminer'**
+  String get onboardingFinish;
+
+  /// Onboarding page 1 « Profil »: title (was « Confirm your profile »). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'C’est bien vous ?'**
+  String get onboardingProfileTitle;
+
+  /// Onboarding « Profil »: subtitle. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Vérifiez les informations de votre compte.'**
+  String get onboardingProfileSubtitle;
+
+  /// Onboarding « Profil »: main button while the summary card is shown (same save as « Continuer »). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'C’est bien moi'**
+  String get onboardingProfileConfirm;
+
+  /// Onboarding « Profil »: field label (was « First name »). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Prénom'**
+  String get onboardingFirstName;
+
+  /// Onboarding « Profil »: field label (was « Last name »). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Nom'**
+  String get onboardingLastName;
+
+  /// Onboarding « Profil » field label and summary row (was « Birth date »). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Date de naissance'**
+  String get onboardingBirthDate;
+
+  /// Onboarding « Profil » field label and summary row (was « Gender »). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Genre'**
+  String get onboardingGender;
+
+  /// Onboarding gender option, stored value M (was « Male »). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Homme'**
+  String get onboardingGenderMale;
+
+  /// Onboarding gender option, stored value F (was « Female »). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Femme'**
+  String get onboardingGenderFemale;
+
+  /// Onboarding gender option, stored value autre (was « Other »). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Autre'**
+  String get onboardingGenderOther;
+
+  /// Onboarding validation (was « Please enter your first name. »), same rule. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Saisissez votre prénom.'**
+  String get onboardingErrorFirstName;
+
+  /// Onboarding validation (was « Please enter your last name. »), same rule. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Saisissez votre nom.'**
+  String get onboardingErrorLastName;
+
+  /// Onboarding validation (was « Please select your birth date. »), same rule. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Sélectionnez votre date de naissance.'**
+  String get onboardingErrorBirthDate;
+
+  /// Onboarding validation (was « Please select a birth date in the past. »), same rule. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Choisissez une date de naissance dans le passé.'**
+  String get onboardingErrorBirthDatePast;
+
+  /// Onboarding validation (was « Please select your gender. »), same rule. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Sélectionnez votre genre.'**
+  String get onboardingErrorGender;
+
+  /// Onboarding validation (was « Please enter your height. »), same rule. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Indiquez votre taille.'**
+  String get onboardingErrorHeight;
+
+  /// Onboarding validation (was « Please enter your weight. »), same rule. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Indiquez votre poids.'**
+  String get onboardingErrorWeight;
+
+  /// Onboarding validation (was « Please enter a valid height. »), same rule. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Indiquez une taille valide.'**
+  String get onboardingErrorHeightInvalid;
+
+  /// Onboarding validation (was « Please enter a valid weight. »), same rule. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Indiquez un poids valide.'**
+  String get onboardingErrorWeightInvalid;
+
+  /// Onboarding validation (was « Please enter the allergy name. »), same rule. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Indiquez le nom de l’allergie.'**
+  String get onboardingErrorAllergyName;
+
+  /// Onboarding validation (was « Please select allergy severity. »), same rule. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Choisissez la gravité de l’allergie.'**
+  String get onboardingErrorAllergySeverity;
+
+  /// Onboarding medication check (was « Please select a medication from the list. »), same rule. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Choisissez un médicament dans la liste.'**
+  String get onboardingErrorMedicationSelect;
+
+  /// Onboarding medication check (was « Please enter a dosage for the selected medication. »), same rule. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Indiquez la posologie du médicament choisi.'**
+  String get onboardingErrorMedicationDosage;
+
+  /// Onboarding « Groupe sanguin »: title (was « What is your blood type? »). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Quel est votre groupe sanguin ?'**
+  String get onboardingBloodTitle;
+
+  /// Onboarding « Groupe sanguin »: subtitle (replaces the « blood supply » claim). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Vous pourrez le modifier plus tard dans votre dossier.'**
+  String get onboardingBloodSubtitle;
+
+  /// Onboarding « Taille »: title. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Quelle est votre taille ?'**
+  String get onboardingHeightTitle;
+
+  /// Onboarding: height wheel name for screen readers and summary row (was « Height »). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Taille'**
+  String get onboardingHeightLabel;
+
+  /// Onboarding « Poids »: title. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Quel est votre poids ?'**
+  String get onboardingWeightTitle;
+
+  /// Onboarding: weight ruler name for screen readers and summary row (was « Weight »). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Poids'**
+  String get onboardingWeightLabel;
+
+  /// Onboarding « Poids »: opens the type-in weight field. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Saisir au clavier'**
+  String get onboardingWeightTypeIn;
+
+  /// Onboarding « Poids »: type-in field label (decimals allowed as before). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Poids (kg)'**
+  String get onboardingWeightFieldLabel;
+
+  /// Unit after a height value. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'cm'**
+  String get onboardingUnitCm;
+
+  /// Unit after a weight value. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'kg'**
+  String get onboardingUnitKg;
+
+  /// Onboarding « Poids »: screen-reader label of the BMI card, final value with one French decimal (G3-ONB2 « IMC {value} », reworded in G3-ONB3a).
+  ///
+  /// In fr, this message translates to:
+  /// **'Votre IMC : {value}'**
+  String onboardingBmi(String value);
+
+  /// Onboarding « Poids »: BMI preview before both values exist (was English). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'L’IMC sera calculé à partir de votre taille et de votre poids.'**
+  String get onboardingBmiPending;
+
+  /// Onboarding yes/no question: « Oui ». G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Oui'**
+  String get onboardingYes;
+
+  /// Onboarding yes/no question: « Non » (chronic conditions). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Non'**
+  String get onboardingNo;
+
+  /// Onboarding « Allergies »: title (was « Any allergies? »). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Avez-vous des allergies ?'**
+  String get onboardingAllergiesTitle;
+
+  /// Onboarding « Allergies »: subtitle. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Médicaments, aliments ou autres (ex. latex).'**
+  String get onboardingAllergiesSubtitle;
+
+  /// Onboarding « Allergies »: « Non » option = the existing clear action (noKnownAllergies). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Non, aucune allergie connue'**
+  String get onboardingAllergiesNo;
+
+  /// Onboarding allergy card title (was « Allergy n »). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Allergie {index}'**
+  String onboardingAllergyCardTitle(int index);
+
+  /// Onboarding allergy card: remove button tooltip (was « Remove allergy »). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Supprimer l’allergie {index}'**
+  String onboardingAllergyRemove(int index);
+
+  /// Onboarding allergy card: name field (was « Allergy name »). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Nom de l’allergie'**
+  String get onboardingAllergyName;
+
+  /// Onboarding allergy card: severity label (was « Severity »). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Gravité'**
+  String get onboardingAllergySeverity;
+
+  /// Allergy severity, stored value « légère » (was « Mild »). REQUIRES MEDICAL VALIDATION. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Légère'**
+  String get onboardingSeverityMild;
+
+  /// Allergy severity, stored value « modérée », default (was « Moderate »). REQUIRES MEDICAL VALIDATION. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Modérée'**
+  String get onboardingSeverityModerate;
+
+  /// Allergy severity, stored value « sévère » (was « Severe »). REQUIRES MEDICAL VALIDATION. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Sévère'**
+  String get onboardingSeveritySevere;
+
+  /// Onboarding allergy card: life-threatening switch (was « Life-threatening »). REQUIRES MEDICAL VALIDATION. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Risque vital'**
+  String get onboardingAllergyLifeThreatening;
+
+  /// Onboarding allergy card: switch subtitle (was « Highlight this allergy for emergency care. »). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Elle sera mise en évidence pour les soignants.'**
+  String get onboardingAllergyLifeThreateningHint;
+
+  /// Onboarding « Allergies »: add-card button (was « Add Another Allergy »). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Ajouter une allergie'**
+  String get onboardingAllergyAdd;
+
+  /// Onboarding « Maladies »: title (was « Any chronic conditions? »). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Avez-vous une maladie chronique ?'**
+  String get onboardingConditionsTitle;
+
+  /// Onboarding « Maladies »: subtitle (replaces the « 100% safe » claim). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Vos médecins en tiennent compte pour votre suivi.'**
+  String get onboardingConditionsSubtitle;
+
+  /// Onboarding « Maladies »: search field (was « Search conditions... »); matches the French labels. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Rechercher une maladie…'**
+  String get onboardingConditionsSearch;
+
+  /// Onboarding « Maladies »: shown when the search matches nothing. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Aucune maladie ne correspond à votre recherche.'**
+  String get onboardingConditionsNoMatch;
+
+  /// Onboarding « Maladies »: screen-reader label of a selected chip (tap removes it). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Retirer : {name}'**
+  String onboardingConditionRemove(String name);
+
+  /// Label of the stored condition « Diabetes » (value sent unchanged). REQUIRES MEDICAL VALIDATION. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Diabète'**
+  String get onboardingConditionDiabetes;
+
+  /// Label of the stored condition « Hypertension » (value sent unchanged). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Hypertension artérielle'**
+  String get onboardingConditionHypertension;
+
+  /// Label of the stored condition « Asthma » (value sent unchanged). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Asthme'**
+  String get onboardingConditionAsthma;
+
+  /// Label of the stored condition « Heart Disease » (value sent unchanged). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Maladie cardiaque'**
+  String get onboardingConditionHeartDisease;
+
+  /// Label of the stored condition « Arthritis » (value sent unchanged). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Arthrite'**
+  String get onboardingConditionArthritis;
+
+  /// Label of the stored condition « Thyroid Disorder » (value sent unchanged). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Trouble de la thyroïde'**
+  String get onboardingConditionThyroid;
+
+  /// Label of the stored condition « Kidney Disease » (value sent unchanged). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Maladie rénale'**
+  String get onboardingConditionKidney;
+
+  /// Label of the stored condition « Liver Disease » (value sent unchanged). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Maladie du foie'**
+  String get onboardingConditionLiver;
+
+  /// Label of the stored condition « Cancer » (value sent unchanged). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Cancer'**
+  String get onboardingConditionCancer;
+
+  /// Label of the stored condition « Epilepsy » (value sent unchanged). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Épilepsie'**
+  String get onboardingConditionEpilepsy;
+
+  /// Label of the stored condition « COPD » (value sent unchanged). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'BPCO'**
+  String get onboardingConditionCopd;
+
+  /// Label of the stored condition « Depression » (value sent unchanged). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Dépression'**
+  String get onboardingConditionDepression;
+
+  /// Label of the stored condition « Anxiety » (value sent unchanged). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Anxiété'**
+  String get onboardingConditionAnxiety;
+
+  /// Label of the stored condition « Migraine » (value sent unchanged). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Migraine'**
+  String get onboardingConditionMigraine;
+
+  /// Onboarding « Médicaments »: title (was « Current Medications »). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Prenez-vous des médicaments ?'**
+  String get onboardingMedicationsTitle;
+
+  /// Onboarding « Médicaments »: subtitle. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Indiquez ceux que vous prenez en ce moment.'**
+  String get onboardingMedicationsSubtitle;
+
+  /// Onboarding « Médicaments »: « Non » option = the existing « not taking any » action (noKnownMedications). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Non, aucun médicament'**
+  String get onboardingMedicationsNo;
+
+  /// Onboarding « Médicaments »: note shown for « Oui » (no medication can be added yet). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'L’ajout de médicaments sera bientôt disponible'**
+  String get onboardingMedicationsSoonTitle;
+
+  /// Onboarding « Médicaments »: note body. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Vous pourrez les ajouter depuis votre dossier médical.'**
+  String get onboardingMedicationsSoonBody;
+
+  /// Onboarding final screen: title (was « Thank You! »). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Vos informations sont enregistrées'**
+  String get onboardingDoneTitle;
+
+  /// Onboarding final screen: text. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Vous pourrez les compléter à tout moment depuis « Dossier médical ».'**
+  String get onboardingDoneBody;
+
+  /// Onboarding final screen: main button, goes to /home as before (was « Go to Dashboard »). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Accéder à mon espace'**
+  String get onboardingDoneCta;
+
+  /// Onboarding final screen: summary row, full name. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Nom'**
+  String get onboardingSummaryName;
+
+  /// Onboarding final screen: summary row. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Groupe sanguin'**
+  String get onboardingSummaryBlood;
+
+  /// Onboarding final screen: summary row (shown only when allergies were entered). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Allergies'**
+  String get onboardingSummaryAllergies;
+
+  /// Onboarding final screen: summary row (shown only when conditions were selected). G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Maladies chroniques'**
+  String get onboardingSummaryConditions;
+
+  /// Onboarding: screen-reader label of the initial-load spinner. G3-ONB2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Chargement de votre profil'**
+  String get onboardingLoading;
+
+  /// Onboarding « Poids »: BMI card heading (display only, no category). G3-ONB3a.
+  ///
+  /// In fr, this message translates to:
+  /// **'Votre IMC'**
+  String get onboardingBmiTitle;
+
+  /// Onboarding « Poids »: BMI card footnote with the height used. G3-ONB3a.
+  ///
+  /// In fr, this message translates to:
+  /// **'Calculé avec votre taille ({height} cm)'**
+  String onboardingBmiHeightNote(int height);
 }
 
 class _OmniLocalizationsDelegate
