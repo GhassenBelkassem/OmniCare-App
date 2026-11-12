@@ -13,6 +13,7 @@ import 'package:omnicare_mobile/features/request_history/presentation/patient_re
 import 'package:omnicare_mobile/features/request_history/presentation/patient_request_journey.dart';
 import 'package:omnicare_mobile/features/request_history/presentation/request_status_copy.dart';
 import 'package:provider/provider.dart';
+import 'package:omnicare_mobile/l10n/omni_localizations.dart';
 
 final _requestId = RequestOperationId.parse(
   '33333333-3333-4333-8333-333333333333',
@@ -101,7 +102,11 @@ class _Gateway implements PatientRequestGateway {
 Widget _host(PatientRequestsController controller, Widget child) =>
     ChangeNotifierProvider.value(
       value: controller,
-      child: MaterialApp(home: child),
+      child: MaterialApp(
+        localizationsDelegates: OmniLocalizations.localizationsDelegates,
+        supportedLocales: OmniLocalizations.supportedLocales,
+        home: child,
+      ),
     );
 
 void main() {

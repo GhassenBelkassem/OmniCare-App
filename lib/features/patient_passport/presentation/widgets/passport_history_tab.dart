@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/omni_theme.dart';
 import '../../models/patient_passport_view_models.dart';
 import 'passport_card.dart';
+import 'passport_card_status.dart';
 
 class PassportHistoryTab extends StatefulWidget {
   final List<PassportConsultation> consultations;
@@ -10,11 +11,15 @@ class PassportHistoryTab extends StatefulWidget {
   final Future<void> Function(PassportConsultation consultation)?
   onToggleSharing;
 
+  /// Loading or failure in place of the count and the list (G2-FT-3).
+  final PassportCardStatus? status;
+
   const PassportHistoryTab({
     super.key,
     required this.consultations,
     required this.onOpenFilters,
     this.onToggleSharing,
+    this.status,
   });
 
   @override
@@ -103,46 +108,50 @@ class _PassportHistoryTabState extends State<PassportHistoryTab> {
           ],
         ),
         const SizedBox(height: 18),
-        Row(
-          children: [
-            const Icon(
-              Icons.description_outlined,
-              size: 18,
-              color: OmniColors.primaryAction,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              '${visibleConsultations.length} consultations',
-              style: Theme.of(
-                context,
-              ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        if (visibleConsultations.isEmpty)
-          const PassportCard(
-            child: Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: Center(child: Text('Aucune consultation trouvée.')),
-            ),
-          )
-        else
-          ...visibleConsultations.map(
-            (consultation) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _ConsultationCard(
-                consultation: consultation,
-                onToggleSharing:
-                    consultation.status ==
-                            PassportConsultationStatus.completed &&
-                        consultation.consultationId != null &&
-                        consultation.sharingVersion != null
-                    ? () => widget.onToggleSharing?.call(consultation)
-                    : null,
+        if (widget.status case final status?)
+          PassportCard(child: PassportCardStatusBody(status: status))
+        else ...[
+          Row(
+            children: [
+              const Icon(
+                Icons.description_outlined,
+                size: 18,
+                color: OmniColors.primaryAction,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '${visibleConsultations.length} consultations',
+                style: Theme.of(
+                  context,
+                ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (visibleConsultations.isEmpty)
+            const PassportCard(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: Text('Aucune consultation trouvée.')),
+              ),
+            )
+          else
+            ...visibleConsultations.map(
+              (consultation) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _ConsultationCard(
+                  consultation: consultation,
+                  onToggleSharing:
+                      consultation.status ==
+                              PassportConsultationStatus.completed &&
+                          consultation.consultationId != null &&
+                          consultation.sharingVersion != null
+                      ? () => widget.onToggleSharing?.call(consultation)
+                      : null,
+                ),
               ),
             ),
-          ),
+        ],
       ],
     );
   }

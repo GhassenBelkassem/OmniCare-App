@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../l10n/app_localizations.dart';
+import '../../l10n/omni_localizations.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -22,8 +22,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   String? _validateContact(String? value) {
     if (value == null || value.isEmpty) {
-      final l10n = AppLocalizations.of(context);
-      return l10n?.emailOrPhoneRequired ?? 'Email or phone number is required';
+      final l10n = OmniLocalizations.of(context);
+      return l10n.emailOrPhoneRequired;
     }
     return null;
   }
@@ -46,7 +46,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
+    final l10n = OmniLocalizations.of(context);
     final screenHeight = MediaQuery.of(context).size.height;
 
     return Scaffold(
@@ -94,7 +94,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  l10n?.resetPassword ?? 'Reset Password',
+                  l10n.resetPassword,
                   textAlign: TextAlign.center,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 18,
@@ -104,8 +104,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  l10n?.resetPasswordSubtitle ??
-                      'Enter your email or phone number to receive a verification code',
+                  l10n.resetPasswordSubtitle,
                   textAlign: TextAlign.center,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 12,
@@ -115,7 +114,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 ),
                 const SizedBox(height: 48),
                 Text(
-                  l10n?.emailOrPhone ?? 'Email or Phone Number',
+                  l10n.emailOrPhone,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -133,9 +132,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     color: const Color(0xFF1D2939),
                   ),
                   decoration: InputDecoration(
-                    hintText:
-                        l10n?.emailOrPhoneHint ??
-                        'Enter your email or phone number',
+                    hintText: l10n.emailOrPhoneHint,
                     hintStyle: GoogleFonts.plusJakartaSans(
                       fontSize: 16,
                       fontWeight: FontWeight.w400,
@@ -204,7 +201,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             ),
                           )
                         : Text(
-                            l10n?.sendCode ?? 'Send Code',
+                            l10n.sendCode,
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,

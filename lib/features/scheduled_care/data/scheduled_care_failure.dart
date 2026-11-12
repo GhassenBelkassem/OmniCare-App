@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/network/api_failure.dart';
 import '../domain/scheduled_care_models.dart';
 
 enum ScheduledCareFailureKind {
@@ -22,18 +23,24 @@ enum ScheduledCareFailureKind {
   unexpected,
 }
 
+/// A scheduled-care failure. [message] is French and shared with the doctor
+/// app (which builds some of these itself), so it stays a constant here.
 class ScheduledCareFailure implements Exception {
   const ScheduledCareFailure({
     required this.kind,
     required this.message,
     required this.diagnosticCode,
     this.retryable = false,
+    this.api,
   });
 
   final ScheduledCareFailureKind kind;
   final String message;
   final String diagnosticCode;
   final bool retryable;
+
+  /// The parsed backend failure, when there was one. Never holds server text.
+  final ApiFailure? api;
 
   bool get requiresAvailabilityRefresh =>
       kind == ScheduledCareFailureKind.slotNoLongerAvailable;
@@ -77,9 +84,14 @@ class ScheduledCareFailure implements Exception {
         retryable: true,
       );
     }
-    final status = error.response?.statusCode;
-    final code = _errorCode(error.response?.data);
-    switch (code) {
+    // Backend errors are read once, by [ApiFailure.fromDio].
+    final api = ApiFailure.fromDio(error);
+    return _fromApi(api)._with(api);
+  }
+
+  static ScheduledCareFailure _fromApi(ApiFailure api) {
+    final status = api.statusCode;
+    switch (api.code) {
       case 'VALIDATION_FAILED':
         return const ScheduledCareFailure(
           kind: ScheduledCareFailureKind.validation,
@@ -185,11 +197,13 @@ class ScheduledCareFailure implements Exception {
     _ => false,
   };
 
-  static String? _errorCode(Object? data) {
-    if (data is! Map) return null;
-    final value = data['errorCode'] ?? data['code'];
-    return value is String ? value.trim() : null;
-  }
+  ScheduledCareFailure _with(ApiFailure api) => ScheduledCareFailure(
+    kind: kind,
+    message: message,
+    diagnosticCode: diagnosticCode,
+    retryable: retryable,
+    api: api,
+  );
 
   @override
   String toString() => 'ScheduledCareFailure($diagnosticCode)';

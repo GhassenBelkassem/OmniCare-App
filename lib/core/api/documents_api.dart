@@ -5,12 +5,12 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 
 import '../network/api_exception.dart';
+import '../network/api_failure.dart';
 import '../network/app_http_client.dart';
 import '../network/auth_interceptor.dart';
 import '../network/network_timeout_policy.dart';
 import '../network/request_replay_policy.dart';
 import '../network/sse_decoder.dart';
-import '../network/transport_failure.dart';
 import '../storage/secure_token_store.dart';
 
 class MedicalDocumentRecord {
@@ -677,101 +677,26 @@ class DocumentsApi {
   }
 }
 
+/// A documents error from the single parser ([ApiFailure.fromDio]). The
+/// local codes (session refresh, replay, local cancel) win over the server's
+/// code. No text is chosen here: screens use `documentErrorMessage`.
 ApiException _safeApiException(DioException error) {
-  final status = error.response?.statusCode;
-  final data = error.response?.data;
-  final transport = TransportFailure.fromDio(error);
-
-  final parsedRetryAfterSeconds = int.tryParse(
-    error.response?.headers.value('retry-after')?.trim() ?? '',
-  );
-
-  final retryAfterSeconds =
-      parsedRetryAfterSeconds != null && parsedRetryAfterSeconds >= 0
-      ? parsedRetryAfterSeconds
-      : null;
-
-  final serverCode = data is Map
-      ? (data['code'] ?? data['errorCode'])?.toString()
-      : null;
-  final refreshFailure = error.error;
-  final code = refreshFailure is AuthRefreshUnavailableException
+  final failure = ApiFailure.fromDio(error);
+  final cause = error.error;
+  final code = cause is AuthRefreshUnavailableException
       ? 'AUTH_REFRESH_TEMPORARILY_UNAVAILABLE'
-      : error.error is AuthReplayRequiredException
+      : cause is AuthReplayRequiredException
       ? 'AUTH_REPLAY_REQUIRED'
       : CancelToken.isCancel(error)
       ? 'UPLOAD_CANCELLED_LOCAL'
-      : serverCode;
-
-  final message = switch (code) {
-    'AUTH_REFRESH_TEMPORARILY_UNAVAILABLE' =>
-      'Your session could not be refreshed. Check your connection and try again.',
-
-    'AUTH_REPLAY_REQUIRED' =>
-      'Your session was refreshed. Retry the upload to safely resume with the same operation.',
-
-    'UPLOAD_CANCELLED_LOCAL' =>
-      'The local transfer stopped. Refresh the document list before retrying because the server outcome may be unknown.',
-
-    'DOCUMENT_UPLOAD_RECOVERY_NOT_FOUND' =>
-      'The previous upload can no longer be recovered. Start a new upload if needed.',
-
-    'DOCUMENT_UPLOAD_COMMAND_IN_PROGRESS' =>
-      'The document upload is still being processed.',
-
-    'DOCUMENT_UPLOAD_IDEMPOTENCY_CONFLICT' =>
-      'This upload key belongs to a different operation.',
-
-    'UNAUTHORIZED' ||
-    'AUTH_SESSION_EXPIRED' ||
-    'AUTH_SESSION_INVALID' => 'Your session has expired. Please sign in again.',
-
-    'FORBIDDEN' => 'You do not have permission to access these documents.',
-
-    'UNSUPPORTED_FILE_TYPE' => 'Choose a PDF, PNG, JPG, or JPEG file.',
-
-    'FILE_TOO_LARGE' => 'The file is larger than the 20 MB limit.',
-
-    'IDEMPOTENCY_KEY_REUSED' || 'CONFLICT' =>
-      'This operation conflicts with an earlier request. '
-          'Please refresh and try again.',
-
-    'MRS_UNAVAILABLE' || 'OBJECT_STORAGE_UNAVAILABLE' =>
-      'Document processing is temporarily unavailable. '
-          'Please try again later.',
-
-    'INVALID_INPUT' || 'VALIDATION_ERROR' =>
-      'The document could not be accepted. '
-          'Check the file and try again.',
-
-    _ when transport.kind == TransportFailureKind.timeout =>
-      'The request timed out. Please try again.',
-
-    _
-        when transport.kind == TransportFailureKind.noConnection ||
-            transport.kind == TransportFailureKind.dns ||
-            transport.kind == TransportFailureKind.tls =>
-      'The document service is unavailable. '
-          'Please try again later.',
-
-    _ when status == 401 => 'Your session has expired. Please sign in again.',
-
-    _ when status == 403 =>
-      'You do not have permission to access these documents.',
-
-    _ =>
-      'The document operation could not be completed. '
-          'Please try again.',
-  };
-
+      : failure.code;
   return ApiException(
-    message,
+    failure.logSummary,
     code: code,
-    statusCode: status,
-    retryAfter: retryAfterSeconds == null
-        ? null
-        : Duration(seconds: retryAfterSeconds),
+    statusCode: error.response?.statusCode,
+    retryAfter: failure.retryAfter,
     cause: error,
+    failure: failure,
   );
 }
 

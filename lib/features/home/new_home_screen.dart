@@ -10,12 +10,14 @@ import '../../core/theme/omni_theme.dart';
 import '../../core/api/account_api.dart';
 import '../../core/network/app_http_client.dart';
 import '../../core/services/file_picker_service.dart';
+import '../../core/models/blood_type.dart';
 import '../../core/models/family_models.dart' as core_models;
 import '../auth/application/auth_controller.dart';
 import '../../providers/user_onboarding_provider.dart' hide MedicalDocument;
 import '../../providers/user_provider.dart';
 import '../../providers/family_provider.dart';
 import 'edit_medical_data_screen.dart';
+import 'medical_data_save.dart';
 import 'add_family_member_screen.dart';
 import 'family_member_detail_screen.dart';
 import 'document_viewer_screen.dart';
@@ -50,6 +52,10 @@ import '../emergency/emergency_review_screen.dart';
 import '../clinical_safety/clinical_feature_unavailable_screen.dart';
 import '../notifications/application/notification_center_controller.dart';
 import '../notifications/presentation/notification_badge.dart';
+import '../../core/l10n/blood_type_label.dart';
+import '../../l10n/omni_localizations.dart';
+import '../../core/network/api_failure.dart';
+import '../../core/network/api_failure_message.dart';
 
 class NewHomeScreen extends StatefulWidget {
   const NewHomeScreen({super.key});
@@ -75,7 +81,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
         member.relationship,
       ),
       avatar: member.photoUrl ?? '',
-      bloodType: '-',
+      bloodType: null,
       chronicConditions: const [],
       currentMedications: const [],
       documents: const <MedicalDocument>[],
@@ -146,7 +152,11 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            provider.mutationError ?? 'Impossible de retirer ce membre.',
+            apiFailureMessageOr(
+              provider.mutationFailure,
+              OmniLocalizations.of(context),
+              fallback: OmniLocalizations.of(context).familyRemoveFailed,
+            ),
           ),
           backgroundColor: const Color(0xFFB42318),
         ),
@@ -182,7 +192,12 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e.toString()),
+          content: Text(
+            apiFailureMessage(
+              ApiFailure.from(e),
+              OmniLocalizations.of(context),
+            ),
+          ),
           backgroundColor: const Color(0xFFDC2626),
         ),
       );
@@ -235,8 +250,13 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                         ),
                         const SizedBox(height: 14),
                         Text(
-                          userProvider.loadError ??
-                              'Impossible de charger le profil.',
+                          apiFailureMessageOr(
+                            userProvider.loadFailure,
+                            OmniLocalizations.of(context),
+                            fallback: OmniLocalizations.of(
+                              context,
+                            ).profileLoadFailed,
+                          ),
                           textAlign: TextAlign.center,
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 14,
@@ -1199,8 +1219,22 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
       isSaving: userProvider.isSaving,
       isAvatarUploading: userProvider.isAvatarUploading,
       avatarUploadProgress: userProvider.avatarUploadProgress,
-      avatarErrorMessage: userProvider.avatarError,
-      errorMessage: userProvider.saveError,
+      avatarErrorMessage: userProvider.avatarSelectionFailed
+          ? OmniLocalizations.of(context).avatarSelectionFailed
+          : userProvider.avatarFailure == null
+          ? null
+          : apiFailureMessage(
+              userProvider.avatarFailure!,
+              OmniLocalizations.of(context),
+              fallback: OmniLocalizations.of(context).avatarUpdateFailed,
+            ),
+      errorMessage: userProvider.saveFailure == null
+          ? null
+          : apiFailureMessage(
+              userProvider.saveFailure!,
+              OmniLocalizations.of(context),
+              fallback: OmniLocalizations.of(context).profileSaveFailed,
+            ),
       onRetry: userProvider.clearSaveError,
       onAvatarSourceSelected: _selectAndUploadAvatar,
       onAvatarRemove: () async {
@@ -1213,7 +1247,13 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
           : null,
       onAvatarErrorDismiss: userProvider.clearAvatarError,
       familyIsLoading: familyProvider.isLoading,
-      familyErrorMessage: familyProvider.error,
+      familyErrorMessage: familyProvider.loadFailure == null
+          ? null
+          : apiFailureMessage(
+              familyProvider.loadFailure!,
+              OmniLocalizations.of(context),
+              fallback: OmniLocalizations.of(context).familyLoadFailed,
+            ),
       onRetryFamily: familyProvider.loadFamilyMembers,
       onPersonalInformationChanged:
           ({
@@ -1543,7 +1583,10 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    bloodGroup.isNotEmpty ? bloodGroup : '-',
+                    BloodType.fromWire(
+                          bloodGroup,
+                        )?.label(OmniLocalizations.of(context)) ??
+                        '-',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 20,
                       fontWeight: FontWeight.w800,
@@ -1690,44 +1733,21 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                   context,
                   MaterialPageRoute(
                     builder: (context) => EditMedicalDataScreen(
-                      bloodType: bloodGroup.isNotEmpty ? bloodGroup : '-',
+                      bloodType: BloodType.fromWire(bloodGroup),
                       chronicConditions: chronicConditions,
                       medications: editMedications,
                       documents: [],
-                      onSave:
-                          (
-                            bloodType,
-                            conditions,
-                            medications,
-                            documents,
-                          ) async {
-                            final medsJson = medications
-                                .map(
-                                  (m) => {
-                                    'medicationId': m.medicationId,
-                                    'name': m.name,
-                                    'dosage': m.dosage,
-                                    'frequency': m.frequency,
-                                  },
-                                )
-                                .toList();
-
-                            await AccountApi(
-                              httpClient: context.read<AppHttpClient>(),
-                            ).patchMedicalPassport(
-                              bloodGroup: bloodType,
-                              medicalInfo: {
-                                'chronicConditions': conditions,
-                                'currentMedications': medsJson,
-                              },
-                            );
-
-                            if (!context.mounted) return;
-                            await Provider.of<UserProvider>(
-                              context,
-                              listen: false,
-                            ).refresh();
-                          },
+                      onSave: (edit) async {
+                        final saved = await saveOwnMedicalEdit(
+                          AccountApi(httpClient: context.read<AppHttpClient>()),
+                          edit,
+                        );
+                        if (!saved || !context.mounted) return;
+                        await Provider.of<UserProvider>(
+                          context,
+                          listen: false,
+                        ).refresh();
+                      },
                     ),
                   ),
                 );
@@ -1889,6 +1909,11 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     );
   }
 
+  /// Hidden (G2-1a-2b): the documents "+" opened an editor filled with
+  /// invented data whose save did nothing. The call site is deleted with the
+  /// Ma Santé fixtures in G2-1c.
+  static const bool _showDemoDocumentEditorEntry = false;
+
   Widget _buildMedicalDocumentsSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1920,52 +1945,47 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                 ],
               ),
             ),
-            IconButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => EditMedicalDataScreen(
-                      bloodType: 'A+',
-                      chronicConditions: ['Diabète Type 2', 'Hypertension'],
-                      medications: [
-                        Medication(
-                          name: 'Metformine',
-                          dosage: '500mg',
-                          frequency: '2x par jour',
-                        ),
-                        Medication(
-                          name: 'Lisinopril',
-                          dosage: '10mg',
-                          frequency: '1x par jour',
-                        ),
-                        Medication(
-                          name: 'Aspirine',
-                          dosage: '81mg',
-                          frequency: '1x par jour',
-                        ),
-                      ],
-                      documents: [],
-                      onSave:
-                          (
-                            bloodType,
-                            conditions,
-                            medications,
-                            documents,
-                          ) async {
-                            setState(() {
-                              // Update profile data here
-                            });
-                          },
+            if (_showDemoDocumentEditorEntry)
+              IconButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => EditMedicalDataScreen(
+                        bloodType: BloodType.aPositive,
+                        chronicConditions: ['Diabète Type 2', 'Hypertension'],
+                        medications: [
+                          Medication(
+                            name: 'Metformine',
+                            dosage: '500mg',
+                            frequency: '2x par jour',
+                          ),
+                          Medication(
+                            name: 'Lisinopril',
+                            dosage: '10mg',
+                            frequency: '1x par jour',
+                          ),
+                          Medication(
+                            name: 'Aspirine',
+                            dosage: '81mg',
+                            frequency: '1x par jour',
+                          ),
+                        ],
+                        documents: [],
+                        onSave: (_) async {
+                          setState(() {
+                            // Update profile data here
+                          });
+                        },
+                      ),
                     ),
-                  ),
-                );
-              },
-              icon: Icon(
-                Icons.add_circle_outline,
-                color: const Color(0xFF1FBF9A),
+                  );
+                },
+                icon: Icon(
+                  Icons.add_circle_outline,
+                  color: const Color(0xFF1FBF9A),
+                ),
               ),
-            ),
           ],
         ),
         const SizedBox(height: 16),

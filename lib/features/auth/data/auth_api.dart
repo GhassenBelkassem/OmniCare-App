@@ -2,10 +2,10 @@ import 'package:dio/dio.dart';
 
 import '../../../core/models/patient_profile.dart';
 import '../../../core/network/api_exception.dart';
+import '../../../core/network/api_failure.dart';
 import '../../../core/network/app_http_client.dart';
 import '../../../core/network/auth_interceptor.dart';
 import '../../../core/network/auth_refresh_coordinator.dart';
-import '../../../core/network/transport_failure.dart';
 import 'models/auth_dtos.dart';
 
 class AuthApi {
@@ -206,89 +206,8 @@ class AuthApi {
       );
     }
 
-    final statusCode = error.response?.statusCode;
-    final data = error.response?.data;
-
-    if (data is Map) {
-      try {
-        final apiError = ApiErrorResponse.fromJson(
-          data.cast<String, dynamic>(),
-        );
-        return ApiException(
-          apiError.message,
-          code: apiError.code,
-          statusCode: statusCode,
-          fieldErrors: apiError.fieldErrors,
-          cause: error,
-        );
-      } catch (_) {
-        return ApiException(
-          'Unexpected server error response.',
-          code: 'MALFORMED_ERROR_RESPONSE',
-          statusCode: statusCode,
-          cause: error,
-        );
-      }
-    }
-
-    final failure = TransportFailure.fromDio(error);
-    final (message, code) = switch (failure.kind) {
-      TransportFailureKind.timeout => (
-        'The authentication request timed out.',
-        'NETWORK_TIMEOUT',
-      ),
-      TransportFailureKind.noConnection => (
-        'Network unavailable.',
-        'NETWORK_UNAVAILABLE',
-      ),
-      TransportFailureKind.dns => (
-        'The authentication service address could not be resolved.',
-        'NETWORK_DNS_FAILURE',
-      ),
-      TransportFailureKind.tls => (
-        'A secure connection to the authentication service could not be established.',
-        'NETWORK_TLS_FAILURE',
-      ),
-      TransportFailureKind.cancelled => (
-        'Network request cancelled.',
-        'NETWORK_REQUEST_CANCELLED',
-      ),
-      TransportFailureKind.rateLimited => (
-        'Too many requests. Please wait and try again.',
-        'RATE_LIMITED',
-      ),
-      TransportFailureKind.serverUnavailable => (
-        'The authentication service is temporarily unavailable.',
-        'SERVER_UNAVAILABLE',
-      ),
-      TransportFailureKind.unauthorized => (
-        'Authentication is required.',
-        'UNAUTHORIZED',
-      ),
-      TransportFailureKind.forbidden => ('Access denied.', 'FORBIDDEN'),
-      TransportFailureKind.conflict => (
-        'The authentication request conflicts with current server state.',
-        'CONFLICT',
-      ),
-      TransportFailureKind.notFound => (
-        'The requested authentication resource was not found.',
-        'NOT_FOUND',
-      ),
-      TransportFailureKind.invalidResponse => (
-        'The authentication service returned an unexpected response.',
-        'MALFORMED_RESPONSE',
-      ),
-      TransportFailureKind.unknown => (
-        'Network request failed.',
-        'NETWORK_REQUEST_FAILED',
-      ),
-    };
-    return ApiException(
-      message,
-      code: code,
-      statusCode: failure.statusCode,
-      retryAfter: failure.retryAfter,
-      cause: error,
-    );
+    // Backend and transport errors are read once, by the single parser: the
+    // code, status, field kinds and retry delay, never the server's text.
+    return ApiException.fromFailure(ApiFailure.fromDio(error), cause: error);
   }
 }

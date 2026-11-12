@@ -3,12 +3,17 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 import '../../core/api/account_api.dart';
-import '../../core/api/api_error_utils.dart';
 import '../../core/api/medications_api.dart' as med_api;
+import '../../core/models/blood_type.dart';
 import '../../core/utils/logger.dart';
 import '../../providers/user_onboarding_provider.dart';
 import '../../providers/user_provider.dart';
 import '../../core/widgets/medication_search_field.dart';
+import 'onboarding_basics_payload.dart';
+import '../../core/l10n/blood_type_label.dart';
+import '../../core/network/api_failure.dart';
+import '../../l10n/omni_localizations.dart';
+import 'onboarding_progress.dart';
 import 'onboarding_complete_screen.dart';
 
 class ConversationalOnboardingScreen extends StatefulWidget {
@@ -33,19 +38,23 @@ class _ConversationalOnboardingScreenState
   int _currentPage = 0;
   bool _saving = false;
   bool _profilePrefillStarted = false;
+
+  /// Saves page by page and knows the server progress (G2-1a-6).
+  late final OnboardingProgressController _progress =
+      OnboardingProgressController(_accountApi);
   DateTime? _selectedDateOfBirth;
   String? _selectedGender;
 
-  final List<String> bloodTypes = [
-    'A+',
-    'A-',
-    'B+',
-    'B-',
-    'AB+',
-    'AB-',
-    'O+',
-    'O-',
-    'IDK',
+  final List<BloodType> bloodTypes = const [
+    BloodType.aPositive,
+    BloodType.aNegative,
+    BloodType.bPositive,
+    BloodType.bNegative,
+    BloodType.abPositive,
+    BloodType.abNegative,
+    BloodType.oPositive,
+    BloodType.oNegative,
+    BloodType.unknown,
   ];
 
   final List<String> availableConditions = [
@@ -91,7 +100,7 @@ class _ConversationalOnboardingScreenState
     if (_profilePrefillStarted) return;
     _profilePrefillStarted = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _prefillBasicProfile();
+      _loadResume();
     });
   }
 
@@ -189,11 +198,15 @@ class _ConversationalOnboardingScreenState
     if (mounted) setState(() {});
   }
 
-  Future<void> _prefillBasicProfile() async {
-    try {
-      final profile = await _accountApi.getPatientProfile();
-      if (!mounted) return;
-      setState(() {
+  /// Pre-fills what the server already has and opens the first page that
+  /// is not saved yet. A failed read keeps the screen as it opens today.
+  Future<void> _loadResume() async {
+    final resume = await _progress.load();
+    if (!mounted) return;
+    final profile = resume.profile;
+    final basics = resume.storedBasics;
+    setState(() {
+      if (profile != null) {
         if (_firstNameController.text.trim().isEmpty) {
           _firstNameController.text = profile.firstName;
         }
@@ -208,61 +221,149 @@ class _ConversationalOnboardingScreenState
             (profile.gender ?? '').trim().isNotEmpty) {
           _selectedGender = profile.gender;
         }
-      });
-    } catch (e, st) {
-      AppLogger.error('Failed to prefill onboarding profile', e, st);
+      }
+      if (basics != null && basics.hasBodyMeasurements) {
+        if (_heightController.text.trim().isEmpty) {
+          _heightController.text = '${basics.heightCm}';
+        }
+        if (_weightController.text.trim().isEmpty) {
+          _weightController.text = _formatWeight(basics.weightKg!);
+        }
+      }
+    });
+    final preselect = bloodTypeToPreselect(_progress.storedBloodType);
+    final provider = context.read<UserOnboardingProvider>();
+    if (preselect != null && provider.bloodGroup == null) {
+      provider.setBloodGroup(preselect.wireValue);
+    }
+    if (_selectedDateOfBirth != null && _selectedGender != null) {
+      _progress.rememberShownValues(_readDraft());
+    }
+    if (resume.page != OnboardingPage.identity && _currentPage == 0) {
+      _pageController.jumpToPage(resume.page);
     }
   }
 
-  void _nextPage() {
-    if (_currentPage == 0 && !_validateBasicProfile(showError: true)) {
-      return;
-    }
-    if (_currentPage == 1 && !_validateBodyMeasurements(showError: true)) {
-      return;
-    }
-    if (_currentPage == 2 && !_validateAllergies(showError: true)) {
-      return;
-    }
-    if (_currentPage < _lastPageIndex) {
-      _pageController.nextPage(
-        duration: const Duration(milliseconds: 400),
-        curve: Curves.easeInOut,
-      );
-    } else {
-      _completeOnboarding();
+  static String _formatWeight(double weightKg) =>
+      weightKg == weightKg.roundToDouble()
+      ? weightKg.toInt().toString()
+      : weightKg.toString();
+
+  /// « Continuer » / last page: saves every unsaved page up to this one,
+  /// then moves on. On failure the page and what was typed stay.
+  Future<void> _nextPage() async {
+    if (_saving) return;
+    final page = _currentPage;
+    if (!_validateThrough(page)) return;
+    final draft = _buildDraft(includeMedications: page == _lastPageIndex);
+    if (draft == null) return;
+
+    setState(() => _saving = true);
+    final outcome = await _progress.saveThrough(page, draft);
+    if (!mounted) return;
+    setState(() => _saving = false);
+
+    switch (outcome) {
+      case OnboardingSaveIgnored():
+        return;
+      case OnboardingSaveFailed(:final error):
+        AppLogger.error(
+          'Failed to save onboarding page $page',
+          ApiFailure.from(error).logSummary,
+        );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              onboardingSaveErrorMessage(error, OmniLocalizations.of(context)),
+            ),
+          ),
+        );
+        return;
+      case OnboardingSaved(:final alreadySavedPageEdited):
+        if (alreadySavedPageEdited) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                OmniLocalizations.of(context).onboardingPageAlreadySaved,
+              ),
+            ),
+          );
+        }
+        if (page < _lastPageIndex) {
+          _pageController.nextPage(
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeInOut,
+          );
+          return;
+        }
+        await _finishOnboarding();
     }
   }
 
-  Future<void> _completeOnboarding() async {
+  /// Validates every page up to [page] (pages can be swiped past).
+  bool _validateThrough(int page) {
+    if (!_validateBasicProfile(showError: true)) return false;
+    if (page >= OnboardingPage.body &&
+        !_validateBodyMeasurements(showError: true)) {
+      return false;
+    }
+    if (page >= OnboardingPage.allergies &&
+        !_validateAllergies(showError: true)) {
+      return false;
+    }
+    return true;
+  }
+
+  /// Reads the screen into a draft (and the onboarding provider, as before).
+  /// Returns null when a medication entry is invalid (message shown).
+  OnboardingDraft? _buildDraft({required bool includeMedications}) {
     final provider = Provider.of<UserOnboardingProvider>(
       context,
       listen: false,
     );
-    final userProvider = context.read<UserProvider>();
-
-    if (!_validateBasicProfile(showError: true)) return;
-    final firstName = _firstNameController.text.trim();
-    final lastName = _lastNameController.text.trim();
-    final dateOfBirth = _selectedDateOfBirth!;
-    final gender = _selectedGender!;
     provider.setBasicProfile(
-      firstName: firstName,
-      lastName: lastName,
-      dateOfBirth: dateOfBirth,
-      gender: gender,
+      firstName: _firstNameController.text.trim(),
+      lastName: _lastNameController.text.trim(),
+      dateOfBirth: _selectedDateOfBirth!,
+      gender: _selectedGender!,
     );
-    if (!_validateBodyMeasurements(showError: true)) return;
-    final heightCm = _heightCm;
-    final weightKg = _weightKg;
-    provider.setBodyMeasurements(heightCm: heightCm, weightKg: weightKg);
+    provider.setBodyMeasurements(heightCm: _heightCm, weightKg: _weightKg);
+    provider.setAllergies(_collectAllergies());
 
-    if (!_validateAllergies(showError: true)) return;
-    final allergies = _collectAllergies();
-    provider.setAllergies(allergies);
+    final medications = <MedicationEntry>[];
+    if (includeMedications) {
+      final collected = _collectMedications();
+      if (collected == null) return null;
+      medications.addAll(collected);
+      provider.medications
+        ..clear()
+        ..addAll(collected);
+    }
+    return _readDraft(medications: medications);
+  }
 
-    provider.medications.clear();
+  /// What the screen shows, without side effects. Needs a birth date and a
+  /// gender (validated or pre-filled before any call).
+  OnboardingDraft _readDraft({List<MedicationEntry> medications = const []}) {
+    final provider = context.read<UserOnboardingProvider>();
+    return OnboardingDraft(
+      firstName: _firstNameController.text.trim(),
+      lastName: _lastNameController.text.trim(),
+      dateOfBirth: _formatDateOnly(_selectedDateOfBirth!),
+      gender: _selectedGender!,
+      chosenBloodType: BloodType.fromWire(provider.bloodGroup),
+      heightCm: _heightCm,
+      weightKg: _weightKg,
+      allergies: _collectAllergies(),
+      conditions: List.of(provider.chronicConditions),
+      medications: medications,
+      today: _formatDateOnly(DateTime.now()),
+    );
+  }
 
+  /// Medication rows, validated as before; null when one is invalid.
+  List<MedicationEntry>? _collectMedications() {
+    final entries = <MedicationEntry>[];
     for (int i = 0; i < _medicationNameControllers.length; i++) {
       final name = _medicationNameControllers[i].text.trim();
       final dosage = _medicationDosageControllers[i].text.trim();
@@ -276,7 +377,7 @@ class _ConversationalOnboardingScreenState
             content: Text('Please select a medication from the list.'),
           ),
         );
-        return;
+        return null;
       }
 
       if (dosage.isEmpty) {
@@ -285,10 +386,10 @@ class _ConversationalOnboardingScreenState
             content: Text('Please enter a dosage for the selected medication.'),
           ),
         );
-        return;
+        return null;
       }
 
-      provider.addMedication(
+      entries.add(
         MedicationEntry(
           medicationId: medId,
           name: name,
@@ -297,88 +398,16 @@ class _ConversationalOnboardingScreenState
         ),
       );
     }
+    return entries;
+  }
 
-    setState(() => _saving = true);
+  Future<void> _finishOnboarding() async {
+    final userProvider = context.read<UserProvider>();
     try {
-      final profile = await _accountApi.getPatientProfile();
-      final currentStep = profile.onboardingCompleted
-          ? 0
-          : profile.onboardingStep;
-
-      if (currentStep != 0 && currentStep <= 1) {
-        await _accountApi.saveOnboardingStep(1, {
-          'firstName': firstName,
-          'lastName': lastName,
-          'dateOfBirth': _formatDateOnly(dateOfBirth),
-          'gender': gender,
-          'bloodType': provider.bloodGroup,
-          'heightCm': heightCm,
-          'weightKg': weightKg,
-        });
-      }
-
-      if (currentStep != 0) {
-        await _accountApi.patchMedicalPassport(
-          bloodGroup: provider.bloodGroup,
-          heightCm: heightCm,
-          weightKg: weightKg,
-        );
-      }
-
-      if (currentStep != 0 && currentStep <= 2) {
-        await _accountApi.saveOnboardingStep(2, {
-          if (allergies.isEmpty) 'noKnownAllergies': true,
-          if (allergies.isNotEmpty)
-            'allergies': allergies.map((a) => a.toJson()).toList(),
-        });
-      }
-
-      if (currentStep != 0 && currentStep <= 3) {
-        final conditions = provider.chronicConditions
-            .where((condition) => condition.trim().isNotEmpty)
-            .map(
-              (condition) => {'name': condition.trim(), 'criticalOptIn': false},
-            )
-            .toList();
-        await _accountApi.saveOnboardingStep(3, {
-          if (conditions.isEmpty) 'noKnownConditions': true,
-          if (conditions.isNotEmpty) 'conditions': conditions,
-        });
-      }
-
-      if (currentStep != 0 && currentStep <= 4) {
-        final medications = provider.medications
-            .where((m) => m.name.trim().isNotEmpty)
-            .map(
-              (m) => {
-                'drugName': m.name.trim(),
-                'dosage': m.dosage.trim().isEmpty ? null : m.dosage.trim(),
-                'frequency': m.frequency.trim().isEmpty
-                    ? null
-                    : m.frequency.trim(),
-                'startDate': _formatDateOnly(DateTime.now()),
-              },
-            )
-            .toList();
-        await _accountApi.saveOnboardingStep(4, {
-          if (medications.isEmpty) 'noKnownMedications': true,
-          if (medications.isNotEmpty) 'medications': medications,
-        });
-      }
-
-      if (!mounted) return;
       await userProvider.refresh();
     } catch (e, st) {
-      AppLogger.error('Failed to save medical passport', e, st);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to save: ${apiErrorMessage(e)}')),
-      );
-      return;
-    } finally {
-      if (mounted) setState(() => _saving = false);
+      AppLogger.error('Failed to refresh profile after onboarding', e, st);
     }
-
     if (!mounted) return;
     Navigator.pushReplacement(
       context,
@@ -933,11 +962,11 @@ class _ConversationalOnboardingScreenState
             itemCount: bloodTypes.length,
             itemBuilder: (context, index) {
               final bloodType = bloodTypes[index];
-              final isSelected = provider.bloodGroup == bloodType;
+              final isSelected = provider.bloodGroup == bloodType.wireValue;
 
               return GestureDetector(
                 onTap: () {
-                  provider.setBloodGroup(bloodType);
+                  provider.setBloodGroup(bloodType.wireValue);
                 },
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
@@ -964,7 +993,8 @@ class _ConversationalOnboardingScreenState
                   ),
                   child: Center(
                     child: Text(
-                      bloodType,
+                      bloodType.label(OmniLocalizations.of(context)),
+                      textAlign: TextAlign.center,
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 18,
                         fontWeight: FontWeight.w700,

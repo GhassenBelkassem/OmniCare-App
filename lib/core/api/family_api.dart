@@ -1,8 +1,9 @@
 import 'package:dio/dio.dart';
 
-import '../../features/auth/data/models/auth_dtos.dart';
+import '../models/blood_type.dart';
 import '../models/family_models.dart';
 import '../network/api_exception.dart';
+import '../network/api_failure.dart';
 import '../network/app_http_client.dart';
 import '../storage/secure_token_store.dart';
 
@@ -97,12 +98,12 @@ class FamilyApi {
 
   Future<void> patchMedicalPassport({
     required String id,
-    String? bloodGroup,
+    required BloodType bloodType,
   }) async {
     try {
       await _httpClient.dio.patch<dynamic>(
         '$_path/${Uri.encodeComponent(id)}/passport',
-        data: {'bloodType': bloodGroup},
+        data: {'bloodType': bloodType.wireValue},
       );
     } on DioException catch (error) {
       throw _mapDioException(error);
@@ -149,35 +150,7 @@ class FamilyApi {
     };
   }
 
-  ApiException _mapDioException(DioException error) {
-    final statusCode = error.response?.statusCode;
-    final data = error.response?.data;
-    if (data is Map) {
-      try {
-        final response = ApiErrorResponse.fromJson(
-          data.cast<String, dynamic>(),
-        );
-        return ApiException(
-          response.message,
-          code: response.code,
-          statusCode: statusCode,
-          fieldErrors: response.fieldErrors,
-          cause: error,
-        );
-      } catch (_) {
-        return ApiException(
-          'Unexpected server error response.',
-          code: 'MALFORMED_ERROR_RESPONSE',
-          statusCode: statusCode,
-          cause: error,
-        );
-      }
-    }
-    return ApiException(
-      'Network request failed.',
-      code: 'NETWORK_REQUEST_FAILED',
-      statusCode: statusCode,
-      cause: error,
-    );
-  }
+  /// One parser for every backend error shape; no server text is kept.
+  ApiException _mapDioException(DioException error) =>
+      ApiException.fromFailure(ApiFailure.fromDio(error), cause: error);
 }

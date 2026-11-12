@@ -568,6 +568,18 @@ ThemeData buildOmniTheme() {
     ),
 
     // ─────────────────────────────────────────────────────
+    // Switch (G3-P1, additive): action-teal track when on, neutral when off.
+    // ─────────────────────────────────────────────────────
+    switchTheme: SwitchThemeData(
+      thumbColor: const WidgetStatePropertyAll(Colors.white),
+      trackColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected)
+            ? OmniColors.primaryAction
+            : OmniColors.borderStrong,
+      ),
+    ),
+
+    // ─────────────────────────────────────────────────────
     // Bottom sheets
     // ─────────────────────────────────────────────────────
     bottomSheetTheme: const BottomSheetThemeData(

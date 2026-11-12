@@ -12,6 +12,7 @@ import 'package:omnicare_mobile/features/emergency/emergency_review_screen.dart'
 import 'package:omnicare_mobile/providers/family_provider.dart';
 import 'package:omnicare_mobile/providers/user_provider.dart';
 import 'package:omnicare_mobile/repositories/family_repository.dart';
+import 'package:omnicare_mobile/core/result/result.dart';
 
 const _locationPayload = <String, dynamic>{
   'type': 'manual',
@@ -47,7 +48,7 @@ class _ReviewFamilyRepository extends FamilyRepository {
   _ReviewFamilyRepository() : super(api: FamilyApi());
 
   @override
-  Future<List<FamilyMember>> getFamilyMembers() async => [
+  Future<Result<List<FamilyMember>>> getFamilyMembers() async => Ok([
     FamilyMember(
       id: 'family-1',
       accountHolderId: 'holder',
@@ -59,7 +60,7 @@ class _ReviewFamilyRepository extends FamilyRepository {
       graduated: false,
       patientId: 'patient-1',
     ),
-  ];
+  ]);
 }
 
 class _ReviewLocationGateway extends EmergencyLocationGateway {

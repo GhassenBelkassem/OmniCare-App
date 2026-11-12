@@ -1,20 +1,17 @@
 import '../core/api/reservations_api.dart';
-import '../mock_data/mock_reservations.dart';
+import '../core/network/api_failure.dart';
 
+/// Legacy reservation requests (not reachable from `main.dart`; deleted in
+/// Phase 1c). Without an API every call fails with
+/// [ApiFailure.featureUnavailable]: there is no mock mode (G-2 1b-3).
 class ReservationRepository {
   ReservationsApi? _api;
 
   ReservationRepository({ReservationsApi? api}) : _api = api;
 
-  void useMock() {
-    _api = null;
-  }
-
   void useApi(ReservationsApi api) {
     _api = api;
   }
-
-  bool get isMock => _api == null;
 
   Future<Map<String, dynamic>> createReservationRequest({
     required String providerId,
@@ -25,7 +22,7 @@ class ReservationRepository {
     String? reason,
     required List<Map<String, dynamic>> intents,
   }) async {
-    if (_api == null) return createMockCreatedReservation();
+    if (_api == null) throw ApiFailure.featureUnavailable;
     return _api!.createReservationRequest(
       providerId: providerId,
       visitType: visitType,
@@ -40,7 +37,7 @@ class ReservationRepository {
   Future<List<Map<String, dynamic>>> listReservationRequests({
     String? status,
   }) async {
-    if (_api == null) return createMockReservationRequests();
+    if (_api == null) throw ApiFailure.featureUnavailable;
     return _api!.listReservationRequests(status: status);
   }
 
@@ -48,7 +45,7 @@ class ReservationRepository {
     required String requestId,
     required List<DateTime> slots,
   }) async {
-    if (_api == null) return {'status': 'ok'};
+    if (_api == null) throw ApiFailure.featureUnavailable;
     return _api!.proposeSlots(requestId: requestId, slots: slots);
   }
 }

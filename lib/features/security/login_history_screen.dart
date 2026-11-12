@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import 'account_security_api.dart';
 import 'account_security_provider.dart';
+import '../../l10n/omni_localizations.dart';
 
 const _teal = Color(0xFF087A65);
 const _ink = Color(0xFF111827);
@@ -59,16 +60,18 @@ class _LoginHistoryScreenState extends State<LoginHistoryScreen> {
                         padding: EdgeInsets.only(top: 18),
                         child: LinearProgressIndicator(color: _teal),
                       ),
-                    if (provider.historyError != null) ...[
+                    if (provider.hasHistoryError) ...[
                       const SizedBox(height: 14),
                       _HistoryError(
-                        message: provider.historyError!,
+                        message: provider.historyErrorMessage(
+                          OmniLocalizations.of(context),
+                        )!,
                         onRetry: _load,
                       ),
                     ],
                     if (!provider.isHistoryLoading &&
                         provider.history.isEmpty &&
-                        provider.historyError == null)
+                        !provider.hasHistoryError)
                       const _EmptyHistory(),
                     if (provider.history.isNotEmpty) ...[
                       const SizedBox(height: 18),

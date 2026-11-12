@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../storage/secure_token_store.dart';
+import 'api_failure.dart';
 import 'auth_refresh_coordinator.dart';
 import 'request_replay_policy.dart';
 
@@ -141,8 +142,7 @@ class AuthRefreshUnavailableException implements Exception {
 }
 
 bool _hasAuthoritativeSessionError(Object? data) {
-  if (data is! Map) return false;
-  final code = (data['code'] ?? data['errorCode'])?.toString();
+  final code = apiErrorCodeOf(data);
   return code == 'AUTH_REFRESH_TOKEN_INVALID' ||
       code == 'AUTH_SESSION_INVALID' ||
       code == 'AUTH_SESSION_EXPIRED';

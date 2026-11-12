@@ -1,5 +1,7 @@
 import 'package:dio/dio.dart';
 
+import 'api_failure.dart';
+
 enum TransportFailureKind {
   timeout,
   noConnection,
@@ -37,7 +39,7 @@ class TransportFailure implements Exception {
 
   factory TransportFailure.fromDio(DioException error) {
     final status = error.response?.statusCode;
-    final problemCode = _problemCode(error.response?.data);
+    final problemCode = apiErrorCodeOf(error.response?.data);
     final retryAfter = _retryAfter(error.response);
 
     final kind = switch (error.type) {
@@ -94,14 +96,6 @@ TransportFailureKind _connectionKind(Object? cause) {
     return TransportFailureKind.dns;
   }
   return TransportFailureKind.noConnection;
-}
-
-String? _problemCode(Object? data) {
-  if (data is! Map) return null;
-  final value = data['code'] ?? data['errorCode'];
-  if (value is! String) return null;
-  final normalized = value.trim();
-  return normalized.isEmpty ? null : normalized;
 }
 
 Duration? _retryAfter(Response<dynamic>? response) {

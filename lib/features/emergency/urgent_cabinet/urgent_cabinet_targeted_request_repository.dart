@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/network/api_failure.dart';
 import '../../../core/network/app_http_client.dart';
 import '../../../core/network/request_replay_policy.dart';
 import '../../../core/utils/uuid_v4.dart';
@@ -81,8 +82,10 @@ class UrgentCabinetPatientRequestFailure implements Exception {
         message: 'Opération CABINET annulée localement.',
       );
     }
-    final status = error.response?.statusCode;
-    final code = _problemCode(error.response?.data);
+    // Backend errors are read once, by [ApiFailure.fromDio].
+    final api = ApiFailure.fromDio(error);
+    final status = api.statusCode;
+    final code = api.code;
     if (status == 401 || status == 403) {
       return UrgentCabinetPatientRequestFailure(
         kind: UrgentCabinetPatientRequestFailureKind.sessionRejected,
@@ -489,14 +492,26 @@ class AppUrgentCabinetTargetedRequestRepository
     }
   }
 
+  /// Parses a snapshot. A snapshot with a lifecycle value this app version
+  /// does not know parses fine, but is reported as [unrecognizedSnapshot] so
+  /// every screen shows its existing « indisponible » state, never a guess.
   static UrgentCabinetTargetedRequestSnapshot _parse(Object? value) {
     if (value is! Map) {
       throw const FormatException('Expected an urgent CABINET response.');
     }
-    return UrgentCabinetTargetedRequestSnapshot.fromJson(
+    final snapshot = UrgentCabinetTargetedRequestSnapshot.fromJson(
       value.cast<String, dynamic>(),
     );
+    if (!snapshot.isRecognized) throw unrecognizedSnapshot;
+    return snapshot;
   }
+
+  /// Same outcome as an unparseable response: the request is shown as
+  /// « indisponible ».
+  static const unrecognizedSnapshot = UrgentCabinetPatientRequestFailure(
+    kind: UrgentCabinetPatientRequestFailureKind.invalidResponse,
+    message: 'Réponse CABINET incompatible avec cette application.',
+  );
 
   static bool _matchesSubmission(
     UrgentCabinetTargetedRequestSnapshot snapshot,
@@ -541,10 +556,4 @@ String _requireUuid(String value, String field) {
     );
   }
   return normalized;
-}
-
-String? _problemCode(Object? data) {
-  if (data is! Map) return null;
-  final value = data['code'];
-  return value is String && value.trim().isNotEmpty ? value.trim() : null;
 }

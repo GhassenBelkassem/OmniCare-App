@@ -27,6 +27,7 @@ import 'package:omnicare_mobile/features/scheduled_care/data/scheduled_care_repo
 import 'package:omnicare_mobile/features/scheduled_care/domain/scheduled_care_models.dart';
 import 'package:omnicare_mobile/providers/family_provider.dart';
 import 'package:omnicare_mobile/repositories/family_repository.dart';
+import 'package:omnicare_mobile/core/result/result.dart';
 
 class _FakeFamilyRepository extends FamilyRepository {
   _FakeFamilyRepository({this.members = const []}) : super(api: _stubApi);
@@ -34,7 +35,7 @@ class _FakeFamilyRepository extends FamilyRepository {
   final List<FamilyMember> members;
 
   @override
-  Future<List<FamilyMember>> getFamilyMembers() async => members;
+  Future<Result<List<FamilyMember>>> getFamilyMembers() async => Ok(members);
 }
 
 class _FakeRequestRepository implements RequestRepository {

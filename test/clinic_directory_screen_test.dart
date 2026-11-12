@@ -19,6 +19,7 @@ import 'package:omnicare_mobile/features/request_core/data/request_repository.da
 import 'package:omnicare_mobile/features/request_core/domain/clinic_request_intent.dart';
 import 'package:omnicare_mobile/features/request_core/domain/request_vocabulary.dart';
 import 'package:omnicare_mobile/features/request_core/identity/request_operation_id.dart';
+import 'package:omnicare_mobile/l10n/omni_localizations.dart';
 
 const _cardiologyId = 'clinic-cardiology-001';
 const _rehabId = 'clinic-rehab-001';
@@ -201,6 +202,8 @@ Future<void> _pumpWrapped(
         ),
       ],
       child: MaterialApp(
+        localizationsDelegates: OmniLocalizations.localizationsDelegates,
+        supportedLocales: OmniLocalizations.supportedLocales,
         theme: buildOmniTheme(),
         routes: {
           '/m05/situation': (context) =>
@@ -910,7 +913,7 @@ void main() {
       );
 
       expect(
-        find.text('Connection unavailable. Check your network and try again.'),
+        find.text('Connexion impossible. Vérifiez votre connexion et réessayez.'),
         findsOneWidget,
       );
       expect(find.text('Try again'), findsOneWidget);

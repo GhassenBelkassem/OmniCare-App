@@ -8,6 +8,7 @@ import 'doctor_filter_model.dart';
 import 'widgets/doctor_card.dart';
 import 'widgets/doctor_filter_sheet.dart';
 import 'widgets/doctor_search_field.dart';
+import '../../../l10n/omni_localizations.dart';
 
 /// Patient doctor directory: static mock doctors, search, and local presentation
 /// filters.
@@ -292,7 +293,7 @@ class _DirectoryBody extends StatelessWidget {
     if (status == DoctorDirectoryStatus.error) {
       return _DirectoryErrorState(
         message:
-            directory.error?.message ??
+            directory.error?.patientMessage(OmniLocalizations.of(context)) ??
             'Le répertoire des médecins est momentanément indisponible.',
         onRetry: () => directory.loadFirst(),
       );

@@ -16,6 +16,7 @@ import 'package:omnicare_mobile/features/request_core/data/request_repository.da
 import 'package:omnicare_mobile/features/request_core/domain/clinic_request_intent.dart';
 import 'package:omnicare_mobile/features/request_core/domain/request_vocabulary.dart';
 import 'package:omnicare_mobile/features/request_core/identity/request_operation_id.dart';
+import 'package:omnicare_mobile/l10n/omni_localizations.dart';
 
 const _clinicId = 'clinic-cardiology-001';
 
@@ -148,6 +149,8 @@ Future<RequestSubmissionController> _pumpDetail(
         ),
       ],
       child: MaterialApp(
+        localizationsDelegates: OmniLocalizations.localizationsDelegates,
+        supportedLocales: OmniLocalizations.supportedLocales,
         theme: buildOmniTheme(),
         home: ClinicDetailScreen(clinicId: _clinicId),
       ),
@@ -183,6 +186,8 @@ void main() {
             ),
           ],
           child: MaterialApp(
+            localizationsDelegates: OmniLocalizations.localizationsDelegates,
+            supportedLocales: OmniLocalizations.supportedLocales,
             theme: buildOmniTheme(),
             home: const ClinicDetailScreen(clinicId: _clinicId),
           ),
@@ -458,7 +463,7 @@ void main() {
       );
       expect(
         find.text(
-          'The clinic directory is temporarily unavailable. Please try again.',
+          'L’annuaire des cliniques est momentanément indisponible. Réessayez.',
         ),
         findsOneWidget,
       );
@@ -484,6 +489,8 @@ void main() {
             ),
           ],
           child: MaterialApp(
+            localizationsDelegates: OmniLocalizations.localizationsDelegates,
+            supportedLocales: OmniLocalizations.supportedLocales,
             theme: buildOmniTheme(),
             home: const ClinicDetailScreen(clinicId: _clinicId),
           ),
@@ -519,6 +526,8 @@ void main() {
             ),
           ],
           child: MaterialApp(
+            localizationsDelegates: OmniLocalizations.localizationsDelegates,
+            supportedLocales: OmniLocalizations.supportedLocales,
             theme: buildOmniTheme(),
             home: const ClinicDetailScreen(clinicId: _clinicId),
           ),

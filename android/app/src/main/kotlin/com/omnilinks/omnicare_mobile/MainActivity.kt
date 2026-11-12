@@ -1,5 +1,6 @@
 package com.omnilinks.omnicare_mobile
 
+import android.view.WindowManager
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -15,6 +16,7 @@ class MainActivity : FlutterFragmentActivity() {
     private companion object {
         const val CHANNEL = "omnicare/emergency_places"
         const val MAPS_CONFIGURATION_CHANNEL = "omnicare/maps_configuration"
+        const val SECURE_SCREEN_CHANNEL = "omnicare/secure_screen"
         const val API_KEY_META_DATA = "com.google.android.geo.API_KEY"
     }
 
@@ -38,6 +40,23 @@ class MainActivity : FlutterFragmentActivity() {
                         predictionsCancellation?.cancel()
                         predictionsCancellation = null
                         sessionToken = null
+                        result.success(null)
+                    }
+
+                    else -> result.notImplemented()
+                }
+            }
+        // G-2 FT-3: FLAG_SECURE while the « Dossier médical » is shown.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SECURE_SCREEN_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "enable" -> {
+                        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                        result.success(null)
+                    }
+
+                    "disable" -> {
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
                         result.success(null)
                     }
 

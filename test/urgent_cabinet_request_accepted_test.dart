@@ -25,6 +25,7 @@ import 'package:omnicare_mobile/features/emergency/emergency_request_step2.dart'
 import 'package:omnicare_mobile/providers/family_provider.dart';
 import 'package:omnicare_mobile/providers/user_provider.dart';
 import 'package:omnicare_mobile/repositories/family_repository.dart';
+import 'package:omnicare_mobile/core/result/result.dart';
 
 const bool _compileTimePatientDecisionControlsEnabled = bool.fromEnvironment(
   'P4_PATIENT_DECISION_CONTROLS',
@@ -35,7 +36,7 @@ class _EmptyFamilyRepository extends FamilyRepository {
   _EmptyFamilyRepository() : super(api: FamilyApi());
 
   @override
-  Future<List<FamilyMember>> getFamilyMembers() async => const [];
+  Future<Result<List<FamilyMember>>> getFamilyMembers() async => Ok(const []);
 }
 
 class _ControlledRequestSource extends UrgentCabinetRequestSource {

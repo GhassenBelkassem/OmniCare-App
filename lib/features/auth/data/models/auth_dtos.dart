@@ -46,31 +46,6 @@ enum EmailPasswordLoginStatus {
   }
 }
 
-class ApiErrorResponse {
-  final String code;
-  final String message;
-  final DateTime? timestamp;
-  final Map<String, String> fieldErrors;
-
-  const ApiErrorResponse({
-    required this.code,
-    required this.message,
-    this.timestamp,
-    this.fieldErrors = const {},
-  });
-
-  factory ApiErrorResponse.fromJson(Map<String, dynamic> json) {
-    final code = _requiredString(json, 'code');
-    final message = _requiredString(json, 'message');
-    return ApiErrorResponse(
-      code: code,
-      message: message,
-      timestamp: _optionalDateTime(json['timestamp']),
-      fieldErrors: _stringMap(json['fieldErrors']),
-    );
-  }
-}
-
 class AuthUserDto {
   final String id;
   final String role;
@@ -518,15 +493,4 @@ DateTime _requiredUtcDateTime(Map<String, dynamic> json, String key) {
     throw FormatException('Invalid ISO timestamp field "$key".');
   }
   return value.toUtc();
-}
-
-DateTime? _optionalDateTime(Object? value) {
-  if (value == null) return null;
-  final parsed = DateTime.tryParse(value.toString());
-  return parsed?.toUtc();
-}
-
-Map<String, String> _stringMap(Object? value) {
-  if (value is! Map) return const {};
-  return value.map((key, item) => MapEntry(key.toString(), item.toString()));
 }

@@ -13,7 +13,7 @@ import 'urgent_cabinet_care_subject_screen.dart';
 import 'urgent_cabinet_clinical_intake_screen.dart';
 import 'urgent_cabinet_doctor_detail_screen.dart';
 import 'urgent_cabinet_doctor_directory_screen.dart';
-import 'urgent_cabinet_doctor_fixture.dart';
+import 'urgent_cabinet_doctor_source.dart';
 import 'urgent_cabinet_flow_controller.dart';
 import 'urgent_cabinet_flow_routes.dart';
 import 'urgent_cabinet_request_confirmation_screen.dart';
@@ -200,7 +200,7 @@ class _UrgentCabinetFlowNavigatorState
         _familyLoadObserved &&
         subjectToValidate?.isSelf == false &&
         !family.isLoading &&
-        family.error == null &&
+        family.loadFailure == null &&
         !family.members.any(
           (member) => member.id == subjectToValidate?.familyMemberId,
         )) {
@@ -225,7 +225,7 @@ class _UrgentCabinetFlowNavigatorState
         _familyLoadObserved &&
         authoritativeSubject?.isSelf == false &&
         !family.isLoading &&
-        family.error == null &&
+        family.loadFailure == null &&
         family.members.any(
           (member) => member.id == authoritativeSubject?.familyMemberId,
         )) {
@@ -347,7 +347,9 @@ class _UrgentCabinetFlowNavigatorState
           UrgentCabinetFlowRoutes.requestAccepted,
         UrgentCabinetPatientResponseStatus.declined ||
         UrgentCabinetPatientResponseStatus.cancelled ||
-        UrgentCabinetPatientResponseStatus.expired =>
+        UrgentCabinetPatientResponseStatus.expired ||
+        // Unreachable: the repository rejects unrecognized snapshots.
+        UrgentCabinetPatientResponseStatus.unknown =>
           UrgentCabinetFlowRoutes.requestRecovery,
       };
       _navigatorKey.currentState?.pushNamedAndRemoveUntil<void>(

@@ -87,6 +87,10 @@ enum PatientRequestStatus {
   declined('DECLINED'),
   cancelled('CANCELLED'),
 
+  /// The clinic recorded that the patient did not come to a confirmed
+  /// appointment (`AppointmentRequest.recordNoShow`). Final.
+  noShow('NO_SHOW'),
+
   /// A status introduced after this app version shipped.
   unknown('UNKNOWN');
 
@@ -99,7 +103,10 @@ enum PatientRequestStatus {
   /// [unknown] is deliberately *not* terminal: guessing that an unrecognised
   /// state is final would hide a live request from the patient.
   bool get isTerminal =>
-      this == completed || this == declined || this == cancelled;
+      this == completed ||
+      this == declined ||
+      this == cancelled ||
+      this == noShow;
 
   static PatientRequestStatus parse(String? value) => _parseOrUnknown(
     value,
@@ -171,7 +178,14 @@ enum PickupLocationSource {
 /// server advertises, and the server re-checks the rule on the command anyway.
 enum PatientRequestAction {
   cancel('CANCEL'),
-  provideInformation('PROVIDE_INFORMATION');
+  provideInformation('PROVIDE_INFORMATION'),
+
+  /// Parsed so no data is lost; no UI answers a schedule proposal yet
+  /// (G-2 C11, design gap).
+  acceptScheduleProposal('ACCEPT_SCHEDULE_PROPOSAL'),
+
+  /// Parsed only, like [acceptScheduleProposal].
+  rejectScheduleProposal('REJECT_SCHEDULE_PROPOSAL');
 
   const PatientRequestAction(this.wireValue);
 
@@ -187,6 +201,45 @@ enum PatientRequestAction {
     }
     return null;
   }
+}
+
+/// Kind of a clinic schedule proposal (backend `ClinicScheduleChangeType`).
+enum ScheduleProposalChangeType {
+  initialProposal('INITIAL_PROPOSAL'),
+  reschedule('RESCHEDULE'),
+  unknown('UNKNOWN');
+
+  const ScheduleProposalChangeType(this.wireValue);
+  final String wireValue;
+
+  static ScheduleProposalChangeType parse(String? value) => _parseOrUnknown(
+    value,
+    ScheduleProposalChangeType.values,
+    (type) => type.wireValue,
+    ScheduleProposalChangeType.unknown,
+  );
+}
+
+/// State of a clinic schedule revision (backend
+/// `ClinicScheduleRevisionStatus`).
+enum ScheduleProposalStatus {
+  proposed('PROPOSED'),
+  confirmed('CONFIRMED'),
+  rejected('REJECTED'),
+  withdrawn('WITHDRAWN'),
+  expired('EXPIRED'),
+  superseded('SUPERSEDED'),
+  unknown('UNKNOWN');
+
+  const ScheduleProposalStatus(this.wireValue);
+  final String wireValue;
+
+  static ScheduleProposalStatus parse(String? value) => _parseOrUnknown(
+    value,
+    ScheduleProposalStatus.values,
+    (status) => status.wireValue,
+    ScheduleProposalStatus.unknown,
+  );
 }
 
 /// Who a request is for.
@@ -247,6 +300,7 @@ enum InformationResponseType {
   confirmation('CONFIRMATION'),
   contactPreference('CONTACT_PREFERENCE'),
   availabilityWindows('AVAILABILITY_WINDOWS'),
+
   /// Legacy parse-only value; never submitted by the P2.5-A renderer.
   weekdayAvailability('WEEKDAY_AVAILABILITY'),
   identityConfirmation('IDENTITY_CONFIRMATION'),

@@ -33,7 +33,9 @@ class PassportMedication {
     this.stoppedLabel,
   });
 
-  String get instruction => '$dosage · $frequency';
+  /// Dosage and frequency, skipping a part the prescription does not give.
+  String get instruction =>
+      [dosage, frequency].where((part) => part.isNotEmpty).join(' · ');
 }
 
 @immutable
@@ -121,8 +123,10 @@ class PatientPassportViewData {
   final List<PassportMedication> medications;
   final List<PassportConsultation> consultations;
   final List<PassportFamilyMember> familyMembers;
-  final double heightCm;
-  final double weightKg;
+
+  /// Null when the record holds no measurement: never a default value.
+  final double? heightCm;
+  final double? weightKg;
 
   const PatientPassportViewData({
     required this.name,
@@ -136,9 +140,25 @@ class PatientPassportViewData {
     required this.medications,
     required this.consultations,
     required this.familyMembers,
-    this.heightCm = 180,
-    this.weightKg = 78,
+    this.heightCm,
+    this.weightKg,
   });
+
+  /// Identity only (header and identity card): no medical value at all.
+  const PatientPassportViewData.identity({
+    required this.name,
+    required this.relationship,
+    required this.phone,
+    required this.email,
+    required this.omniCareId,
+  }) : bloodGroup = '',
+       allergies = '',
+       chronicConditions = const [],
+       medications = const [],
+       consultations = const [],
+       familyMembers = const [],
+       heightCm = null,
+       weightKg = null;
 
   PatientPassportViewData copyWith({
     String? name,

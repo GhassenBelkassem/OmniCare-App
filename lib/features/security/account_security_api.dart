@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../core/network/api_exception.dart';
+import '../../core/network/api_failure.dart';
 import '../../core/network/app_http_client.dart';
 
 class AccountSecuritySnapshot {
@@ -363,29 +364,8 @@ class AccountSecurityApi {
     try {
       return (await action()).data;
     } on DioException catch (error) {
-      final data = error.response?.data;
-      if (data is Map) {
-        final json = data.cast<String, dynamic>();
-        final fields = <String, String>{};
-        if (json['fieldErrors'] is Map) {
-          (json['fieldErrors'] as Map).forEach((key, value) {
-            fields[key.toString()] = value.toString();
-          });
-        }
-        throw ApiException(
-          json['message']?.toString() ?? 'La requête a échoué.',
-          code: json['code']?.toString(),
-          statusCode: error.response?.statusCode,
-          fieldErrors: fields,
-          cause: error,
-        );
-      }
-      throw ApiException(
-        'Impossible de contacter le serveur.',
-        code: 'NETWORK_REQUEST_FAILED',
-        statusCode: error.response?.statusCode,
-        cause: error,
-      );
+      // One parser for every backend error shape; no server text is kept.
+      throw ApiException.fromFailure(ApiFailure.fromDio(error), cause: error);
     } on FormatException catch (error) {
       throw ApiException(
         'Réponse du serveur invalide.',

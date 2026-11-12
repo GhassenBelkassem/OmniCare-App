@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/user_onboarding_provider.dart';
-import '../../l10n/app_localizations.dart';
+import '../../l10n/omni_localizations.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -15,12 +15,12 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   String? selectedSpecialty;
   List<String> get specialties => [
-    AppLocalizations.of(context)?.allSpecialties ?? 'All Specialties',
-    AppLocalizations.of(context)?.generalMedicine ?? 'General Medicine',
-    AppLocalizations.of(context)?.cardiology ?? 'Cardiology',
-    AppLocalizations.of(context)?.pediatrics ?? 'Pediatrics',
-    AppLocalizations.of(context)?.dermatology ?? 'Dermatology',
-    AppLocalizations.of(context)?.orthopedics ?? 'Orthopedics',
+    OmniLocalizations.of(context).allSpecialties,
+    OmniLocalizations.of(context).generalMedicine,
+    OmniLocalizations.of(context).cardiology,
+    OmniLocalizations.of(context).pediatrics,
+    OmniLocalizations.of(context).dermatology,
+    OmniLocalizations.of(context).orthopedics,
   ];
 
   List<Map<String, dynamic>> get filteredDoctors {
@@ -29,7 +29,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
+    final l10n = OmniLocalizations.of(context);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F5F7),
@@ -65,7 +65,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildFloatingHeader(BuildContext context, AppLocalizations? l10n) {
+  Widget _buildFloatingHeader(BuildContext context, OmniLocalizations l10n) {
     final provider = Provider.of<UserOnboardingProvider>(context);
     final currentLanguage = provider.language ?? 'en';
 
@@ -378,7 +378,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildHeroSection(BuildContext context, AppLocalizations? l10n) {
+  Widget _buildHeroSection(BuildContext context, OmniLocalizations l10n) {
     final screenHeight = MediaQuery.of(context).size.height;
 
     return Container(
@@ -403,7 +403,7 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               const SizedBox(height: 60),
               Text(
-                l10n?.medicalCareOnDemand ?? 'Medical Care On Demand',
+                l10n.medicalCareOnDemand,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 32,
@@ -414,8 +414,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 16),
               Text(
-                l10n?.heroSubtitle ??
-                    'Connect with verified doctors in Tunisia. Get urgent medical assistance anytime, anywhere.',
+                l10n.heroSubtitle,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 16,
@@ -431,20 +430,20 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   _buildCTAButton(
                     icon: Icons.medical_services,
-                    label: l10n?.requestUrgentDoctor ?? 'Request Urgent Doctor',
+                    label: l10n.requestUrgentDoctor,
                     color: const Color(0xFF1FBF9A),
                     onTap: () {},
                   ),
                   _buildCTAButton(
                     icon: Icons.video_call,
-                    label: l10n?.talkPsychologist ?? 'Talk to Psychologist',
+                    label: l10n.talkPsychologist,
                     color: const Color(0xFF1FBF9A),
                     outlined: true,
                     onTap: () {},
                   ),
                   _buildCTAButton(
                     icon: Icons.local_hospital,
-                    label: l10n?.callAmbulance ?? 'Call Ambulance',
+                    label: l10n.callAmbulance,
                     color: const Color(0xFFDC2626),
                     onTap: () {},
                   ),
@@ -489,7 +488,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildSearchFilter(BuildContext context, AppLocalizations? l10n) {
+  Widget _buildSearchFilter(BuildContext context, OmniLocalizations l10n) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
@@ -510,7 +509,7 @@ class _HomeScreenState extends State<HomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              l10n?.findDoctor ?? 'Find a Doctor',
+              l10n.findDoctor,
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
@@ -520,7 +519,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 16),
             TextField(
               decoration: InputDecoration(
-                hintText: l10n?.searchDoctors ?? 'Search doctors...',
+                hintText: l10n.searchDoctors,
                 hintStyle: GoogleFonts.plusJakartaSans(
                   color: const Color(0xFF9CA3AF),
                 ),
@@ -587,12 +586,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildDoctorGrid(BuildContext context, AppLocalizations? l10n) {
+  Widget _buildDoctorGrid(BuildContext context, OmniLocalizations l10n) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '${l10n?.availableDoctors ?? "Available Doctors"} (${filteredDoctors.length})',
+          '${l10n.availableDoctors} (${filteredDoctors.length})',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 20,
             fontWeight: FontWeight.bold,
@@ -622,18 +621,18 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   String _translateSpecialty(String specialty) {
-    final l10n = AppLocalizations.of(context);
+    final l10n = OmniLocalizations.of(context);
     switch (specialty) {
       case 'General Medicine':
-        return l10n?.generalMedicine ?? specialty;
+        return l10n.generalMedicine;
       case 'Cardiology':
-        return l10n?.cardiology ?? specialty;
+        return l10n.cardiology;
       case 'Pediatrics':
-        return l10n?.pediatrics ?? specialty;
+        return l10n.pediatrics;
       case 'Dermatology':
-        return l10n?.dermatology ?? specialty;
+        return l10n.dermatology;
       case 'Orthopedics':
-        return l10n?.orthopedics ?? specialty;
+        return l10n.orthopedics;
       default:
         return specialty;
     }
@@ -755,7 +754,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  '${doctor['experience']} ${AppLocalizations.of(context)?.yearsExperience ?? 'years experience'}',
+                  '${doctor['experience']} ${OmniLocalizations.of(context).yearsExperience}',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 11,
                     color: const Color(0xFF667085),
@@ -778,8 +777,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     child: Text(
-                      AppLocalizations.of(context)?.requestVisit ??
-                          'Request Visit',
+                      OmniLocalizations.of(context).requestVisit,
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -795,7 +793,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildSidebar(BuildContext context, AppLocalizations? l10n) {
+  Widget _buildSidebar(BuildContext context, OmniLocalizations l10n) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
@@ -808,7 +806,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildMedicalPassportWidget(AppLocalizations? l10n) {
+  Widget _buildMedicalPassportWidget(OmniLocalizations l10n) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -843,7 +841,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(width: 12),
               Text(
-                l10n?.medicalPassport ?? 'Medical Passport',
+                l10n.medicalPassport,
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
@@ -854,8 +852,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            l10n?.medicalPassportDesc ??
-                'Your complete medical history in one place',
+            l10n.medicalPassportDesc,
             style: GoogleFonts.plusJakartaSans(
               fontSize: 14,
               color: const Color(0xFF667085),
@@ -918,7 +915,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    l10n?.viewFullHistory ?? 'View Full History',
+                    l10n.viewFullHistory,
                     style: GoogleFonts.plusJakartaSans(
                       fontWeight: FontWeight.w500,
                     ),
@@ -934,7 +931,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildPharmacyWidget(AppLocalizations? l10n) {
+  Widget _buildPharmacyWidget(OmniLocalizations l10n) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -969,7 +966,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(width: 12),
               Text(
-                l10n?.pharmacieDeGarde ?? 'Pharmacie de Garde',
+                l10n.pharmacieDeGarde,
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
@@ -994,7 +991,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  l10n?.open247Today ?? 'Open 24/7 - Today',
+                  l10n.open247Today,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 12,
                     color: const Color(0xFF667085),
@@ -1005,21 +1002,21 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 16),
           _buildPharmacyItem(
-            l10n?.pharmacieCentrale ?? 'Pharmacie Centrale',
-            l10n?.tunisCenter ?? 'Tunis Center',
-            '0.8 ${l10n?.kmAway ?? 'km'}',
+            l10n.pharmacieCentrale,
+            l10n.tunisCenter,
+            '0.8 ${l10n.kmAway}',
           ),
           const Divider(height: 24),
           _buildPharmacyItem(
-            l10n?.pharmacieDuLac ?? 'Pharmacie du Lac',
-            l10n?.lac2 ?? 'Lac 2',
-            '2.1 ${l10n?.kmAway ?? 'km'}',
+            l10n.pharmacieDuLac,
+            l10n.lac2,
+            '2.1 ${l10n.kmAway}',
           ),
           const Divider(height: 24),
           _buildPharmacyItem(
-            l10n?.pharmacieBenArous ?? 'Pharmacie Ben Arous',
-            l10n?.benArous ?? 'Ben Arous',
-            '3.5 ${l10n?.kmAway ?? 'km'}',
+            l10n.pharmacieBenArous,
+            l10n.benArous,
+            '3.5 ${l10n.kmAway}',
           ),
           const SizedBox(height: 16),
           SizedBox(
@@ -1038,7 +1035,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    l10n?.viewOnMap ?? 'View on Map',
+                    l10n.viewOnMap,
                     style: GoogleFonts.plusJakartaSans(
                       fontWeight: FontWeight.w500,
                     ),

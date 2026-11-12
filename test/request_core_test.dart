@@ -289,12 +289,18 @@ void main() {
           'COMPLETED',
           'DECLINED',
           'CANCELLED',
+          'NO_SHOW',
         ]),
       );
 
       expect(
         PatientRequestAction.values.map((action) => action.wireValue).toList(),
-        equals(['CANCEL', 'PROVIDE_INFORMATION']),
+        equals([
+          'CANCEL',
+          'PROVIDE_INFORMATION',
+          'ACCEPT_SCHEDULE_PROPOSAL',
+          'REJECT_SCHEDULE_PROPOSAL',
+        ]),
       );
       expect(RequestSubjectType.self.wireValue, 'SELF');
       expect(RequestSubjectType.familyMember.wireValue, 'FAMILY_MEMBER');
@@ -306,6 +312,7 @@ void main() {
       expect(PatientRequestStatus.completed.isTerminal, isTrue);
       expect(PatientRequestStatus.declined.isTerminal, isTrue);
       expect(PatientRequestStatus.cancelled.isTerminal, isTrue);
+      expect(PatientRequestStatus.noShow.isTerminal, isTrue);
       expect(PatientRequestStatus.confirmed.isTerminal, isFalse);
       // An unrecognised status must not be assumed final: that would hide a
       // live request from the patient.

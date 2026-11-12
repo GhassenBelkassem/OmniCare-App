@@ -5,12 +5,17 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:omnicare_mobile/core/api/family_api.dart';
+import 'package:omnicare_mobile/core/models/blood_type.dart';
 import 'package:omnicare_mobile/core/models/family_models.dart' as family_core;
 import 'package:omnicare_mobile/core/network/api_exception.dart';
 import 'package:omnicare_mobile/core/network/app_http_client.dart';
 import 'package:omnicare_mobile/core/storage/secure_token_store.dart';
 import 'package:omnicare_mobile/features/home/family_member_detail_screen.dart';
 import 'package:omnicare_mobile/features/home/qr_code_modal.dart';
+import 'package:omnicare_mobile/features/patient_passport/application/medical_record_view_model.dart';
+import 'package:omnicare_mobile/features/patient_passport/data/medical_record_api.dart';
+import 'package:omnicare_mobile/features/patient_passport/data/medical_record_models.dart';
+import 'package:omnicare_mobile/features/patient_passport/data/medical_record_repository.dart';
 import 'package:omnicare_mobile/features/patient_passport/presentation/patient_passport_screen.dart';
 import 'package:omnicare_mobile/features/patient_passport/sharing/medical_share_qr.dart';
 import 'package:omnicare_mobile/features/patient_passport/sharing/medical_share_qr_api.dart';
@@ -20,6 +25,8 @@ import 'package:omnicare_mobile/providers/family_provider.dart';
 import 'package:omnicare_mobile/repositories/family_repository.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:omnicare_mobile/l10n/omni_localizations.dart';
+import 'package:omnicare_mobile/core/result/result.dart';
 
 void main() {
   const familyId = '11111111-1111-4111-8111-111111111111';
@@ -336,7 +343,7 @@ void main() {
       age: 12,
       relationship: 'Fils',
       avatar: '',
-      bloodType: 'O+',
+      bloodType: BloodType.oPositive,
       chronicConditions: const [],
       currentMedications: const [],
       documents: const [],
@@ -347,7 +354,11 @@ void main() {
     await tester.pumpWidget(
       ChangeNotifierProvider.value(
         value: controller,
-        child: MaterialApp(home: FamilyMemberDetailScreen(member: member)),
+        child: MaterialApp(
+          localizationsDelegates: OmniLocalizations.localizationsDelegates,
+          supportedLocales: OmniLocalizations.supportedLocales,
+          home: FamilyMemberDetailScreen(member: member),
+        ),
       ),
     );
     await tester.tap(find.text('Cliquez pour afficher'));
@@ -373,9 +384,16 @@ void main() {
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
       await tester.pumpWidget(
-        ChangeNotifierProvider.value(
-          value: controller,
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider.value(value: controller),
+            // G2.1-S1: the record is always live; an empty one keeps the
+            // cards out of their loading state.
+            ChangeNotifierProvider(create: (_) => _emptyMedicalRecord()),
+          ],
           child: const MaterialApp(
+            localizationsDelegates: OmniLocalizations.localizationsDelegates,
+            supportedLocales: OmniLocalizations.supportedLocales,
             home: Scaffold(body: PatientPassportScreen()),
           ),
         ),
@@ -423,14 +441,21 @@ void main() {
         providers: [
           ChangeNotifierProvider.value(value: controller),
           ChangeNotifierProvider.value(value: familyProvider),
+          ChangeNotifierProvider(create: (_) => _emptyMedicalRecord()),
         ],
-        child: const MaterialApp(home: Scaffold(body: PatientPassportScreen())),
+        child: const MaterialApp(
+          localizationsDelegates: OmniLocalizations.localizationsDelegates,
+          supportedLocales: OmniLocalizations.supportedLocales,
+          home: Scaffold(body: PatientPassportScreen()),
+        ),
       ),
     );
     await tester.pump();
     expect(api.subjects, isEmpty);
 
-    await tester.tap(find.text('Sarah Ben Ahmed').first);
+    // G2-1b-3b: the header shows the real holder (no fixture); open the
+    // family selector from its arrow.
+    await tester.tap(find.byIcon(Icons.keyboard_arrow_down_rounded).first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Amine Ben Ahmed'));
     await tester.pumpAndSettle();
@@ -453,6 +478,25 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('medical-share-qr-close')));
     await tester.pumpAndSettle();
   });
+}
+
+/// An empty « Dossier médical » answered at once (G2.1-S1: the passport
+/// screen always reads the record; these tests only exercise the QR).
+MedicalRecordViewModel _emptyMedicalRecord() => MedicalRecordViewModel(
+  repository: MedicalRecordRepository(_EmptyMedicalRecordApi()),
+);
+
+class _EmptyMedicalRecordApi implements MedicalRecordApiContract {
+  @override
+  Future<Object?> read(
+    MedicalRecordResource resource,
+    RecordSubject subject, {
+    Map<String, String> query = const {},
+    CancelToken? cancelToken,
+  }) async => switch (resource) {
+    MedicalRecordResource.medicalData => <String, Object?>{},
+    _ => <String, Object?>{'items': <Object?>[], 'nextCursor': null},
+  };
 }
 
 Map<String, dynamic> _qrJson(String payload) => {
@@ -572,7 +616,8 @@ class _PassportFamilyRepository extends FamilyRepository {
   final List<family_core.FamilyMember> members;
 
   @override
-  Future<List<family_core.FamilyMember>> getFamilyMembers() async => members;
+  Future<Result<List<family_core.FamilyMember>>> getFamilyMembers() async =>
+      Ok(members);
 }
 
 family_core.FamilyMember _ownedFamilyMember(

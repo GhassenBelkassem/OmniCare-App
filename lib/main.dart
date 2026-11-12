@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'features/auth/splash_screen.dart';
@@ -34,7 +33,8 @@ import 'providers/user_onboarding_provider.dart';
 import 'providers/user_provider.dart';
 import 'providers/family_provider.dart';
 import 'services/notification_service.dart';
-import 'l10n/app_localizations.dart';
+import 'core/l10n/app_locale.dart';
+import 'l10n/omni_localizations.dart';
 import 'core/nav/app_nav.dart';
 import 'core/maps/maps_configuration.dart';
 import 'core/theme/omni_theme.dart';
@@ -94,6 +94,9 @@ import 'features/security/account_security_provider.dart';
 import 'features/security/app_lock_gate.dart';
 import 'features/security/app_lock_service.dart';
 import 'features/security/phone_change_reversal_screen.dart';
+import 'features/patient_passport/application/medical_record_view_model.dart';
+import 'features/patient_passport/data/medical_record_api.dart';
+import 'features/patient_passport/data/medical_record_repository.dart';
 import 'features/patient_passport/sharing/medical_sharing_api.dart';
 import 'features/patient_passport/sharing/medical_sharing_controller.dart';
 import 'features/patient_passport/sharing/medical_share_qr_api.dart';
@@ -300,6 +303,14 @@ class OmniCareApp extends StatelessWidget {
           create: (_) =>
               MedicalSharingController(MedicalSharingApi(resolvedHttpClient)),
         ),
+        // G-2 FT-3: the « Dossier médical » record.
+        ChangeNotifierProvider(
+          create: (_) => MedicalRecordViewModel(
+            repository: MedicalRecordRepository(
+              MedicalRecordApi(resolvedHttpClient),
+            ),
+          ),
+        ),
         ChangeNotifierProvider(
           create: (_) =>
               MedicalShareQrController(MedicalShareQrApi(resolvedHttpClient)),
@@ -368,21 +379,15 @@ class OmniCareApp extends StatelessWidget {
         ),
       ],
       child: Consumer2<UserOnboardingProvider, UserProvider>(
-        builder: (context, onboarding, userProvider, child) {
-          Locale locale = const Locale('en');
-          final profileLanguage = userProvider.profile?.preferredLanguage;
-          if (profileLanguage != null) {
-            locale = Locale(profileLanguage);
-          } else if (onboarding.language != null) {
-            locale = Locale(onboarding.language!);
-          }
-
+        // Still rebuilds on account changes as before; the app language no
+        // longer depends on them (V1 is French only, G2-1b-1).
+        builder: (context, _, _, child) {
           return MaterialApp(
             title: 'OmniCare',
             debugShowCheckedModeBanner: false,
             navigatorKey: AppNav.navigatorKey,
             scaffoldMessengerKey: AppNav.scaffoldMessengerKey,
-            locale: locale,
+            locale: appLocale,
             builder: (context, child) {
               final mq = MediaQuery.of(context);
               final clampedInsets = EdgeInsets.fromLTRB(
@@ -400,13 +405,8 @@ class OmniCareApp extends StatelessWidget {
                 ),
               );
             },
-            supportedLocales: const [Locale('en'), Locale('fr'), Locale('ar')],
-            localizationsDelegates: const [
-              AppLocalizations.delegate,
-              GlobalMaterialLocalizations.delegate,
-              GlobalWidgetsLocalizations.delegate,
-              GlobalCupertinoLocalizations.delegate,
-            ],
+            supportedLocales: OmniLocalizations.supportedLocales,
+            localizationsDelegates: OmniLocalizations.localizationsDelegates,
             theme: buildOmniTheme(),
             home: const SplashScreen(),
             navigatorObservers: [AppNav.routeObserver],
@@ -737,6 +737,7 @@ class _AuthStateListenerState extends State<_AuthStateListener>
           context.read<MedicalSharingController>().clear();
           context.read<MedicalShareQrController>().clear();
           context.read<DirectPatientAuthorizationController>().clear();
+          context.read<MedicalRecordViewModel>().clear();
         });
       }
       _wasAuthenticated = true;
@@ -786,6 +787,9 @@ class _AuthStateListenerState extends State<_AuthStateListener>
         context.read<MedicalShareQrController>().clear();
         if (!context.mounted) return;
         context.read<DirectPatientAuthorizationController>().clear();
+        if (!context.mounted) return;
+        // Medical data must not outlive the session (G-2 FT-3).
+        context.read<MedicalRecordViewModel>().clear();
         if (!context.mounted) return;
         if (stayOnPublicSecurityRoute) return;
         AppNav.navigatorKey.currentState?.pushNamedAndRemoveUntil(

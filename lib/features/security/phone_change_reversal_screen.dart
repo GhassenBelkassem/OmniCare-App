@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'account_security_provider.dart';
+import '../../l10n/omni_localizations.dart';
 
 const _teal = Color(0xFF087A65);
 const _tealSoft = Color(0xFFE8F5F1);
@@ -71,7 +72,9 @@ class _PhoneChangeReversalScreenState extends State<PhoneChangeReversalScreen> {
                         : _hasToken
                         ? _ConfirmationContent(
                             busy: provider.isPhoneActionBusy,
-                            error: provider.phoneError,
+                            error: provider.phoneErrorMessage(
+                              OmniLocalizations.of(context),
+                            ),
                             onConfirm: _reverse,
                             onLogin: _openLogin,
                           )

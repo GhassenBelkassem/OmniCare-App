@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
 
 import '../core/api/family_api.dart';
+import '../core/models/blood_type.dart';
 import '../core/models/family_models.dart';
-import '../core/network/api_exception.dart';
+import '../core/network/api_failure.dart';
+import '../core/result/result.dart';
 import '../core/utils/console_log.dart';
 import '../repositories/family_repository.dart';
 
@@ -21,9 +23,9 @@ class FamilyProvider extends ChangeNotifier {
   List<FamilyMember> _members = const [];
   bool _loading = false;
   bool _saving = false;
-  String? _error;
-  String? _mutationError;
-  Map<String, String> _fieldErrors = const {};
+  ApiFailure? _loadFailure;
+  ApiFailure? _mutationFailure;
+  Map<String, ApiFieldErrorKind> _fieldErrors = const {};
   final Set<String> _deactivatingIds = {};
   Future<void>? _loadFuture;
   int _stateGeneration = 0;
@@ -31,9 +33,12 @@ class FamilyProvider extends ChangeNotifier {
   List<FamilyMember> get members => _members;
   bool get isLoading => _loading;
   bool get isSaving => _saving;
-  String? get error => _error;
-  String? get mutationError => _mutationError;
-  Map<String, String> get fieldErrors => _fieldErrors;
+
+  /// Typed failures; screens turn them into French text
+  /// (`apiFailureMessage`), never the server's.
+  ApiFailure? get loadFailure => _loadFailure;
+  ApiFailure? get mutationFailure => _mutationFailure;
+  Map<String, ApiFieldErrorKind> get fieldErrors => _fieldErrors;
   bool get hasMembers => _members.isNotEmpty;
   bool isDeactivating(String id) => _deactivatingIds.contains(id);
 
@@ -51,22 +56,19 @@ class FamilyProvider extends ChangeNotifier {
 
   Future<void> _loadFamilyMembers(int generation) async {
     _loading = true;
-    _error = null;
+    _loadFailure = null;
     notifyListeners();
-    try {
-      final members = await _repository.getFamilyMembers();
-      if (generation != _stateGeneration) return;
-      _members = members;
-    } catch (error) {
-      if (generation != _stateGeneration) return;
-      _error = _message(error, 'Impossible de charger les membres.');
-      consoleLog('[FamilyProvider] family list failed');
-    } finally {
-      if (generation == _stateGeneration) {
-        _loading = false;
-        notifyListeners();
-      }
+    final result = await _repository.getFamilyMembers();
+    if (generation != _stateGeneration) return;
+    switch (result) {
+      case Ok(:final value):
+        _members = value;
+      case Err(:final failure):
+        _loadFailure = failure;
+        consoleLog('[FamilyProvider] family list failed ${failure.logSummary}');
     }
+    _loading = false;
+    notifyListeners();
   }
 
   Future<FamilyMember> addFamilyMember({
@@ -123,18 +125,18 @@ class FamilyProvider extends ChangeNotifier {
     if (_deactivatingIds.contains(id)) return;
     final generation = _stateGeneration;
     _deactivatingIds.add(id);
-    _mutationError = null;
+    _mutationFailure = null;
     _fieldErrors = const {};
     notifyListeners();
     try {
-      await _repository.deactivateFamilyMember(id);
+      final result = await _repository.deactivateFamilyMember(id);
+      if (result case Err(:final failure)) {
+        if (generation == _stateGeneration) _captureMutationFailure(failure);
+        throw failure;
+      }
       if (generation != _stateGeneration) return;
       _members = List.unmodifiable(_members.where((member) => member.id != id));
       await _refreshProfile();
-    } catch (error) {
-      if (generation != _stateGeneration) rethrow;
-      _captureMutationError(error);
-      rethrow;
     } finally {
       if (generation == _stateGeneration) {
         _deactivatingIds.remove(id);
@@ -143,12 +145,20 @@ class FamilyProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> updateMedicalPassport({required String id, String? bloodGroup}) {
-    return _repository.patchMedicalPassport(id: id, bloodGroup: bloodGroup);
+  /// Throws the [ApiFailure] on failure (the caller shows the message).
+  Future<void> updateMedicalPassport({
+    required String id,
+    required BloodType bloodType,
+  }) async {
+    final result = await _repository.patchMedicalPassport(
+      id: id,
+      bloodType: bloodType,
+    );
+    if (result case Err(:final failure)) throw failure;
   }
 
   void clearMutationError() {
-    _mutationError = null;
+    _mutationFailure = null;
     _fieldErrors = const {};
     notifyListeners();
   }
@@ -159,33 +169,34 @@ class FamilyProvider extends ChangeNotifier {
     _members = const [];
     _loading = false;
     _saving = false;
-    _error = null;
-    _mutationError = null;
+    _loadFailure = null;
+    _mutationFailure = null;
     _fieldErrors = const {};
     _deactivatingIds.clear();
     notifyListeners();
   }
 
+  /// Throws the [ApiFailure] on failure, after recording it.
   Future<FamilyMember> _runSave(
-    Future<FamilyMember> Function() operation, {
+    Future<Result<FamilyMember>> Function() operation, {
     required ValueChanged<FamilyMember> onSuccess,
   }) async {
     if (_saving) throw StateError('A family update is already in progress.');
     final generation = _stateGeneration;
     _saving = true;
-    _mutationError = null;
+    _mutationFailure = null;
     _fieldErrors = const {};
     notifyListeners();
     try {
-      final member = await operation();
+      final result = await operation();
+      final member = switch (result) {
+        Ok(:final value) => value,
+        Err(:final failure) => throw _failed(failure, generation),
+      };
       if (generation != _stateGeneration) return member;
       onSuccess(member);
       await _refreshProfile();
       return member;
-    } catch (error) {
-      if (generation != _stateGeneration) rethrow;
-      _captureMutationError(error);
-      rethrow;
     } finally {
       if (generation == _stateGeneration) {
         _saving = false;
@@ -202,18 +213,14 @@ class FamilyProvider extends ChangeNotifier {
     }
   }
 
-  void _captureMutationError(Object error) {
-    if (error is ApiException) {
-      _fieldErrors = Map.unmodifiable(error.fieldErrors);
-    }
-    _mutationError = _message(error, 'Impossible d’enregistrer le membre.');
-    consoleLog('[FamilyProvider] family mutation failed');
+  ApiFailure _failed(ApiFailure failure, int generation) {
+    if (generation == _stateGeneration) _captureMutationFailure(failure);
+    return failure;
   }
-}
 
-String _message(Object error, String fallback) {
-  if (error is ApiException && error.message.trim().isNotEmpty) {
-    return error.message.trim();
+  void _captureMutationFailure(ApiFailure failure) {
+    _mutationFailure = failure;
+    _fieldErrors = failure.fieldErrors;
+    consoleLog('[FamilyProvider] family mutation failed ${failure.logSummary}');
   }
-  return fallback;
 }

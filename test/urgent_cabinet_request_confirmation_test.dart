@@ -24,6 +24,7 @@ import 'package:omnicare_mobile/features/emergency/urgent_cabinet/urgent_cabinet
 import 'package:omnicare_mobile/providers/family_provider.dart';
 import 'package:omnicare_mobile/providers/user_provider.dart';
 import 'package:omnicare_mobile/repositories/family_repository.dart';
+import 'package:omnicare_mobile/core/result/result.dart';
 
 class _MutableFamilyRepository extends FamilyRepository {
   _MutableFamilyRepository({List<FamilyMember> members = const []})
@@ -33,7 +34,8 @@ class _MutableFamilyRepository extends FamilyRepository {
   List<FamilyMember> members;
 
   @override
-  Future<List<FamilyMember>> getFamilyMembers() async => List.of(members);
+  Future<Result<List<FamilyMember>>> getFamilyMembers() async =>
+      Ok(List.of(members));
 }
 
 class _ControlledSubmissionSource extends UrgentCabinetRequestSource {

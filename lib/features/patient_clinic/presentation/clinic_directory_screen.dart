@@ -9,6 +9,7 @@ import 'clinic_filter_model.dart';
 import 'widgets/clinic_card.dart';
 import 'widgets/clinic_filter_sheet.dart';
 import 'widgets/clinic_search_field.dart';
+import '../../../l10n/omni_localizations.dart';
 
 /// Patient clinic directory: real backend Clinics, search, local presentation
 /// filters and bounded pagination.
@@ -316,7 +317,9 @@ class _DirectoryBody extends StatelessWidget {
 
     if (status == PatientClinicDirectoryStatus.error && rawItems.isEmpty) {
       return _ErrorState(
-        message: directory.error?.message ?? 'Unable to load clinics.',
+        message:
+            directory.error?.message(OmniLocalizations.of(context)) ??
+            OmniLocalizations.of(context).clinicListLoadFailed,
         onRetry: directory.loadFirst,
       );
     }

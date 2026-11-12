@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'package:omnicare_mobile/core/theme/omni_theme.dart';
 import 'package:omnicare_mobile/features/patient_doctor/application/doctor_directory_controller.dart';
+import 'package:omnicare_mobile/features/patient_doctor/data/doctor_detail_models.dart';
 import 'package:omnicare_mobile/features/patient_doctor/data/doctor_directory_failure.dart';
 import 'package:omnicare_mobile/features/patient_doctor/data/doctor_directory_models.dart';
 import 'package:omnicare_mobile/features/patient_doctor/data/doctor_directory_repository.dart';
@@ -17,6 +18,7 @@ import 'package:omnicare_mobile/features/scheduled_care/application/patient_book
 import 'package:omnicare_mobile/features/scheduled_care/data/scheduled_care_repository.dart';
 import 'package:omnicare_mobile/features/scheduled_care/domain/scheduled_care_models.dart';
 import 'package:omnicare_mobile/features/scheduled_care/presentation/booking_review_screen.dart';
+import 'package:omnicare_mobile/l10n/omni_localizations.dart';
 
 class _FakeDoctorRepository implements DoctorDirectoryRepository {
   _FakeDoctorRepository({
@@ -248,7 +250,7 @@ Map<String, DoctorDirectoryDetail> _detailMap() {
 }
 
 List<AvailabilitySlotDto> _buildSlots() {
-  final today = DateTime.now();
+  final today = toTunisWallClock(DateTime.now());
   final slots = <AvailabilitySlotDto>[];
   for (var i = 0; i < 7; i++) {
     final date = DateTime(today.year, today.month, today.day + i);
@@ -267,12 +269,20 @@ List<AvailabilitySlotDto> _buildSlots() {
   return slots;
 }
 
+/// Server slot whose Africa/Tunis wall clock (UTC+01:00) is [date] at
+/// [hour]:[minute]. Independent of the device timezone.
 AvailabilitySlotDto _slotAt(DateTime date, int hour, int minute) {
-  final start = DateTime(date.year, date.month, date.day, hour, minute);
+  final start = DateTime.utc(
+    date.year,
+    date.month,
+    date.day,
+    hour,
+    minute,
+  ).subtract(const Duration(hours: 1));
   final end = start.add(const Duration(minutes: 30));
   return AvailabilitySlotDto(
-    start: start.toUtc().toIso8601String(),
-    end: end.toUtc().toIso8601String(),
+    start: start.toIso8601String(),
+    end: end.toIso8601String(),
   );
 }
 
@@ -282,6 +292,8 @@ Widget _buildDirectoryApp({_FakeDoctorRepository? repository}) {
       repository: repository ?? _FakeDoctorRepository(),
     ),
     child: MaterialApp(
+      localizationsDelegates: OmniLocalizations.localizationsDelegates,
+      supportedLocales: OmniLocalizations.supportedLocales,
       theme: buildOmniTheme(),
       home: const DoctorDirectoryScreen(),
     ),
@@ -308,6 +320,8 @@ Widget _buildDetailApp({
       ),
     ],
     child: MaterialApp(
+      localizationsDelegates: OmniLocalizations.localizationsDelegates,
+      supportedLocales: OmniLocalizations.supportedLocales,
       theme: buildOmniTheme(),
       builder: (context, child) {
         if (textScaler == null) return child!;

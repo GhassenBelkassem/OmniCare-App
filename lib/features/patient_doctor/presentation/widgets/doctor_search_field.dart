@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../core/theme/omni_theme.dart';
 
@@ -11,10 +12,15 @@ class DoctorSearchField extends StatefulWidget {
     super.key,
     required this.controller,
     required this.onChanged,
+    this.inputFormatters,
   });
 
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
+
+  /// Optional input limits (e.g. the urgent CABINET 120-character query).
+  /// No counter is shown.
+  final List<TextInputFormatter>? inputFormatters;
 
   @override
   State<DoctorSearchField> createState() => _DoctorSearchFieldState();
@@ -71,6 +77,7 @@ class _DoctorSearchFieldState extends State<DoctorSearchField> {
       child: TextField(
         controller: widget.controller,
         onChanged: widget.onChanged,
+        inputFormatters: widget.inputFormatters,
         textInputAction: TextInputAction.search,
         decoration: InputDecoration(
           hintText: 'Rechercher un médecin',

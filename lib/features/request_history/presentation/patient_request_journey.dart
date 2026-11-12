@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../request_core/domain/request_vocabulary.dart';
 import '../../../core/theme/omni_theme.dart';
+import '../../../l10n/omni_localizations.dart';
 
 /// A deliberately small, patient-facing presentation of Module 05 status.
 ///
@@ -19,7 +20,7 @@ enum PatientRequestJourneyStage {
 
 enum PatientRequestJourneyStageState { completed, current, upcoming, terminal }
 
-enum PatientRequestJourneyTerminal { completed, declined, cancelled }
+enum PatientRequestJourneyTerminal { completed, declined, cancelled, noShow }
 
 class PatientRequestJourneyStageView {
   const PatientRequestJourneyStageView({
@@ -80,6 +81,9 @@ class PatientRequestJourneyMapper {
     ),
     PatientRequestStatus.cancelled => _terminal(
       PatientRequestJourneyTerminal.cancelled,
+    ),
+    PatientRequestStatus.noShow => _terminal(
+      PatientRequestJourneyTerminal.noShow,
     ),
     PatientRequestStatus.unknown => const PatientRequestJourney(
       stages: [],
@@ -519,6 +523,11 @@ class _TerminalStep extends StatelessWidget {
       PatientRequestJourneyTerminal.cancelled => (
         'Request cancelled',
         Icons.do_not_disturb_on_outlined,
+        OmniColors.slateBlue,
+      ),
+      PatientRequestJourneyTerminal.noShow => (
+        OmniLocalizations.of(context).requestNoShowLabel,
+        Icons.event_busy_outlined,
         OmniColors.slateBlue,
       ),
     };

@@ -22,6 +22,7 @@ import 'package:omnicare_mobile/features/request_core/identity/request_operation
 import 'package:omnicare_mobile/features/request_flow/screens/review_screen.dart';
 import 'package:omnicare_mobile/providers/family_provider.dart';
 import 'package:omnicare_mobile/repositories/family_repository.dart';
+import 'package:omnicare_mobile/core/result/result.dart';
 
 // ---------------------------------------------------------------------------
 // Fake HTTP overrides to prevent CachedNetworkImage from hanging
@@ -134,7 +135,8 @@ class _FakeFamilyRepository extends FamilyRepository {
   final List<FamilyMember> members;
 
   @override
-  Future<List<FamilyMember>> getFamilyMembers() async => members;
+  Future<Result<List<FamilyMember>>> getFamilyMembers() async =>
+      Ok(members);
 }
 
 RequestSubmissionController _requestController() =>

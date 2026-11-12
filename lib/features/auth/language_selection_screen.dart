@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/user_onboarding_provider.dart';
-import '../../l10n/app_localizations.dart';
+import '../../l10n/omni_localizations.dart';
 import 'login_screen.dart';
 
 class LanguageSelectionScreen extends StatefulWidget {
@@ -79,11 +79,11 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
                 const SizedBox(height: 48),
                 Builder(
                   builder: (context) {
-                    final l10n = AppLocalizations.of(context);
+                    final l10n = OmniLocalizations.of(context);
                     return Column(
                       children: [
                         Text(
-                          l10n?.chooseLanguage ?? 'Choose Your Language',
+                          l10n.chooseLanguage,
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 28,
                             fontWeight: FontWeight.bold,
@@ -93,8 +93,7 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          l10n?.selectLanguage ??
-                              'Select your preferred language',
+                          l10n.selectLanguage,
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 16,
                             fontWeight: FontWeight.w400,

@@ -6,8 +6,7 @@ class ReservationProvider extends ChangeNotifier {
   final ReservationRepository _repository;
 
   ReservationProvider({ReservationRepository? repository})
-    : _repository = repository ?? ReservationRepository()
-        ..useMock();
+    : _repository = repository ?? ReservationRepository();
 
   bool _loading = false;
   String? _error;

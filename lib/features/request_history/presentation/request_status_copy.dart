@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/omni_theme.dart';
+import '../../../l10n/omni_localizations.dart';
 import '../../request_core/domain/request_vocabulary.dart';
 
 class RequestStatusCopy {
@@ -26,7 +27,10 @@ class RequestStatusCopy {
   /// Patient-facing action/state message below the description.
   final String actionMessage;
 
-  static RequestStatusCopy of(PatientRequestStatus status) => switch (status) {
+  static RequestStatusCopy of(
+    PatientRequestStatus status,
+    OmniLocalizations l10n,
+  ) => switch (status) {
     PatientRequestStatus.requestReceived => const RequestStatusCopy(
       label: 'Request received',
       description:
@@ -108,6 +112,14 @@ class RequestStatusCopy {
       accent: OmniColors.slateBlue,
       softBackground: OmniColors.slateSoft,
       actionMessage: 'Request cancelled',
+    ),
+    PatientRequestStatus.noShow => RequestStatusCopy(
+      label: l10n.requestNoShowLabel,
+      description: l10n.requestNoShowDescription,
+      icon: Icons.event_busy_outlined,
+      accent: OmniColors.slateBlue,
+      softBackground: OmniColors.slateSoft,
+      actionMessage: l10n.requestNoShowActionMessage,
     ),
     PatientRequestStatus.unknown => const RequestStatusCopy(
       label: 'Status updated',

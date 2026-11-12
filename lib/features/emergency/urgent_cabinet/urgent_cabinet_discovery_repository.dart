@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/network/api_failure.dart';
 import '../../../core/network/app_http_client.dart';
 import 'urgent_cabinet_discovery_models.dart';
 
@@ -9,7 +10,11 @@ enum UrgentCabinetDiscoveryFailureKind {
   invalidResponse,
   sessionRejected,
   forbidden,
-  developmentGateUnavailable,
+
+  /// Urgent CABINET is not available to this patient (backend 404
+  /// URGENT_CABINET_REQUEST_UNAVAILABLE / URGENT_CABINET_REQUEST_NOT_AUTHORIZED,
+  /// from `UrgentCabinetTargetedAccessPolicy`).
+  featureUnavailable,
   notFound,
   server,
   cancelled,
@@ -23,6 +28,14 @@ class UrgentCabinetDiscoveryFailure implements Exception {
 
   bool get isCancelled => kind == UrgentCabinetDiscoveryFailureKind.cancelled;
   bool get isNotFound => kind == UrgentCabinetDiscoveryFailureKind.notFound;
+  bool get isFeatureUnavailable =>
+      kind == UrgentCabinetDiscoveryFailureKind.featureUnavailable;
+
+  /// Backend codes meaning "urgent CABINET is not available to this patient".
+  static const featureUnavailableCodes = {
+    'URGENT_CABINET_REQUEST_UNAVAILABLE',
+    'URGENT_CABINET_REQUEST_NOT_AUTHORIZED',
+  };
 
   static UrgentCabinetDiscoveryFailure from(Object error) {
     if (error is UrgentCabinetDiscoveryFailure) return error;
@@ -69,17 +82,16 @@ class UrgentCabinetDiscoveryFailure implements Exception {
       );
     }
     if (status == 404) {
-      return const UrgentCabinetDiscoveryFailure(
-        UrgentCabinetDiscoveryFailureKind.notFound,
+      // Backend errors are read once, by the single parser.
+      return UrgentCabinetDiscoveryFailure(
+        featureUnavailableCodes.contains(apiErrorCodeOf(response?.data))
+            ? UrgentCabinetDiscoveryFailureKind.featureUnavailable
+            : UrgentCabinetDiscoveryFailureKind.notFound,
       );
     }
     if (status == 403) {
-      final code = _problemCode(response?.data);
-      return UrgentCabinetDiscoveryFailure(
-        code == 'URGENT_RUNTIME_DEVELOPMENT_ONLY' ||
-                code == 'URGENT_RUNTIME_ACCESS_DISABLED'
-            ? UrgentCabinetDiscoveryFailureKind.developmentGateUnavailable
-            : UrgentCabinetDiscoveryFailureKind.forbidden,
+      return const UrgentCabinetDiscoveryFailure(
+        UrgentCabinetDiscoveryFailureKind.forbidden,
       );
     }
     if (status >= 500) {
@@ -90,12 +102,6 @@ class UrgentCabinetDiscoveryFailure implements Exception {
     return const UrgentCabinetDiscoveryFailure(
       UrgentCabinetDiscoveryFailureKind.invalidResponse,
     );
-  }
-
-  static String? _problemCode(Object? data) {
-    if (data is! Map) return null;
-    final value = data['code'] ?? data['errorCode'];
-    return value is String ? value.trim() : null;
   }
 
   @override
@@ -142,14 +148,19 @@ class AppUrgentCabinetDiscoveryRepository
         data.cast<String, dynamic>(),
       );
     } catch (error) {
-      final failure = UrgentCabinetDiscoveryFailure.from(error);
-      if (failure.isNotFound) {
-        throw const UrgentCabinetDiscoveryFailure(
-          UrgentCabinetDiscoveryFailureKind.developmentGateUnavailable,
-        );
-      }
-      throw failure;
+      throw _collectionFailure(error);
     }
+  }
+
+  /// Collection routes (facets, search) have no item-level 404: any 404
+  /// there means urgent CABINET is not available to this patient.
+  static UrgentCabinetDiscoveryFailure _collectionFailure(Object error) {
+    final failure = UrgentCabinetDiscoveryFailure.from(error);
+    return failure.isNotFound
+        ? const UrgentCabinetDiscoveryFailure(
+            UrgentCabinetDiscoveryFailureKind.featureUnavailable,
+          )
+        : failure;
   }
 
   @override
@@ -169,15 +180,7 @@ class AppUrgentCabinetDiscoveryRepository
       }
       return UrgentCabinetDiscoveryPage.fromJson(data.cast<String, dynamic>());
     } catch (error) {
-      final failure = UrgentCabinetDiscoveryFailure.from(error);
-      // The collection route has no item-level 404. The backend intentionally
-      // masks a disabled development runtime as URGENT_RUNTIME_UNAVAILABLE.
-      if (failure.isNotFound) {
-        throw const UrgentCabinetDiscoveryFailure(
-          UrgentCabinetDiscoveryFailureKind.developmentGateUnavailable,
-        );
-      }
-      throw failure;
+      throw _collectionFailure(error);
     }
   }
 

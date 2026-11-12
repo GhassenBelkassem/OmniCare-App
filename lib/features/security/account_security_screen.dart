@@ -7,6 +7,7 @@ import '../auth/application/auth_controller.dart';
 import 'account_security_provider.dart';
 import 'app_lock_service.dart';
 import 'phone_change_screen.dart';
+import '../../l10n/omni_localizations.dart';
 
 const _teal = Color(0xFF087A65);
 const _mintSurface = Color(0xFFE8F8F3);
@@ -52,8 +53,11 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
           children: [
             if (security.isLoading && security.devices.isEmpty)
               const LinearProgressIndicator(color: _teal),
-            if (security.error != null) ...[
-              _ErrorPanel(message: security.error!, onRetry: _load),
+            if (security.hasError) ...[
+              _ErrorPanel(
+                message: security.errorMessage(OmniLocalizations.of(context))!,
+                onRetry: _load,
+              ),
               const SizedBox(height: 14),
             ],
             _SecurityPanel(
@@ -350,7 +354,14 @@ class _ChangeAccountPasswordSheetState
       );
       if (mounted) Navigator.pop(context, true);
     } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+      if (mounted) {
+        setState(
+          () => _error = securityErrorMessage(
+            error,
+            OmniLocalizations.of(context),
+          ),
+        );
+      }
     }
   }
 }
@@ -579,7 +590,14 @@ class _AppLockSettingsScreenState extends State<AppLockSettingsScreen> {
     try {
       await action();
     } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+      if (mounted) {
+        setState(
+          () => _error = securityErrorMessage(
+            error,
+            OmniLocalizations.of(context),
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }

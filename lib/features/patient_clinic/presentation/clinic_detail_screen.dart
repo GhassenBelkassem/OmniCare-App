@@ -7,6 +7,7 @@ import '../application/patient_clinic_directory_controller.dart';
 import '../data/patient_clinic_models.dart';
 import 'clinic_presentation_metadata.dart';
 import 'widgets/clinic_full_screen_gallery.dart';
+import '../../../l10n/omni_localizations.dart';
 
 /// Page 03 — Clinic detail (normal full-screen route).
 ///
@@ -58,8 +59,10 @@ class _ClinicDetailScreenState extends State<ClinicDetailScreen> {
               ? const Center(child: CircularProgressIndicator())
               : _ErrorState(
                   message:
-                      directory.detailError?.message ??
-                      'Unable to load this clinic.',
+                      directory.detailError?.message(
+                        OmniLocalizations.of(context),
+                      ) ??
+                      OmniLocalizations.of(context).clinicDetailLoadFailed,
                   onRetry: () => directory.fetchDetail(widget.clinicId),
                 ))
           : _FullPageDetail(

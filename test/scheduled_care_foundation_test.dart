@@ -15,6 +15,7 @@ import 'package:omnicare_mobile/features/patient_doctor/application/doctor_direc
 import 'package:omnicare_mobile/features/patient_doctor/data/doctor_detail_models.dart';
 import 'package:omnicare_mobile/features/patient_doctor/data/doctor_directory_models.dart';
 import 'package:omnicare_mobile/features/patient_doctor/data/doctor_directory_api.dart';
+import 'package:omnicare_mobile/features/patient_doctor/data/doctor_directory_mapper.dart';
 import 'package:omnicare_mobile/features/patient_doctor/data/doctor_directory_repository.dart';
 import 'package:omnicare_mobile/features/patient_doctor/data/doctor_models.dart';
 import 'package:omnicare_mobile/features/scheduled_care/application/patient_booking_controller.dart';
@@ -539,25 +540,24 @@ const _secondCabinet = PracticeLocation(
   timezone: doctorSchedulingTimezone,
 );
 
-final _slot = DoctorAvailabilitySlot(
-  time: '09:00',
-  timeOfDay: 'Matin',
-  startIso: '2026-11-12T08:00:00Z',
-  endIso: '2026-11-12T08:30:00Z',
-  start: DateTime.parse('2026-11-12T08:00:00Z'),
-  end: DateTime.parse('2026-11-12T08:30:00Z'),
-  durationMinutes: 30,
-);
+// Built through the REAL mapper from recorded server instants, so the tests
+// see exactly what production sends (C1 slipped through hand-built slots).
+final _serverSlots = groupAvailabilitySlots(const [
+  AvailabilitySlotDto(
+    start: '2026-11-12T08:00:00Z',
+    end: '2026-11-12T08:30:00Z',
+    durationMinutes: 30,
+  ),
+  AvailabilitySlotDto(
+    start: '2026-11-12T09:00:00Z',
+    end: '2026-11-12T09:30:00Z',
+    durationMinutes: 30,
+  ),
+]).single.slots;
 
-final _secondSlot = DoctorAvailabilitySlot(
-  time: '10:00',
-  timeOfDay: 'Matin',
-  startIso: '2026-11-12T09:00:00Z',
-  endIso: '2026-11-12T09:30:00Z',
-  start: DateTime.parse('2026-11-12T09:00:00Z'),
-  end: DateTime.parse('2026-11-12T09:30:00Z'),
-  durationMinutes: 30,
-);
+final _slot = _serverSlots.first;
+
+final _secondSlot = _serverSlots.last;
 
 DoctorDetail _doctorDetail({String id = 'doctor-1'}) => DoctorDetail(
   listItem: DoctorListItem(

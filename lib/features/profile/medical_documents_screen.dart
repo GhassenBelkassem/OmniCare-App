@@ -12,6 +12,8 @@ import '../../core/api/account_api.dart';
 import '../../core/api/documents_api.dart';
 import '../../core/network/api_exception.dart';
 import 'medical_document_upload_controller.dart';
+import '../../l10n/omni_localizations.dart';
+import 'medical_document_error_message.dart';
 
 class MedicalDocumentsScreen extends StatefulWidget {
   const MedicalDocumentsScreen({
@@ -264,7 +266,10 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen>
       }
 
       if (patientId == null || patientId.isEmpty) {
-        throw const ApiException('Your patient profile is not ready yet.');
+        throw const ApiException(
+          'Your patient profile is not ready yet.',
+          code: 'PROFILE_NOT_READY',
+        );
       }
 
       if (!mounted) {
@@ -333,14 +338,20 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen>
     ProgressCallback? onSendProgress,
   }) async {
     if (_isLoading) {
-      throw const ApiException('A document operation is already in progress.');
+      throw const ApiException(
+        'A document operation is already in progress.',
+        code: 'OPERATION_IN_PROGRESS',
+      );
     }
 
     final patientId = _patientId;
     final accountId = widget.initialAccountId?.trim();
 
     if (patientId == null || accountId == null || accountId.isEmpty) {
-      throw const ApiException('Your patient profile is not ready yet.');
+      throw const ApiException(
+        'Your patient profile is not ready yet.',
+        code: 'PROFILE_NOT_READY',
+      );
     }
 
     if (file.size <= 0) {
@@ -360,7 +371,10 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen>
     final filePath = path == null || path.isEmpty ? null : path;
     final bytes = file.bytes;
     if (filePath == null && bytes == null) {
-      throw const ApiException('The selected file could not be read.');
+      throw const ApiException(
+        'The selected file could not be read.',
+        code: 'FILE_READ_FAILED',
+      );
     }
 
     final backendDocumentType = _toBackendDocumentType(documentType);
@@ -1045,10 +1059,8 @@ class _MedicalDocumentsScreenState extends State<MedicalDocumentsScreen>
       return;
     }
 
-    final message = error is ApiException
-        ? error.message
-        : 'The document operation could not '
-              'be completed. Please try again.';
+    // French from the error code only (G2-1b-2c), never the error's text.
+    final message = documentErrorMessage(error, OmniLocalizations.of(context));
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

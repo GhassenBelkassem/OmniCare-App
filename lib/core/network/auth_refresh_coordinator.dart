@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../storage/secure_token_store.dart';
+import 'api_failure.dart';
 
 typedef SessionInvalidatedCallback = Future<void> Function();
 typedef SessionRefreshedCallback = Future<void> Function(StoredSession session);
@@ -201,10 +202,7 @@ class AuthRefreshCoordinator {
 }
 
 bool _isAuthoritativeCredentialRejection(DioException error) {
-  final data = error.response?.data;
-  if (data is! Map) return false;
-
-  final code = (data['code'] ?? data['errorCode'])?.toString();
+  final code = apiErrorCodeOf(error.response?.data);
   return code == 'AUTH_REFRESH_TOKEN_INVALID' ||
       code == 'AUTH_SESSION_INVALID' ||
       code == 'AUTH_SESSION_EXPIRED';

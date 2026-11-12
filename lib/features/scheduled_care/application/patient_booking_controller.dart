@@ -242,8 +242,8 @@ class PatientBookingController extends ChangeNotifier {
         current.subject.familyMemberId == _subject.familyMemberId &&
         current.doctor.doctorId == doctor.id &&
         current.cabinet.practiceLocationId == cabinet.practiceLocationId &&
-        current.requestedSlot.start == slot.start.toUtc() &&
-        current.requestedSlot.end == slot.end.toUtc();
+        current.requestedSlot.start == slot.start &&
+        current.requestedSlot.end == slot.end;
     final requestId = sameSemanticIntent
         ? current.requestId
         : _requestIdFactory();
@@ -258,9 +258,11 @@ class PatientBookingController extends ChangeNotifier {
         specialty: doctor.specialty,
       ),
       cabinet: cabinet,
+      // The server instants, unchanged: the backend revalidates them against
+      // its slot grid. Tunis wall clock is for display only.
       requestedSlot: RequestedSlot(
-        start: slot.start.toUtc(),
-        end: slot.end.toUtc(),
+        start: slot.start,
+        end: slot.end,
         durationMinutes: slot.durationMinutes,
       ),
       preSubmitPrice: doctor.consultationPriceTnd == null

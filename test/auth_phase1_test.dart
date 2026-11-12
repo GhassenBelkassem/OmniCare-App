@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:omnicare_mobile/core/device/device_identity_service.dart';
 import 'package:omnicare_mobile/core/config/app_environment.dart';
 import 'package:omnicare_mobile/core/network/api_exception.dart';
+import 'package:omnicare_mobile/core/network/api_failure.dart';
 import 'package:omnicare_mobile/core/network/app_http_client.dart';
 import 'package:omnicare_mobile/core/network/auth_interceptor.dart';
 import 'package:omnicare_mobile/core/network/request_replay_policy.dart';
@@ -33,6 +34,7 @@ import 'package:omnicare_mobile/features/auth/data/professional_access_request_a
 import 'package:omnicare_mobile/main.dart';
 import 'package:omnicare_mobile/providers/user_provider.dart';
 import 'package:omnicare_mobile/features/doctor/doctor_auth_shell_screen.dart';
+import 'package:omnicare_mobile/l10n/omni_localizations.dart';
 
 class FakeSecureTokenStorageBackend implements SecureTokenStorageBackend {
   final Map<String, String> values = <String, String>{};
@@ -423,6 +425,8 @@ Widget _entryApp(AuthController auth) {
       ChangeNotifierProvider(create: (_) => UserProvider()),
     ],
     child: MaterialApp(
+      localizationsDelegates: OmniLocalizations.localizationsDelegates,
+      supportedLocales: OmniLocalizations.supportedLocales,
       home: const LoginScreen(),
       routes: {
         '/auth-entry': (_) => const LoginScreen(),
@@ -472,6 +476,8 @@ AppHttpClient _client(
   return client;
 }
 
+final _fr = lookupOmniLocalizations(const Locale('fr'));
+
 void main() {
   group('DTOs', () {
     test('parse login/profile/error responses and redact tokens', () {
@@ -486,12 +492,16 @@ void main() {
       final profile = PatientProfile.fromJson(
         _profileJson(onboardingCompleted: false),
       );
-      final error = ApiErrorResponse.fromJson({
-        'code': 'AUTH_INVALID_OTP',
-        'message': 'Invalid or expired OTP',
-        'timestamp': '2026-07-17T18:00:00Z',
-        'fieldErrors': {'otp': 'invalid'},
-      });
+      // G2-1b-2c: the auth error body is read by the single parser only.
+      final error = ApiFailure.fromResponse(
+        statusCode: 400,
+        body: {
+          'code': 'AUTH_INVALID_OTP',
+          'message': 'Invalid or expired OTP',
+          'timestamp': '2026-07-17T18:00:00Z',
+          'fieldErrors': {'otp': 'invalid'},
+        },
+      );
 
       expect(login.expiresAt, DateTime.parse(loginJson['expiresAt'] as String));
       expect(login.user.mustChangePassword, isFalse);
@@ -501,7 +511,8 @@ void main() {
       expect(profile.dateOfBirth, DateTime.utc(1998, 4, 20));
       expect(profile.onboardingCompleted, isFalse);
       expect(error.code, 'AUTH_INVALID_OTP');
-      expect(error.fieldErrors['otp'], 'invalid');
+      expect(error.fieldErrors['otp'], ApiFieldErrorKind.invalid);
+      expect(error.toString(), isNot(contains('Invalid or expired OTP')));
     });
 
     test('missing required token fields are rejected', () {
@@ -513,35 +524,43 @@ void main() {
   group('AuthErrorMessages', () {
     test('maps signup and OTP backend errors to specific messages', () {
       expect(
-        AuthErrorMessages.fromCode('AUTH_PHONE_ALREADY_USED'),
+        AuthErrorMessages.fromCode('AUTH_PHONE_ALREADY_USED', _fr),
         'Ce numéro est déjà utilisé.',
       );
       expect(
-        AuthErrorMessages.fromCode('AUTH_EMAIL_ALREADY_USED'),
+        AuthErrorMessages.fromCode('AUTH_EMAIL_ALREADY_USED', _fr),
         'Un compte OmniCare existe déjà avec cette adresse. Connectez-vous avec votre mot de passe.',
       );
       expect(
-        AuthErrorMessages.fromCode('DUPLICATE_IDENTITY'),
+        AuthErrorMessages.fromCode('DUPLICATE_IDENTITY', _fr),
         'Un compte existe déjà avec ces informations.',
       );
       expect(
-        AuthErrorMessages.fromCode('AUTH_INVALID_OTP'),
+        AuthErrorMessages.fromCode('AUTH_INVALID_OTP', _fr),
         'Code invalide ou expiré.',
       );
       expect(
-        AuthErrorMessages.fromCode('TOO_MANY_REQUESTS'),
+        AuthErrorMessages.fromCode('TOO_MANY_REQUESTS', _fr),
         'Trop de tentatives. Réessayez plus tard.',
       );
+      // G2-1b-2c: one wording for the provider outage, on every screen.
       expect(
-        AuthErrorMessages.fromCode('AUTH_PROVIDER_UNAVAILABLE'),
-        'Service de vérification temporairement indisponible. Réessayez plus tard.',
+        AuthErrorMessages.message(
+          const ApiFailure(
+            kind: ApiFailureKind.server,
+            code: 'AUTH_PROVIDER_UNAVAILABLE',
+            statusCode: 503,
+          ),
+          _fr,
+        ),
+        'Service de connexion momentanément indisponible. Réessayez plus tard.',
       );
       expect(
-        AuthErrorMessages.fromCode('AUTH_GOOGLE_SIGNUP_EXPIRED'),
+        AuthErrorMessages.fromCode('AUTH_GOOGLE_SIGNUP_EXPIRED', _fr),
         'Session Google expirée. Recommencez avec Google.',
       );
       expect(
-        AuthErrorMessages.fromCode('AUTH_GOOGLE_SIGNUP_INVALID'),
+        AuthErrorMessages.fromCode('AUTH_GOOGLE_SIGNUP_INVALID', _fr),
         'Session Google invalide. Recommencez avec Google.',
       );
     });
@@ -1819,11 +1838,15 @@ void main() {
         await expectLater(
           AuthApi(_client(store, adapter)).getPatientProfile(),
           throwsA(
-            isA<ApiException>().having(
-              (error) => error.code,
-              'code',
-              'NETWORK_UNAVAILABLE',
-            ),
+            // G2-1b-2c: a transport failure is the `network` kind of the
+            // single parser (no session code), not a session invalidation.
+            isA<ApiException>()
+                .having(
+                  (error) => ApiFailure.from(error).kind,
+                  'kind',
+                  ApiFailureKind.network,
+                )
+                .having((error) => error.code, 'code', isNull),
           ),
         );
 
@@ -2745,7 +2768,10 @@ void main() {
 
         expect(await controller.startPhoneLogin('12 345 678'), isFalse);
         expect(controller.status, AuthStatus.failure);
-        expect(controller.errorMessage, contains('temporarily unavailable'));
+        expect(
+          controller.errorMessage(_fr),
+          contains('temporarily unavailable'),
+        );
         expect(repo.loginInitiateCalls, 0);
         expect(repo.loginVerifyCalls, 0);
       },
@@ -2790,7 +2816,10 @@ void main() {
         expect(controller.status, AuthStatus.failure);
         expect(controller.pendingFlow, isNull);
         expect(controller.pendingPhone, isNull);
-        expect(controller.errorMessage, contains('server requested an OTP'));
+        expect(
+          controller.errorMessage(_fr),
+          contains('server requested an OTP'),
+        );
         expect(controller.currentUser, isNull);
         expect(controller.nextRoute, isNull);
       },
@@ -2895,7 +2924,7 @@ void main() {
 
       expect(controller.status, AuthStatus.failure);
       expect(controller.errorCode, 'AUTH_PHONE_ALREADY_USED');
-      expect(controller.errorMessage, 'Ce numéro est déjà utilisé.');
+      expect(controller.errorMessage(_fr), 'Ce numéro est déjà utilisé.');
       expect(repo.signupInitiateCalls, 0);
       expect(repo.signupCompleteCalls, 1);
     });
@@ -2962,7 +2991,7 @@ void main() {
       await controller.startGoogleAuth('google-id-token');
 
       expect(await controller.linkGoogleAccount('wrong-password'), isFalse);
-      expect(controller.errorMessage, 'Mot de passe incorrect.');
+      expect(controller.errorMessage(_fr), 'Mot de passe incorrect.');
       expect(controller.hasPendingGoogleAccountLink, isTrue);
 
       controller.cancelGoogleAccountLink();
@@ -2999,7 +3028,7 @@ void main() {
 
         expect(controller.status, AuthStatus.failure);
         expect(controller.errorCode, 'AUTH_PHONE_ALREADY_USED');
-        expect(controller.errorMessage, 'Ce numéro est déjà utilisé.');
+        expect(controller.errorMessage(_fr), 'Ce numéro est déjà utilisé.');
         expect(repo.googleInitiateCalls, 1);
         expect(repo.googlePhoneInitiateCalls, 0);
         expect(repo.googleCompleteCalls, 1);
@@ -3024,7 +3053,7 @@ void main() {
         isFalse,
       );
       expect(controller.errorCode, 'AUTH_INVALID_OTP');
-      expect(controller.errorMessage, 'Code invalide ou expiré.');
+      expect(controller.errorMessage(_fr), 'Code invalide ou expiré.');
 
       repo.error = null;
       await controller.logout();
@@ -3585,6 +3614,8 @@ void main() {
             ChangeNotifierProvider(create: (_) => UserProvider()),
           ],
           child: MaterialApp(
+            localizationsDelegates: OmniLocalizations.localizationsDelegates,
+            supportedLocales: OmniLocalizations.supportedLocales,
             home: const SplashScreen(),
             routes: {
               '/login': (_) => const Text('login route'),
@@ -3621,6 +3652,8 @@ void main() {
             ChangeNotifierProvider(create: (_) => UserProvider()),
           ],
           child: MaterialApp(
+            localizationsDelegates: OmniLocalizations.localizationsDelegates,
+            supportedLocales: OmniLocalizations.supportedLocales,
             home: const SplashScreen(),
             routes: {
               '/login': (_) => const Text('unified login route'),
@@ -3640,6 +3673,8 @@ void main() {
     ) async {
       await tester.pumpWidget(
         MaterialApp(
+          localizationsDelegates: OmniLocalizations.localizationsDelegates,
+          supportedLocales: OmniLocalizations.supportedLocales,
           home: const LoginScreen(),
           routes: {
             '/professional-access-request': (_) =>
@@ -3673,6 +3708,8 @@ void main() {
         ChangeNotifierProvider<AuthController>.value(
           value: controller,
           child: const MaterialApp(
+            localizationsDelegates: OmniLocalizations.localizationsDelegates,
+            supportedLocales: OmniLocalizations.supportedLocales,
             home: Scaffold(body: GoogleAccountLinkSheet()),
           ),
         ),
@@ -3704,6 +3741,8 @@ void main() {
         ChangeNotifierProvider<AuthController>.value(
           value: controller,
           child: const MaterialApp(
+            localizationsDelegates: OmniLocalizations.localizationsDelegates,
+            supportedLocales: OmniLocalizations.supportedLocales,
             home: Scaffold(body: GoogleAccountLinkSheet()),
           ),
         ),
@@ -3743,6 +3782,8 @@ void main() {
         ChangeNotifierProvider<AuthController>.value(
           value: controller,
           child: const MaterialApp(
+            localizationsDelegates: OmniLocalizations.localizationsDelegates,
+            supportedLocales: OmniLocalizations.supportedLocales,
             home: Scaffold(body: GoogleAccountLinkSheet()),
           ),
         ),
@@ -3785,6 +3826,8 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          localizationsDelegates: OmniLocalizations.localizationsDelegates,
+          supportedLocales: OmniLocalizations.supportedLocales,
           routes: {'/login': (_) => const Text('unified login')},
           home: ProfessionalAccessRequestScreen(api: api),
         ),
@@ -3834,6 +3877,8 @@ void main() {
             ChangeNotifierProvider(create: (_) => UserProvider()),
           ],
           child: MaterialApp(
+            localizationsDelegates: OmniLocalizations.localizationsDelegates,
+            supportedLocales: OmniLocalizations.supportedLocales,
             navigatorObservers: [observer],
             home: const SplashScreen(),
             routes: {
@@ -3872,6 +3917,8 @@ void main() {
             ChangeNotifierProvider(create: (_) => UserProvider()),
           ],
           child: MaterialApp(
+            localizationsDelegates: OmniLocalizations.localizationsDelegates,
+            supportedLocales: OmniLocalizations.supportedLocales,
             navigatorObservers: [observer],
             home: const SplashScreen(),
             routes: {
@@ -3914,6 +3961,8 @@ void main() {
               ChangeNotifierProvider(create: (_) => UserProvider()),
             ],
             child: MaterialApp(
+              localizationsDelegates: OmniLocalizations.localizationsDelegates,
+              supportedLocales: OmniLocalizations.supportedLocales,
               theme: buildOmniTheme(),
               routes: {
                 '/professional-access-request': (_) => const Text('request'),
@@ -3952,13 +4001,17 @@ void main() {
             ChangeNotifierProvider(create: (_) => UserProvider()),
           ],
           child: MaterialApp(
+            localizationsDelegates: OmniLocalizations.localizationsDelegates,
+            supportedLocales: OmniLocalizations.supportedLocales,
             theme: buildOmniTheme(),
             home: const SignupScreen(),
           ),
         ),
       );
 
-      final cta = find.byType(ElevatedButton);
+      // G3-P2b: sign-up runs in steps; exactly one primary action is
+      // visible on the current step (the pinned « Continuer »).
+      final cta = find.byType(ElevatedButton).hitTestable();
       await tester.ensureVisible(cta);
       await tester.pumpAndSettle();
       expect(cta, findsOneWidget);

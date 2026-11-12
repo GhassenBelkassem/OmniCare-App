@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/theme/omni_theme.dart';
+import '../../../l10n/omni_localizations.dart';
 import '../../../providers/family_provider.dart';
 import '../../patient_clinic/application/patient_clinic_directory_controller.dart';
 import '../../patient_clinic/presentation/widgets/clinic_image_renderer.dart';
@@ -157,7 +158,9 @@ class _ReviewScreenState extends State<ReviewScreen> {
           ),
           if (request.failure != null)
             _ErrorBanner(
-              message: request.failure!.message,
+              message: request.failure!.message(
+                OmniLocalizations.of(context),
+              ),
               canRetry: request.canRetry,
               onRetry: () => _send(context),
               onStartOver: () {

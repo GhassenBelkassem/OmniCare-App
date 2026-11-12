@@ -1,4 +1,4 @@
-import '../../mock_data/mock_medications.dart';
+import '../network/api_failure.dart';
 
 class MedicationSearchResult {
   final String id;
@@ -37,34 +37,22 @@ class MedicationSearchResult {
   }
 }
 
+/// Medication catalog search.
+///
+/// There is no usable backend catalog yet (P0 F4), and the former local mock
+/// list is cut off from production (G-2 1b-3): every search fails with
+/// [ApiFailure.featureUnavailable]. Callers keep their own state; the search
+/// field simply shows no suggestions.
 class MedicationsApi {
   MedicationsApi({Object? dio});
 
   Future<List<MedicationSearchResult>> searchTop10(String q) async {
-    final trimmed = q.trim();
-    if (trimmed.isEmpty) return const [];
-    final all = createMockMedications();
-    final lower = trimmed.toLowerCase();
-    return all
-        .where(
-          (m) =>
-              m.name.toLowerCase().contains(lower) ||
-              (m.dci?.toLowerCase().contains(lower) ?? false),
-        )
-        .take(10)
-        .toList();
+    if (q.trim().isEmpty) return const [];
+    throw ApiFailure.featureUnavailable;
   }
 
   Future<List<String>> searchDistinctDciTop20(String q) async {
-    final trimmed = q.trim();
-    if (trimmed.isEmpty) return const [];
-    final all = createMockMedications();
-    final lower = trimmed.toLowerCase();
-    return all
-        .map((m) => m.dci ?? '')
-        .where((dci) => dci.toLowerCase().contains(lower))
-        .toSet()
-        .take(20)
-        .toList();
+    if (q.trim().isEmpty) return const [];
+    throw ApiFailure.featureUnavailable;
   }
 }

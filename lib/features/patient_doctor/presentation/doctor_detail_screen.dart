@@ -12,6 +12,7 @@ import '../data/doctor_detail_models.dart';
 import '../data/doctor_directory_failure.dart';
 import 'doctor_availability_sheet.dart';
 import 'doctor_presentation_metadata.dart';
+import '../../../l10n/omni_localizations.dart';
 
 /// Doctor detail / profile screen.
 ///
@@ -58,7 +59,9 @@ class _DoctorDetailScreenState extends State<DoctorDetailScreen> {
                 ? const Center(child: CircularProgressIndicator())
                 : _DetailErrorState(
                     message:
-                        directory.detailError?.message ??
+                        directory.detailError?.patientMessage(
+                          OmniLocalizations.of(context),
+                        ) ??
                         'Impossible de charger ce médecin.',
                     notFound: directory.isNotFound,
                     onRetry: () => directory.fetchDetail(widget.doctorId),
@@ -900,7 +903,9 @@ class _AvailabilityTab extends StatelessWidget {
         const SizedBox(height: OmniSpacing.sm),
         if (availabilityError != null) ...[
           _AvailabilityErrorPanel(
-            message: availabilityError!.message,
+            message: availabilityError!.patientMessage(
+              OmniLocalizations.of(context),
+            ),
             onRetry: onRetryAvailability,
           ),
         ] else if (nextDays.isEmpty)

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import 'account_security_api.dart';
 import 'account_security_provider.dart';
+import '../../l10n/omni_localizations.dart';
 
 class DeviceManagementScreen extends StatefulWidget {
   const DeviceManagementScreen({super.key});
@@ -39,10 +40,10 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
           children: [
             if (provider.isLoading)
               const LinearProgressIndicator(color: Color(0xFF087A65)),
-            if (provider.error != null) ...[
+            if (provider.hasError) ...[
               const SizedBox(height: 12),
               Text(
-                provider.error!,
+                provider.errorMessage(OmniLocalizations.of(context))!,
                 style: const TextStyle(color: Color(0xFFD92D20)),
               ),
             ],

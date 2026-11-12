@@ -11,6 +11,7 @@ import '../../request_core/identity/request_operation_id.dart';
 import '../application/patient_requests_controller.dart';
 import 'patient_request_journey.dart';
 import 'request_status_copy.dart';
+import '../../../l10n/omni_localizations.dart';
 
 class PatientRequestDetailScreen extends StatefulWidget {
   const PatientRequestDetailScreen({super.key, required this.requestId});
@@ -62,7 +63,10 @@ class _DetailState extends State<PatientRequestDetailScreen> {
         ),
       );
     }
-    final status = RequestStatusCopy.of(request.patientStatus);
+    final status = RequestStatusCopy.of(
+      request.patientStatus,
+      OmniLocalizations.of(context),
+    );
     final journey = PatientRequestJourneyMapper.fromStatus(request.patientStatus);
 
     final showInformationFirst = request.canProvideInformation &&
@@ -635,6 +639,7 @@ class _WhatHappensNextCard extends StatelessWidget {
     PatientRequestStatus.completed ||
     PatientRequestStatus.declined ||
     PatientRequestStatus.cancelled ||
+    PatientRequestStatus.noShow ||
     PatientRequestStatus.unknown => [],
   };
 }

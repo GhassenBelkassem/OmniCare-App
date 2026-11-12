@@ -4,9 +4,9 @@ import 'package:dio/dio.dart';
 import 'package:http_parser/http_parser.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../../features/auth/data/models/auth_dtos.dart';
 import '../models/patient_profile.dart';
 import '../network/api_exception.dart';
+import '../network/api_failure.dart';
 import '../network/app_http_client.dart';
 import '../network/request_replay_policy.dart';
 import '../storage/secure_token_store.dart';
@@ -125,37 +125,9 @@ class FilesApi {
     throw const FormatException('Expected JSON object.');
   }
 
-  ApiException _mapDioException(DioException error) {
-    final statusCode = error.response?.statusCode;
-    final data = error.response?.data;
-    if (data is Map) {
-      try {
-        final response = ApiErrorResponse.fromJson(
-          data.cast<String, dynamic>(),
-        );
-        return ApiException(
-          response.message,
-          code: response.code,
-          statusCode: statusCode,
-          fieldErrors: response.fieldErrors,
-          cause: error,
-        );
-      } catch (_) {
-        return ApiException(
-          'Unexpected server error response.',
-          code: 'MALFORMED_ERROR_RESPONSE',
-          statusCode: statusCode,
-          cause: error,
-        );
-      }
-    }
-    return ApiException(
-      'Network request failed.',
-      code: 'NETWORK_REQUEST_FAILED',
-      statusCode: statusCode,
-      cause: error,
-    );
-  }
+  /// One parser for every backend error shape; no server text is kept.
+  ApiException _mapDioException(DioException error) =>
+      ApiException.fromFailure(ApiFailure.fromDio(error), cause: error);
 }
 
 String? _detectAvatarContentType(Uint8List bytes) {

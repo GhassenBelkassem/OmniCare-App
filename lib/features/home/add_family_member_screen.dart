@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 
 import '../../core/models/family_models.dart';
 import '../../providers/family_provider.dart';
+import '../../core/network/api_failure_message.dart';
+import '../../l10n/omni_localizations.dart';
 
 class AddFamilyMemberScreen extends StatefulWidget {
   const AddFamilyMemberScreen({
@@ -139,7 +141,10 @@ class _AddFamilyMemberScreenState extends State<AddFamilyMemberScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _serverErrors = provider.fieldErrors;
+        _serverErrors = apiFieldErrorMessages(
+          provider.fieldErrors,
+          OmniLocalizations.of(context),
+        );
         _submitting = false;
       });
       _formKey.currentState?.validate();
@@ -419,10 +424,18 @@ class _AddFamilyMemberScreenState extends State<AddFamilyMemberScreen> {
                               _clearServerError('relationship');
                             },
                     ),
-                    if (provider.mutationError != null &&
+                    if (provider.mutationFailure != null &&
                         _serverErrors.isEmpty) ...[
                       const SizedBox(height: 16),
-                      _ErrorBanner(message: provider.mutationError!),
+                      _ErrorBanner(
+                        message: apiFailureMessage(
+                          provider.mutationFailure!,
+                          OmniLocalizations.of(context),
+                          fallback: OmniLocalizations.of(
+                            context,
+                          ).familySaveFailed,
+                        ),
+                      ),
                     ],
                     const SizedBox(height: 28),
                     SizedBox(

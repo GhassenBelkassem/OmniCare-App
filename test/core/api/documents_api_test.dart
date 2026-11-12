@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/widgets.dart' show Locale;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:omnicare_mobile/core/api/documents_api.dart';
 import 'package:omnicare_mobile/core/network/api_exception.dart';
@@ -10,6 +11,8 @@ import 'package:omnicare_mobile/core/network/app_http_client.dart';
 import 'package:omnicare_mobile/core/network/request_replay_policy.dart';
 import 'package:omnicare_mobile/core/network/sse_decoder.dart';
 import 'package:omnicare_mobile/core/storage/secure_token_store.dart';
+import 'package:omnicare_mobile/features/profile/medical_document_error_message.dart';
+import 'package:omnicare_mobile/l10n/omni_localizations.dart';
 
 class _MemorySecureStorage implements SecureTokenStorageBackend {
   final Map<String, String> values = {};
@@ -273,10 +276,14 @@ void main() {
           throwsA(
             isA<ApiException>()
                 .having((error) => error.code, 'code', 'UPLOAD_CANCELLED_LOCAL')
+                // G2-1b-2c: French text from the code, never the message.
                 .having(
-                  (error) => error.message,
-                  'message',
-                  contains('server outcome may be unknown'),
+                  (error) => documentErrorMessage(
+                    error,
+                    lookupOmniLocalizations(const Locale('fr')),
+                  ),
+                  'text',
+                  contains('le résultat est incertain'),
                 ),
           ),
         );
