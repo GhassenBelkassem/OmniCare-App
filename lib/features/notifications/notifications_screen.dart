@@ -11,6 +11,8 @@ import '../scheduled_care/presentation/scheduled_care_resource_resolver.dart';
 import '../emergency/urgent_cabinet/urgent_cabinet_patient_lifecycle_controller.dart';
 import 'application/notification_center_controller.dart';
 import 'application/notification_navigation_resolver.dart';
+import '../pending_answers/application/pending_answers_controller.dart';
+import '../pending_answers/presentation/pending_answers_entry.dart';
 import 'domain/notification_models.dart';
 
 class NotificationsScreen extends StatefulWidget {
@@ -138,6 +140,10 @@ class _NotificationsScreenState extends State<NotificationsScreen>
         await Navigator.of(
           context,
         ).pushNamed<void>('/urgent-cabinet/care-subject');
+      } else if (isPendingAnswerResource(resolution.resource) &&
+          context.read<PendingAnswersController?>() != null) {
+        // G-1 D2 / D4: the window or « Mes rendez-vous ».
+        await _openPendingAnswer(resolution.resource!, id);
       } else if (resolution.resource ==
           NotificationNavigationResource.bookingRequest) {
         await ScheduledCareResourceResolver.openRequest(context, id);
@@ -156,6 +162,35 @@ class _NotificationsScreenState extends State<NotificationsScreen>
       } else {
         widget.onOpenDoctorAppointment?.call(id);
       }
+    }
+  }
+
+  /// G-1 D2 / D4 patient destinations. Returns false for any other resource.
+  Future<bool> _openPendingAnswer(
+    NotificationNavigationResource resource,
+    String id,
+  ) async {
+    final controller = context.read<PendingAnswersController?>();
+    if (controller == null) return false;
+    final navigator = Navigator.of(context);
+    switch (resource) {
+      case NotificationNavigationResource.accessRequest:
+        await PendingAnswersEntry.openAccessRequest(navigator, controller, id);
+        return true;
+      case NotificationNavigationResource.followUpProposal:
+        await PendingAnswersEntry.openFollowUpProposal(
+          navigator,
+          controller,
+          id,
+        );
+        return true;
+      case NotificationNavigationResource.followUpWithdrawn:
+        await PendingAnswersEntry.openFollowUpWithdrawn(navigator, controller);
+        return true;
+      case NotificationNavigationResource.bookingRequest:
+      case NotificationNavigationResource.appointment:
+      case NotificationNavigationResource.urgentCabinetRequest:
+        return false;
     }
   }
 

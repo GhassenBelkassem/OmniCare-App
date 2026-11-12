@@ -8,6 +8,8 @@ import '../application/patient_scheduled_care_controller.dart';
 import '../domain/patient_scheduled_care_models.dart';
 import '../domain/scheduled_care_models.dart';
 import '../realtime/scheduled_care_route_visibility.dart';
+import '../../pending_answers/application/pending_answers_controller.dart';
+import '../../pending_answers/presentation/pending_answers_section.dart';
 import 'booking_review_screen.dart';
 import 'scheduled_care_resource_resolver.dart';
 
@@ -118,6 +120,8 @@ class _PatientScheduledCareScreenState extends State<PatientScheduledCareScreen>
               ).textTheme.bodyMedium?.copyWith(color: OmniColors.textSecondary),
             ),
           ),
+          // G-1 D2 / D4: « En attente de votre réponse » (hidden when empty).
+          PendingAnswersSection(onProposalConfirmed: controller.refresh),
           _BucketTabs(controller: controller),
           Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -185,7 +189,13 @@ class _PatientScheduledCareScreenState extends State<PatientScheduledCareScreen>
       );
     }
     return RefreshIndicator(
-      onRefresh: controller.refresh,
+      onRefresh: () => Future.wait([
+        controller.refresh(),
+        context.read<PendingAnswersController?>()?.refresh(
+              keepAnswered: false,
+            ) ??
+            Future<void>.value(),
+      ]),
       child: ListView.separated(
         key: PageStorageKey<String>('scheduled-care-${controller.bucket.name}'),
         padding: const EdgeInsets.fromLTRB(

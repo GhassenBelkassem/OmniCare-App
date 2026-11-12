@@ -5,7 +5,17 @@ enum NotificationNavigationResource {
   bookingRequest,
   appointment,
   urgentCabinetRequest,
+  // G-1 D2 / D4 (patient): answered in « Mes rendez-vous » or the window.
+  accessRequest,
+  followUpProposal,
+  followUpWithdrawn,
 }
+
+/// G-1 D2 / D4 patient destinations (« Mes rendez-vous » / access window).
+bool isPendingAnswerResource(NotificationNavigationResource? resource) =>
+    resource == NotificationNavigationResource.accessRequest ||
+    resource == NotificationNavigationResource.followUpProposal ||
+    resource == NotificationNavigationResource.followUpWithdrawn;
 
 enum NotificationNavigationStatus { target, noDestination, unavailable }
 
@@ -240,6 +250,22 @@ class NotificationNavigationResolver {
       role: AuthRoleFamily.patient,
       resource: NotificationNavigationResource.urgentCabinetRequest,
       idKey: 'request_id',
+    ),
+    // G-1 D2 / D4: payloads carry the id only (request_id / appointment_id).
+    'ACCESS_REQUESTED': _NotificationNavigationRule(
+      role: AuthRoleFamily.patient,
+      resource: NotificationNavigationResource.accessRequest,
+      idKey: 'request_id',
+    ),
+    'FOLLOW_UP_PROPOSED': _NotificationNavigationRule(
+      role: AuthRoleFamily.patient,
+      resource: NotificationNavigationResource.followUpProposal,
+      idKey: 'appointment_id',
+    ),
+    'FOLLOW_UP_WITHDRAWN': _NotificationNavigationRule(
+      role: AuthRoleFamily.patient,
+      resource: NotificationNavigationResource.followUpWithdrawn,
+      idKey: 'appointment_id',
     ),
     'URGENT_CABINET_COMMITMENT_WITHDRAWN': _NotificationNavigationRule(
       // P4 withdrawal invalidates the accepted Doctor responsibility. The

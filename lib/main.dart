@@ -103,6 +103,9 @@ import 'features/patient_passport/sharing/medical_share_qr_api.dart';
 import 'features/patient_passport/sharing/medical_share_qr_controller.dart';
 import 'features/patient_passport/sharing/direct_patient_authorization_api.dart';
 import 'features/patient_passport/sharing/direct_patient_authorization_controller.dart';
+import 'features/pending_answers/application/pending_answers_controller.dart';
+import 'features/pending_answers/data/pending_answers_api.dart';
+import 'features/pending_answers/presentation/pending_answers_entry.dart';
 
 Future<void> main() => startOmniCare();
 
@@ -318,6 +321,12 @@ class OmniCareApp extends StatelessWidget {
         ChangeNotifierProvider(
           create: (_) => DirectPatientAuthorizationController(
             DirectPatientAuthorizationApi(resolvedHttpClient),
+          ),
+        ),
+        // G-1 D2 / D4: the patient's pending access requests and follow-ups.
+        ChangeNotifierProvider(
+          create: (_) => PendingAnswersController(
+            PendingAnswersApi(resolvedHttpClient),
           ),
         ),
         ChangeNotifierProvider(
@@ -560,6 +569,7 @@ class _AuthStateListenerState extends State<_AuthStateListener>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    AppNav.patientHomeInStack.addListener(_onPatientHomeInStackChanged);
   }
 
   @override
@@ -598,6 +608,7 @@ class _AuthStateListenerState extends State<_AuthStateListener>
           .applicationResumed();
       unawaited(_realtimeCoordinator?.foregroundResync());
       unawaited(_notificationRealtimeCoordinator?.foregroundResync());
+      unawaited(_offerAccessRequestWindow());
     } else if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden ||
@@ -611,6 +622,7 @@ class _AuthStateListenerState extends State<_AuthStateListener>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    AppNav.patientHomeInStack.removeListener(_onPatientHomeInStackChanged);
     _unregisterPatientRealtimeTarget?.call();
     _patientRealtimeTarget?.dispose();
     _notificationOpenSubscription?.cancel();
@@ -633,6 +645,10 @@ class _AuthStateListenerState extends State<_AuthStateListener>
     final claimed = NotificationService().claimNotificationOpen(intent);
     if (claimed == null) return;
     if (resolution.status != NotificationNavigationStatus.target) return;
+    if (isPendingAnswerResource(resolution.resource)) {
+      await _openPendingAnswer(resolution);
+      return;
+    }
     if (resolution.resource == NotificationNavigationResource.bookingRequest) {
       await ScheduledCareResourceResolver.openRequest(
         context,
@@ -661,6 +677,78 @@ class _AuthStateListenerState extends State<_AuthStateListener>
       return;
     }
     await navigator.pushNamed<void>('/urgent-cabinet/care-subject');
+  }
+
+  /// G-1 D2 / D4 pushes. Returns false for any other destination.
+  Future<bool> _openPendingAnswer(
+    NotificationNavigationResolution resolution,
+  ) async {
+    final resource = resolution.resource;
+    if (!isPendingAnswerResource(resource)) return false;
+    final controller = context.read<PendingAnswersController>();
+    // A cold-start push waits for the patient home, so nothing it opens is
+    // replaced by the splash → home navigation.
+    await _patientHomeReady();
+    if (!mounted) return true;
+    final navigator = AppNav.navigatorKey.currentState;
+    final id = resolution.resourceId!;
+    switch (resource) {
+      case NotificationNavigationResource.accessRequest:
+        if (navigator != null) {
+          await PendingAnswersEntry.openAccessRequest(navigator, controller, id);
+        }
+        return true;
+      case NotificationNavigationResource.followUpProposal:
+        if (navigator != null) {
+          await PendingAnswersEntry.openFollowUpProposal(
+            navigator,
+            controller,
+            id,
+          );
+        }
+        return true;
+      case NotificationNavigationResource.followUpWithdrawn:
+        if (navigator != null) {
+          await PendingAnswersEntry.openFollowUpWithdrawn(navigator, controller);
+        }
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  Future<void> _patientHomeReady() {
+    final home = AppNav.patientHomeInStack;
+    if (home.value) return Future.value();
+    final ready = Completer<void>();
+    void listener() {
+      if (home.value && !ready.isCompleted) ready.complete();
+    }
+
+    home.addListener(listener);
+    return ready.future
+        .timeout(const Duration(seconds: 20), onTimeout: () {})
+        .whenComplete(() => home.removeListener(listener));
+  }
+
+  void _onPatientHomeInStackChanged() {
+    if (AppNav.patientHomeInStack.value) unawaited(_offerAccessRequestWindow());
+  }
+
+  /// G-1 D2 (B): on app open and resume, a pending access request opens the
+  /// window once per app session. Patients only.
+  Future<void> _offerAccessRequestWindow() async {
+    if (!mounted) return;
+    final auth = context.read<AuthController>();
+    if (!auth.isAuthenticated || auth.globalRole != 'PATIENT') return;
+    if (NotificationService().pendingNotificationOpen != null) return;
+    if (!AppNav.patientHomeInStack.value) return;
+    final navigator = AppNav.navigatorKey.currentState;
+    if (navigator == null) return;
+    await PendingAnswersEntry.offerAccessRequestWindow(
+      navigator,
+      context.read<PendingAnswersController>(),
+    );
   }
 
   @override
@@ -693,7 +781,11 @@ class _AuthStateListenerState extends State<_AuthStateListener>
           );
           if (nextRole == 'PATIENT') {
             final pending = NotificationService().pendingNotificationOpen;
-            if (pending != null) unawaited(_openPatientNotification(pending));
+            if (pending != null) {
+              unawaited(_openPatientNotification(pending));
+            } else {
+              unawaited(_offerAccessRequestWindow());
+            }
           }
           unawaited(
             _realtimeCoordinator?.startSession(
@@ -738,6 +830,7 @@ class _AuthStateListenerState extends State<_AuthStateListener>
           context.read<MedicalShareQrController>().clear();
           context.read<DirectPatientAuthorizationController>().clear();
           context.read<MedicalRecordViewModel>().clear();
+          context.read<PendingAnswersController>().clear();
         });
       }
       _wasAuthenticated = true;
@@ -787,6 +880,8 @@ class _AuthStateListenerState extends State<_AuthStateListener>
         context.read<MedicalShareQrController>().clear();
         if (!context.mounted) return;
         context.read<DirectPatientAuthorizationController>().clear();
+        if (!context.mounted) return;
+        context.read<PendingAnswersController>().clear();
         if (!context.mounted) return;
         // Medical data must not outlive the session (G-2 FT-3).
         context.read<MedicalRecordViewModel>().clear();

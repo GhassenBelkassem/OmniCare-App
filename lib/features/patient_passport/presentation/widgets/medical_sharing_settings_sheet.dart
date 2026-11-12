@@ -339,7 +339,9 @@ class _MedicalSharingSettingsSheetState
             const SizedBox(height: 12),
             OutlinedButton(
               key: const Key('revoke-direct-consent'),
-              onPressed: controller.isMutating ? null : controller.revoke,
+              onPressed: controller.isMutating
+                  ? null
+                  : () => _confirmRevoke(controller),
               child: const Text('Retirer l’accès'),
             ),
           ] else ...[
@@ -393,6 +395,35 @@ class _MedicalSharingSettingsSheetState
     final hour = local.hour.toString().padLeft(2, '0');
     final minute = local.minute.toString().padLeft(2, '0');
     return '$hour:$minute';
+  }
+
+  /// G-1: « Retirer l'accès ? » before revoking (the button is unchanged).
+  Future<void> _confirmRevoke(
+    DirectPatientAuthorizationController controller,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        key: const Key('revoke-direct-consent-dialog'),
+        title: const Text('Retirer l’accès ?'),
+        content: const Text(
+          'Le médecin ne pourra plus consulter votre dossier.',
+        ),
+        actions: [
+          TextButton(
+            key: const Key('revoke-direct-consent-cancel'),
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            key: const Key('revoke-direct-consent-confirm'),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Retirer'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) await controller.revoke();
   }
 
   void _setDraft(MedicalSharingPolicy value) {

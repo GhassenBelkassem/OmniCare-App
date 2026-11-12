@@ -198,6 +198,11 @@ class _DoctorAppShellState extends State<DoctorAppShell> {
         _openAppointment(id);
       case NotificationNavigationResource.urgentCabinetRequest:
         await _selectUrgentCabinetRequest(id);
+      // Patient-only destinations (G-1 D2 / D4): never routed for a doctor.
+      case NotificationNavigationResource.accessRequest:
+      case NotificationNavigationResource.followUpProposal:
+      case NotificationNavigationResource.followUpWithdrawn:
+        return;
     }
   }
 

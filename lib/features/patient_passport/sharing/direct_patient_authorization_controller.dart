@@ -17,6 +17,9 @@ class DirectPatientAuthorizationController extends ChangeNotifier {
   bool _mutating = false;
   String? _error;
   int _generation = 0;
+  // One Idempotency-Key per tap, reused while the same command is retried
+  // after a failure that may have reached the server.
+  ({String signature, String key})? _command;
 
   List<DirectAuthorizationContext> get contexts => _contexts;
   DirectAuthorizationContext? get selected => _selected;
@@ -82,17 +85,20 @@ class DirectPatientAuthorizationController extends ChangeNotifier {
     _mutating = true;
     _error = null;
     notifyListeners();
+    final signature =
+        '${approve ? 'approve' : 'revoke'}:${context.consultationId}';
+    final previous = _command;
+    final key = previous != null && previous.signature == signature
+        ? previous.key
+        : generateUuidV4();
+    _command = (signature: signature, key: key);
     try {
       _access = approve
-          ? await _api.approve(
-              context.consultationId,
-              idempotencyKey: generateUuidV4(),
-            )
-          : await _api.revoke(
-              context.consultationId,
-              idempotencyKey: generateUuidV4(),
-            );
+          ? await _api.approve(context.consultationId, idempotencyKey: key)
+          : await _api.revoke(context.consultationId, idempotencyKey: key);
+      _command = null;
     } catch (error) {
+      if (!_mayHaveReachedServer(error)) _command = null;
       if (generation == _generation) _error = _message(error);
     } finally {
       if (generation == _generation) {
@@ -102,8 +108,17 @@ class DirectPatientAuthorizationController extends ChangeNotifier {
     }
   }
 
+  /// No HTTP status (network, timeout) or a 5xx: the command may have been
+  /// applied, so the retry must replay the same key.
+  static bool _mayHaveReachedServer(Object error) {
+    if (error is! ApiException) return true;
+    final status = error.statusCode;
+    return status == null || status >= 500;
+  }
+
   void clear() {
     _generation++;
+    _command = null;
     _contexts = const [];
     _selected = null;
     _access = null;
