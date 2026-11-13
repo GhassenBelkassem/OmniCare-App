@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -65,11 +67,27 @@ class _OmniWeightRulerState extends State<OmniWeightRuler> {
     initialScrollOffset: _offsetOf(widget.value ?? widget.initialPosition),
   );
 
-  /// True between the start of a user drag and the end of its fling.
+  /// True between the start of a user scroll (touch drag, mouse wheel,
+  /// trackpad) and its end, fling included.
   bool _userScrolling = false;
+
+  /// True while the ruler moves itself (placement jump or snap animation):
+  /// those scrolls never call [OmniWeightRuler.onChanged]. Any scroll that
+  /// starts while this is false is the user's — a mouse wheel scroll
+  /// carries no drag details, so they cannot be used to tell.
+  bool _programmatic = false;
 
   /// Last unit sent during the current drag (avoids repeats within a frame).
   int? _lastSent;
+
+  /// The current user scroll started with drag details (touch or trackpad
+  /// drag), as opposed to mouse wheel events.
+  bool _dragScroll = false;
+
+  /// Snap after a mouse wheel scroll, which ends after every event:
+  /// waits for the events to stop instead of fighting them.
+  Timer? _settleTimer;
+  static const Duration _settleDelay = Duration(milliseconds: 150);
 
   double _offsetOf(num position) =>
       (position.clamp(widget.min, widget.max) - widget.min) * _spacing;
@@ -85,13 +103,20 @@ class _OmniWeightRulerState extends State<OmniWeightRuler> {
     if (!_controller.hasClients) return;
     final target = _offsetOf(value);
     if ((_controller.offset - target).abs() > 0.5) {
-      // Programmatic: no ScrollStart with drag details, so no onChanged.
-      _controller.jumpTo(target);
+      // Programmatic: its notifications are ignored, so no onChanged.
+      _settleTimer?.cancel();
+      _programmatic = true;
+      try {
+        _controller.jumpTo(target);
+      } finally {
+        _programmatic = false;
+      }
     }
   }
 
   @override
   void dispose() {
+    _settleTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -104,18 +129,34 @@ class _OmniWeightRulerState extends State<OmniWeightRuler> {
   }
 
   bool _onScrollNotification(ScrollNotification notification) {
+    // Only the ruler's own scroll view (not a nested one, there is none).
+    if (notification.depth != 0) return false;
     if (notification is ScrollStartNotification) {
-      _userScrolling = notification.dragDetails != null;
-      _lastSent = null;
+      if (_programmatic) return false;
+      _settleTimer?.cancel();
+      if (!_userScrolling) _lastSent = null;
+      _userScrolling = true;
+      _dragScroll = notification.dragDetails != null;
     } else if (notification is ScrollUpdateNotification) {
       if (_userScrolling) _emit(_unitAt(notification.metrics.pixels));
     } else if (notification is ScrollEndNotification) {
       if (_userScrolling) {
         final unit = _unitAt(notification.metrics.pixels);
         _emit(unit);
-        _snapTo(unit);
+        if (_dragScroll) {
+          // Touch / trackpad drag, fling included: snap now.
+          _userScrolling = false;
+          _snapTo(unit);
+        } else {
+          // Snap once the wheel has stopped for a moment.
+          _settleTimer?.cancel();
+          _settleTimer = Timer(_settleDelay, () {
+            _userScrolling = false;
+            _snapTo(unit);
+          });
+        }
       }
-      _userScrolling = false;
+      _programmatic = false;
     }
     return false;
   }
@@ -124,12 +165,19 @@ class _OmniWeightRulerState extends State<OmniWeightRuler> {
   void _snapTo(int unit) {
     final target = _offsetOf(unit);
     SchedulerBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_controller.hasClients) return;
+      if (!mounted || !_controller.hasClients || _userScrolling) return;
       if ((_controller.offset - target).abs() <= 0.5) return;
       final reduceMotion =
           MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+      // Cleared by the ScrollEndNotification of the jump / animation
+      // (also when a new user scroll interrupts it).
+      _programmatic = true;
       if (reduceMotion) {
-        _controller.jumpTo(target);
+        try {
+          _controller.jumpTo(target);
+        } finally {
+          _programmatic = false;
+        }
       } else {
         _controller.animateTo(
           target,
@@ -138,6 +186,8 @@ class _OmniWeightRulerState extends State<OmniWeightRuler> {
         );
       }
     });
+    // From a timer (wheel settle) no frame may be coming: ask for one.
+    SchedulerBinding.instance.ensureVisualUpdate();
   }
 
   void _step(int delta) {
