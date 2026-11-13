@@ -7,7 +7,8 @@ import 'document_viewer_screen.dart';
 import 'qr_code_modal.dart';
 import '../patient_passport/sharing/medical_sharing_models.dart';
 
-import '../../providers/family_provider.dart';
+import '../patient_passport/application/medical_data_editor_view_model.dart';
+import '../patient_passport/data/medical_record_models.dart';
 import '../../core/l10n/blood_type_label.dart';
 import '../../l10n/omni_localizations.dart';
 
@@ -61,38 +62,32 @@ class _FamilyMemberDetailScreenState extends State<FamilyMemberDetailScreen> {
     _member = widget.member;
   }
 
-  void _handleEditMedicalData() {
-    Navigator.push(
+  /// The record editor's section saves for this family member only
+  /// (FAMILY:{id}, G2.1-A3). What was saved is shown here; the documents
+  /// block stays local, as before.
+  Future<void> _handleEditMedicalData() async {
+    final editor = context.read<MedicalDataEditorFactory>().create(
+      FamilyRecordSubject(_member.id),
+    );
+    final result = await Navigator.push<MedicalDataEditResult>(
       context,
       MaterialPageRoute(
         builder: (context) => EditMedicalDataScreen(
-          bloodType: _member.bloodType,
-          chronicConditions: _member.chronicConditions,
-          medications: _member.currentMedications,
+          viewModel: editor,
           documents: _member.documents,
-          onSave: (edit) async {
-            // Only a changed blood type is sent: the displayed value is not
-            // loaded from the server yet, so an untouched one must never
-            // overwrite the stored value.
-            final bloodType = edit.bloodType;
-            if (bloodType != null) {
-              await context.read<FamilyProvider>().updateMedicalPassport(
-                id: _member.id,
-                bloodType: bloodType,
-              );
-            }
-
-            if (!mounted) return;
-            // Conditions and medications cannot be saved yet (the editor
-            // tells the patient), so they are not shown as if they were.
-            setState(() {
-              if (bloodType != null) _member.bloodType = bloodType;
-              _member.documents = edit.documents;
-            });
-          },
         ),
       ),
     );
+    editor.dispose();
+    if (!mounted || result == null) return;
+    setState(() {
+      _member.documents = result.documents;
+      if (result.saved case final saved?) {
+        _member.bloodType = saved.bloodType;
+        _member.chronicConditions = saved.conditions;
+        _member.currentMedications = saved.medications;
+      }
+    });
   }
 
   @override

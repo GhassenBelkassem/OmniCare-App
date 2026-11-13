@@ -1,72 +1,111 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/omni_theme.dart';
-import '../../models/patient_passport_view_models.dart';
+import '../../application/medical_data_editor_draft.dart';
+import '../../data/medical_record_models.dart';
 
+/// One medication row of the editor: its text fields and choices. [key] is
+/// the row's local identity; [itemId] is set for the patient's own declared
+/// item (G2.1-A2). The start date has no field and is kept as read.
 class MedicationEditorDraft {
+  final int key;
+  final String? itemId;
+  final String? startedOn;
   final TextEditingController nameController;
   final TextEditingController dosageController;
   final TextEditingController durationController;
-  String frequency;
-  String durationUnit;
 
-  MedicationEditorDraft({
+  /// 1, 2 or 3 from the chips; a stored value outside them stays until a
+  /// chip is chosen; `null` when not given.
+  int? timesPerDay;
+  DurationUnit durationUnit;
+
+  MedicationEditorDraft._({
+    required this.key,
+    required this.itemId,
+    required this.startedOn,
     required String name,
     required String dosage,
-    required this.frequency,
-    String duration = '0',
-    this.durationUnit = 'Jour(s)',
+    required String duration,
+    required this.timesPerDay,
+    required this.durationUnit,
   }) : nameController = TextEditingController(text: name),
        dosageController = TextEditingController(text: dosage),
        durationController = TextEditingController(text: duration);
 
-  factory MedicationEditorDraft.fromMedication(PassportMedication medication) {
-    final frequency = switch (medication.frequency) {
-      final value when value.contains('3×') => '3×/jour',
-      final value when value.contains('2×') => '2×/jour',
-      _ => '1×/jour',
-    };
-    return MedicationEditorDraft(
-      name: medication.name,
-      dosage: medication.dosage,
-      frequency: frequency,
-    );
-  }
+  factory MedicationEditorDraft.fromInput(MedicationInput input) =>
+      MedicationEditorDraft._(
+        key: input.key,
+        itemId: input.itemId,
+        startedOn: input.startedOn,
+        name: input.name,
+        dosage: input.dosageText,
+        duration: input.durationText,
+        timesPerDay: input.timesPerDay,
+        durationUnit: input.durationUnit,
+      );
 
-  factory MedicationEditorDraft.empty() {
-    return MedicationEditorDraft(name: '', dosage: '', frequency: '1×/jour');
-  }
+  factory MedicationEditorDraft.empty(int key) => MedicationEditorDraft._(
+    key: key,
+    itemId: null,
+    startedOn: null,
+    name: '',
+    dosage: '',
+    duration: '',
+    timesPerDay: null,
+    durationUnit: DurationUnit.day,
+  );
 
-  PassportMedication toMedication() {
-    return PassportMedication(
-      name: nameController.text.trim(),
-      dosage: dosageController.text.trim(),
-      frequency: frequency.replaceFirst('×/jour', '× par jour'),
-      isCurrent: true,
-    );
-  }
+  MedicationInput toInput() => MedicationInput(
+    key: key,
+    itemId: itemId,
+    name: nameController.text,
+    dosageText: dosageController.text,
+    timesPerDay: timesPerDay,
+    durationText: durationController.text,
+    durationUnit: durationUnit,
+    startedOn: startedOn,
+  );
 
   void dispose() {
     nameController.dispose();
     dosageController.dispose();
     durationController.dispose();
   }
+
+  @override
+  String toString() => 'MedicationEditorDraft(key: $key)';
 }
 
 class MedicationEditorCard extends StatelessWidget {
   static const frequencies = ['1×/jour', '2×/jour', '3×/jour'];
-  static const durationUnits = ['Jour(s)', 'Semaine(s)', 'Mois'];
+  static const durationUnits = {
+    DurationUnit.day: 'Jour(s)',
+    DurationUnit.week: 'Semaine(s)',
+    DurationUnit.month: 'Mois',
+  };
 
   final MedicationEditorDraft draft;
-  final ValueChanged<String> onFrequencyChanged;
-  final ValueChanged<String> onDurationUnitChanged;
+
+  /// « Déclaré par le patient » (ADR-012 rule 5); every editable row is one.
+  final String declaredLabel;
+
+  /// French field messages by field (`name`, `dosageText`, `timesPerDay`,
+  /// `duration`, `startedOn`).
+  final Map<String, String> errors;
+  final ValueChanged<int> onTimesPerDayChanged;
+  final ValueChanged<DurationUnit> onDurationUnitChanged;
+  final VoidCallback onTextChanged;
   final VoidCallback onDelete;
 
   const MedicationEditorCard({
     super.key,
     required this.draft,
-    required this.onFrequencyChanged,
+    required this.declaredLabel,
+    required this.errors,
+    required this.onTimesPerDayChanged,
     required this.onDurationUnitChanged,
+    required this.onTextChanged,
     required this.onDelete,
   });
 
@@ -82,38 +121,55 @@ class MedicationEditorCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Text(
+              declaredLabel,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: OmniColors.textSecondary),
+            ),
+          ),
           const _FieldLabel('Nom du Médicament'),
           TextField(
             controller: draft.nameController,
             textCapitalization: TextCapitalization.sentences,
-            decoration: _fieldDecoration(hintText: 'Nom du médicament'),
+            onChanged: (_) => onTextChanged(),
+            decoration: _fieldDecoration(
+              hintText: 'Nom du médicament',
+              errorText: errors['name'],
+            ),
           ),
           const SizedBox(height: 14),
           const _FieldLabel('Dosage'),
           TextField(
             controller: draft.dosageController,
-            decoration: _fieldDecoration(hintText: 'Ex: 500mg'),
+            onChanged: (_) => onTextChanged(),
+            decoration: _fieldDecoration(
+              hintText: 'Ex: 500mg',
+              errorText: errors['dosageText'],
+            ),
           ),
           const SizedBox(height: 16),
           const _FieldLabel('Fréquence'),
           Row(
-            children: frequencies
-                .map(
-                  (frequency) => Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.only(
-                        right: frequency == frequencies.last ? 0 : 7,
-                      ),
-                      child: _FrequencyChoice(
-                        label: frequency,
-                        selected: draft.frequency == frequency,
-                        onTap: () => onFrequencyChanged(frequency),
-                      ),
+            children: [
+              for (var index = 0; index < frequencies.length; index++)
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      right: index == frequencies.length - 1 ? 0 : 7,
+                    ),
+                    child: _FrequencyChoice(
+                      label: frequencies[index],
+                      selected: draft.timesPerDay == index + 1,
+                      onTap: () => onTimesPerDayChanged(index + 1),
                     ),
                   ),
-                )
-                .toList(growable: false),
+                ),
+            ],
           ),
+          if (errors['timesPerDay'] case final error?) _ErrorLine(error),
           const SizedBox(height: 16),
           const _FieldLabel('Durée'),
           Row(
@@ -122,7 +178,11 @@ class MedicationEditorCard extends StatelessWidget {
                 child: TextField(
                   controller: draft.durationController,
                   keyboardType: TextInputType.number,
-                  decoration: _fieldDecoration(hintText: '0'),
+                  onChanged: (_) => onTextChanged(),
+                  decoration: _fieldDecoration(
+                    hintText: '0',
+                    errorText: errors['duration'],
+                  ),
                 ),
               ),
               const SizedBox(width: 10),
@@ -136,7 +196,7 @@ class MedicationEditorCard extends StatelessWidget {
                     border: Border.all(color: OmniColors.borderLight),
                   ),
                   child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
+                    child: DropdownButton<DurationUnit>(
                       value: draft.durationUnit,
                       isExpanded: true,
                       icon: const Icon(
@@ -147,11 +207,11 @@ class MedicationEditorCard extends StatelessWidget {
                         color: OmniColors.textPrimary,
                         fontWeight: FontWeight.w600,
                       ),
-                      items: durationUnits
+                      items: durationUnits.entries
                           .map(
-                            (unit) => DropdownMenuItem<String>(
-                              value: unit,
-                              child: Text(unit),
+                            (unit) => DropdownMenuItem<DurationUnit>(
+                              value: unit.key,
+                              child: Text(unit.value),
                             ),
                           )
                           .toList(growable: false),
@@ -164,6 +224,7 @@ class MedicationEditorCard extends StatelessWidget {
               ),
             ],
           ),
+          if (errors['startedOn'] case final error?) _ErrorLine(error),
           const SizedBox(height: 10),
           TextButton.icon(
             onPressed: onDelete,
@@ -180,9 +241,14 @@ class MedicationEditorCard extends StatelessWidget {
     );
   }
 
-  static InputDecoration _fieldDecoration({required String hintText}) {
+  static InputDecoration _fieldDecoration({
+    required String hintText,
+    String? errorText,
+  }) {
     return InputDecoration(
       hintText: hintText,
+      errorText: errorText,
+      errorMaxLines: 3,
       isDense: true,
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
       enabledBorder: OutlineInputBorder(
@@ -192,6 +258,27 @@ class MedicationEditorCard extends StatelessWidget {
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
         borderSide: const BorderSide(color: OmniColors.borderFocus, width: 1.5),
+      ),
+    );
+  }
+}
+
+/// A field message under a choice row, in the theme's input error style.
+class _ErrorLine extends StatelessWidget {
+  final String message;
+
+  const _ErrorLine(this.message);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 6, left: 12),
+      child: Text(
+        message,
+        style:
+            theme.inputDecorationTheme.errorStyle ??
+            theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
       ),
     );
   }

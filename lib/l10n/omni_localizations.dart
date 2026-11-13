@@ -382,12 +382,6 @@ abstract class OmniLocalizations {
   /// **'La demande urgente au cabinet n’est pas disponible pour le moment.'**
   String get urgentCabinetUnavailableMessage;
 
-  /// Medical data edit: changed conditions or medications are not saved yet. G2-1a-2 (C2).
-  ///
-  /// In fr, this message translates to:
-  /// **'Les antécédents et traitements ne peuvent pas encore être enregistrés.'**
-  String get conditionsAndTreatmentsNotSaved;
-
   /// Request status NO_SHOW: status chip, status card title and end of the journey. G2-1a-4 (C10).
   ///
   /// In fr, this message translates to:
@@ -1894,18 +1888,6 @@ abstract class OmniLocalizations {
   /// **'Indiquez votre poids.'**
   String get onboardingErrorWeight;
 
-  /// Onboarding validation (was « Please enter a valid height. »), same rule. G3-ONB2.
-  ///
-  /// In fr, this message translates to:
-  /// **'Indiquez une taille valide.'**
-  String get onboardingErrorHeightInvalid;
-
-  /// Onboarding validation (was « Please enter a valid weight. »), same rule. G3-ONB2.
-  ///
-  /// In fr, this message translates to:
-  /// **'Indiquez un poids valide.'**
-  String get onboardingErrorWeightInvalid;
-
   /// Onboarding validation (was « Please enter the allergy name. »), same rule. G3-ONB2.
   ///
   /// In fr, this message translates to:
@@ -1917,18 +1899,6 @@ abstract class OmniLocalizations {
   /// In fr, this message translates to:
   /// **'Choisissez la gravité de l’allergie.'**
   String get onboardingErrorAllergySeverity;
-
-  /// Onboarding medication check (was « Please select a medication from the list. »), same rule. G3-ONB2.
-  ///
-  /// In fr, this message translates to:
-  /// **'Choisissez un médicament dans la liste.'**
-  String get onboardingErrorMedicationSelect;
-
-  /// Onboarding medication check (was « Please enter a dosage for the selected medication. »), same rule. G3-ONB2.
-  ///
-  /// In fr, this message translates to:
-  /// **'Indiquez la posologie du médicament choisi.'**
-  String get onboardingErrorMedicationDosage;
 
   /// Onboarding « Groupe sanguin »: title (was « What is your blood type? »). G3-ONB2.
   ///
@@ -2224,17 +2194,11 @@ abstract class OmniLocalizations {
   /// **'Non, aucun médicament'**
   String get onboardingMedicationsNo;
 
-  /// Onboarding « Médicaments »: note shown for « Oui » (no medication can be added yet). G3-ONB2.
+  /// Onboarding « Médicaments »: note shown for « Oui »; no medication field in V1, nothing is saved for medications (CTO 2026-11-13). G2.1-A3b.
   ///
   /// In fr, this message translates to:
-  /// **'L’ajout de médicaments sera bientôt disponible'**
-  String get onboardingMedicationsSoonTitle;
-
-  /// Onboarding « Médicaments »: note body. G3-ONB2.
-  ///
-  /// In fr, this message translates to:
-  /// **'Vous pourrez les ajouter depuis votre dossier médical.'**
-  String get onboardingMedicationsSoonBody;
+  /// **'Vous pourrez ajouter vos médicaments dans votre dossier médical.'**
+  String get onboardingMedicationsInRecord;
 
   /// Onboarding final screen: title (was « Thank You! »). G3-ONB2.
   ///
@@ -2295,6 +2259,204 @@ abstract class OmniLocalizations {
   /// In fr, this message translates to:
   /// **'Calculé avec votre taille ({height} cm)'**
   String onboardingBmiHeightNote(int height);
+
+  /// Generic field error: the same value twice in one list (DUPLICATE). G2.1-A1.
+  ///
+  /// In fr, this message translates to:
+  /// **'Cet élément figure déjà dans la liste.'**
+  String get fieldErrorDuplicate;
+
+  /// Dossier médical: a label, medication name or document title over 160 characters. G2.1-A1.
+  ///
+  /// In fr, this message translates to:
+  /// **'160 caractères maximum.'**
+  String get recordFieldTooLong160;
+
+  /// Dossier médical: a medication dosage text over 80 characters. G2.1-A1.
+  ///
+  /// In fr, this message translates to:
+  /// **'80 caractères maximum.'**
+  String get recordFieldTooLong80;
+
+  /// Dossier médical: a list (allergies, conditions, medications) over 50 items. G2.1-A1.
+  ///
+  /// In fr, this message translates to:
+  /// **'50 éléments maximum.'**
+  String get recordFieldTooManyItems;
+
+  /// Dossier médical: a text with a control or direction character (INVALID). G2.1-A1.
+  ///
+  /// In fr, this message translates to:
+  /// **'Ce texte contient des caractères non autorisés.'**
+  String get recordFieldForbiddenCharacters;
+
+  /// Dossier médical: blood type not in the accepted list. G2.1-A1.
+  ///
+  /// In fr, this message translates to:
+  /// **'Groupe sanguin non valide.'**
+  String get recordFieldBloodTypeInvalid;
+
+  /// Dossier médical: height out of range. G2.1-A1.
+  ///
+  /// In fr, this message translates to:
+  /// **'La taille doit être comprise entre 30 et 300 cm.'**
+  String get recordFieldHeightRange;
+
+  /// Dossier médical: weight out of range. G2.1-A1.
+  ///
+  /// In fr, this message translates to:
+  /// **'Le poids doit être compris entre 0 et 500 kg.'**
+  String get recordFieldWeightRange;
+
+  /// Dossier médical: medication intakes per day out of range. G2.1-A1.
+  ///
+  /// In fr, this message translates to:
+  /// **'Entre 1 et 6 prises par jour.'**
+  String get recordFieldTimesPerDayRange;
+
+  /// Dossier médical: medication duration value out of range. G2.1-A1.
+  ///
+  /// In fr, this message translates to:
+  /// **'Entre 1 et 365.'**
+  String get recordFieldDurationRange;
+
+  /// Dossier médical: a medication start date or document date after today. G2.1-A1.
+  ///
+  /// In fr, this message translates to:
+  /// **'La date ne peut pas être dans le futur.'**
+  String get recordFieldDateInFuture;
+
+  /// Dossier médical: a date that is not a valid calendar date. G2.1-A1.
+  ///
+  /// In fr, this message translates to:
+  /// **'Date non valide.'**
+  String get recordFieldDateInvalid;
+
+  /// Dossier médical documents: file over 15 MB. G2.1-A1.
+  ///
+  /// In fr, this message translates to:
+  /// **'Fichier trop volumineux (15 Mo maximum).'**
+  String get recordFieldFileTooLarge;
+
+  /// Dossier médical documents: file is not PDF, JPG or PNG. G2.1-A1.
+  ///
+  /// In fr, this message translates to:
+  /// **'Format non accepté : PDF, JPG ou PNG.'**
+  String get recordFieldFileFormat;
+
+  /// Dossier médical: the patient tried to change an item a professional recorded (ITEM_LOCKED). G2.1-A1.
+  ///
+  /// In fr, this message translates to:
+  /// **'Cet élément a été ajouté par un professionnel de santé et ne peut pas être modifié.'**
+  String get recordCodeItemLocked;
+
+  /// Dossier médical: blood type set by a professional (BLOOD_TYPE_LOCKED). G2.1-A1.
+  ///
+  /// In fr, this message translates to:
+  /// **'Votre groupe sanguin a été renseigné par un professionnel de santé.'**
+  String get recordCodeBloodTypeLocked;
+
+  /// Dossier médical: the section changed since it was read (RECORD_VERSION_CONFLICT). G2.1-A1.
+  ///
+  /// In fr, this message translates to:
+  /// **'Votre dossier a été modifié ailleurs. Rechargez pour voir la dernière version ; vos saisies sont conservées.'**
+  String get recordCodeVersionConflict;
+
+  /// Dossier médical: the same save is still running (IDEMPOTENCY_IN_PROGRESS). G2.1-A1.
+  ///
+  /// In fr, this message translates to:
+  /// **'Enregistrement en cours, patientez un instant.'**
+  String get recordCodeSaveInProgress;
+
+  /// Dossier médical documents: the document is still being scanned (DOCUMENT_NOT_READY). G2.1-A1.
+  ///
+  /// In fr, this message translates to:
+  /// **'Document en cours d\'analyse. Réessayez dans quelques instants.'**
+  String get recordCodeDocumentNotReady;
+
+  /// Dossier médical: too many requests (TOO_MANY_REQUESTS). G2.1-A1.
+  ///
+  /// In fr, this message translates to:
+  /// **'Trop de demandes. Patientez une minute.'**
+  String get recordCodeTooManyRequests;
+
+  /// Dossier médical: a saved measurement looks unusual (HEIGHT_UNUSUAL / WEIGHT_UNUSUAL); never blocks the save. G2.1-A1.
+  ///
+  /// In fr, this message translates to:
+  /// **'Valeur inhabituelle : vérifiez-la.'**
+  String get recordWarningUnusualValue;
+
+  /// Dossier médical editor: blood type choice for « I don't know » (sends UNKNOWN). G2.1-A2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Je ne sais pas'**
+  String get recordBloodTypeDontKnow;
+
+  /// Dossier médical: label of a medication the patient declared (outside OmniCare), ADR-012 rule 5. G2.1-A2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Déclaré par le patient'**
+  String get passportDeclaredByPatient;
+
+  /// Dossier médical editor: title of the allergies chip section (ADR-012 D2). G2.1-A2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Allergies'**
+  String get recordAllergiesTitle;
+
+  /// Dossier médical editor: hint under the allergies title. G2.1-A2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Sélectionnez toutes les allergies connues'**
+  String get recordAllergiesSubtitle;
+
+  /// Dossier médical editor: placeholder of the free-text allergy field. G2.1-A2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Autre allergie...'**
+  String get recordAllergiesOtherHint;
+
+  /// Dossier médical editor: BMI category below 18.5 (REQUIRES MEDICAL VALIDATION). G2.1-A2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Insuffisance pondérale'**
+  String get bmiCategoryUnderweight;
+
+  /// Dossier médical editor: BMI category 18.5 to under 25 (REQUIRES MEDICAL VALIDATION). G2.1-A2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Normal'**
+  String get bmiCategoryNormal;
+
+  /// Dossier médical editor: BMI category 25 to under 30 (REQUIRES MEDICAL VALIDATION). G2.1-A2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Surpoids'**
+  String get bmiCategoryOverweight;
+
+  /// Dossier médical editor: BMI category 30 and above (REQUIRES MEDICAL VALIDATION). G2.1-A2.
+  ///
+  /// In fr, this message translates to:
+  /// **'Obésité'**
+  String get bmiCategoryObese;
+
+  /// Onboarding conditions page: « Oui » with no condition chosen (it would otherwise be saved as none). G2.1-A3.
+  ///
+  /// In fr, this message translates to:
+  /// **'Choisissez au moins une maladie, ou répondez « Non ».'**
+  String get onboardingErrorConditionRequired;
+
+  /// « Documents » tab: the number of the person's documents (the whole list fits on one page). G2.1-A4.
+  ///
+  /// In fr, this message translates to:
+  /// **'{count, plural, =0{0 documents enregistrés} =1{1 document enregistré} other{{count} documents enregistrés}}'**
+  String passportDocumentsCount(int count);
+
+  /// « Documents » tab: the server has more than the loaded page and gives no total, so the count reads « 20+ ». G2.1-A4.
+  ///
+  /// In fr, this message translates to:
+  /// **'{count}+ documents enregistrés'**
+  String passportDocumentsCountMore(int count);
 }
 
 class _OmniLocalizationsDelegate

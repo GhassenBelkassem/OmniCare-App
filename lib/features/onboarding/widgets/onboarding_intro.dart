@@ -149,12 +149,7 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = OmniLocalizations.of(context);
     return Padding(
-      padding: EdgeInsets.fromLTRB(
-        side,
-        OmniSpacing.lg,
-        side,
-        OmniSpacing.lg,
-      ),
+      padding: EdgeInsets.fromLTRB(side, OmniSpacing.lg, side, OmniSpacing.lg),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [

@@ -396,6 +396,7 @@ void main() {
         ApiFieldErrorKind.invalidFormat: 'Format invalide.',
         ApiFieldErrorKind.outOfRange: 'Valeur hors limites.',
         ApiFieldErrorKind.invalid: 'Vérifiez ce champ.',
+        ApiFieldErrorKind.duplicate: 'Cet élément figure déjà dans la liste.',
       };
       expect(expected.keys.toSet(), ApiFieldErrorKind.values.toSet());
       for (final entry in expected.entries) {

@@ -1,24 +1,57 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/network/api_failure.dart';
+import '../../../core/result/result.dart';
 import '../../../core/theme/omni_theme.dart';
+import '../../../l10n/omni_localizations.dart';
+import '../application/medical_documents_view_model.dart';
+import '../data/document_file_picker.dart';
+import '../data/medical_document_models.dart';
+import '../data/medical_record_write_models.dart';
+import 'medical_record_messages.dart';
+import 'widgets/passport_card_status.dart';
 
+/// « + » of the « Documents » tab (G2.1-A4): name, type, date and file of a
+/// new document for the person on screen ([viewModel]'s subject). Local
+/// checks first (15 Mo, PDF/JPG/PNG, name, date); the upload has one key, so
+/// « Réessayer » sends the same request; a failure keeps everything typed.
 class MedicalDocumentEditorScreen extends StatefulWidget {
   final String patientName;
+  final MedicalDocumentsViewModel viewModel;
 
-  const MedicalDocumentEditorScreen({super.key, required this.patientName});
+  /// The platform file picker (a fake in tests).
+  final Future<DocumentFileSource?> Function() pickFile;
+
+  const MedicalDocumentEditorScreen({
+    super.key,
+    required this.patientName,
+    required this.viewModel,
+    this.pickFile = pickDocumentFile,
+  });
 
   @override
   State<MedicalDocumentEditorScreen> createState() =>
       _MedicalDocumentEditorScreenState();
 }
 
+/// The existing « Type de Document » choices and the server type each means.
+const _documentTypes = {
+  'Autre': MedicalDocumentType.other,
+  'Analyse': MedicalDocumentType.labResult,
+  'Ordonnance': MedicalDocumentType.prescription,
+};
+
 class _MedicalDocumentEditorScreenState
     extends State<MedicalDocumentEditorScreen> {
   final _nameController = TextEditingController();
   final _dateController = TextEditingController();
   final _urlController = TextEditingController();
+  final SaveAttempt _attempt = SaveAttempt();
   String _documentType = 'Autre';
-  bool _hasStaticFile = false;
+  DocumentFileSource? _file;
+  Map<String, ApiFieldErrorKind> _errors = const {};
+  ApiFailure? _failure;
+  bool _uploading = false;
 
   @override
   void dispose() {
@@ -28,8 +61,94 @@ class _MedicalDocumentEditorScreenState
     super.dispose();
   }
 
+  /// Something changed: the next « Enregistrer » is a new action (new key).
+  void _edited() {
+    _attempt.reset();
+    if (_errors.isNotEmpty || _failure != null) {
+      setState(() {
+        _errors = const {};
+        _failure = null;
+      });
+    }
+  }
+
+  Future<void> _pickFile() async {
+    final file = await widget.pickFile();
+    if (!mounted || file == null) return;
+    setState(() {
+      _file = file;
+      _urlController.text = file.filename;
+    });
+    _edited();
+  }
+
+  void _clearForm() {
+    setState(() {
+      _nameController.clear();
+      _dateController.clear();
+      _urlController.clear();
+      _file = null;
+    });
+    _edited();
+  }
+
+  Future<void> _save() async {
+    if (_uploading) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    final errors = documentFormErrors(
+      title: _nameController.text,
+      dateText: _dateController.text,
+      file: _file,
+      now: DateTime.now(),
+    );
+    if (errors.isNotEmpty) {
+      setState(() {
+        _errors = errors;
+        _failure = null;
+      });
+      return;
+    }
+    setState(() {
+      _uploading = true;
+      _failure = null;
+    });
+    final result = await widget.viewModel.upload(
+      source: _file!,
+      form: DocumentUploadForm(
+        title: _nameController.text.trim(),
+        type: _documentTypes[_documentType]!,
+        documentDate: _dateController.text.trim().isEmpty
+            ? null
+            : parseDocumentDate(_dateController.text),
+      ),
+      attempt: _attempt,
+    );
+    if (!mounted) return;
+    switch (result) {
+      case Ok():
+        Navigator.of(context).pop(true);
+      case Err(:final failure):
+        setState(() {
+          _uploading = false;
+          if (failure.code == 'VALIDATION_ERROR' &&
+              failure.fieldErrors.isNotEmpty) {
+            _errors = failure.fieldErrors;
+          } else {
+            _failure = failure;
+          }
+        });
+    }
+  }
+
+  String? _error(String field, OmniLocalizations l10n) {
+    final kind = _errors[field];
+    return kind == null ? null : recordFieldMessage(field, kind, l10n);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l10n = OmniLocalizations.of(context);
+    final failure = _failure;
     return Scaffold(
       backgroundColor: OmniColors.slateSoft,
       appBar: AppBar(
@@ -72,8 +191,11 @@ class _MedicalDocumentEditorScreenState
                         _FieldLabel('Nom du Document'),
                         TextField(
                           controller: _nameController,
-                          decoration: const InputDecoration(
+                          onChanged: (_) => _edited(),
+                          decoration: InputDecoration(
                             hintText: 'Ex: Rapport d\'Analyse de Sang',
+                            errorText: _error('title', l10n),
+                            errorMaxLines: 3,
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -98,6 +220,7 @@ class _MedicalDocumentEditorScreenState
                           onChanged: (value) {
                             if (value != null) {
                               setState(() => _documentType = value);
+                              _edited();
                             }
                           },
                         ),
@@ -106,8 +229,11 @@ class _MedicalDocumentEditorScreenState
                         TextField(
                           controller: _dateController,
                           keyboardType: TextInputType.datetime,
-                          decoration: const InputDecoration(
+                          onChanged: (_) => _edited(),
+                          decoration: InputDecoration(
                             hintText: 'dd/mm/yyyy',
+                            errorText: _error('documentDate', l10n),
+                            errorMaxLines: 3,
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -116,26 +242,23 @@ class _MedicalDocumentEditorScreenState
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Expanded(
+                              // Shows the picked file's name; a file is
+                              // chosen with « Télécharger », never typed.
                               child: TextField(
                                 controller: _urlController,
+                                readOnly: true,
+                                onTap: _uploading ? null : _pickFile,
                                 decoration: InputDecoration(
                                   hintText: 'URL du fichier',
                                   prefixIcon: const Icon(Icons.link_rounded),
-                                  helperText: _hasStaticFile
-                                      ? 'Fichier simulé prêt'
-                                      : null,
+                                  errorText: _error('file', l10n),
+                                  errorMaxLines: 3,
                                 ),
                               ),
                             ),
                             const SizedBox(width: 10),
                             OutlinedButton.icon(
-                              onPressed: () {
-                                setState(() {
-                                  _hasStaticFile = true;
-                                  _urlController.text =
-                                      'document-medical-demo.pdf';
-                                });
-                              },
+                              onPressed: _uploading ? null : _pickFile,
                               icon: const Icon(
                                 Icons.upload_file_outlined,
                                 size: 18,
@@ -152,14 +275,7 @@ class _MedicalDocumentEditorScreenState
                         ),
                         const SizedBox(height: 20),
                         TextButton.icon(
-                          onPressed: () {
-                            setState(() {
-                              _nameController.clear();
-                              _dateController.clear();
-                              _urlController.clear();
-                              _hasStaticFile = false;
-                            });
-                          },
+                          onPressed: _uploading ? null : _clearForm,
                           icon: const Icon(Icons.delete_outline_rounded),
                           label: const Text('Supprimer ce document'),
                           style: TextButton.styleFrom(
@@ -167,6 +283,19 @@ class _MedicalDocumentEditorScreenState
                             padding: EdgeInsets.zero,
                           ),
                         ),
+                        if (failure != null) ...[
+                          const SizedBox(height: 8),
+                          PassportCardStatusBody(
+                            status: PassportCardFailed(
+                              message: recordFailureMessage(
+                                failure,
+                                l10n,
+                                fallback: l10n.saveGeneric,
+                              ),
+                              onRetry: _save,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -181,9 +310,7 @@ class _MedicalDocumentEditorScreenState
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 10, 20, 14),
           child: FilledButton(
-            onPressed: () {
-              Navigator.of(context).pop(true);
-            },
+            onPressed: _uploading ? null : _save,
             child: const Text('Enregistrer les Modifications'),
           ),
         ),

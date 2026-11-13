@@ -1,11 +1,18 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../l10n/omni_localizations.dart';
 import '../../core/models/blood_type.dart';
-import '../../core/network/save_error_message.dart';
 import '../../core/widgets/medication_search_field.dart';
+import '../../l10n/omni_localizations.dart';
+import '../patient_passport/application/medical_data_editor_draft.dart';
+import '../patient_passport/application/medical_data_editor_view_model.dart';
+import '../patient_passport/application/medical_record_view_model.dart';
+import '../patient_passport/data/medical_record_write_models.dart';
+import '../patient_passport/presentation/medical_record_messages.dart';
+import '../patient_passport/presentation/medical_record_presenter.dart';
+import '../patient_passport/presentation/widgets/passport_card_status.dart';
+import '../patient_passport/presentation/widgets/passport_medications_card.dart';
+import 'medical_data_edit_mapping.dart';
 
 class Medication {
   String? medicationId;
@@ -37,69 +44,83 @@ class MedicalDocument {
   });
 }
 
-/// What the patient changed in [EditMedicalDataScreen], handed to `onSave`.
-class MedicalDataEdit {
-  const MedicalDataEdit({
-    required this.bloodType,
-    required this.conditionsOrMedicationsChanged,
-    required this.chronicConditions,
-    required this.medications,
-    required this.documents,
-  });
+/// What the screen showed when every change was saved (handed back on
+/// close, so a caller can show it without a new read).
+class MedicalDataEditResult {
+  const MedicalDataEditResult({required this.documents, this.saved});
 
-  /// The newly chosen blood type, or null when the patient did not change it
-  /// (or chose "-"). A null blood type must not be sent to the server.
-  final BloodType? bloodType;
-
-  /// True when conditions or medications differ from what the screen opened
-  /// with. They cannot be saved yet (G-2 Phase 3).
-  final bool conditionsOrMedicationsChanged;
-
-  final List<String> chronicConditions;
-  final List<Medication> medications;
+  /// The documents block (local to the screen, as before).
   final List<MedicalDocument> documents;
+
+  /// The saved values; `null` when the screen closed without saving all.
+  final ({
+    BloodType? bloodType,
+    List<String> conditions,
+    List<Medication> medications,
+  })?
+  saved;
 }
 
+/// « Modifier Mes Données Médicales » for Ma Santé (SELF) and the
+/// family-member screen (FAMILY:{id}) (G2.1-A3). It reads the record and
+/// saves through the same section saves and rules as the record editor
+/// ([MedicalDataEditorViewModel]): only changed sections, one key per
+/// section, professional items read-only and never sent, no A+ default,
+/// « Je ne sais pas », 409 keeps what was typed, « Réessayer » with the same
+/// key. Height, weight and allergies have no field here and are never sent.
 class EditMedicalDataScreen extends StatefulWidget {
-  /// Current blood type; null when not provided.
-  final BloodType? bloodType;
-  final List<String> chronicConditions;
-  final List<Medication> medications;
-  final List<MedicalDocument> documents;
+  /// The editor of the person whose data this screen edits.
+  final MedicalDataEditorViewModel viewModel;
 
-  /// Persists the edit. A thrown error keeps the screen open and shows a
-  /// French message; server text is never displayed.
-  final Future<void> Function(MedicalDataEdit edit) onSave;
+  /// The documents block (not saved by this screen, as before).
+  final List<MedicalDocument> documents;
 
   const EditMedicalDataScreen({
     super.key,
-    required this.bloodType,
-    required this.chronicConditions,
-    required this.medications,
-    required this.documents,
-    required this.onSave,
+    required this.viewModel,
+    this.documents = const [],
   });
 
   @override
   State<EditMedicalDataScreen> createState() => _EditMedicalDataScreenState();
 }
 
+/// One medication row: the patient's own declared item (or a new one).
+/// Duration and start date have no field here: they are kept as read.
+class _MedicationRowDraft {
+  _MedicationRowDraft(this.input)
+    : name = TextEditingController(text: input.name),
+      dosage = TextEditingController(text: input.dosageText),
+      frequency = TextEditingController(
+        text: frequencyTextOf(input.timesPerDay),
+      );
+
+  final MedicationInput input;
+  final TextEditingController name;
+  final TextEditingController dosage;
+  final TextEditingController frequency;
+
+  MedicationInput toInput() => MedicationInput(
+    key: input.key,
+    itemId: input.itemId,
+    name: name.text,
+    dosageText: dosage.text,
+    timesPerDay: timesPerDayOfText(frequency.text),
+    durationText: input.durationText,
+    durationUnit: input.durationUnit,
+    startedOn: input.startedOn,
+  );
+
+  void dispose() {
+    name.dispose();
+    dosage.dispose();
+    frequency.dispose();
+  }
+}
+
 class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
-  late String _bloodType;
-  late List<String> _chronicConditions;
-  late List<Medication> _medications;
-  late List<MedicalDocument> _documents;
-
-  final List<TextEditingController> _medNameControllers = [];
-  final List<TextEditingController> _medDosageControllers = [];
-  final List<TextEditingController> _medFrequencyControllers = [];
-
-  bool _isSaving = false;
-
-  /// Value of the "-" option: blood type not provided.
+  /// Value of the "-" option: nothing chosen (never sent).
   static const String _notProvided = '-';
-
-  late final List<(String?, String, String, String)> _initialMedications;
 
   final List<String> _bloodTypes = [
     _notProvided,
@@ -111,18 +132,7 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
     'O-',
     'AB+',
     'AB-',
-  ];
-  final List<String> _availableConditions = [
-    'Diabète Type 2',
-    'Diabète Type 1',
-    'Hypertension',
-    'Asthme',
-    'Allergie Pénicilline',
-    'Maladie Cardiaque',
-    'Cholestérol Élevé',
-    'Arthrite',
-    'Migraine',
-    'Thyroïde',
+    bloodTypeUnknown,
   ];
 
   final List<Map<String, dynamic>> _documentTypes = [
@@ -134,77 +144,83 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
     {'value': 'other', 'label': 'Autre'},
   ];
 
+  String _bloodType = _notProvided;
+
+  /// The patient's own conditions, as chosen (professional ones are never
+  /// part of what is sent).
+  final List<String> _chronicConditions = [];
+  final List<_MedicationRowDraft> _medications = [];
+  late List<MedicalDocument> _documents;
+  int _nextMedicationKey = 0;
+  bool _seeded = false;
+
+  MedicalDataEditorViewModel get _viewModel => widget.viewModel;
+  bool get _isSaving => _viewModel.saving;
+
   @override
   void initState() {
     super.initState();
-    final initialWire = widget.bloodType?.wireValue;
-    _bloodType = _bloodTypes.contains(initialWire)
-        ? initialWire!
-        : _notProvided;
-    _chronicConditions = List.from(widget.chronicConditions);
-    // Copies, so editing never mutates the caller's objects before a save.
-    _medications = widget.medications
-        .map(
-          (m) => Medication(
-            medicationId: m.medicationId,
-            name: m.name,
-            dosage: m.dosage,
-            frequency: m.frequency,
-          ),
-        )
-        .toList();
-    _initialMedications = _medicationValues(widget.medications);
     _documents = List.from(widget.documents);
-
-    for (final med in _medications) {
-      _medNameControllers.add(TextEditingController(text: med.name));
-      _medDosageControllers.add(TextEditingController(text: med.dosage));
-      _medFrequencyControllers.add(TextEditingController(text: med.frequency));
-    }
+    _viewModel.addListener(_onViewModelChanged);
+    _viewModel.load();
   }
 
   @override
   void dispose() {
-    for (final c in _medNameControllers) {
-      c.dispose();
-    }
-    for (final c in _medDosageControllers) {
-      c.dispose();
-    }
-    for (final c in _medFrequencyControllers) {
-      c.dispose();
+    _viewModel.removeListener(_onViewModelChanged);
+    for (final row in _medications) {
+      row.dispose();
     }
     super.dispose();
   }
 
-  void _toggleCondition(String condition) {
+  /// Fills the fields once, from the first successful read. Later reads
+  /// (after a conflict or a partial save) never replace what was typed.
+  void _onViewModelChanged() {
+    final baseline = _viewModel.baseline;
+    if (!_seeded && baseline != null) {
+      _seeded = true;
+      final draft = EditorDraft.of(baseline);
+      _bloodType = draft.bloodType ?? _notProvided;
+      _chronicConditions.addAll(draft.conditionLabels);
+      for (final input in draft.medications) {
+        _medications.add(_MedicationRowDraft(input));
+      }
+      _nextMedicationKey = draft.medications.length;
+    }
+    if (mounted) setState(() {});
+  }
+
+  void _toggleCondition(String condition, Set<String> professional) {
+    final key = labelKey(condition);
+    if (professional.contains(key)) {
+      _showError(OmniLocalizations.of(context).recordCodeItemLocked);
+      return;
+    }
     setState(() {
-      if (_chronicConditions.contains(condition)) {
-        _chronicConditions.remove(condition);
+      if (_chronicConditions.any((c) => labelKey(c) == key)) {
+        _chronicConditions.removeWhere((c) => labelKey(c) == key);
       } else {
         _chronicConditions.add(condition);
       }
     });
+    _viewModel.edited(RecordSection.conditions);
   }
 
   void _addMedication() {
     setState(() {
       _medications.add(
-        Medication(medicationId: null, name: '', dosage: '', frequency: ''),
+        _MedicationRowDraft(
+          MedicationInput(key: _nextMedicationKey++, name: ''),
+        ),
       );
-      _medNameControllers.add(TextEditingController());
-      _medDosageControllers.add(TextEditingController());
-      _medFrequencyControllers.add(TextEditingController());
     });
+    _viewModel.edited(RecordSection.declaredMedications);
   }
 
   void _removeMedication(int index) {
-    setState(() {
-      _medications.removeAt(index);
-      _medNameControllers.removeAt(index).dispose();
-      _medDosageControllers.removeAt(index).dispose();
-      _medFrequencyControllers.removeAt(index).dispose();
-    });
+    setState(() => _medications.removeAt(index).dispose());
+    _viewModel.edited(RecordSection.declaredMedications);
   }
 
   void _addDocument() {
@@ -227,109 +243,107 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
     });
   }
 
+  /// One « Enregistrer » (or « Réessayer »): the changed sections only.
+  /// Every failure keeps the screen open with what was typed.
   Future<void> _handleSave() async {
-    if (_isSaving) return;
-    setState(() {
-      _isSaving = true;
-    });
-
-    try {
-      for (var i = 0; i < _medications.length; i++) {
-        if (i < _medNameControllers.length) {
-          _medications[i].name = _medNameControllers[i].text;
-        }
-        if (i < _medDosageControllers.length) {
-          _medications[i].dosage = _medDosageControllers[i].text;
-        }
-        if (i < _medFrequencyControllers.length) {
-          _medications[i].frequency = _medFrequencyControllers[i].text;
-        }
-      }
-
-      final invalid = _medications
-          .where(
-            (m) =>
-                m.name.trim().isNotEmpty &&
-                (m.medicationId == null || m.medicationId!.trim().isEmpty),
-          )
-          .toList();
-      if (invalid.isNotEmpty) {
-        if (mounted) {
-          _showError(
-            'Veuillez sélectionner le médicament depuis la liste (autocomplete) avant d\'enregistrer.',
-          );
-        }
-        return;
-      }
-
-      final validMedications = _medications
-          .where((med) => med.name.trim().isNotEmpty)
-          .toList();
-      final edit = MedicalDataEdit(
-        bloodType: _changedBloodType(),
-        conditionsOrMedicationsChanged:
-            !setEquals(
-              _chronicConditions.toSet(),
-              widget.chronicConditions.toSet(),
-            ) ||
-            !listEquals(
-              _medicationValues(validMedications),
-              _initialMedications,
+    final baseline = _viewModel.baseline;
+    if (_isSaving || baseline == null) return;
+    final medications = [for (final row in _medications) row.toInput()];
+    final outcome = await _viewModel.save(
+      editMedicalDataDraft(
+        baseline: baseline,
+        bloodType: _bloodType == _notProvided ? null : _bloodType,
+        conditions: _chronicConditions,
+        medications: medications,
+      ),
+    );
+    if (!mounted) return;
+    switch (outcome) {
+      case EditorSaveOutcome.done:
+        Navigator.pop(
+          context,
+          MedicalDataEditResult(
+            documents: List.unmodifiable(_documents),
+            saved: (
+              bloodType: _bloodType == _notProvided
+                  ? null
+                  : BloodType.fromWire(
+                      _bloodType == bloodTypeUnknown ? 'unknown' : _bloodType,
+                    ),
+              conditions: List.unmodifiable(_chronicConditions),
+              medications: [
+                for (final row in medications)
+                  Medication(
+                    name: row.name.trim(),
+                    dosage: row.dosageText.trim(),
+                    frequency: frequencyTextOf(row.timesPerDay),
+                  ),
+              ],
             ),
-        chronicConditions: List.unmodifiable(_chronicConditions),
-        medications: List.unmodifiable(validMedications),
-        documents: List.unmodifiable(_documents),
-      );
-      try {
-        await widget.onSave(edit);
-      } catch (error) {
-        if (mounted) {
-          _showError(saveErrorMessage(error, OmniLocalizations.of(context)));
-        }
-        return;
-      }
-      if (!mounted) return;
-      final messenger = ScaffoldMessenger.of(context);
-      Navigator.pop(context);
-      if (edit.conditionsOrMedicationsChanged) {
-        messenger.showSnackBar(
-          _errorSnackBar(
-            OmniLocalizations.of(context).conditionsAndTreatmentsNotSaved,
           ),
         );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSaving = false;
-        });
-      }
+      case EditorSaveOutcome.invalid:
+        final message = _sectionFieldMessage();
+        if (message != null) _showError(message);
+      case EditorSaveOutcome.failed:
+        final message = _firstFailureMessage() ?? _sectionFieldMessage();
+        if (message != null) _showError(message, retry: true);
     }
   }
 
-  /// The chosen blood type when it differs from the initial one; null when
-  /// untouched or "-" (never sent).
-  BloodType? _changedBloodType() {
-    if (_bloodType == _notProvided) return null;
-    final chosen = BloodType.fromWire(_bloodType);
-    return chosen == widget.bloodType ? null : chosen;
+  /// The text of the first failed section (in save order).
+  String? _firstFailureMessage() {
+    final l10n = OmniLocalizations.of(context);
+    for (final section in editorSections) {
+      final failure = _viewModel.failureOf(section);
+      if (failure != null) {
+        return recordFailureMessage(failure, l10n, fallback: l10n.saveGeneric);
+      }
+    }
+    return null;
   }
 
-  static List<(String?, String, String, String)> _medicationValues(
-    List<Medication> medications,
-  ) => medications
-      .where((m) => m.name.trim().isNotEmpty)
-      .map((m) => (m.medicationId, m.name, m.dosage, m.frequency))
-      .toList(growable: false);
+  /// A refusal with no field of its own on screen (blood type, conditions,
+  /// the medication list).
+  String? _sectionFieldMessage() =>
+      _fieldMessage('bloodType') ??
+      _fieldMessage('conditions') ??
+      _fieldMessage('medications');
 
-  SnackBar _errorSnackBar(String message) => SnackBar(
+  String? _fieldMessage(String key) {
+    final error = _viewModel.fieldError(key);
+    return error == null
+        ? null
+        : recordFieldMessage(
+            error.path,
+            error.kind,
+            OmniLocalizations.of(context),
+          );
+  }
+
+  SnackBar _errorSnackBar(String message, {bool retry = false}) => SnackBar(
     content: Text(message, style: GoogleFonts.plusJakartaSans(fontSize: 13)),
     backgroundColor: const Color(0xFFEF4444),
+    action: retry
+        ? SnackBarAction(
+            label: OmniLocalizations.of(context).passportRetry,
+            textColor: Colors.white,
+            onPressed: _handleSave,
+          )
+        : null,
   );
 
-  void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(_errorSnackBar(message));
+  void _showError(String message, {bool retry = false}) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(_errorSnackBar(message, retry: retry));
   }
+
+  /// Closing with ✕ hands back the documents block, as before.
+  void _close() => Navigator.pop(
+    context,
+    MedicalDataEditResult(documents: List.unmodifiable(_documents)),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -340,7 +354,7 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.close, color: Color(0xFF1A202C)),
-          onPressed: _isSaving ? null : () => Navigator.pop(context),
+          onPressed: _isSaving ? null : _close,
         ),
         title: Text(
           'Modifier Mes Données Médicales',
@@ -356,19 +370,32 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildBloodTypeSection(),
-                  const SizedBox(height: 24),
-                  _buildChronicConditionsSection(),
-                  const SizedBox(height: 24),
-                  _buildMedicationsSection(),
-                  const SizedBox(height: 24),
-                  _buildDocumentsSection(),
-                  const SizedBox(height: 100),
-                ],
-              ),
+              child: switch (_viewModel.state) {
+                SectionReady(:final value) => Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildBloodTypeSection(value),
+                    const SizedBox(height: 24),
+                    _buildChronicConditionsSection(value),
+                    const SizedBox(height: 24),
+                    _buildMedicationsSection(value),
+                    const SizedBox(height: 24),
+                    _buildDocumentsSection(),
+                    const SizedBox(height: 100),
+                  ],
+                ),
+                SectionFailed(:final failure) => PassportCardStatusBody(
+                  status: PassportCardFailed(
+                    message: sectionFailureMessage(
+                      failure,
+                      OmniLocalizations.of(context),
+                    ),
+                    onRetry: _viewModel.load,
+                  ),
+                ),
+                SectionIdle() || SectionLoading() =>
+                  const PassportCardStatusBody(status: PassportCardLoading()),
+              },
             ),
           ),
           _buildSaveButton(),
@@ -377,7 +404,8 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
     );
   }
 
-  Widget _buildBloodTypeSection() {
+  Widget _buildBloodTypeSection(EditorBaseline baseline) {
+    final l10n = OmniLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -418,25 +446,33 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
               return DropdownMenuItem(
                 value: type,
                 child: Text(
-                  type,
+                  type == bloodTypeUnknown
+                      ? l10n.recordBloodTypeDontKnow
+                      : type,
                   style: GoogleFonts.plusJakartaSans(fontSize: 14),
                 ),
               );
             }).toList(),
-            onChanged: (value) {
-              setState(() {
-                _bloodType = (value == null || value.trim().isEmpty)
-                    ? _notProvided
-                    : value;
-              });
-            },
+            // A blood type set by a professional is read-only (disabled).
+            onChanged: baseline.bloodTypeLocked
+                ? null
+                : (value) {
+                    setState(() {
+                      _bloodType = (value == null || value.trim().isEmpty)
+                          ? _notProvided
+                          : value;
+                    });
+                    _viewModel.edited(RecordSection.bloodType);
+                  },
           ),
         ),
       ],
     );
   }
 
-  Widget _buildChronicConditionsSection() {
+  Widget _buildChronicConditionsSection(EditorBaseline baseline) {
+    final professional = professionalLabelKeys(baseline.conditions);
+    final selected = _chronicConditions.map(labelKey).toSet();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -460,10 +496,12 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: _availableConditions.map((condition) {
-            final isSelected = _chronicConditions.contains(condition);
+          children: conditionChipLabels(baseline.conditions).map((condition) {
+            final key = labelKey(condition);
+            final isSelected =
+                selected.contains(key) || professional.contains(key);
             return GestureDetector(
-              onTap: () => _toggleCondition(condition),
+              onTap: () => _toggleCondition(condition, professional),
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
@@ -496,7 +534,9 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
     );
   }
 
-  Widget _buildMedicationsSection() {
+  Widget _buildMedicationsSection(EditorBaseline baseline) {
+    final l10n = OmniLocalizations.of(context);
+    final prescriptions = baseline.readOnlyCurrentMedications;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -536,7 +576,13 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
           ],
         ),
         const SizedBox(height: 12),
-        if (_medications.isEmpty)
+        // OmniCare prescriptions: read-only, never sent (the Résumé row).
+        for (final item in prescriptions)
+          PassportMedicationRow(
+            medication: passportMedication(item, current: true, l10n: l10n),
+          ),
+        if (prescriptions.isNotEmpty) const SizedBox(height: 12),
+        if (_medications.isEmpty && prescriptions.isEmpty)
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
@@ -564,6 +610,8 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
             children: _medications.asMap().entries.map((entry) {
               final index = entry.key;
               final med = entry.value;
+              String? error(String field) =>
+                  _fieldMessage('medications:${med.input.key}.$field');
               return Container(
                 margin: const EdgeInsets.only(bottom: 12),
                 padding: const EdgeInsets.all(16),
@@ -584,25 +632,22 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    MedicationSearchField(
-                      controller: _medNameControllers[index],
-                      dosageController: _medDosageControllers[index],
-                      hintText: 'Ex: Metformine',
-                      onSelected: (r) {
-                        med.medicationId = r.id;
-                        med.name = r.name;
-                        final d = (r.dosage ?? '').trim();
-                        if (d.isNotEmpty) {
-                          med.dosage = d;
-                        }
-                      },
-                      onChanged: (value) {
-                        med.name = value;
-                        if (value.trim().isEmpty) {
-                          med.medicationId = null;
-                        }
-                      },
+                    Text(
+                      l10n.passportDeclaredByPatient,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11,
+                        color: const Color(0xFF667085),
+                      ),
                     ),
+                    const SizedBox(height: 8),
+                    // Free text: the catalog never blocks a save.
+                    MedicationSearchField(
+                      controller: med.name,
+                      dosageController: med.dosage,
+                      hintText: 'Ex: Metformine',
+                      onChanged: (_) => _edited(),
+                    ),
+                    if (error('name') case final message?) _FieldError(message),
                     const SizedBox(height: 12),
                     Row(
                       children: [
@@ -620,12 +665,12 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
                               ),
                               const SizedBox(height: 8),
                               TextField(
-                                controller: _medDosageControllers[index],
-                                onChanged: (value) {
-                                  med.dosage = value;
-                                },
+                                controller: med.dosage,
+                                onChanged: (_) => _edited(),
                                 decoration: InputDecoration(
                                   hintText: 'Ex: 500mg',
+                                  errorText: error('dosageText'),
+                                  errorMaxLines: 3,
                                   hintStyle: GoogleFonts.plusJakartaSans(
                                     fontSize: 13,
                                     color: const Color(0xFF667085),
@@ -676,12 +721,12 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
                               ),
                               const SizedBox(height: 8),
                               TextField(
-                                controller: _medFrequencyControllers[index],
-                                onChanged: (value) {
-                                  med.frequency = value;
-                                },
+                                controller: med.frequency,
+                                onChanged: (_) => _edited(),
                                 decoration: InputDecoration(
                                   hintText: 'Ex: 2x/jour',
+                                  errorText: error('timesPerDay'),
+                                  errorMaxLines: 3,
                                   hintStyle: GoogleFonts.plusJakartaSans(
                                     fontSize: 13,
                                     color: const Color(0xFF667085),
@@ -744,6 +789,9 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
       ],
     );
   }
+
+  /// A medication field changed: the next save of that list is a new action.
+  void _edited() => _viewModel.edited(RecordSection.declaredMedications);
 
   Widget _buildDocumentsSection() {
     return Column(
@@ -1044,6 +1092,27 @@ class _EditMedicalDataScreenState extends State<EditMedicalDataScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// A field message under a field, in the theme's input error style.
+class _FieldError extends StatelessWidget {
+  const _FieldError(this.message);
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 6, left: 12),
+      child: Text(
+        message,
+        style:
+            theme.inputDecorationTheme.errorStyle ??
+            theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
       ),
     );
   }

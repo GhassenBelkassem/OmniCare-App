@@ -1,6 +1,5 @@
 import 'package:dio/dio.dart';
 
-import '../models/blood_type.dart';
 import '../models/family_models.dart';
 import '../network/api_exception.dart';
 import '../network/api_failure.dart';
@@ -90,20 +89,6 @@ class FamilyApi {
     try {
       await _httpClient.dio.delete<dynamic>(
         '$_path/${Uri.encodeComponent(id)}',
-      );
-    } on DioException catch (error) {
-      throw _mapDioException(error);
-    }
-  }
-
-  Future<void> patchMedicalPassport({
-    required String id,
-    required BloodType bloodType,
-  }) async {
-    try {
-      await _httpClient.dio.patch<dynamic>(
-        '$_path/${Uri.encodeComponent(id)}/passport',
-        data: {'bloodType': bloodType.wireValue},
       );
     } on DioException catch (error) {
       throw _mapDioException(error);

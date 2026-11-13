@@ -45,10 +45,15 @@ BloodType? bloodTypeToSend({
   return chosen == storedValue ? null : chosen;
 }
 
+/// The record's value for [bloodType] (`PUT …/life-safety/blood-type`):
+/// « Je ne sais pas » is `UNKNOWN`, a group is its wire value.
+String recordBloodTypeValue(BloodType bloodType) =>
+    bloodType == BloodType.unknown ? 'UNKNOWN' : bloodType.wireValue;
+
 /// Body of `POST /profile/onboarding/step/1` (identity page).
 ///
-/// Blood type, height and weight are saved by the next page through
-/// `PATCH /profile/passport`, which writes the same MRS record.
+/// Blood type, height and weight are saved by the next page through the
+/// record's section saves (G2.1-A3, the same path as the record editor).
 Map<String, dynamic> onboardingStep1Body({
   required String firstName,
   required String lastName,
@@ -61,14 +66,18 @@ Map<String, dynamic> onboardingStep1Body({
   'gender': gender,
 };
 
-/// Body of `POST /profile/onboarding/step/2` (unchanged content).
+/// Body of `POST /profile/onboarding/step/2`: the allergies as typed, or
+/// « Non » → none. « Oui » with no allergy is refused before this (the page
+/// shows a message), so an empty list always means « Non ».
 Map<String, dynamic> onboardingStep2Body(List<AllergyEntry> allergies) => {
   if (allergies.isEmpty) 'noKnownAllergies': true,
   if (allergies.isNotEmpty)
     'allergies': allergies.map((a) => a.toJson()).toList(),
 };
 
-/// Body of `POST /profile/onboarding/step/3` (unchanged content).
+/// Body of `POST /profile/onboarding/step/3`: the condition names as the
+/// patient chose them (French labels, G2.1-A3), or « Non » → none. Never
+/// critical (ADR-012 D6): the server stores them as not critical.
 Map<String, dynamic> onboardingStep3Body(List<String> conditions) {
   final named = conditions
       .map((condition) => condition.trim())
@@ -81,24 +90,14 @@ Map<String, dynamic> onboardingStep3Body(List<String> conditions) {
   };
 }
 
-/// Body of `POST /profile/onboarding/step/4` (unchanged content).
-Map<String, dynamic> onboardingStep4Body(
-  List<MedicationEntry> medications, {
-  required String startDate,
-}) {
-  final entries = medications
-      .where((m) => m.name.trim().isNotEmpty)
-      .map(
-        (m) => {
-          'drugName': m.name.trim(),
-          'dosage': m.dosage.trim().isEmpty ? null : m.dosage.trim(),
-          'frequency': m.frequency.trim().isEmpty ? null : m.frequency.trim(),
-          'startDate': startDate,
-        },
-      )
-      .toList();
-  return {
-    if (entries.isEmpty) 'noKnownMedications': true,
-    if (entries.isNotEmpty) 'medications': entries,
-  };
-}
+/// Body of `POST /profile/onboarding/step/4`, which completes onboarding.
+/// The page has no medication fields (V1, CTO 2026-11-13):
+/// - « Non » → `noKnownMedications` (« Aucun »);
+/// - « Oui » (or no answer) → an empty body: nothing is written, so the list
+///   stays « Non renseigné » and never reads as a false « Aucun ». The
+///   patient adds medications in « Dossier médical ».
+/// Nothing is invented: no frequency and no start date (G2.1-A3).
+Map<String, dynamic> onboardingStep4Body(bool? takesMedications) =>
+    takesMedications == false
+    ? const {'noKnownMedications': true}
+    : const <String, dynamic>{};

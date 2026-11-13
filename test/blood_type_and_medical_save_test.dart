@@ -1,6 +1,8 @@
-// G-2 1a-2 (C3, C2 honesty, missing save error).
-// Requests are captured at the HTTP adapter of the real AppHttpClient, after
-// the real screens, providers, repositories and APIs built them.
+// G-2 1a-2: the blood type mapping, the onboarding step-1 body and the
+// onboarding blood tiles. Requests are captured at the HTTP adapter of the
+// real AppHttpClient. (G2.1-A3: the Ma Santé and family-member saves moved to
+// the record's section saves; their tests are in
+// medical_data_a3_test.dart.)
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -10,23 +12,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
 import 'package:omnicare_mobile/core/api/account_api.dart';
-import 'package:omnicare_mobile/core/api/family_api.dart';
 import 'package:omnicare_mobile/l10n/omni_localizations.dart';
 import 'package:omnicare_mobile/core/l10n/blood_type_label.dart';
 import 'package:omnicare_mobile/core/models/blood_type.dart';
 import 'package:omnicare_mobile/core/network/app_http_client.dart';
 import 'package:omnicare_mobile/core/storage/secure_token_store.dart';
-import 'package:omnicare_mobile/features/home/edit_medical_data_screen.dart';
-import 'package:omnicare_mobile/features/home/family_member_detail_screen.dart';
-import 'package:omnicare_mobile/features/home/medical_data_save.dart';
 import 'package:omnicare_mobile/features/onboarding/conversational_onboarding_screen.dart';
 import 'package:omnicare_mobile/features/onboarding/onboarding_basics_payload.dart';
-import 'package:omnicare_mobile/providers/family_provider.dart';
+import 'package:omnicare_mobile/features/patient_passport/data/medical_record_api.dart';
+import 'package:omnicare_mobile/features/patient_passport/data/medical_record_repository.dart';
+import 'package:omnicare_mobile/features/patient_passport/data/medical_record_write_api.dart';
+import 'package:omnicare_mobile/features/patient_passport/data/medical_record_write_repository.dart';
 import 'package:omnicare_mobile/providers/user_onboarding_provider.dart';
 import 'package:omnicare_mobile/providers/user_provider.dart';
-import 'package:omnicare_mobile/repositories/family_repository.dart';
 
-const _saveLabel = 'Enregistrer les Modifications';
 const _serverText = 'PRIVATE_SERVER_TEXT';
 
 /// The generated French messages, without a widget tree.
@@ -88,209 +87,9 @@ void main() {
     });
   });
 
-  group('Ma Santé (self) → PATCH /profile/passport', () {
-    testWidgets('untouched blood type: no request at all', (tester) async {
-      final server = _Server();
-      await _openSelfEditor(tester, server, bloodType: null);
-      await _tapSave(tester);
-      expect(server.requests, isEmpty);
-      expect(find.byType(EditMedicalDataScreen), findsNothing);
-    });
-
-    testWidgets('changed blood type: body is exactly {bloodType}', (
-      tester,
-    ) async {
-      final server = _Server();
-      await _openSelfEditor(tester, server, bloodType: null);
-      await _chooseBloodType(tester, 'B+');
-      await _tapSave(tester);
-      expect(server.requests.single.method, 'PATCH');
-      expect(server.requests.single.path, '/profile/passport');
-      expect(server.requests.single.body, {'bloodType': 'B+'});
-      server.expectNoForbiddenValues();
-    });
-
-    testWidgets('choosing "-" over a value sends nothing', (tester) async {
-      final server = _Server();
-      await _openSelfEditor(tester, server, bloodType: BloodType.aPositive);
-      await _chooseBloodType(tester, '-');
-      await _tapSave(tester);
-      expect(server.requests, isEmpty);
-    });
-
-    testWidgets('re-choosing the current value sends nothing', (tester) async {
-      final server = _Server();
-      await _openSelfEditor(tester, server, bloodType: BloodType.oPositive);
-      await _chooseBloodType(tester, 'O+');
-      await _tapSave(tester);
-      expect(server.requests, isEmpty);
-    });
-
-    testWidgets('conditions only: no request, honesty message shown', (
-      tester,
-    ) async {
-      final server = _Server();
-      await _openSelfEditor(tester, server, bloodType: null);
-      await _toggleCondition(tester, 'Hypertension');
-      await _tapSave(tester);
-      expect(server.requests, isEmpty);
-      expect(
-        find.text(
-          'Les antécédents et traitements ne peuvent pas encore être enregistrés.',
-        ),
-        findsOneWidget,
-      );
-    });
-
-    testWidgets('conditions + blood type: only bloodType sent, honesty shown', (
-      tester,
-    ) async {
-      final server = _Server();
-      await _openSelfEditor(tester, server, bloodType: null);
-      await _chooseBloodType(tester, 'O-');
-      await _toggleCondition(tester, 'Asthme');
-      await _tapSave(tester);
-      expect(server.requests.single.body, {'bloodType': 'O-'});
-      server.expectNoForbiddenValues();
-      expect(
-        find.text(
-          'Les antécédents et traitements ne peuvent pas encore être enregistrés.',
-        ),
-        findsOneWidget,
-      );
-    });
-
-    testWidgets('400 INVALID_INPUT: French message, no server text, stays', (
-      tester,
-    ) async {
-      final server = _Server(patchStatus: 400, patchCode: 'INVALID_INPUT');
-      await _openSelfEditor(tester, server, bloodType: null);
-      await _chooseBloodType(tester, 'A-');
-      await _tapSave(tester);
-      expect(
-        find.text(
-          'Certaines informations ne sont pas valides. Vérifiez et réessayez.',
-        ),
-        findsOneWidget,
-      );
-      expect(find.textContaining(_serverText), findsNothing);
-      expect(find.byType(EditMedicalDataScreen), findsOneWidget);
-    });
-
-    testWidgets('503 MRS_UNAVAILABLE: French unavailable message', (
-      tester,
-    ) async {
-      final server = _Server(patchStatus: 503, patchCode: 'MRS_UNAVAILABLE');
-      await _openSelfEditor(tester, server, bloodType: null);
-      await _chooseBloodType(tester, 'A-');
-      await _tapSave(tester);
-      expect(
-        find.text('Service momentanément indisponible. Réessayez plus tard.'),
-        findsOneWidget,
-      );
-      expect(find.textContaining(_serverText), findsNothing);
-    });
-
-    testWidgets('network failure: « Connexion impossible »', (tester) async {
-      final server = _Server(failPatchWithConnectionError: true);
-      await _openSelfEditor(tester, server, bloodType: null);
-      await _chooseBloodType(tester, 'A-');
-      await _tapSave(tester);
-      expect(find.text('Connexion impossible. Réessayez.'), findsOneWidget);
-      expect(find.byType(EditMedicalDataScreen), findsOneWidget);
-    });
-
-    testWidgets('a non-API error is caught: generic message, no crash', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        _hostApp(
-          editor: EditMedicalDataScreen(
-            bloodType: null,
-            chronicConditions: const [],
-            medications: const [],
-            documents: const [],
-            onSave: (_) async => throw StateError('boom'),
-          ),
-        ),
-      );
-      await _openHostedEditor(tester);
-      await _chooseBloodType(tester, 'AB+');
-      await _tapSave(tester);
-      expect(tester.takeException(), isNull);
-      expect(
-        find.text('Enregistrement impossible pour le moment. Réessayez.'),
-        findsOneWidget,
-      );
-      expect(find.byType(EditMedicalDataScreen), findsOneWidget);
-    });
-  });
-
-  group('Family detail → PATCH /profile/family-members/{id}/passport', () {
-    testWidgets('untouched (static "-") blood type: no request', (
-      tester,
-    ) async {
-      final server = _Server();
-      await _openFamilyEditor(tester, server);
-      await _tapSave(tester);
-      expect(server.requests, isEmpty);
-      expect(find.byType(FamilyMemberDetailScreen), findsOneWidget);
-    });
-
-    testWidgets('changed blood type: sent and shown', (tester) async {
-      final server = _Server();
-      await _openFamilyEditor(tester, server);
-      await _chooseBloodType(tester, 'A-');
-      await _tapSave(tester);
-      expect(server.requests.single.method, 'PATCH');
-      expect(
-        server.requests.single.path,
-        '/profile/family-members/fm-1/passport',
-      );
-      expect(server.requests.single.body, {'bloodType': 'A-'});
-      server.expectNoForbiddenValues();
-      expect(find.text('A-'), findsOneWidget);
-    });
-
-    testWidgets('conditions are not shown as saved; honesty message', (
-      tester,
-    ) async {
-      final server = _Server();
-      await _openFamilyEditor(tester, server);
-      await _toggleCondition(tester, 'Migraine');
-      await _tapSave(tester);
-      expect(server.requests, isEmpty);
-      expect(
-        find.text(
-          'Les antécédents et traitements ne peuvent pas encore être enregistrés.',
-        ),
-        findsOneWidget,
-      );
-      expect(find.byType(FamilyMemberDetailScreen), findsOneWidget);
-      expect(find.text('Migraine'), findsNothing);
-    });
-
-    testWidgets('400: French message, value not changed on screen', (
-      tester,
-    ) async {
-      final server = _Server(patchStatus: 400, patchCode: 'INVALID_INPUT');
-      await _openFamilyEditor(tester, server);
-      await _chooseBloodType(tester, 'B-');
-      await _tapSave(tester);
-      expect(
-        find.text(
-          'Certaines informations ne sont pas valides. Vérifiez et réessayez.',
-        ),
-        findsOneWidget,
-      );
-      expect(find.textContaining(_serverText), findsNothing);
-      expect(find.byType(EditMedicalDataScreen), findsOneWidget);
-    });
-  });
-
-  group('Onboarding step 1 and passport PATCH bodies', () {
+  group('Onboarding step 1 body', () {
     // Since G2-1a-6, step 1 carries identity only; blood type, height and
-    // weight go through PATCH /profile/passport (same MRS record).
+    // weight go through the record's section saves (G2.1-A3).
     test('step 1 never carries medical fields', () async {
       final server = _Server();
       final api = AccountApi(httpClient: _httpClient(server));
@@ -305,27 +104,6 @@ void main() {
       });
       server.expectNoForbiddenValues();
     });
-
-    test('no blood type chosen: absent from the passport PATCH', () async {
-      final server = _Server();
-      final api = AccountApi(httpClient: _httpClient(server));
-      await api.patchMedicalPassport(heightCm: 172, weightKg: 70.5);
-      expect(server.requests.single.body, {'heightCm': 172, 'weightKg': 70.5});
-    });
-
-    test(
-      '« Je ne sais pas » is sent as unknown, ABO as its wire value',
-      () async {
-        final server = _Server();
-        final api = AccountApi(httpClient: _httpClient(server));
-        await api.patchMedicalPassport(bloodType: BloodType.unknown);
-        await api.patchMedicalPassport(bloodType: BloodType.abNegative);
-
-        expect(server.requests[0].body, {'bloodType': 'unknown'});
-        expect(server.requests[1].body, {'bloodType': 'AB-'});
-        server.expectNoForbiddenValues();
-      },
-    );
 
     testWidgets('blood tiles show « Je ne sais pas » and store unknown', (
       tester,
@@ -346,6 +124,12 @@ void main() {
             supportedLocales: OmniLocalizations.supportedLocales,
             home: ConversationalOnboardingScreen(
               accountApi: AccountApi(httpClient: _httpClient(server)),
+              medicalRecords: MedicalRecordRepository(
+                MedicalRecordApi(_httpClient(server)),
+              ),
+              medicalRecordWrites: MedicalRecordWriteRepository(
+                MedicalRecordWriteApi(_httpClient(server)),
+              ),
             ),
           ),
         ),
@@ -373,32 +157,6 @@ void main() {
       expect(BloodType.fromWire(onboarding.bloodGroup), BloodType.unknown);
     });
   });
-
-  group('API surface', () {
-    test('saveOwnMedicalEdit sends nothing for an untouched edit', () async {
-      final server = _Server();
-      final sent = await saveOwnMedicalEdit(
-        AccountApi(httpClient: _httpClient(server)),
-        const MedicalDataEdit(
-          bloodType: null,
-          conditionsOrMedicationsChanged: true,
-          chronicConditions: ['Asthme'],
-          medications: [],
-          documents: [],
-        ),
-      );
-      expect(sent, isFalse);
-      expect(server.requests, isEmpty);
-    });
-
-    test('FamilyApi body is exactly the wire value', () async {
-      final server = _Server();
-      await FamilyApi(
-        httpClient: _httpClient(server),
-      ).patchMedicalPassport(id: 'fm-2', bloodType: BloodType.oNegative);
-      expect(server.requests.single.body, {'bloodType': 'O-'});
-    });
-  });
 }
 
 Map<String, dynamic> _step1Body() => onboardingStep1Body(
@@ -407,107 +165,6 @@ Map<String, dynamic> _step1Body() => onboardingStep1Body(
   dateOfBirth: '1990-01-01',
   gender: 'FEMALE',
 );
-
-Widget _hostApp({required Widget editor, Widget Function(Widget)? wrap}) {
-  final host = Builder(
-    builder: (context) => Scaffold(
-      body: Center(
-        child: TextButton(
-          onPressed: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute<void>(builder: (_) => editor)),
-          child: const Text('open'),
-        ),
-      ),
-    ),
-  );
-  return MaterialApp(
-    localizationsDelegates: OmniLocalizations.localizationsDelegates,
-    supportedLocales: OmniLocalizations.supportedLocales,
-    home: wrap == null ? host : wrap(host),
-  );
-}
-
-Future<void> _openHostedEditor(WidgetTester tester) async {
-  await tester.tap(find.text('open'));
-  await tester.pumpAndSettle();
-}
-
-Future<void> _openSelfEditor(
-  WidgetTester tester,
-  _Server server, {
-  required BloodType? bloodType,
-}) async {
-  final api = AccountApi(httpClient: _httpClient(server));
-  await tester.pumpWidget(
-    _hostApp(
-      editor: EditMedicalDataScreen(
-        bloodType: bloodType,
-        chronicConditions: const [],
-        medications: const [],
-        documents: const [],
-        onSave: (edit) => saveOwnMedicalEdit(api, edit),
-      ),
-    ),
-  );
-  await _openHostedEditor(tester);
-}
-
-Future<void> _openFamilyEditor(WidgetTester tester, _Server server) async {
-  final provider = FamilyProvider(
-    repository: FamilyRepository(
-      api: FamilyApi(httpClient: _httpClient(server)),
-    ),
-  );
-  await tester.pumpWidget(
-    ChangeNotifierProvider.value(
-      value: provider,
-      child: MaterialApp(
-        localizationsDelegates: OmniLocalizations.localizationsDelegates,
-        supportedLocales: OmniLocalizations.supportedLocales,
-        home: FamilyMemberDetailScreen(
-          member: FamilyMember(
-            id: 'fm-1',
-            name: 'Membre Test',
-            age: 8,
-            relationship: 'Enfant',
-            avatar: '',
-            bloodType: null,
-            chronicConditions: [],
-            currentMedications: [],
-            documents: [],
-          ),
-        ),
-      ),
-    ),
-  );
-  await tester.pumpAndSettle();
-  await tester.tap(find.text('Modifier'));
-  await tester.pumpAndSettle();
-}
-
-Future<void> _chooseBloodType(WidgetTester tester, String label) async {
-  await tester.tap(find.byType(DropdownButtonFormField<String>));
-  await tester.pumpAndSettle();
-  await tester.tap(find.text(label).last);
-  await tester.pumpAndSettle();
-}
-
-Future<void> _toggleCondition(WidgetTester tester, String condition) async {
-  final chip = find.text(condition);
-  await tester.ensureVisible(chip);
-  await tester.pumpAndSettle();
-  await tester.tap(chip);
-  await tester.pumpAndSettle();
-}
-
-Future<void> _tapSave(WidgetTester tester) async {
-  final button = find.text(_saveLabel);
-  await tester.ensureVisible(button);
-  await tester.pumpAndSettle();
-  await tester.tap(button);
-  await tester.pumpAndSettle();
-}
 
 AppHttpClient _httpClient(_Server server) => AppHttpClient(
   tokenStore: SecureTokenStore(backend: _MemoryTokenBackend()),
@@ -526,15 +183,6 @@ class _Request {
 /// Records every request and answers like the backend envelope
 /// `{code, message}` on errors.
 class _Server implements HttpClientAdapter {
-  _Server({
-    this.patchStatus = 200,
-    this.patchCode,
-    this.failPatchWithConnectionError = false,
-  });
-
-  final int patchStatus;
-  final String? patchCode;
-  final bool failPatchWithConnectionError;
   final List<_Request> requests = [];
 
   void expectNoForbiddenValues() {
@@ -561,15 +209,6 @@ class _Server implements HttpClientAdapter {
         data is Map ? Map<String, dynamic>.from(data) : const {},
       ),
     );
-    if (options.method == 'PATCH' && failPatchWithConnectionError) {
-      throw DioException(
-        requestOptions: options,
-        type: DioExceptionType.connectionError,
-      );
-    }
-    if (options.method == 'PATCH' && patchStatus >= 400) {
-      return _json(patchStatus, {'code': patchCode, 'message': _serverText});
-    }
     return _json(200, {
       'passportCompletion': 20,
       'nextStep': 2,

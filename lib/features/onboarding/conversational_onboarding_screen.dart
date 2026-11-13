@@ -3,7 +3,6 @@ import 'dart:ui' show SemanticsRole;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/api/account_api.dart';
-import '../../core/api/medications_api.dart' as med_api;
 import '../../core/models/blood_type.dart';
 import '../../core/theme/omni_theme.dart';
 import '../../core/utils/logger.dart';
@@ -22,8 +21,11 @@ import '../../core/l10n/blood_type_label.dart';
 import '../../core/network/api_failure.dart';
 import '../../l10n/omni_localizations.dart';
 import 'onboarding_labels.dart';
+import '../patient_passport/data/medical_record_repository.dart';
+import '../patient_passport/data/medical_record_write_repository.dart';
 import 'onboarding_progress.dart';
 import 'onboarding_complete_screen.dart';
+import 'onboarding_validation.dart';
 import 'widgets/bmi_card.dart';
 import 'widgets/onboarding_frame.dart';
 import 'widgets/onboarding_intro.dart';
@@ -44,9 +46,18 @@ const String _bundledFont = 'Plus Jakarta Sans';
 /// the PageView on a fresh start only; the PageView stays mounted below it
 /// (and below the initial-load spinner) so resume can jump.
 class ConversationalOnboardingScreen extends StatefulWidget {
-  const ConversationalOnboardingScreen({super.key, required this.accountApi});
+  const ConversationalOnboardingScreen({
+    super.key,
+    required this.accountApi,
+    required this.medicalRecords,
+    required this.medicalRecordWrites,
+  });
 
   final AccountApi accountApi;
+
+  /// The record's read and section saves (the body page, G2.1-A3).
+  final MedicalRecordRepository medicalRecords;
+  final MedicalRecordWriteRepository medicalRecordWrites;
 
   @override
   State<ConversationalOnboardingScreen> createState() =>
@@ -68,7 +79,11 @@ class _ConversationalOnboardingScreenState
 
   /// Saves page by page and knows the server progress (G2-1a-6).
   late final OnboardingProgressController _progress =
-      OnboardingProgressController(_accountApi);
+      OnboardingProgressController(
+        _accountApi,
+        records: widget.medicalRecords,
+        writes: widget.medicalRecordWrites,
+      );
   DateTime? _selectedDateOfBirth;
   String? _selectedGender;
 
@@ -106,10 +121,6 @@ class _ConversationalOnboardingScreenState
   final List<TextEditingController> _allergyNameControllers = [];
   final List<String> _allergySeverities = [];
   final List<bool> _allergyLifeSafety = [];
-  final List<TextEditingController> _medicationNameControllers = [];
-  final List<TextEditingController> _medicationDosageControllers = [];
-  final List<String?> _medicationIds = [];
-  final List<med_api.MedicationSearchResult?> _medicationDetails = [];
 
   // ── G3-ONB2 UI state only (nothing here is sent) ─────────────────────────
 
@@ -150,7 +161,6 @@ class _ConversationalOnboardingScreenState
     super.initState();
     _filteredConditions = availableConditions;
     _addAllergyFields();
-    _addMedicationFields();
     _heightController.addListener(_refreshBodyMeasurementPreview);
     _weightController.addListener(_refreshBodyMeasurementPreview);
   }
@@ -191,20 +201,7 @@ class _ConversationalOnboardingScreenState
     for (var controller in _allergyNameControllers) {
       controller.dispose();
     }
-    for (var controller in _medicationNameControllers) {
-      controller.dispose();
-    }
-    for (var controller in _medicationDosageControllers) {
-      controller.dispose();
-    }
     super.dispose();
-  }
-
-  void _addMedicationFields() {
-    _medicationNameControllers.add(TextEditingController());
-    _medicationDosageControllers.add(TextEditingController());
-    _medicationIds.add(null);
-    _medicationDetails.add(null);
   }
 
   void _addAllergyFields() {
@@ -322,8 +319,7 @@ class _ConversationalOnboardingScreenState
     if (_saving) return;
     final page = _currentPage;
     if (!_validateThrough(page)) return;
-    final draft = _buildDraft(includeMedications: page == _lastPageIndex);
-    if (draft == null) return;
+    final draft = _buildDraft();
 
     setState(() => _saving = true);
     final outcome = await _progress.saveThrough(page, draft);
@@ -378,12 +374,15 @@ class _ConversationalOnboardingScreenState
         !_validateAllergies(showError: true)) {
       return false;
     }
+    if (page >= OnboardingPage.conditions &&
+        !_validateConditions(showError: true)) {
+      return false;
+    }
     return true;
   }
 
   /// Reads the screen into a draft (and the onboarding provider, as before).
-  /// Returns null when a medication entry is invalid (message shown).
-  OnboardingDraft? _buildDraft({required bool includeMedications}) {
+  OnboardingDraft _buildDraft() {
     final provider = Provider.of<UserOnboardingProvider>(
       context,
       listen: false,
@@ -396,23 +395,16 @@ class _ConversationalOnboardingScreenState
     );
     provider.setBodyMeasurements(heightCm: _heightCm, weightKg: _weightKg);
     provider.setAllergies(_collectAllergies());
-
-    final medications = <MedicationEntry>[];
-    if (includeMedications) {
-      final collected = _collectMedications();
-      if (collected == null) return null;
-      medications.addAll(collected);
-      provider.medications
-        ..clear()
-        ..addAll(collected);
-    }
-    return _readDraft(medications: medications);
+    return _readDraft();
   }
 
   /// What the screen shows, without side effects. Needs a birth date and a
-  /// gender (validated or pre-filled before any call).
-  OnboardingDraft _readDraft({List<MedicationEntry> medications = const []}) {
+  /// gender (validated or pre-filled before any call). Conditions are sent
+  /// with the French label the patient chose (G2.1-A3), never the internal
+  /// key.
+  OnboardingDraft _readDraft() {
     final provider = context.read<UserOnboardingProvider>();
+    final l10n = OmniLocalizations.of(context);
     return OnboardingDraft(
       firstName: _firstNameController.text.trim(),
       lastName: _lastNameController.text.trim(),
@@ -422,57 +414,18 @@ class _ConversationalOnboardingScreenState
       heightCm: _heightCm,
       weightKg: _weightKg,
       allergies: _collectAllergies(),
-      conditions: List.of(provider.chronicConditions),
-      medications: medications,
-      today: _formatDateOnly(DateTime.now()),
+      conditions: _conditionLabels(provider, l10n),
+      takesMedications: _takesMedications,
     );
   }
 
-  /// Medication rows, validated as before; null when one is invalid.
-  /// (G3-ONB2: the two messages are French; the rows are not shown, so the
-  /// list is always empty and these messages cannot appear.)
-  List<MedicationEntry>? _collectMedications() {
-    final entries = <MedicationEntry>[];
-    for (int i = 0; i < _medicationNameControllers.length; i++) {
-      final name = _medicationNameControllers[i].text.trim();
-      final dosage = _medicationDosageControllers[i].text.trim();
-      final medId = _medicationIds[i];
-      final hasAnyInput = name.isNotEmpty || dosage.isNotEmpty;
-      if (!hasAnyInput) continue;
-
-      if (medId == null || medId.trim().isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              OmniLocalizations.of(context).onboardingErrorMedicationSelect,
-            ),
-          ),
-        );
-        return null;
-      }
-
-      if (dosage.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              OmniLocalizations.of(context).onboardingErrorMedicationDosage,
-            ),
-          ),
-        );
-        return null;
-      }
-
-      entries.add(
-        MedicationEntry(
-          medicationId: medId,
-          name: name,
-          dosage: dosage,
-          frequency: '1x daily',
-        ),
-      );
-    }
-    return entries;
-  }
+  List<String> _conditionLabels(
+    UserOnboardingProvider provider,
+    OmniLocalizations l10n,
+  ) => [
+    for (final condition in provider.chronicConditions)
+      onboardingConditionLabel(condition, l10n),
+  ];
 
   Future<void> _finishOnboarding() async {
     final userProvider = context.read<UserProvider>();
@@ -512,44 +465,49 @@ class _ConversationalOnboardingScreenState
   }
 
   bool _validateBodyMeasurements({required bool showError}) {
-    final l10n = OmniLocalizations.of(context);
-    String? message;
-    final rawHeight = _heightController.text.trim();
-    final rawWeight = _weightController.text.trim();
-    final height = _heightCm;
-    final weight = _weightKg;
-
-    if (rawHeight.isEmpty) {
-      message = l10n.onboardingErrorHeight;
-    } else if (rawWeight.isEmpty) {
-      message = l10n.onboardingErrorWeight;
-    } else if (height == null || height <= 0 || height >= 300) {
-      message = l10n.onboardingErrorHeightInvalid;
-    } else if (weight == null || weight <= 0 || weight >= 500) {
-      message = l10n.onboardingErrorWeightInvalid;
-    }
-
+    final message = onboardingMeasurementsError(
+      rawHeight: _heightController.text,
+      rawWeight: _weightController.text,
+      heightCm: _heightCm,
+      weightKg: _weightKg,
+      l10n: OmniLocalizations.of(context),
+    );
     if (message == null) return true;
     if (showError) _showInlineError(message);
     return false;
   }
 
   bool _validateAllergies({required bool showError}) {
-    final l10n = OmniLocalizations.of(context);
-    String? message;
-    for (var i = 0; i < _allergyNameControllers.length; i++) {
-      final name = _allergyNameControllers[i].text.trim();
-      final severity = _allergySeverities[i].trim();
-      if (name.isEmpty && _allergyLifeSafety[i]) {
-        message = l10n.onboardingErrorAllergyName;
-        break;
-      }
-      if (name.isNotEmpty && severity.isEmpty) {
-        message = l10n.onboardingErrorAllergySeverity;
-        break;
-      }
-    }
+    final hasInput = _allergyNameControllers.any(
+      (controller) => controller.text.trim().isNotEmpty,
+    );
+    final message = onboardingAllergiesError(
+      answer: _hasAllergies ?? (hasInput ? true : null),
+      rows: [
+        for (var i = 0; i < _allergyNameControllers.length; i++)
+          (
+            name: _allergyNameControllers[i].text,
+            severity: _allergySeverities[i],
+            lifeSafety: _allergyLifeSafety[i],
+          ),
+      ],
+      l10n: OmniLocalizations.of(context),
+    );
+    if (message == null) return true;
+    if (showError) _showInlineError(message);
+    return false;
+  }
 
+  bool _validateConditions({required bool showError}) {
+    final provider = context.read<UserOnboardingProvider>();
+    final l10n = OmniLocalizations.of(context);
+    final message = onboardingConditionsError(
+      answer:
+          _hasConditions ??
+          (provider.chronicConditions.isNotEmpty ? true : null),
+      conditions: _conditionLabels(provider, l10n),
+      l10n: l10n,
+    );
     if (message == null) return true;
     if (showError) _showInlineError(message);
     return false;
@@ -596,18 +554,6 @@ class _ConversationalOnboardingScreenState
       _allergyNameControllers.first.clear();
       _allergySeverities.first = 'modérée';
       _allergyLifeSafety.first = false;
-    });
-  }
-
-  /// The former « I'm not taking any medications » action (same body).
-  void _clearMedications() {
-    setState(() {
-      for (var controller in _medicationNameControllers) {
-        controller.clear();
-      }
-      for (var controller in _medicationDosageControllers) {
-        controller.clear();
-      }
     });
   }
 
@@ -853,7 +799,10 @@ class _ConversationalOnboardingScreenState
         onTap: _pickDateOfBirth,
         prefixIcon: Icons.calendar_today_rounded,
         suffix: const ExcludeSemantics(
-          child: Icon(Icons.expand_more_rounded, color: OmniColors.textSecondary),
+          child: Icon(
+            Icons.expand_more_rounded,
+            color: OmniColors.textSecondary,
+          ),
         ),
       ),
       const SizedBox(height: OmniSpacing.base),
@@ -916,7 +865,9 @@ class _ConversationalOnboardingScreenState
       previousProgress: _progressFor(1 + step),
       title: title,
       subtitle: subtitle,
-      onBack: step > 0 ? () => setState(() => _bodyStep = step - 1) : _previousPage,
+      onBack: step > 0
+          ? () => setState(() => _bodyStep = step - 1)
+          : _previousPage,
       onSkip: _skip,
       primaryLabel: l10n.onboardingContinue,
       primaryEnabled: enabled,
@@ -934,7 +885,10 @@ class _ConversationalOnboardingScreenState
     );
   }
 
-  Widget _bloodTypeGrid(UserOnboardingProvider provider, OmniLocalizations l10n) {
+  Widget _bloodTypeGrid(
+    UserOnboardingProvider provider,
+    OmniLocalizations l10n,
+  ) {
     final groups = bloodTypes.where((type) => type.isKnown).toList();
     final unknown = bloodTypes.firstWhere((type) => !type.isKnown);
     Widget tile(BloodType bloodType) => OmniChoiceTile(
@@ -1374,7 +1328,8 @@ class _ConversationalOnboardingScreenState
       onBack: _previousPage,
       onSkip: _skip,
       primaryLabel: l10n.onboardingFinish,
-      primaryEnabled: answer == false,
+      // « Oui » and « Non » both finish (CTO 2026-11-13, G2.1-A3b).
+      primaryEnabled: answer != null,
       primaryLoading: _saving,
       onPrimary: _submitPage,
       child: Column(
@@ -1396,7 +1351,6 @@ class _ConversationalOnboardingScreenState
               ),
             ],
             onChanged: (value) {
-              if (!value) _clearMedications();
               setState(() {
                 _takesMedications = value;
                 _validationMessage = null;
@@ -1405,10 +1359,7 @@ class _ConversationalOnboardingScreenState
           ),
           if (answer == true) ...[
             const SizedBox(height: OmniSpacing.xl),
-            OnboardingNote(
-              title: l10n.onboardingMedicationsSoonTitle,
-              body: l10n.onboardingMedicationsSoonBody,
-            ),
+            OnboardingNote(title: l10n.onboardingMedicationsInRecord),
           ],
           _inlineError(),
         ],
@@ -1577,10 +1528,7 @@ class _DashedBorderPainter extends CustomPainter {
     for (final metric in path.computeMetrics()) {
       var distance = 0.0;
       while (distance < metric.length) {
-        canvas.drawPath(
-          metric.extractPath(distance, distance + _dash),
-          paint,
-        );
+        canvas.drawPath(metric.extractPath(distance, distance + _dash), paint);
         distance += _dash + _gap;
       }
     }
@@ -1623,9 +1571,7 @@ class _RemovableChip extends StatelessWidget {
             child: ConstrainedBox(
               constraints: const BoxConstraints(minHeight: 44),
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: OmniSpacing.md,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: OmniSpacing.md),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [

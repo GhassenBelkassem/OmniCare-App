@@ -161,10 +161,6 @@ class OmniLocalizationsFr extends OmniLocalizations {
       'La demande urgente au cabinet n’est pas disponible pour le moment.';
 
   @override
-  String get conditionsAndTreatmentsNotSaved =>
-      'Les antécédents et traitements ne peuvent pas encore être enregistrés.';
-
-  @override
   String get requestNoShowLabel => 'Rendez-vous manqué';
 
   @override
@@ -1020,25 +1016,11 @@ class OmniLocalizationsFr extends OmniLocalizations {
   String get onboardingErrorWeight => 'Indiquez votre poids.';
 
   @override
-  String get onboardingErrorHeightInvalid => 'Indiquez une taille valide.';
-
-  @override
-  String get onboardingErrorWeightInvalid => 'Indiquez un poids valide.';
-
-  @override
   String get onboardingErrorAllergyName => 'Indiquez le nom de l’allergie.';
 
   @override
   String get onboardingErrorAllergySeverity =>
       'Choisissez la gravité de l’allergie.';
-
-  @override
-  String get onboardingErrorMedicationSelect =>
-      'Choisissez un médicament dans la liste.';
-
-  @override
-  String get onboardingErrorMedicationDosage =>
-      'Indiquez la posologie du médicament choisi.';
 
   @override
   String get onboardingBloodTitle => 'Quel est votre groupe sanguin ?';
@@ -1203,12 +1185,8 @@ class OmniLocalizationsFr extends OmniLocalizations {
   String get onboardingMedicationsNo => 'Non, aucun médicament';
 
   @override
-  String get onboardingMedicationsSoonTitle =>
-      'L’ajout de médicaments sera bientôt disponible';
-
-  @override
-  String get onboardingMedicationsSoonBody =>
-      'Vous pourrez les ajouter depuis votre dossier médical.';
+  String get onboardingMedicationsInRecord =>
+      'Vous pourrez ajouter vos médicaments dans votre dossier médical.';
 
   @override
   String get onboardingDoneTitle => 'Vos informations sont enregistrées';
@@ -1241,5 +1219,128 @@ class OmniLocalizationsFr extends OmniLocalizations {
   @override
   String onboardingBmiHeightNote(int height) {
     return 'Calculé avec votre taille ($height cm)';
+  }
+
+  @override
+  String get fieldErrorDuplicate => 'Cet élément figure déjà dans la liste.';
+
+  @override
+  String get recordFieldTooLong160 => '160 caractères maximum.';
+
+  @override
+  String get recordFieldTooLong80 => '80 caractères maximum.';
+
+  @override
+  String get recordFieldTooManyItems => '50 éléments maximum.';
+
+  @override
+  String get recordFieldForbiddenCharacters =>
+      'Ce texte contient des caractères non autorisés.';
+
+  @override
+  String get recordFieldBloodTypeInvalid => 'Groupe sanguin non valide.';
+
+  @override
+  String get recordFieldHeightRange =>
+      'La taille doit être comprise entre 30 et 300 cm.';
+
+  @override
+  String get recordFieldWeightRange =>
+      'Le poids doit être compris entre 0 et 500 kg.';
+
+  @override
+  String get recordFieldTimesPerDayRange => 'Entre 1 et 6 prises par jour.';
+
+  @override
+  String get recordFieldDurationRange => 'Entre 1 et 365.';
+
+  @override
+  String get recordFieldDateInFuture =>
+      'La date ne peut pas être dans le futur.';
+
+  @override
+  String get recordFieldDateInvalid => 'Date non valide.';
+
+  @override
+  String get recordFieldFileTooLarge =>
+      'Fichier trop volumineux (15 Mo maximum).';
+
+  @override
+  String get recordFieldFileFormat => 'Format non accepté : PDF, JPG ou PNG.';
+
+  @override
+  String get recordCodeItemLocked =>
+      'Cet élément a été ajouté par un professionnel de santé et ne peut pas être modifié.';
+
+  @override
+  String get recordCodeBloodTypeLocked =>
+      'Votre groupe sanguin a été renseigné par un professionnel de santé.';
+
+  @override
+  String get recordCodeVersionConflict =>
+      'Votre dossier a été modifié ailleurs. Rechargez pour voir la dernière version ; vos saisies sont conservées.';
+
+  @override
+  String get recordCodeSaveInProgress =>
+      'Enregistrement en cours, patientez un instant.';
+
+  @override
+  String get recordCodeDocumentNotReady =>
+      'Document en cours d\'analyse. Réessayez dans quelques instants.';
+
+  @override
+  String get recordCodeTooManyRequests =>
+      'Trop de demandes. Patientez une minute.';
+
+  @override
+  String get recordWarningUnusualValue => 'Valeur inhabituelle : vérifiez-la.';
+
+  @override
+  String get recordBloodTypeDontKnow => 'Je ne sais pas';
+
+  @override
+  String get passportDeclaredByPatient => 'Déclaré par le patient';
+
+  @override
+  String get recordAllergiesTitle => 'Allergies';
+
+  @override
+  String get recordAllergiesSubtitle =>
+      'Sélectionnez toutes les allergies connues';
+
+  @override
+  String get recordAllergiesOtherHint => 'Autre allergie...';
+
+  @override
+  String get bmiCategoryUnderweight => 'Insuffisance pondérale';
+
+  @override
+  String get bmiCategoryNormal => 'Normal';
+
+  @override
+  String get bmiCategoryOverweight => 'Surpoids';
+
+  @override
+  String get bmiCategoryObese => 'Obésité';
+
+  @override
+  String get onboardingErrorConditionRequired =>
+      'Choisissez au moins une maladie, ou répondez « Non ».';
+
+  @override
+  String passportDocumentsCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count documents enregistrés',
+      one: '1 document enregistré',
+      zero: '0 documents enregistrés',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String passportDocumentsCountMore(int count) {
+    return '$count+ documents enregistrés';
   }
 }

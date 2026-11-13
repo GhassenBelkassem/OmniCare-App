@@ -25,12 +25,17 @@ class PassportMedication {
   final bool isCurrent;
   final String? stoppedLabel;
 
+  /// « Déclaré par le patient » for a medication the patient declared
+  /// (ADR-012 rule 5); `null` for a prescription.
+  final String? declaredLabel;
+
   const PassportMedication({
     required this.name,
     required this.dosage,
     required this.frequency,
     required this.isCurrent,
     this.stoppedLabel,
+    this.declaredLabel,
   });
 
   /// Dosage and frequency, skipping a part the prescription does not give.

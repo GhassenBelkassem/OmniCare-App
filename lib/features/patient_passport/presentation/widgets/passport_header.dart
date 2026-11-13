@@ -7,7 +7,7 @@ class PassportHeader extends StatelessWidget {
   final PassportFamilyMember selectedMember;
   final VoidCallback onSelectPassport;
 
-  /// The edit pencil; hidden when null (G2-1b-3b: editing comes in Phase 3).
+  /// The edit pencil (G2.1-A2); hidden when null.
   final VoidCallback? onEdit;
   final VoidCallback onShare;
 

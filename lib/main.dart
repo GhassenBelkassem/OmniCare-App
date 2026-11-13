@@ -94,9 +94,15 @@ import 'features/security/account_security_provider.dart';
 import 'features/security/app_lock_gate.dart';
 import 'features/security/app_lock_service.dart';
 import 'features/security/phone_change_reversal_screen.dart';
+import 'features/patient_passport/application/medical_data_editor_view_model.dart';
+import 'features/patient_passport/application/medical_documents_view_model.dart';
 import 'features/patient_passport/application/medical_record_view_model.dart';
+import 'features/patient_passport/data/medical_document_api.dart';
+import 'features/patient_passport/data/medical_document_repository.dart';
 import 'features/patient_passport/data/medical_record_api.dart';
 import 'features/patient_passport/data/medical_record_repository.dart';
+import 'features/patient_passport/data/medical_record_write_api.dart';
+import 'features/patient_passport/data/medical_record_write_repository.dart';
 import 'features/patient_passport/sharing/medical_sharing_api.dart';
 import 'features/patient_passport/sharing/medical_sharing_controller.dart';
 import 'features/patient_passport/sharing/medical_share_qr_api.dart';
@@ -224,6 +230,12 @@ class OmniCareApp extends StatelessWidget {
     final resolvedHttpClient =
         httpClient ?? AppHttpClient(tokenStore: SecureTokenStore());
     final clinicRepository = ClinicRepository(ClinicApi(resolvedHttpClient));
+    final medicalRecordRepository = MedicalRecordRepository(
+      MedicalRecordApi(resolvedHttpClient),
+    );
+    final medicalRecordWriteRepository = MedicalRecordWriteRepository(
+      MedicalRecordWriteApi(resolvedHttpClient),
+    );
     final scheduledCareRepository = ScheduledCareRepository(
       ScheduledCareApi(resolvedHttpClient),
       patientScheduledCareApi: PatientScheduledCareApi(resolvedHttpClient),
@@ -306,12 +318,24 @@ class OmniCareApp extends StatelessWidget {
           create: (_) =>
               MedicalSharingController(MedicalSharingApi(resolvedHttpClient)),
         ),
-        // G-2 FT-3: the « Dossier médical » record.
+        // G-2 FT-3: the « Dossier médical » record; G2.1-A2: its editor, on
+        // the same read repository and the A1 write repository.
         ChangeNotifierProvider(
-          create: (_) => MedicalRecordViewModel(
-            repository: MedicalRecordRepository(
-              MedicalRecordApi(resolvedHttpClient),
+          create: (_) =>
+              MedicalRecordViewModel(repository: medicalRecordRepository),
+        ),
+        // G2.1-A4: the « Documents » tab (list, upload, status, delete).
+        ChangeNotifierProvider(
+          create: (_) => MedicalDocumentsViewModel(
+            repository: MedicalDocumentRepository(
+              MedicalDocumentApi(resolvedHttpClient),
             ),
+          ),
+        ),
+        Provider<MedicalDataEditorFactory>.value(
+          value: MedicalDataEditorFactory(
+            reads: medicalRecordRepository,
+            writes: medicalRecordWriteRepository,
           ),
         ),
         ChangeNotifierProvider(
@@ -325,9 +349,8 @@ class OmniCareApp extends StatelessWidget {
         ),
         // G-1 D2 / D4: the patient's pending access requests and follow-ups.
         ChangeNotifierProvider(
-          create: (_) => PendingAnswersController(
-            PendingAnswersApi(resolvedHttpClient),
-          ),
+          create: (_) =>
+              PendingAnswersController(PendingAnswersApi(resolvedHttpClient)),
         ),
         ChangeNotifierProvider(
           create: (context) => AccountSecurityProvider(
@@ -447,6 +470,8 @@ class OmniCareApp extends StatelessWidget {
               '/conversational-onboarding': (context) =>
                   ConversationalOnboardingScreen(
                     accountApi: AccountApi(httpClient: resolvedHttpClient),
+                    medicalRecords: medicalRecordRepository,
+                    medicalRecordWrites: medicalRecordWriteRepository,
                   ),
               '/change-password-required': (context) =>
                   const ResetPasswordScreen(),
@@ -695,7 +720,11 @@ class _AuthStateListenerState extends State<_AuthStateListener>
     switch (resource) {
       case NotificationNavigationResource.accessRequest:
         if (navigator != null) {
-          await PendingAnswersEntry.openAccessRequest(navigator, controller, id);
+          await PendingAnswersEntry.openAccessRequest(
+            navigator,
+            controller,
+            id,
+          );
         }
         return true;
       case NotificationNavigationResource.followUpProposal:
@@ -709,7 +738,10 @@ class _AuthStateListenerState extends State<_AuthStateListener>
         return true;
       case NotificationNavigationResource.followUpWithdrawn:
         if (navigator != null) {
-          await PendingAnswersEntry.openFollowUpWithdrawn(navigator, controller);
+          await PendingAnswersEntry.openFollowUpWithdrawn(
+            navigator,
+            controller,
+          );
         }
         return true;
       default:
@@ -830,6 +862,7 @@ class _AuthStateListenerState extends State<_AuthStateListener>
           context.read<MedicalShareQrController>().clear();
           context.read<DirectPatientAuthorizationController>().clear();
           context.read<MedicalRecordViewModel>().clear();
+          context.read<MedicalDocumentsViewModel>().clear();
           context.read<PendingAnswersController>().clear();
         });
       }

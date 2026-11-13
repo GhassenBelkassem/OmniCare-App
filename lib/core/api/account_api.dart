@@ -47,21 +47,6 @@ class AccountApi {
     );
   }
 
-  /// PATCH /profile/passport. A null argument is omitted from the body, and
-  /// the backend keeps the stored value for an omitted field.
-  Future<void> patchMedicalPassport({
-    BloodType? bloodType,
-    int? heightCm,
-    double? weightKg,
-  }) async {
-    final data = <String, dynamic>{
-      'bloodType': ?bloodType?.wireValue,
-      'heightCm': ?heightCm,
-      'weightKg': ?weightKg,
-    };
-    await _patchJson('/profile/passport', data);
-  }
-
   Future<T> _getJson<T>(
     String path,
     T Function(Map<String, dynamic>) fromJson, {
@@ -100,14 +85,6 @@ class AccountApi {
         code: 'MALFORMED_RESPONSE',
         cause: e,
       );
-    }
-  }
-
-  Future<void> _patchJson(String path, Map<String, dynamic> data) async {
-    try {
-      await _httpClient.dio.patch<dynamic>(path, data: data);
-    } on DioException catch (e) {
-      throw _mapDioException(e);
     }
   }
 

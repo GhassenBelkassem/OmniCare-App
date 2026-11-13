@@ -93,6 +93,16 @@ class MedicalRecordViewModel extends ChangeNotifier {
   /// Reloads [section] only.
   void retry(MedicalRecordSection section) => _load(section);
 
+  /// Reloads what an edit can change (G2.1-A2): the medical data and the
+  /// treatments already shown. The history is not affected by an edit.
+  void refreshAfterEdit() {
+    _load(MedicalRecordSection.medicalData);
+    _load(MedicalRecordSection.currentMedications);
+    if (_pastMedications is! SectionIdle) {
+      _load(MedicalRecordSection.pastMedications);
+    }
+  }
+
   /// Applies a sharing change already confirmed by the server to one
   /// consultation of the loaded page.
   void applyConsultationSharing({

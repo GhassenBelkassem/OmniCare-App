@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 
 import '../core/api/family_api.dart';
-import '../core/models/blood_type.dart';
 import '../core/models/family_models.dart';
 import '../core/network/api_failure.dart';
 import '../core/result/result.dart';
@@ -143,18 +142,6 @@ class FamilyProvider extends ChangeNotifier {
         notifyListeners();
       }
     }
-  }
-
-  /// Throws the [ApiFailure] on failure (the caller shows the message).
-  Future<void> updateMedicalPassport({
-    required String id,
-    required BloodType bloodType,
-  }) async {
-    final result = await _repository.patchMedicalPassport(
-      id: id,
-      bloodType: bloodType,
-    );
-    if (result case Err(:final failure)) throw failure;
   }
 
   void clearMutationError() {

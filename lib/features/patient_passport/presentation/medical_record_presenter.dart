@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../core/network/api_failure.dart';
 import '../../../core/network/api_failure_message.dart';
 import '../../../l10n/omni_localizations.dart';
+import '../application/medical_documents_view_model.dart';
 import '../application/medical_record_view_model.dart';
 import '../data/medical_record_models.dart';
 import '../models/patient_passport_view_models.dart';
@@ -50,11 +51,17 @@ List<String> conditionChips(MedicalDataRecord record) =>
     ? record.conditions
     : const [];
 
+/// The text of an empty treatments tab. A current list never recorded
+/// (`listStatus` UNKNOWN: no answer, or onboarding « Oui » with nothing
+/// added, G2.1-A3b) reads « Non renseigné », never « Aucun traitement ».
 String medicationsEmptyText({
   required bool current,
   required OmniLocalizations l10n,
+  RecordListStatus? listStatus,
 }) => current
-    ? l10n.passportNoCurrentMedications
+    ? (listStatus == RecordListStatus.unknown
+          ? l10n.medicalRecordNotRecorded
+          : l10n.passportNoCurrentMedications)
     : l10n.passportNoPastMedications;
 
 PassportMedication passportMedication(
@@ -74,6 +81,9 @@ PassportMedication passportMedication(
         medication.frequencyText ??
         (timesPerDay == null ? '' : l10n.passportTimesPerDay(timesPerDay)),
     isCurrent: current,
+    declaredLabel: medication.source == MedicationSource.patientDeclared
+        ? l10n.passportDeclaredByPatient
+        : null,
   );
 }
 
@@ -134,3 +144,13 @@ String? _doseText(MedicationRecord medication) {
       : amount.toString();
   return unit == null ? number : '$number $unit';
 }
+
+/// « N documents enregistrés », only when true (G2.1-A4): the server gives no
+/// total, so with a next page it reads « 20+ »; before the list is read it
+/// is empty (never « 0 » by default).
+String documentsCountText(DocumentsCount? count, OmniLocalizations l10n) =>
+    switch (count) {
+      null => '',
+      (loaded: final n, more: true) => l10n.passportDocumentsCountMore(n),
+      (loaded: final n, more: false) => l10n.passportDocumentsCount(n),
+    };

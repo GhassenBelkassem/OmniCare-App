@@ -1,11 +1,18 @@
 import 'dart:convert';
 
 import '../../core/api/account_api.dart';
+import '../../core/network/api_failure.dart';
 import '../../core/network/save_error_message.dart';
+import '../../core/result/result.dart';
 import '../../l10n/omni_localizations.dart';
 import '../../core/models/blood_type.dart';
 import '../../core/models/patient_profile.dart';
 import '../../providers/user_onboarding_provider.dart';
+import '../patient_passport/data/medical_record_models.dart';
+import '../patient_passport/data/medical_record_repository.dart';
+import '../patient_passport/data/medical_record_write_models.dart';
+import '../patient_passport/data/medical_record_write_repository.dart';
+import '../patient_passport/presentation/medical_record_messages.dart';
 import 'onboarding_basics_payload.dart';
 
 /// Onboarding UI pages (the 5 dots) and the request each one saves.
@@ -13,7 +20,8 @@ abstract final class OnboardingPage {
   /// Identity → `POST /profile/onboarding/step/1`.
   static const int identity = 0;
 
-  /// Blood type, height, weight → `PATCH /profile/passport` (MRS).
+  /// Blood type, height, weight → `PUT /me/medical-record/life-safety/
+  /// blood-type` and `…/body-measurements` (the record's section saves).
   static const int body = 1;
 
   /// → `POST /profile/onboarding/step/2`.
@@ -70,8 +78,7 @@ class OnboardingDraft {
     required this.weightKg,
     required this.allergies,
     required this.conditions,
-    required this.medications,
-    required this.today,
+    this.takesMedications,
   });
 
   final String firstName;
@@ -84,11 +91,13 @@ class OnboardingDraft {
   final int? heightCm;
   final double? weightKg;
   final List<AllergyEntry> allergies;
-  final List<String> conditions;
-  final List<MedicationEntry> medications;
 
-  /// `yyyy-MM-dd`, the medications' start date (as before).
-  final String today;
+  /// The condition names as the patient chose them (French labels).
+  final List<String> conditions;
+
+  /// The medications page answer: « Oui » (true), « Non » (false), or not
+  /// answered (null).
+  final bool? takesMedications;
 }
 
 /// What the onboarding screen needs on open.
@@ -144,9 +153,21 @@ final class OnboardingSaveFailed extends OnboardingSaveOutcome {
 /// One instance per onboarding screen. Not a ChangeNotifier: the screen owns
 /// the UI state and only asks this object to load and to save.
 class OnboardingProgressController {
-  OnboardingProgressController(this._api);
+  OnboardingProgressController(
+    this._api, {
+    required MedicalRecordRepository records,
+    required MedicalRecordWriteRepository writes,
+  }) : _records = records,
+       _writes = writes;
 
   final AccountApi _api;
+
+  /// The body page (blood type, height, weight) saves through the record's
+  /// section saves, as the record editor does (G2.1-A3).
+  final MedicalRecordRepository _records;
+  final MedicalRecordWriteRepository _writes;
+  final SaveAttempt _bloodTypeAttempt = SaveAttempt();
+  final SaveAttempt _measurementsAttempt = SaveAttempt();
 
   /// Null until known (read on open, refreshed before a save if needed).
   int? _serverStep;
@@ -261,10 +282,7 @@ class OnboardingProgressController {
           page: OnboardingPage.conditions,
         );
       case OnboardingPage.medications:
-        await _sendStep(
-          4,
-          onboardingStep4Body(draft.medications, startDate: draft.today),
-        );
+        await _sendStep(4, onboardingStep4Body(draft.takesMedications));
     }
   }
 
@@ -332,8 +350,10 @@ class OnboardingProgressController {
     );
   }
 
-  /// `PATCH /profile/passport`, only for what differs from the server, with
-  /// the 1a-2b guard (« Je ne sais pas » never erases a stored blood type).
+  /// The record's blood type and measurement saves (SELF), only for what
+  /// differs from the server, with the 1a-2b guard (« Je ne sais pas » never
+  /// erases a stored blood type). Each save reads the section's version just
+  /// before and keeps its key for a retry of the same content.
   Future<void> _saveBody(OnboardingDraft draft) async {
     if (_serverStep == _completedServerStep) return;
     final candidate = bloodTypeToSend(
@@ -344,28 +364,60 @@ class OnboardingProgressController {
     final measurementsChanged =
         draft.heightCm != _savedHeightCm || draft.weightKg != _savedWeightKg;
     if (bloodType == null && !measurementsChanged) return;
-    await _api.patchMedicalPassport(
-      bloodType: bloodType,
-      heightCm: measurementsChanged ? draft.heightCm : null,
-      weightKg: measurementsChanged ? draft.weightKg : null,
-    );
+    const self = SelfRecordSubject();
+    final record = _valueOf(await _records.medicalData(self));
     if (bloodType != null) {
+      _valueOf(
+        await _writes.saveBloodType(
+          subject: self,
+          bloodType: recordBloodTypeValue(bloodType),
+          expectedVersion: record.bloodTypeVersion,
+          attempt: _bloodTypeAttempt,
+        ),
+      );
       _lastSentBloodType = bloodType;
       _storedBloodType = StoredBloodTypeKnown(
         bloodType == BloodType.unknown ? null : bloodType,
       );
     }
     if (measurementsChanged) {
+      _valueOf(
+        await _writes.saveMeasurements(
+          subject: self,
+          heightCm: draft.heightCm,
+          weightKg: draft.weightKg,
+          expectedVersion: record.measurementsVersion,
+          attempt: _measurementsAttempt,
+        ),
+      );
       _savedHeightCm = draft.heightCm;
       _savedWeightKg = draft.weightKg;
     }
   }
+
+  /// The value, or the failure thrown (the page shows its French text).
+  static T _valueOf<T>(Result<T> result) => switch (result) {
+    Ok(:final value) => value,
+    Err(:final failure) => throw failure,
+  };
 }
 
-/// French message for a failed onboarding save. Invalid input keeps its own
-/// message; every other failure asks to check the connection and retry.
-/// Never server text.
+/// French message for a failed onboarding save. A record code (blood type
+/// set by a professional, conflict, save in progress) and invalid input keep
+/// their own message; every other failure asks to check the connection and
+/// retry. Never server text.
 String onboardingSaveErrorMessage(Object error, OmniLocalizations l10n) {
+  final failure = ApiFailure.from(error);
+  if (_recordCodes.contains(failure.code)) {
+    return recordFailureMessage(failure, l10n);
+  }
   final message = saveErrorMessage(error, l10n);
   return message == l10n.saveInvalidInput ? message : l10n.onboardingSaveFailed;
 }
+
+/// Codes of the record's section saves with their own French text (A1).
+const _recordCodes = {
+  'BLOOD_TYPE_LOCKED',
+  'RECORD_VERSION_CONFLICT',
+  'IDEMPOTENCY_IN_PROGRESS',
+};
