@@ -272,6 +272,10 @@ enum UrgentCabinetPatientTerminalReason {
   /// Administrative closure of a legacy request. The DB allows it only on a
   /// CANCELLED request that was never answered (`0530` response-shape check).
   legacyLifecycleRemediation('LEGACY_LIFECYCLE_REMEDIATION'),
+
+  /// G-1: the doctor aborted the consultation (patient absent or left). The
+  /// request is shown as cancelled, like any other cancellation.
+  consultationAborted('CONSULTATION_ABORTED'),
   unknown(_unknownWireValue);
 
   const UrgentCabinetPatientTerminalReason(this.wireValue);
@@ -821,8 +825,18 @@ void _validateStateCombination({
           arrivalVerifiedAt == null &&
           terminalReason ==
               UrgentCabinetPatientTerminalReason.patientWithdrewAfterAcceptance;
+      // G-1: cancelled after arrival because the doctor aborted the
+      // consultation; the arrival may already be verified.
+      final consultationAborted =
+          respondedAt != null &&
+          commitmentId != null &&
+          commitmentStatus == UrgentCabinetPatientCommitmentStatus.cancelled &&
+          commitmentRevision != null &&
+          committedAt != null &&
+          terminalReason ==
+              UrgentCabinetPatientTerminalReason.consultationAborted;
       if (attemptState != UrgentCabinetPatientAttemptState.cabinetCancelled ||
-          (!pendingCancellation && !acceptedWithdrawal) ||
+          (!pendingCancellation && !acceptedWithdrawal && !consultationAborted) ||
           terminalAt == null ||
           allowedActions.isNotEmpty) {
         throw const FormatException('Invalid cancelled urgent CABINET state.');
