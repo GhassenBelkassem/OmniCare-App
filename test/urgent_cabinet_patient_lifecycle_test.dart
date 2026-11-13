@@ -63,6 +63,7 @@ Map<String, Object?> _snapshotJson({
   String? clinicalPhase,
   String? consultationStatus,
   String? commitmentStatusOverride,
+  String? terminalReasonOverride,
 }) {
   final accepted = status == 'ACCEPTED';
   final declined = status == 'DECLINED';
@@ -111,7 +112,9 @@ Map<String, Object?> _snapshotJson({
     'createdAt': '2026-10-18T10:00:00Z',
     'responseDeadlineAt': '2026-10-18T10:05:00Z',
     'terminalAt': terminal ? '2026-10-18T10:02:00Z' : null,
-    'terminalReason': withdrawnAfterAcceptance
+    'terminalReason': terminalReasonOverride != null
+        ? terminalReasonOverride
+        : withdrawnAfterAcceptance
         ? 'PATIENT_WITHDREW_AFTER_ACCEPTANCE'
         : declined
         ? 'DOCTOR_DECLINED'
@@ -150,6 +153,7 @@ UrgentCabinetTargetedRequestSnapshot _snapshot({
   String? clinicalPhase,
   String? consultationStatus,
   String? commitmentStatusOverride,
+  String? terminalReasonOverride,
 }) => UrgentCabinetTargetedRequestSnapshot.fromJson(
   _snapshotJson(
     status: status,
@@ -164,6 +168,7 @@ UrgentCabinetTargetedRequestSnapshot _snapshot({
     allowedActions: allowedActions,
     arrivalVerifiedAt: arrivalVerifiedAt,
     withdrawnAfterAcceptance: withdrawnAfterAcceptance,
+    terminalReasonOverride: terminalReasonOverride,
     commitmentRevision: commitmentRevision,
     clinicalPhase: clinicalPhase,
     consultationStatus: consultationStatus,
@@ -540,6 +545,21 @@ void main() {
             responseRevision: 3,
             requestRevision: 4,
             journeyRevision: 5,
+          ),
+          UrgentCabinetPatientLifecyclePhase.cancelled,
+        ),
+        (
+          // G-1: the doctor aborted the consultation after arrival (patient
+          // absent or left): shown as the existing cancelled state.
+          _snapshot(
+            status: 'CANCELLED',
+            state: 'CABINET_CANCELLED',
+            responseRevision: 3,
+            requestRevision: 4,
+            journeyRevision: 5,
+            withdrawnAfterAcceptance: true,
+            arrivalVerifiedAt: '2026-10-18T10:03:00Z',
+            terminalReasonOverride: 'CONSULTATION_ABORTED',
           ),
           UrgentCabinetPatientLifecyclePhase.cancelled,
         ),
