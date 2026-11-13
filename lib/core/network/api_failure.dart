@@ -34,6 +34,9 @@ enum ApiFieldErrorKind {
   invalidFormat,
   outOfRange,
   invalid,
+
+  /// The same value twice in one list (G2.1-SB1 `DUPLICATE`).
+  duplicate,
 }
 
 /// A failed backend call, parsed once from any of the five backend error
@@ -249,6 +252,7 @@ ApiFieldErrorKind fieldErrorKindOf(String? code) =>
       'FUTUREORPRESENT' ||
       'RANGE' ||
       'OUTOFRANGE' => ApiFieldErrorKind.outOfRange,
+      'DUPLICATE' => ApiFieldErrorKind.duplicate,
       _ => ApiFieldErrorKind.invalid,
     };
 

@@ -1,5 +1,4 @@
 import '../core/api/family_api.dart';
-import '../core/models/blood_type.dart';
 import '../core/models/family_models.dart';
 import '../core/result/result.dart';
 
@@ -53,11 +52,4 @@ class FamilyRepository {
 
   Future<Result<void>> deactivateFamilyMember(String id) =>
       guardApiCall(() => _api.deactivateFamilyMember(id));
-
-  Future<Result<void>> patchMedicalPassport({
-    required String id,
-    required BloodType bloodType,
-  }) => guardApiCall(
-    () => _api.patchMedicalPassport(id: id, bloodType: bloodType),
-  );
 }

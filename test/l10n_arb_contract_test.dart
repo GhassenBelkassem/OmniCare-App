@@ -176,8 +176,6 @@ void main() {
       'urgentCabinetUnavailableTitle': 'Service indisponible',
       'urgentCabinetUnavailableMessage':
           'La demande urgente au cabinet n’est pas disponible pour le moment.',
-      'conditionsAndTreatmentsNotSaved':
-          'Les antécédents et traitements ne peuvent pas encore être enregistrés.',
       'requestNoShowLabel': 'Rendez-vous manqué',
       'requestNoShowDescription':
           'La clinique a indiqué que ce rendez-vous n’a pas eu lieu.',
@@ -247,10 +245,6 @@ void main() {
       expect(
         fr.urgentCabinetUnavailableMessage,
         before['urgentCabinetUnavailableMessage'],
-      );
-      expect(
-        fr.conditionsAndTreatmentsNotSaved,
-        before['conditionsAndTreatmentsNotSaved'],
       );
       expect(
         fr.onboardingPageAlreadySaved,

@@ -9,18 +9,18 @@ import '../../../core/theme/omni_theme.dart';
 const String _bundledFont = 'Plus Jakarta Sans';
 
 /// Calm information box (G3-ONB1): mintSoft, radius 16, info icon, title
-/// 15 w700 and body 14 w500 in deepTeal. Announced with the status role
-/// (polite, not an alert). Pure UI.
+/// 15 w700 and body 14 w500 in deepTeal; without a [body], the title alone.
+/// Announced with the status role (polite, not an alert). Pure UI.
 class OnboardingNote extends StatelessWidget {
   const OnboardingNote({
     super.key,
     required this.title,
-    required this.body,
+    this.body,
     this.icon = Icons.info_outline_rounded,
   });
 
   final String title;
-  final String body;
+  final String? body;
   final IconData icon;
 
   @override
@@ -55,17 +55,19 @@ class OnboardingNote extends StatelessWidget {
                       color: OmniColors.deepTeal,
                     ),
                   ),
-                  const SizedBox(height: OmniSpacing.xs),
-                  Text(
-                    body,
-                    style: const TextStyle(
-                      fontFamily: _bundledFont,
-                      fontSize: 14,
-                      height: 1.45,
-                      fontWeight: FontWeight.w500,
-                      color: OmniColors.deepTeal,
+                  if (body case final body?) ...[
+                    const SizedBox(height: OmniSpacing.xs),
+                    Text(
+                      body,
+                      style: const TextStyle(
+                        fontFamily: _bundledFont,
+                        fontSize: 14,
+                        height: 1.45,
+                        fontWeight: FontWeight.w500,
+                        color: OmniColors.deepTeal,
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),

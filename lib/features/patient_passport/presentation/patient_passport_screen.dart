@@ -7,14 +7,19 @@ import '../../../l10n/omni_localizations.dart';
 import '../../../providers/family_provider.dart';
 import '../../../providers/user_provider.dart';
 import '../../home/qr_code_modal.dart';
+import '../application/medical_data_editor_view_model.dart';
+import '../application/medical_documents_view_model.dart';
 import '../application/medical_record_view_model.dart';
 import '../application/passport_identity.dart';
+import '../data/medical_document_models.dart';
 import '../data/medical_record_models.dart';
 import '../models/patient_passport_view_models.dart';
 import '../sharing/medical_sharing_controller.dart';
 import '../sharing/medical_sharing_models.dart';
 import '../sharing/direct_patient_authorization_controller.dart';
+import 'medical_data_editor_screen.dart';
 import 'medical_document_editor_screen.dart';
+import 'medical_record_messages.dart';
 import 'medical_record_presenter.dart';
 import 'widgets/family_passport_selector_sheet.dart';
 import 'widgets/passport_documents_tab.dart';
@@ -29,10 +34,12 @@ import 'widgets/passport_medications_card.dart';
 import 'widgets/passport_segmented_nav.dart';
 import 'widgets/passport_card.dart';
 
-/// « Dossier médical » (G-2 FT-3, G2.1-S1). The header, the identity card and
-/// G-1's sharing and secure-QR actions come from the real profile and family;
-/// the medical cards are bound to `/api/v1/me/medical-record/*`, each with its
-/// own loading, failure and retry. Screenshots are blocked while it is shown.
+/// « Dossier médical » (G-2 FT-3, G2.1-S1, G2.1-A2). The header, the identity
+/// card and G-1's sharing and secure-QR actions come from the real profile and
+/// family; the medical cards are bound to `/api/v1/me/medical-record/*`, each
+/// with its own loading, failure and retry. The pencil opens the editor of the
+/// person on screen. Screenshots are blocked while it is shown (and while the
+/// editor is on top of it).
 class PatientPassportScreen extends StatefulWidget {
   const PatientPassportScreen({super.key, this.medicalSharingController});
 
@@ -55,6 +62,8 @@ class _PatientPassportScreenState extends State<PatientPassportScreen> {
   FamilyProvider? _familyProvider;
   UserProvider? _userProvider;
   MedicalRecordViewModel? _record;
+  MedicalDataEditorFactory? _editorFactory;
+  MedicalDocumentsViewModel? _documents;
   Listenable? _sources;
   bool _dependenciesResolved = false;
 
@@ -99,7 +108,22 @@ class _PatientPassportScreenState extends State<PatientPassportScreen> {
     } catch (_) {
       // No record source: the cards stay in their loading state.
     }
-    _sources = Listenable.merge([?_familyProvider, ?_userProvider, ?_record]);
+    try {
+      _editorFactory = context.read<MedicalDataEditorFactory>();
+    } catch (_) {
+      // No editor source: the edit pencil stays hidden.
+    }
+    try {
+      _documents = context.read<MedicalDocumentsViewModel>();
+    } catch (_) {
+      // No documents source: the tab stays in its loading state.
+    }
+    _sources = Listenable.merge([
+      ?_familyProvider,
+      ?_userProvider,
+      ?_record,
+      ?_documents,
+    ]);
   }
 
   @override
@@ -124,9 +148,20 @@ class _PatientPassportScreenState extends State<PatientPassportScreen> {
     final record = _record;
     if (record == null) return;
     final subject = recordSubjectOf(_selectedMember);
-    if (record.subject == subject) return;
+    final documents = _documents;
+    final documentsShown = _selectedSection == PassportSection.documents;
+    if (record.subject == subject &&
+        (documents == null ||
+            (documents.subject == subject &&
+                (!documentsShown || documents.state is! SectionIdle)))) {
+      return;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) record.show(subject);
+      if (!mounted) return;
+      if (record.subject != subject) record.show(subject);
+      // Another person: requests cancelled, polling stopped, list cleared.
+      documents?.select(subject);
+      if (documentsShown) documents?.ensureLoaded();
     });
   }
 
@@ -168,11 +203,13 @@ class _PatientPassportScreenState extends State<PatientPassportScreen> {
   }
 
   Widget _buildPassportContent(BuildContext context, double availableWidth) {
-    // The edit pencil stays hidden until the editor is wired to the record
-    // (G2-FT-3 decision 4; a later G-2.1 step).
+    // G2.1-A2: the pencil edits the person on screen only. It is hidden for
+    // a family member without an id (never edit the holder's record by
+    // mistake).
     final header = PassportHeader(
       selectedMember: _selectedMember,
       onSelectPassport: _openFamilySelector,
+      onEdit: _editorSubject == null ? null : _openEditor,
       onShare: _showShareDialog,
     );
     return Column(
@@ -235,9 +272,7 @@ class _PatientPassportScreenState extends State<PatientPassportScreen> {
     return switch (_selectedSection) {
       PassportSection.summary => _buildSummary(context, availableWidth),
       PassportSection.history => _buildHistory(),
-      PassportSection.documents => PassportDocumentsTab(
-        onAddDocument: _openDocumentEditor,
-      ),
+      PassportSection.documents => _buildDocuments(),
     };
   }
 
@@ -254,6 +289,7 @@ class _PatientPassportScreenState extends State<PatientPassportScreen> {
     if (section == PassportSection.history) {
       _record?.ensureLoaded(MedicalRecordSection.consultations);
     }
+    if (section == PassportSection.documents) _documents?.ensureLoaded();
   }
 
   /// The record state of [state] for the subject on screen: while the record
@@ -317,7 +353,11 @@ class _PatientPassportScreenState extends State<PatientPassportScreen> {
               passportMedication(item, current: isCurrent, l10n: l10n),
           ],
           hasMore: medicationPage?.hasMore ?? false,
-          emptyText: medicationsEmptyText(current: isCurrent, l10n: l10n),
+          emptyText: medicationsEmptyText(
+            current: isCurrent,
+            l10n: l10n,
+            listStatus: medicationPage?.listStatus,
+          ),
           status: cardStatus(
             medications,
             l10n,
@@ -465,11 +505,90 @@ class _PatientPassportScreenState extends State<PatientPassportScreen> {
     );
   }
 
-  Future<void> _openDocumentEditor() async {
-    await Navigator.of(context).push<bool>(
+  /// The subject the editor may write; `null` hides the pencil.
+  RecordSubject? get _editorSubject {
+    if (_editorFactory == null) return null;
+    final member = _selectedMember;
+    if (member.isSelf) return const SelfRecordSubject();
+    final familyMemberId = member.familyMemberId?.trim();
+    if (familyMemberId == null || familyMemberId.isEmpty) return null;
+    return FamilyRecordSubject(familyMemberId);
+  }
+
+  /// Opens « Modifier les données de … » for the person on screen. When it
+  /// closes, the record reloads if anything was saved (even if another
+  /// section failed), and a save warning shows once.
+  Future<void> _openEditor() async {
+    final factory = _editorFactory;
+    final subject = _editorSubject;
+    if (factory == null || subject == null) return;
+    final member = _selectedMember;
+    final editor = factory.create(subject);
+    await Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (_) =>
-            MedicalDocumentEditorScreen(patientName: _selectedMember.name),
+            MedicalDataEditorScreen(viewModel: editor, memberName: member.name),
+      ),
+    );
+    final saved = editor.savedSomething;
+    final warnings = editor.warnings;
+    editor.dispose();
+    if (!mounted) return;
+    if (saved && _record?.subject == subject) _record?.refreshAfterEdit();
+    final l10n = OmniLocalizations.of(context);
+    final warning = warnings
+        .map((value) => recordWarningMessage(value, l10n))
+        .nonNulls
+        .firstOrNull;
+    if (warning != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(warning)));
+    }
+  }
+
+  /// The « Documents » tab of the person on screen (G2.1-A4).
+  Widget _buildDocuments() {
+    final l10n = OmniLocalizations.of(context);
+    final documents = _documents;
+    final state =
+        documents == null ||
+            documents.subject != recordSubjectOf(_selectedMember)
+        ? const SectionLoading<List<MedicalDocument>>()
+        : documents.state;
+    return PassportDocumentsTab(
+      onAddDocument: documents == null || _writableSubject == null
+          ? null
+          : _openDocumentEditor,
+      countText: documentsCountText(
+        state is SectionReady ? documents?.count : null,
+        l10n,
+      ),
+      status: cardStatus(state, l10n, () => documents?.retry()),
+      isEmpty:
+          state is SectionReady<List<MedicalDocument>> && state.value.isEmpty,
+    );
+  }
+
+  /// The subject a write may target; `null` for a family member without an
+  /// id (the record would otherwise fall back to the holder).
+  RecordSubject? get _writableSubject {
+    final member = _selectedMember;
+    if (member.isSelf) return const SelfRecordSubject();
+    final familyMemberId = member.familyMemberId?.trim();
+    if (familyMemberId == null || familyMemberId.isEmpty) return null;
+    return FamilyRecordSubject(familyMemberId);
+  }
+
+  Future<void> _openDocumentEditor() async {
+    final documents = _documents;
+    if (documents == null || _writableSubject == null) return;
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => MedicalDocumentEditorScreen(
+          patientName: _selectedMember.name,
+          viewModel: documents,
+        ),
       ),
     );
   }

@@ -12,7 +12,14 @@ const _statusGreen = Color(0xFF5BBC9C);
 class MedicalMeasurementsEditorCard extends StatelessWidget {
   final TextEditingController heightController;
   final TextEditingController weightController;
-  final double bmi;
+
+  /// `null` without both values: no number and no category is shown.
+  final double? bmi;
+
+  /// The computed category text (G2.1-A2); `null` hides the pill.
+  final String? bmiCategory;
+  final String? heightError;
+  final String? weightError;
   final ValueChanged<String> onHeightChanged;
   final ValueChanged<String> onWeightChanged;
 
@@ -21,8 +28,11 @@ class MedicalMeasurementsEditorCard extends StatelessWidget {
     required this.heightController,
     required this.weightController,
     required this.bmi,
+    required this.bmiCategory,
     required this.onHeightChanged,
     required this.onWeightChanged,
+    this.heightError,
+    this.weightError,
   });
 
   @override
@@ -74,6 +84,7 @@ class MedicalMeasurementsEditorCard extends StatelessWidget {
                   label: 'Taille',
                   unit: 'cm',
                   controller: heightController,
+                  errorText: heightError,
                   onChanged: onHeightChanged,
                 ),
               ),
@@ -84,13 +95,14 @@ class MedicalMeasurementsEditorCard extends StatelessWidget {
                   label: 'Poids',
                   unit: 'kg',
                   controller: weightController,
+                  errorText: weightError,
                   onChanged: onWeightChanged,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          _BmiPanel(bmi: bmi),
+          _BmiPanel(bmi: bmi, category: bmiCategory),
         ],
       ),
     );
@@ -102,6 +114,7 @@ class _MeasurementInput extends StatelessWidget {
   final String label;
   final String unit;
   final TextEditingController controller;
+  final String? errorText;
   final ValueChanged<String> onChanged;
 
   const _MeasurementInput({
@@ -109,6 +122,7 @@ class _MeasurementInput extends StatelessWidget {
     required this.label,
     required this.unit,
     required this.controller,
+    required this.errorText,
     required this.onChanged,
   });
 
@@ -132,7 +146,7 @@ class _MeasurementInput extends StatelessWidget {
         ),
         const SizedBox(height: 7),
         SizedBox(
-          height: 52,
+          height: errorText == null ? 52 : null,
           child: TextField(
             controller: controller,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -143,6 +157,8 @@ class _MeasurementInput extends StatelessWidget {
             ),
             decoration: InputDecoration(
               isDense: true,
+              errorText: errorText,
+              errorMaxLines: 3,
               suffixText: unit,
               suffixStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: OmniColors.textSecondary,
@@ -169,9 +185,10 @@ class _MeasurementInput extends StatelessWidget {
 }
 
 class _BmiPanel extends StatelessWidget {
-  final double bmi;
+  final double? bmi;
+  final String? category;
 
-  const _BmiPanel({required this.bmi});
+  const _BmiPanel({required this.bmi, required this.category});
 
   @override
   Widget build(BuildContext context) {
@@ -195,7 +212,7 @@ class _BmiPanel extends StatelessWidget {
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Text(
-                  bmi.toStringAsFixed(1),
+                  bmi?.toStringAsFixed(1) ?? '',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w800,
@@ -224,21 +241,25 @@ class _BmiPanel extends StatelessWidget {
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-                decoration: BoxDecoration(
-                  color: OmniColors.mintSoft,
-                  borderRadius: BorderRadius.circular(OmniRadii.pill),
-                  border: Border.all(color: _statusGreen),
-                ),
-                child: Text(
-                  'Normal',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: _statusGreen,
-                    fontWeight: FontWeight.w700,
+              if (category case final category?)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: OmniColors.mintSoft,
+                    borderRadius: BorderRadius.circular(OmniRadii.pill),
+                    border: Border.all(color: _statusGreen),
+                  ),
+                  child: Text(
+                    category,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: _statusGreen,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -250,13 +271,16 @@ class _BmiPanel extends StatelessWidget {
 }
 
 class _BmiScale extends StatelessWidget {
-  final double bmi;
+  final double? bmi;
 
   const _BmiScale({required this.bmi});
 
   @override
   Widget build(BuildContext context) {
-    final normalized = ((bmi - 15) / 25).clamp(0.0, 1.0).toDouble();
+    final bmi = this.bmi;
+    final normalized = bmi == null
+        ? 0.0
+        : ((bmi - 15) / 25).clamp(0.0, 1.0).toDouble();
 
     return Column(
       children: [
@@ -301,21 +325,22 @@ class _BmiScale extends StatelessWidget {
                       ),
                     ),
                   ),
-                  AnimatedPositioned(
-                    duration: const Duration(milliseconds: 180),
-                    curve: Curves.easeOutCubic,
-                    left: markerLeft,
-                    top: 0,
-                    child: Container(
-                      width: 10,
-                      height: 16,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(5),
-                        border: Border.all(color: _statusGreen, width: 1.5),
+                  if (bmi != null)
+                    AnimatedPositioned(
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOutCubic,
+                      left: markerLeft,
+                      top: 0,
+                      child: Container(
+                        width: 10,
+                        height: 16,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(5),
+                          border: Border.all(color: _statusGreen, width: 1.5),
+                        ),
                       ),
                     ),
-                  ),
                 ],
               );
             },

@@ -7,8 +7,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/theme/omni_theme.dart';
-import '../../core/api/account_api.dart';
-import '../../core/network/app_http_client.dart';
 import '../../core/services/file_picker_service.dart';
 import '../../core/models/blood_type.dart';
 import '../../core/models/family_models.dart' as core_models;
@@ -17,7 +15,6 @@ import '../../providers/user_onboarding_provider.dart' hide MedicalDocument;
 import '../../providers/user_provider.dart';
 import '../../providers/family_provider.dart';
 import 'edit_medical_data_screen.dart';
-import 'medical_data_save.dart';
 import 'add_family_member_screen.dart';
 import 'family_member_detail_screen.dart';
 import 'document_viewer_screen.dart';
@@ -40,6 +37,9 @@ import '../request_flow/screens/request_received_screen.dart';
 import '../patient_clinic/presentation/clinic_directory_screen.dart';
 import '../patient_doctor/presentation/doctor_directory_screen.dart';
 import '../patient_doctor/presentation/doctor_detail_screen.dart';
+import '../patient_passport/application/medical_data_editor_view_model.dart';
+import '../patient_passport/application/medical_record_view_model.dart';
+import '../patient_passport/data/medical_record_models.dart';
 import '../patient_passport/presentation/patient_passport_screen.dart';
 import '../request_history/presentation/my_requests_screen.dart';
 import '../emergency/emergency_request_step0.dart';
@@ -100,6 +100,27 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const PatientAppointmentsScreen()),
     );
+  }
+
+  /// « Modifier Mes Données » (Ma Santé): the record editor's section saves
+  /// for SELF (G2.1-A3). When it closes, the profile and the record reload
+  /// if anything was saved, even if another section failed.
+  Future<void> _editOwnMedicalData() async {
+    const self = SelfRecordSubject();
+    final editor = context.read<MedicalDataEditorFactory>().create(self);
+    final record = context.read<MedicalRecordViewModel>();
+    final user = context.read<UserProvider>();
+    await Navigator.push<MedicalDataEditResult>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditMedicalDataScreen(viewModel: editor),
+      ),
+    );
+    final saved = editor.savedSomething;
+    editor.dispose();
+    if (!saved || !mounted) return;
+    if (record.subject == self) record.refreshAfterEdit();
+    await user.refresh();
   }
 
   Future<void> _editFamilyMember(String id) async {
@@ -1719,39 +1740,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
             width: double.infinity,
             height: 48,
             child: ElevatedButton(
-              onPressed: () {
-                final editMedications = currentMedications.map((m) {
-                  return Medication(
-                    medicationId: m['medicationId']?.toString(),
-                    name: (m['name'] ?? m['medicationId'] ?? 'Medication')
-                        .toString(),
-                    dosage: (m['dosage'] ?? '-').toString(),
-                    frequency: (m['frequency'] ?? '-').toString(),
-                  );
-                }).toList();
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => EditMedicalDataScreen(
-                      bloodType: BloodType.fromWire(bloodGroup),
-                      chronicConditions: chronicConditions,
-                      medications: editMedications,
-                      documents: [],
-                      onSave: (edit) async {
-                        final saved = await saveOwnMedicalEdit(
-                          AccountApi(httpClient: context.read<AppHttpClient>()),
-                          edit,
-                        );
-                        if (!saved || !context.mounted) return;
-                        await Provider.of<UserProvider>(
-                          context,
-                          listen: false,
-                        ).refresh();
-                      },
-                    ),
-                  ),
-                );
-              },
+              onPressed: _editOwnMedicalData,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF1FBF9A),
                 foregroundColor: Colors.white,
@@ -1909,11 +1898,6 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     );
   }
 
-  /// Hidden (G2-1a-2b): the documents "+" opened an editor filled with
-  /// invented data whose save did nothing. The call site is deleted with the
-  /// Ma Santé fixtures in G2-1c.
-  static const bool _showDemoDocumentEditorEntry = false;
-
   Widget _buildMedicalDocumentsSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1945,47 +1929,6 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                 ],
               ),
             ),
-            if (_showDemoDocumentEditorEntry)
-              IconButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => EditMedicalDataScreen(
-                        bloodType: BloodType.aPositive,
-                        chronicConditions: ['Diabète Type 2', 'Hypertension'],
-                        medications: [
-                          Medication(
-                            name: 'Metformine',
-                            dosage: '500mg',
-                            frequency: '2x par jour',
-                          ),
-                          Medication(
-                            name: 'Lisinopril',
-                            dosage: '10mg',
-                            frequency: '1x par jour',
-                          ),
-                          Medication(
-                            name: 'Aspirine',
-                            dosage: '81mg',
-                            frequency: '1x par jour',
-                          ),
-                        ],
-                        documents: [],
-                        onSave: (_) async {
-                          setState(() {
-                            // Update profile data here
-                          });
-                        },
-                      ),
-                    ),
-                  );
-                },
-                icon: Icon(
-                  Icons.add_circle_outline,
-                  color: const Color(0xFF1FBF9A),
-                ),
-              ),
           ],
         ),
         const SizedBox(height: 16),

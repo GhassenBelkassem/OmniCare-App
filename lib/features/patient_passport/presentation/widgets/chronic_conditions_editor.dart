@@ -4,43 +4,70 @@ import '../../../../core/theme/omni_theme.dart';
 
 const _selectedConditionMint = Color(0xFF8BE0B5);
 
-class ChronicConditionsEditor extends StatelessWidget {
-  final List<String> conditions;
-  final Set<String> selectedConditions;
-  final TextEditingController customConditionController;
+/// A chip list of the « Modifier les données » editor: presets, the
+/// patient's own labels, and an « Autre… » field (G2.1-A2). Used for the
+/// conditions and, with the same look, for the allergies (ADR-012 §8 D2).
+///
+/// Labels are matched without case ([keyOf]). A professional item is shown
+/// with the read-only chip of the Résumé card and can't be toggled.
+class MedicalChipsEditor extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final String hintText;
+
+  /// The preset chips, by row.
+  final List<List<String>> presetRows;
+
+  /// The patient's labels that are not presets (selected or not), in order.
+  final List<String> customLabels;
+
+  /// Professional labels that are not presets.
+  final List<String> readOnlyLabels;
+  final Set<String> selectedKeys;
+  final Set<String> readOnlyKeys;
+  final String Function(String label) keyOf;
+  final TextEditingController customController;
   final ValueChanged<String> onToggle;
   final ValueChanged<String> onCustomChanged;
   final VoidCallback? onAddCustom;
 
-  const ChronicConditionsEditor({
+  /// Shown under the « Autre… » field (a French field message).
+  final String? errorText;
+
+  const MedicalChipsEditor({
     super.key,
-    required this.conditions,
-    required this.selectedConditions,
-    required this.customConditionController,
+    required this.title,
+    required this.subtitle,
+    required this.hintText,
+    required this.presetRows,
+    required this.customLabels,
+    required this.readOnlyLabels,
+    required this.selectedKeys,
+    required this.readOnlyKeys,
+    required this.keyOf,
+    required this.customController,
     required this.onToggle,
     required this.onCustomChanged,
     required this.onAddCustom,
+    this.errorText,
   });
 
   @override
   Widget build(BuildContext context) {
-    const referenceRows = [
-      ['Diabète Type 2', 'Diabète Type 1'],
-      ['Hypertension', 'Asthme'],
-      ['Allergie Pénicilline', 'Maladie Cardiaque'],
-      ['Cholestérol Élevé', 'Arthrite', 'Migraine'],
-      ['Thyroïde'],
-    ];
-    final referenceConditions = referenceRows.expand((row) => row).toSet();
-    final customConditions = conditions
-        .where((condition) => !referenceConditions.contains(condition))
-        .toList(growable: false);
+    Widget chip(String label) => readOnlyKeys.contains(keyOf(label))
+        ? _ReadOnlyChip(label: label)
+        : _ConditionChip(
+            label: label,
+            selected: selectedKeys.contains(keyOf(label)),
+            onTap: () => onToggle(label),
+          );
+    final extraLabels = [...readOnlyLabels, ...customLabels];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Conditions Chroniques',
+          title,
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
             color: OmniColors.textPrimary,
             fontWeight: FontWeight.w800,
@@ -48,7 +75,7 @@ class ChronicConditionsEditor extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          'Sélectionnez toutes les conditions applicables',
+          subtitle,
           style: Theme.of(
             context,
           ).textTheme.bodySmall?.copyWith(color: OmniColors.textSecondary),
@@ -57,51 +84,42 @@ class ChronicConditionsEditor extends StatelessWidget {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            for (var index = 0; index < referenceRows.length; index++) ...[
+            for (var index = 0; index < presetRows.length; index++) ...[
               _ConditionLine(
-                labels: referenceRows[index]
-                    .where(conditions.contains)
-                    .toList(growable: false),
                 spacing: switch (index) {
                   0 => 18,
                   1 => 20,
                   2 => 14,
                   _ => 8,
                 },
-                selectedConditions: selectedConditions,
-                onToggle: onToggle,
+                children: presetRows[index].map(chip).toList(growable: false),
               ),
-              if (index < referenceRows.length - 1) const SizedBox(height: 3),
+              if (index < presetRows.length - 1) const SizedBox(height: 3),
             ],
-            if (customConditions.isNotEmpty) ...[
+            if (extraLabels.isNotEmpty) ...[
               const SizedBox(height: 3),
               Wrap(
                 spacing: 8,
                 runSpacing: 3,
-                children: customConditions
-                    .map(
-                      (condition) => _ConditionChip(
-                        label: condition,
-                        selected: selectedConditions.contains(condition),
-                        onTap: () => onToggle(condition),
-                      ),
-                    )
-                    .toList(growable: false),
+                children: extraLabels.map(chip).toList(growable: false),
               ),
             ],
           ],
         ),
         const SizedBox(height: 16),
         Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
               child: TextField(
-                controller: customConditionController,
+                controller: customController,
                 onChanged: onCustomChanged,
                 textInputAction: TextInputAction.done,
                 onSubmitted: (_) => onAddCustom?.call(),
                 decoration: InputDecoration(
-                  hintText: 'Autre condition...',
+                  hintText: hintText,
+                  errorText: errorText,
+                  errorMaxLines: 3,
                   isDense: true,
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 14,
@@ -147,32 +165,47 @@ class ChronicConditionsEditor extends StatelessWidget {
 }
 
 class _ConditionLine extends StatelessWidget {
-  final List<String> labels;
   final double spacing;
-  final Set<String> selectedConditions;
-  final ValueChanged<String> onToggle;
+  final List<Widget> children;
 
-  const _ConditionLine({
-    required this.labels,
-    required this.spacing,
-    required this.selectedConditions,
-    required this.onToggle,
-  });
+  const _ConditionLine({required this.spacing, required this.children});
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: spacing,
-      runSpacing: 3,
-      children: labels
-          .map(
-            (label) => _ConditionChip(
-              label: label,
-              selected: selectedConditions.contains(label),
-              onTap: () => onToggle(label),
+    return Wrap(spacing: spacing, runSpacing: 3, children: children);
+  }
+}
+
+/// A professional item: the read-only chip of the Résumé card
+/// (`PassportEssentialInfoCard`), not tappable.
+class _ReadOnlyChip extends StatelessWidget {
+  final String label;
+
+  const _ReadOnlyChip({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: label,
+      readOnly: true,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          decoration: BoxDecoration(
+            color: OmniColors.slateSoft,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: OmniColors.borderLight),
+          ),
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: OmniColors.slateBlue,
+              fontWeight: FontWeight.w700,
             ),
-          )
-          .toList(growable: false),
+          ),
+        ),
+      ),
     );
   }
 }

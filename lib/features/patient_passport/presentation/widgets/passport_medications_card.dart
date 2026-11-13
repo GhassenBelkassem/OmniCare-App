@@ -90,7 +90,8 @@ class PassportMedicationsCard extends StatelessWidget {
                     )
                   else
                     ...medications.map(
-                      (medication) => _MedicationRow(medication: medication),
+                      (medication) =>
+                          PassportMedicationRow(medication: medication),
                     ),
                 ],
               ),
@@ -204,10 +205,12 @@ class _MedicationSegment extends StatelessWidget {
   }
 }
 
-class _MedicationRow extends StatelessWidget {
+/// One treatment row of the Résumé card, read-only. The editor reuses it for
+/// the OmniCare prescriptions it can't change (G2.1-A2).
+class PassportMedicationRow extends StatelessWidget {
   final PassportMedication medication;
 
-  const _MedicationRow({required this.medication});
+  const PassportMedicationRow({super.key, required this.medication});
 
   @override
   Widget build(BuildContext context) {
@@ -255,6 +258,15 @@ class _MedicationRow extends StatelessWidget {
                     color: OmniColors.textSecondary,
                   ),
                 ),
+                if (medication.declaredLabel case final declared?) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    declared,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: OmniColors.textSecondary,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

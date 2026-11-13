@@ -192,10 +192,6 @@
   "@urgentCabinetUnavailableMessage": {
     "description": "Urgent cabinet request not available to this patient: message. G2-1a-3 (C9)."
   },
-  "conditionsAndTreatmentsNotSaved": "Les antécédents et traitements ne peuvent pas encore être enregistrés.",
-  "@conditionsAndTreatmentsNotSaved": {
-    "description": "Medical data edit: changed conditions or medications are not saved yet. G2-1a-2 (C2)."
-  },
   "requestNoShowLabel": "Rendez-vous manqué",
   "@requestNoShowLabel": {
     "description": "Request status NO_SHOW: status chip, status card title and end of the journey. G2-1a-4 (C10)."
@@ -1174,18 +1170,10 @@
   "@onboardingErrorHeight": {"description": "Onboarding validation (was « Please enter your height. »), same rule. G3-ONB2."},
   "onboardingErrorWeight": "Indiquez votre poids.",
   "@onboardingErrorWeight": {"description": "Onboarding validation (was « Please enter your weight. »), same rule. G3-ONB2."},
-  "onboardingErrorHeightInvalid": "Indiquez une taille valide.",
-  "@onboardingErrorHeightInvalid": {"description": "Onboarding validation (was « Please enter a valid height. »), same rule. G3-ONB2."},
-  "onboardingErrorWeightInvalid": "Indiquez un poids valide.",
-  "@onboardingErrorWeightInvalid": {"description": "Onboarding validation (was « Please enter a valid weight. »), same rule. G3-ONB2."},
   "onboardingErrorAllergyName": "Indiquez le nom de l’allergie.",
   "@onboardingErrorAllergyName": {"description": "Onboarding validation (was « Please enter the allergy name. »), same rule. G3-ONB2."},
   "onboardingErrorAllergySeverity": "Choisissez la gravité de l’allergie.",
   "@onboardingErrorAllergySeverity": {"description": "Onboarding validation (was « Please select allergy severity. »), same rule. G3-ONB2."},
-  "onboardingErrorMedicationSelect": "Choisissez un médicament dans la liste.",
-  "@onboardingErrorMedicationSelect": {"description": "Onboarding medication check (was « Please select a medication from the list. »), same rule. G3-ONB2."},
-  "onboardingErrorMedicationDosage": "Indiquez la posologie du médicament choisi.",
-  "@onboardingErrorMedicationDosage": {"description": "Onboarding medication check (was « Please enter a dosage for the selected medication. »), same rule. G3-ONB2."},
   "onboardingBloodTitle": "Quel est votre groupe sanguin ?",
   "@onboardingBloodTitle": {"description": "Onboarding « Groupe sanguin »: title (was « What is your blood type? »). G3-ONB2."},
   "onboardingBloodSubtitle": "Vous pourrez le modifier plus tard dans votre dossier.",
@@ -1296,10 +1284,8 @@
   "@onboardingMedicationsSubtitle": {"description": "Onboarding « Médicaments »: subtitle. G3-ONB2."},
   "onboardingMedicationsNo": "Non, aucun médicament",
   "@onboardingMedicationsNo": {"description": "Onboarding « Médicaments »: « Non » option = the existing « not taking any » action (noKnownMedications). G3-ONB2."},
-  "onboardingMedicationsSoonTitle": "L’ajout de médicaments sera bientôt disponible",
-  "@onboardingMedicationsSoonTitle": {"description": "Onboarding « Médicaments »: note shown for « Oui » (no medication can be added yet). G3-ONB2."},
-  "onboardingMedicationsSoonBody": "Vous pourrez les ajouter depuis votre dossier médical.",
-  "@onboardingMedicationsSoonBody": {"description": "Onboarding « Médicaments »: note body. G3-ONB2."},
+  "onboardingMedicationsInRecord": "Vous pourrez ajouter vos médicaments dans votre dossier médical.",
+  "@onboardingMedicationsInRecord": {"description": "Onboarding « Médicaments »: note shown for « Oui »; no medication field in V1, nothing is saved for medications (CTO 2026-11-13). G2.1-A3b."},
   "onboardingDoneTitle": "Vos informations sont enregistrées",
   "@onboardingDoneTitle": {"description": "Onboarding final screen: title (was « Thank You! »). G3-ONB2."},
   "onboardingDoneBody": "Vous pourrez les compléter à tout moment depuis « Dossier médical ».",
@@ -1322,5 +1308,139 @@
   "@onboardingBmiHeightNote": {
     "description": "Onboarding « Poids »: BMI card footnote with the height used. G3-ONB3a.",
     "placeholders": {"height": {"type": "int", "example": "171"}}
+  },
+  "fieldErrorDuplicate": "Cet élément figure déjà dans la liste.",
+  "@fieldErrorDuplicate": {
+    "description": "Generic field error: the same value twice in one list (DUPLICATE). G2.1-A1."
+  },
+  "recordFieldTooLong160": "160 caractères maximum.",
+  "@recordFieldTooLong160": {
+    "description": "Dossier médical: a label, medication name or document title over 160 characters. G2.1-A1."
+  },
+  "recordFieldTooLong80": "80 caractères maximum.",
+  "@recordFieldTooLong80": {
+    "description": "Dossier médical: a medication dosage text over 80 characters. G2.1-A1."
+  },
+  "recordFieldTooManyItems": "50 éléments maximum.",
+  "@recordFieldTooManyItems": {
+    "description": "Dossier médical: a list (allergies, conditions, medications) over 50 items. G2.1-A1."
+  },
+  "recordFieldForbiddenCharacters": "Ce texte contient des caractères non autorisés.",
+  "@recordFieldForbiddenCharacters": {
+    "description": "Dossier médical: a text with a control or direction character (INVALID). G2.1-A1."
+  },
+  "recordFieldBloodTypeInvalid": "Groupe sanguin non valide.",
+  "@recordFieldBloodTypeInvalid": {
+    "description": "Dossier médical: blood type not in the accepted list. G2.1-A1."
+  },
+  "recordFieldHeightRange": "La taille doit être comprise entre 30 et 300 cm.",
+  "@recordFieldHeightRange": {
+    "description": "Dossier médical: height out of range. G2.1-A1."
+  },
+  "recordFieldWeightRange": "Le poids doit être compris entre 0 et 500 kg.",
+  "@recordFieldWeightRange": {
+    "description": "Dossier médical: weight out of range. G2.1-A1."
+  },
+  "recordFieldTimesPerDayRange": "Entre 1 et 6 prises par jour.",
+  "@recordFieldTimesPerDayRange": {
+    "description": "Dossier médical: medication intakes per day out of range. G2.1-A1."
+  },
+  "recordFieldDurationRange": "Entre 1 et 365.",
+  "@recordFieldDurationRange": {
+    "description": "Dossier médical: medication duration value out of range. G2.1-A1."
+  },
+  "recordFieldDateInFuture": "La date ne peut pas être dans le futur.",
+  "@recordFieldDateInFuture": {
+    "description": "Dossier médical: a medication start date or document date after today. G2.1-A1."
+  },
+  "recordFieldDateInvalid": "Date non valide.",
+  "@recordFieldDateInvalid": {
+    "description": "Dossier médical: a date that is not a valid calendar date. G2.1-A1."
+  },
+  "recordFieldFileTooLarge": "Fichier trop volumineux (15 Mo maximum).",
+  "@recordFieldFileTooLarge": {
+    "description": "Dossier médical documents: file over 15 MB. G2.1-A1."
+  },
+  "recordFieldFileFormat": "Format non accepté : PDF, JPG ou PNG.",
+  "@recordFieldFileFormat": {
+    "description": "Dossier médical documents: file is not PDF, JPG or PNG. G2.1-A1."
+  },
+  "recordCodeItemLocked": "Cet élément a été ajouté par un professionnel de santé et ne peut pas être modifié.",
+  "@recordCodeItemLocked": {
+    "description": "Dossier médical: the patient tried to change an item a professional recorded (ITEM_LOCKED). G2.1-A1."
+  },
+  "recordCodeBloodTypeLocked": "Votre groupe sanguin a été renseigné par un professionnel de santé.",
+  "@recordCodeBloodTypeLocked": {
+    "description": "Dossier médical: blood type set by a professional (BLOOD_TYPE_LOCKED). G2.1-A1."
+  },
+  "recordCodeVersionConflict": "Votre dossier a été modifié ailleurs. Rechargez pour voir la dernière version ; vos saisies sont conservées.",
+  "@recordCodeVersionConflict": {
+    "description": "Dossier médical: the section changed since it was read (RECORD_VERSION_CONFLICT). G2.1-A1."
+  },
+  "recordCodeSaveInProgress": "Enregistrement en cours, patientez un instant.",
+  "@recordCodeSaveInProgress": {
+    "description": "Dossier médical: the same save is still running (IDEMPOTENCY_IN_PROGRESS). G2.1-A1."
+  },
+  "recordCodeDocumentNotReady": "Document en cours d'analyse. Réessayez dans quelques instants.",
+  "@recordCodeDocumentNotReady": {
+    "description": "Dossier médical documents: the document is still being scanned (DOCUMENT_NOT_READY). G2.1-A1."
+  },
+  "recordCodeTooManyRequests": "Trop de demandes. Patientez une minute.",
+  "@recordCodeTooManyRequests": {
+    "description": "Dossier médical: too many requests (TOO_MANY_REQUESTS). G2.1-A1."
+  },
+  "recordWarningUnusualValue": "Valeur inhabituelle : vérifiez-la.",
+  "@recordWarningUnusualValue": {
+    "description": "Dossier médical: a saved measurement looks unusual (HEIGHT_UNUSUAL / WEIGHT_UNUSUAL); never blocks the save. G2.1-A1."
+  },
+  "recordBloodTypeDontKnow": "Je ne sais pas",
+  "@recordBloodTypeDontKnow": {
+    "description": "Dossier médical editor: blood type choice for « I don't know » (sends UNKNOWN). G2.1-A2."
+  },
+  "passportDeclaredByPatient": "Déclaré par le patient",
+  "@passportDeclaredByPatient": {
+    "description": "Dossier médical: label of a medication the patient declared (outside OmniCare), ADR-012 rule 5. G2.1-A2."
+  },
+  "recordAllergiesTitle": "Allergies",
+  "@recordAllergiesTitle": {
+    "description": "Dossier médical editor: title of the allergies chip section (ADR-012 D2). G2.1-A2."
+  },
+  "recordAllergiesSubtitle": "Sélectionnez toutes les allergies connues",
+  "@recordAllergiesSubtitle": {
+    "description": "Dossier médical editor: hint under the allergies title. G2.1-A2."
+  },
+  "recordAllergiesOtherHint": "Autre allergie...",
+  "@recordAllergiesOtherHint": {
+    "description": "Dossier médical editor: placeholder of the free-text allergy field. G2.1-A2."
+  },
+  "bmiCategoryUnderweight": "Insuffisance pondérale",
+  "@bmiCategoryUnderweight": {
+    "description": "Dossier médical editor: BMI category below 18.5 (REQUIRES MEDICAL VALIDATION). G2.1-A2."
+  },
+  "bmiCategoryNormal": "Normal",
+  "@bmiCategoryNormal": {
+    "description": "Dossier médical editor: BMI category 18.5 to under 25 (REQUIRES MEDICAL VALIDATION). G2.1-A2."
+  },
+  "bmiCategoryOverweight": "Surpoids",
+  "@bmiCategoryOverweight": {
+    "description": "Dossier médical editor: BMI category 25 to under 30 (REQUIRES MEDICAL VALIDATION). G2.1-A2."
+  },
+  "bmiCategoryObese": "Obésité",
+  "@bmiCategoryObese": {
+    "description": "Dossier médical editor: BMI category 30 and above (REQUIRES MEDICAL VALIDATION). G2.1-A2."
+  },
+  "onboardingErrorConditionRequired": "Choisissez au moins une maladie, ou répondez « Non ».",
+  "@onboardingErrorConditionRequired": {
+    "description": "Onboarding conditions page: « Oui » with no condition chosen (it would otherwise be saved as none). G2.1-A3."
+  },
+  "passportDocumentsCount": "{count, plural, =0{0 documents enregistrés} =1{1 document enregistré} other{{count} documents enregistrés}}",
+  "@passportDocumentsCount": {
+    "description": "« Documents » tab: the number of the person's documents (the whole list fits on one page). G2.1-A4.",
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "passportDocumentsCountMore": "{count}+ documents enregistrés",
+  "@passportDocumentsCountMore": {
+    "description": "« Documents » tab: the server has more than the loaded page and gives no total, so the count reads « 20+ ». G2.1-A4.",
+    "placeholders": {"count": {"type": "int"}}
   }
 }

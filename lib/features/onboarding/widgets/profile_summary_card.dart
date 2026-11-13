@@ -132,7 +132,9 @@ class ProfileSummaryCard extends StatelessWidget {
                         foregroundColor: const WidgetStatePropertyAll(
                           OmniColors.deepTeal,
                         ),
-                        overlayColor: OmniPressable.overlay(OmniColors.deepTeal),
+                        overlayColor: OmniPressable.overlay(
+                          OmniColors.deepTeal,
+                        ),
                       ),
                       child: Text(
                         l10n.commonEdit,

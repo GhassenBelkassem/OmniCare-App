@@ -156,7 +156,9 @@ class OnboardingFrame extends StatelessWidget {
                                 begin: Alignment.topCenter,
                                 end: Alignment.bottomCenter,
                                 colors: [
-                                  OmniColors.surfacePrimary.withValues(alpha: 0),
+                                  OmniColors.surfacePrimary.withValues(
+                                    alpha: 0,
+                                  ),
                                   OmniColors.surfacePrimary,
                                 ],
                               ),
@@ -168,12 +170,7 @@ class OnboardingFrame extends StatelessWidget {
                   ),
                 ),
                 Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    side,
-                    0,
-                    side,
-                    OmniSpacing.base,
-                  ),
+                  padding: EdgeInsets.fromLTRB(side, 0, side, OmniSpacing.base),
                   child: OmniPressable(
                     borderRadius: _buttonRadius,
                     builder: (context, states) => ElevatedButton(
@@ -310,9 +307,7 @@ class _TopRow extends StatelessWidget {
                   foregroundColor: const WidgetStatePropertyAll(
                     OmniColors.textSecondary,
                   ),
-                  overlayColor: OmniPressable.overlay(
-                    OmniColors.textSecondary,
-                  ),
+                  overlayColor: OmniPressable.overlay(OmniColors.textSecondary),
                 ),
                 child: Text(
                   l10n.onboardingSkip,
@@ -363,7 +358,10 @@ class _ThinProgress extends StatelessWidget {
             child: TweenAnimationBuilder<double>(
               // `begin` is used on the first build only; later changes of
               // [value] animate from the current width.
-              tween: Tween(begin: reduceMotion ? value : (from ?? value), end: value),
+              tween: Tween(
+                begin: reduceMotion ? value : (from ?? value),
+                end: value,
+              ),
               duration: reduceMotion ? Duration.zero : _duration,
               curve: Curves.easeOut,
               builder: (context, width, _) => FractionallySizedBox(

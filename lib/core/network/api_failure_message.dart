@@ -50,6 +50,7 @@ String apiFieldErrorMessage(ApiFieldErrorKind kind, OmniLocalizations l10n) =>
       ApiFieldErrorKind.invalidFormat => l10n.fieldErrorInvalidFormat,
       ApiFieldErrorKind.outOfRange => l10n.fieldErrorOutOfRange,
       ApiFieldErrorKind.invalid => l10n.fieldErrorInvalid,
+      ApiFieldErrorKind.duplicate => l10n.fieldErrorDuplicate,
     };
 
 /// Field path → French text, for forms that show one message per field.
