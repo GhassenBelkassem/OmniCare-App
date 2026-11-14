@@ -5,7 +5,11 @@ import '../../core/theme/omni_theme.dart';
 import '../home/patient_care_destinations.dart';
 
 class ProviderSelectionScreen extends StatelessWidget {
-  const ProviderSelectionScreen({super.key});
+  const ProviderSelectionScreen({super.key, this.onBack});
+
+  /// Back arrow action. Null pops this screen; the patient shell passes one
+  /// when this screen is the first screen of the care flow (nothing to pop).
+  final VoidCallback? onBack;
 
   static const _comingSoonTypes = {PatientCareType.kine, PatientCareType.nurse};
 
@@ -23,8 +27,11 @@ class ProviderSelectionScreen extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: IconButton(
-                icon: const Icon(Icons.arrow_back, color: OmniColors.textPrimary),
-                onPressed: () => Navigator.pop(context),
+                icon: const Icon(
+                  Icons.arrow_back,
+                  color: OmniColors.textPrimary,
+                ),
+                onPressed: onBack ?? () => Navigator.pop(context),
               ),
             ),
             _buildHeader(),

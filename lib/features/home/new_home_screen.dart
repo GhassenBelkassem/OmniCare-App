@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -7,6 +8,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/theme/omni_theme.dart';
+import '../../core/platform/secure_screen.dart';
 import '../../core/services/file_picker_service.dart';
 import '../../core/models/blood_type.dart';
 import '../../core/models/family_models.dart' as core_models;
@@ -15,6 +17,8 @@ import '../../providers/user_onboarding_provider.dart' hide MedicalDocument;
 import '../../providers/user_provider.dart';
 import '../../providers/family_provider.dart';
 import 'edit_medical_data_screen.dart';
+import 'patient_shell_navigation.dart';
+import 'patient_shell_scope.dart';
 import 'add_family_member_screen.dart';
 import 'family_member_detail_screen.dart';
 import 'document_viewer_screen.dart';
@@ -65,9 +69,29 @@ class NewHomeScreen extends StatefulWidget {
 }
 
 class _NewHomeScreenState extends State<NewHomeScreen> {
-  int _selectedIndex = 0;
-  final GlobalKey<NavigatorState> _patientContentNavigatorKey =
-      GlobalKey<NavigatorState>();
+  /// Shown bottom-bar button; one persistent branch per button.
+  int _selectedIndex = PatientShellTab.home;
+
+  /// Button shown before the logo was tapped, where leaving the care flow
+  /// returns.
+  int _tabBeforeCare = PatientShellTab.home;
+
+  /// Branches are built on first visit, then kept alive (state, scroll and
+  /// in-progress requests survive switching buttons).
+  final Set<int> _builtBranches = {PatientShellTab.home};
+
+  final Map<int, GlobalKey<NavigatorState>> _branchNavigatorKeys = {
+    PatientShellTab.home: GlobalKey<NavigatorState>(
+      debugLabel: 'patient-home-branch',
+    ),
+    PatientShellTab.care: GlobalKey<NavigatorState>(
+      debugLabel: 'patient-care-branch',
+    ),
+  };
+
+  /// Whether each Navigator branch has a screen to pop (or one that vetoes
+  /// the pop), from its [NavigationNotification]s.
+  final Map<int, bool> _branchCanHandlePop = {};
 
   bool _isLoggingOut = false;
   final _filePickerService = FilePickerService();
@@ -188,6 +212,11 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
   @override
   void initState() {
     super.initState();
+    // FLAG_SECURE for the whole patient shell (health data on every
+    // branch). Set once here instead of per screen: toggling the window
+    // flag on each « Dossier médical » visit re-laid out the Android window
+    // and flashed the previous frame.
+    SecureScreen.acquire();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       // Authentication inputs can retain focus while the route changes,
@@ -301,50 +330,176 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
         ),
       );
     }
-    final resolvedDisplayName = (userProvider.user?.displayName ?? '').trim();
-    final userName = resolvedDisplayName.isNotEmpty
-        ? resolvedDisplayName
-        : (onboarding.email?.split('@')[0] ?? 'User');
+    final userName = _resolveUserName(userProvider, onboarding);
 
-    return MediaQuery.removeViewInsets(
-      context: context,
-      removeBottom: true,
-      child: Scaffold(
-        backgroundColor: const Color(0xFFF4F5F7),
-        resizeToAvoidBottomInset: false,
-        body: SafeArea(
-          bottom: false,
-          child: Column(
-            children: [
-              _buildStickyHeader(userName),
-              Expanded(child: _getSelectedTabContent(userName)),
-            ],
+    // The single source of truth for system back: the root route reports
+    // this to the platform, so Android predictive back is accurate.
+    return PopScope<Object?>(
+      canPop: _resolveBack() == PatientBackAction.allowRoutePop,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _handleSystemBack();
+      },
+      child: PatientShellScope(
+        showHome: _showHomeFeed,
+        child: MediaQuery.removeViewInsets(
+          context: context,
+          removeBottom: true,
+          child: Scaffold(
+            backgroundColor: const Color(0xFFF4F5F7),
+            resizeToAvoidBottomInset: false,
+            body: SafeArea(
+              bottom: false,
+              child: Column(
+                children: [
+                  _buildStickyHeader(userName),
+                  Expanded(child: _buildBranches()),
+                ],
+              ),
+            ),
+            bottomNavigationBar: _buildBottomNavigation(),
           ),
         ),
-        bottomNavigationBar: _buildBottomNavigation(),
       ),
     );
   }
 
-  void _selectTab(int index) {
-    if (_selectedIndex != index) {
-      setState(() => _selectedIndex = index);
+  @override
+  void dispose() {
+    SecureScreen.release();
+    super.dispose();
+  }
+
+  static String _resolveUserName(
+    UserProvider userProvider,
+    UserOnboardingProvider onboarding,
+  ) {
+    final resolvedDisplayName = (userProvider.user?.displayName ?? '').trim();
+    return resolvedDisplayName.isNotEmpty
+        ? resolvedDisplayName
+        : (onboarding.email?.split('@')[0] ?? 'User');
+  }
+
+  bool _branchCanPop(int tab) => _branchCanHandlePop[tab] ?? false;
+
+  PatientBackAction _resolveBack() => resolvePatientBack(
+    selectedTab: _selectedIndex,
+    selectedBranchCanHandlePop: _branchCanPop(_selectedIndex),
+  );
+
+  /// Shows [tab]'s branch as it was left. One setState, no transition: the
+  /// IndexedStack swaps the painted branch in the same frame.
+  void _selectTab(int tab) {
+    if (_selectedIndex == tab || !mounted) return;
+    setState(() {
+      if (tab == PatientShellTab.care) _tabBeforeCare = _selectedIndex;
+      _builtBranches.add(tab);
+      _selectedIndex = tab;
+    });
+  }
+
+  void _resetBranchToRoot(int tab) {
+    _branchNavigatorKeys[tab]?.currentState?.popUntil((route) => route.isFirst);
+  }
+
+  /// Every bottom-bar button, the centre logo included.
+  void _onDestinationTapped(int tab) {
+    switch (resolvePatientDestinationTap(
+      selectedTab: _selectedIndex,
+      tappedTab: tab,
+      tappedBranchCanPop: _branchCanPop(tab),
+    )) {
+      case PatientDestinationTapAction.selectBranch:
+        _selectTab(tab);
+      case PatientDestinationTapAction.resetBranchToRoot:
+        _resetBranchToRoot(tab);
+      case PatientDestinationTapAction.none:
+        break;
     }
   }
 
-  Widget _getSelectedTabContent(String userName) {
-    switch (_selectedIndex) {
-      case 0:
-        return _buildPatientContentNavigator(userName);
-      case 1:
-        return _buildHealthTab();
-      case 3:
-        return const PatientPassportScreen();
-      case 4:
-        return _buildProfileTab();
-      default:
-        return _buildHomeTab(userName);
+  void _onCareActionTapped() {
+    // Warm the family list; every care-flow screen also loads it itself, so
+    // nothing waits on the network.
+    final familyProvider = context.read<FamilyProvider>();
+    if (familyProvider.members.isEmpty && !familyProvider.isLoading) {
+      unawaited(familyProvider.loadFamilyMembers());
     }
+    _onDestinationTapped(PatientShellTab.care);
+  }
+
+  void _leaveCareFlow() => _selectTab(resolveCareExitTab(_tabBeforeCare));
+
+  /// « Back to home » at the end of a flow: shows the home feed and puts
+  /// the finished flow's branch back on its first screen.
+  void _showHomeFeed() {
+    final finished = _selectedIndex;
+    _selectTab(PatientShellTab.home);
+    if (finished != PatientShellTab.home) _resetBranchToRoot(finished);
+    _resetBranchToRoot(PatientShellTab.home);
+  }
+
+  void _handleSystemBack() {
+    switch (_resolveBack()) {
+      case PatientBackAction.popBranch:
+        // maybePop lets the branch's own screens (e.g. an urgent request
+        // waiting screen) veto leaving.
+        _branchNavigatorKeys[_selectedIndex]?.currentState?.maybePop();
+      case PatientBackAction.leaveCareFlow:
+        _leaveCareFlow();
+      case PatientBackAction.selectHomeTab:
+        _selectTab(PatientShellTab.home);
+      case PatientBackAction.allowRoutePop:
+        break;
+    }
+  }
+
+  bool _onBranchNavigation(int tab, NavigationNotification notification) {
+    if (_branchCanPop(tab) != notification.canHandlePop && mounted) {
+      setState(() => _branchCanHandlePop[tab] = notification.canHandlePop);
+    }
+    // Consumed: the shell's PopScope (which includes this state) is what
+    // the platform must see, not a hidden branch's own state.
+    return true;
+  }
+
+  Widget _buildBranches() {
+    return IndexedStack(
+      index: _selectedIndex,
+      sizing: StackFit.expand,
+      children: [
+        for (final tab in PatientShellTab.ordered)
+          TickerMode(
+            enabled: tab == _selectedIndex,
+            child: _builtBranches.contains(tab)
+                ? _buildBranch(tab)
+                : const SizedBox.shrink(),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildBranch(int tab) {
+    return switch (tab) {
+      PatientShellTab.home ||
+      PatientShellTab.care => _buildBranchNavigator(tab),
+      PatientShellTab.health => _buildHealthTab(),
+      PatientShellTab.medicalRecord => const PatientPassportScreen(),
+      _ => _buildProfileTab(),
+    };
+  }
+
+  /// Home feed root of the « Accueil » branch. Built from the providers on
+  /// each change because the branch outlives button switches (a name edited
+  /// in « Profil » must show up on « Accueil »).
+  Widget _buildHomeFeedRoute() {
+    return Builder(
+      builder: (context) => _buildHomeTab(
+        _resolveUserName(
+          context.watch<UserProvider>(),
+          context.watch<UserOnboardingProvider>(),
+        ),
+      ),
+    );
   }
 
   /// Builds a [PageRoute] for all Patient nested-Navigator content routes.
@@ -385,96 +540,124 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     );
   }
 
-  Widget _buildPatientContentNavigator(String userName) {
-    return Navigator(
-      key: _patientContentNavigatorKey,
-      initialRoute: '/patient-home',
-      onGenerateRoute: (settings) {
-        // Emergency patient flow — arguments required for step2+.
-        if (settings.name == '/emergency-step2') {
-          final args = settings.arguments as Map<String, dynamic>;
-          return _buildPatientPageRoute(
-            builder: (_) => EmergencyRequestStep2(step1Data: args),
-            settings: settings,
-          );
-        }
-        if (settings.name == '/emergency-step3') {
-          final args = settings.arguments as Map<String, dynamic>;
-          return _buildPatientPageRoute(
-            builder: (_) => EmergencyRequestStep3(previousData: args),
-            settings: settings,
-          );
-        }
-        if (settings.name == '/emergency-review') {
-          final args = settings.arguments as Map<String, dynamic>;
-          return _buildPatientPageRoute(
-            builder: (_) => EmergencyReviewScreen(requestData: args),
-            settings: settings,
-          );
-        }
-        if (const <String>{
-          '/doctor-selection',
-          '/review-confirm',
-          '/doctor-calling',
-          '/doctor-arriving',
-          '/consultation-qr',
-          '/consultation-complete',
-          '/consultation-type',
-          '/provider-list',
-          '/time-selection',
-          '/appointment-confirmation',
-          '/booking-confirmed',
-        }.contains(settings.name)) {
-          return _buildPatientPageRoute(
-            builder: (_) => const ClinicalFeatureUnavailableScreen(),
-            settings: settings,
-          );
-        }
-        if (settings.name == '/m05/doctor-detail') {
-          final args = settings.arguments;
-          final doctorId = args is String ? args.trim() : '';
-          return _buildPatientPageRoute(
-            builder: (_) => doctorId.isEmpty
-                ? const _InvalidDoctorDetailRouteScreen()
-                : DoctorDetailScreen(doctorId: doctorId),
-            settings: settings,
-          );
-        }
-
-        // Static routes — M05 clinic flow, emergency step0/1, and home.
-        final page = switch (settings.name) {
-          '/patient-home' => _buildHomeTab(userName),
-          '/provider-selection' => const ProviderSelectionScreen(),
-          '/emergency-step0' => const EmergencyRequestStep0(),
-          '/urgent-care-mode-selection' =>
-            const UrgentCareModeSelectionScreen(),
-          '/urgent-cabinet/care-subject' => const UrgentCabinetFlowShell(),
-          '/emergency-step1' => const EmergencyRequestStep1(),
-          '/clinical-request-unavailable' =>
-            const ClinicalFeatureUnavailableScreen(),
-          '/m05/request' => const RequestFlowEntryScreen(),
-          '/doctor/cabinet/who-needs-care' => const DoctorCabinetEntryScreen(),
-          '/m05/who-needs-care' => const WhoNeedsCareScreen(),
-          '/m05/clinic-directory' => const ClinicDirectoryScreen(),
-          '/m05/doctor-directory' => const DoctorDirectoryScreen(),
-          '/m05/situation' => const SituationScreen(),
-          '/m05/pickup' => const PickupScreen(),
-          '/m05/review' => const ReviewScreen(),
-          '/m05/received' => const RequestReceivedScreen(),
-          '/m05/requests' => const MyRequestsScreen(),
-          _ => _buildHomeTab(userName),
-        };
-        return _buildPatientPageRoute(builder: (_) => page, settings: settings);
-      },
+  Widget _buildBranchNavigator(int tab) {
+    final rootRoute = patientBranchRootRoute(tab);
+    return NotificationListener<NavigationNotification>(
+      onNotification: (notification) => _onBranchNavigation(tab, notification),
+      child: Navigator(
+        key: _branchNavigatorKeys[tab],
+        // Exactly one root route. `initialRoute: '/patient-home'` made
+        // Flutter also build '/' (which fell back to a second home feed),
+        // so the « Accueil » stack started with two identical home feeds.
+        onGenerateInitialRoutes: (_, _) => [
+          _generatePatientRoute(
+            RouteSettings(name: rootRoute),
+            tab,
+            isRoot: true,
+          ),
+        ],
+        onGenerateRoute: (settings) => _generatePatientRoute(settings, tab),
+      ),
     );
+  }
+
+  Route<dynamic> _generatePatientRoute(
+    RouteSettings settings,
+    int tab, {
+    bool isRoot = false,
+  }) {
+    // Emergency patient flow — arguments required for step2+.
+    if (settings.name == '/emergency-step2') {
+      final args = settings.arguments as Map<String, dynamic>;
+      return _buildPatientPageRoute(
+        builder: (_) => EmergencyRequestStep2(step1Data: args),
+        settings: settings,
+      );
+    }
+    if (settings.name == '/emergency-step3') {
+      final args = settings.arguments as Map<String, dynamic>;
+      return _buildPatientPageRoute(
+        builder: (_) => EmergencyRequestStep3(previousData: args),
+        settings: settings,
+      );
+    }
+    if (settings.name == '/emergency-review') {
+      final args = settings.arguments as Map<String, dynamic>;
+      return _buildPatientPageRoute(
+        builder: (_) => EmergencyReviewScreen(requestData: args),
+        settings: settings,
+      );
+    }
+    if (const <String>{
+      '/doctor-selection',
+      '/review-confirm',
+      '/doctor-calling',
+      '/doctor-arriving',
+      '/consultation-qr',
+      '/consultation-complete',
+      '/consultation-type',
+      '/provider-list',
+      '/time-selection',
+      '/appointment-confirmation',
+      '/booking-confirmed',
+    }.contains(settings.name)) {
+      return _buildPatientPageRoute(
+        builder: (_) => const ClinicalFeatureUnavailableScreen(),
+        settings: settings,
+      );
+    }
+    if (settings.name == '/m05/doctor-detail') {
+      final args = settings.arguments;
+      final doctorId = args is String ? args.trim() : '';
+      return _buildPatientPageRoute(
+        builder: (_) => doctorId.isEmpty
+            ? const _InvalidDoctorDetailRouteScreen()
+            : DoctorDetailScreen(doctorId: doctorId),
+        settings: settings,
+      );
+    }
+
+    // The care branch's first screen: its back arrow leaves the care flow
+    // (there is no screen under it to pop to).
+    final isCareRoot = isRoot && tab == PatientShellTab.care;
+
+    // Static routes — M05 clinic flow, emergency step0/1, and home.
+    final page = switch (settings.name) {
+      patientHomeRootRoute => _buildHomeFeedRoute(),
+      patientCareFlowEntryRoute when isCareRoot => ProviderSelectionScreen(
+        onBack: _leaveCareFlow,
+      ),
+      patientCareFlowEntryRoute => const ProviderSelectionScreen(),
+      '/emergency-step0' => const EmergencyRequestStep0(),
+      '/urgent-care-mode-selection' => const UrgentCareModeSelectionScreen(),
+      '/urgent-cabinet/care-subject' => const UrgentCabinetFlowShell(),
+      '/emergency-step1' => const EmergencyRequestStep1(),
+      '/clinical-request-unavailable' =>
+        const ClinicalFeatureUnavailableScreen(),
+      '/m05/request' => const RequestFlowEntryScreen(),
+      '/doctor/cabinet/who-needs-care' => const DoctorCabinetEntryScreen(),
+      '/m05/who-needs-care' => const WhoNeedsCareScreen(),
+      '/m05/clinic-directory' => const ClinicDirectoryScreen(),
+      '/m05/doctor-directory' => const DoctorDirectoryScreen(),
+      '/m05/situation' => const SituationScreen(),
+      '/m05/pickup' => const PickupScreen(),
+      '/m05/review' => const ReviewScreen(),
+      '/m05/received' => const RequestReceivedScreen(),
+      '/m05/requests' => const MyRequestsScreen(),
+      // Unknown names fall back to the branch's own first screen, never to
+      // another button's content.
+      _ when tab == PatientShellTab.care => const ProviderSelectionScreen(),
+      _ => _buildHomeFeedRoute(),
+    };
+    return _buildPatientPageRoute(builder: (_) => page, settings: settings);
   }
 
   Widget _buildHomeTab(String userName) {
     return PatientHomeFeed(
       displayName: userName,
-      onOpenHealth: () => _selectTab(1),
-      onOpenMedicalRecord: () => _selectTab(3),
-      onOpenProfile: () => _selectTab(4),
+      onOpenHealth: () => _selectTab(PatientShellTab.health),
+      onOpenMedicalRecord: () => _selectTab(PatientShellTab.medicalRecord),
+      onOpenProfile: () => _selectTab(PatientShellTab.profile),
     );
   }
 
@@ -1780,6 +1963,9 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
       child: OutlinedButton(
         onPressed: _isLoggingOut ? null : _handleLogout,
         style: OutlinedButton.styleFrom(
+          // The theme's full-width minimum (Size(double.infinity, 50))
+          // overflows inside the header Row; size to the label instead.
+          minimumSize: const Size(0, 40),
           foregroundColor: const Color(0xFFDC2626),
           side: const BorderSide(color: Color(0xFFFECACA)),
           backgroundColor: const Color(0xFFFEF2F2),
@@ -3412,14 +3598,14 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                       icon: Icons.home_outlined,
                       activeIcon: Icons.home_outlined,
                       label: 'Accueil',
-                      index: 0,
+                      index: PatientShellTab.home,
                       hasNotification: false,
                     ),
                     _buildNavItem(
                       icon: Icons.favorite_border_rounded,
                       activeIcon: Icons.favorite_rounded,
                       label: 'Ma Santé',
-                      index: 1,
+                      index: PatientShellTab.health,
                       hasNotification: false,
                     ),
                     _buildCenterNavItem(),
@@ -3427,14 +3613,14 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                       iconAsset: 'assets/svg/medical_pass_grey.svg',
                       activeIconAsset: 'assets/svg/medical_pass_green.svg',
                       label: 'Dossier médical',
-                      index: 3,
+                      index: PatientShellTab.medicalRecord,
                       hasNotification: false,
                     ),
                     _buildNavItem(
                       icon: Icons.account_circle_outlined,
                       activeIcon: Icons.account_circle_outlined,
                       label: 'Profil',
-                      index: 4,
+                      index: PatientShellTab.profile,
                       hasNotification: false,
                     ),
                   ],
@@ -3448,48 +3634,53 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
   }
 
   Widget _buildCenterNavItem() {
-    return GestureDetector(
-      key: const ValueKey('patient-care-action'),
-      onTap: () async {
-        final familyProvider = Provider.of<FamilyProvider>(
-          context,
-          listen: false,
-        );
-        if (familyProvider.members.isEmpty && !familyProvider.isLoading) {
-          await familyProvider.loadFamilyMembers();
-        }
-        if (!mounted) return;
-        _patientContentNavigatorKey.currentState?.pushNamed(
-          '/provider-selection',
-        );
-      },
-      child: Container(
-        width: 56,
-        height: 56,
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF1FC6A5), Color(0xFF087C76)],
-          ),
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF0A8C80).withValues(alpha: 0.18),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
+    final isSelected = _selectedIndex == PatientShellTab.care;
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      label: 'Demander des soins',
+      excludeSemantics: true,
+      child: GestureDetector(
+        key: const ValueKey('patient-care-action'),
+        behavior: HitTestBehavior.opaque,
+        onTap: _onCareActionTapped,
+        child: _buildCenterNavButton(isSelected: isSelected),
+      ),
+    );
+  }
+
+  Widget _buildCenterNavButton({required bool isSelected}) {
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF1FC6A5), Color(0xFF087C76)],
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: SvgPicture.asset(
-            'assets/svg/omnicare_logo_white.svg',
-            fit: BoxFit.contain,
-            colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
-            placeholderBuilder: (_) => _buildCenterLogoFallback(),
-            errorBuilder: (_, _, _) => _buildCenterLogoFallback(),
+        borderRadius: BorderRadius.circular(18),
+        border: isSelected
+            ? Border.all(color: const Color(0xFFBDEFE2), width: 2)
+            : null,
+        boxShadow: [
+          BoxShadow(
+            color: const Color(
+              0xFF0A8C80,
+            ).withValues(alpha: isSelected ? 0.32 : 0.18),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: SvgPicture.asset(
+          'assets/svg/omnicare_logo_white.svg',
+          fit: BoxFit.contain,
+          colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+          placeholderBuilder: (_) => _buildCenterLogoFallback(),
+          errorBuilder: (_, _, _) => _buildCenterLogoFallback(),
         ),
       ),
     );
@@ -3503,7 +3694,6 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     required String label,
     required int index,
     required bool hasNotification,
-    VoidCallback? onTap,
   }) {
     assert(icon != null || iconAsset != null);
     assert(activeIcon != null || activeIconAsset != null);
@@ -3515,19 +3705,11 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
         label: label,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap:
-              onTap ??
-              () {
-                if (index == 0) {
-                  _patientContentNavigatorKey.currentState?.popUntil(
-                    (route) => route.isFirst,
-                  );
-                }
-                _selectTab(index);
-              },
+          onTap: () => _onDestinationTapped(index),
           child: Center(
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
+            // Selection state switches in the tap's frame: no cross-fade
+            // where two buttons look selected at once.
+            child: Container(
               width: 56,
               height: 56,
               decoration: BoxDecoration(
@@ -3540,40 +3722,27 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                 clipBehavior: Clip.none,
                 children: [
                   Center(
-                    child: AnimatedScale(
-                      duration: const Duration(milliseconds: 160),
-                      scale: isSelected ? 1.04 : 1,
-                      child: iconAsset != null
-                          ? SvgPicture.asset(
-                              isSelected
-                                  ? (activeIconAsset ?? iconAsset)
-                                  : iconAsset,
-                              width: 56,
-                              height: 56,
-                              fit: BoxFit.contain,
-                              placeholderBuilder: (_) => Icon(
-                                Icons.menu_book_outlined,
-                                color: isSelected
-                                    ? const Color(0xFF087A65)
-                                    : const Color(0xFFA8AAAD),
-                                size: 30,
+                    child: iconAsset != null
+                        // Both SVG states stay loaded; swapping the asset on
+                        // selection made the new file load asynchronously
+                        // and flashed the placeholder icon.
+                        ? IndexedStack(
+                            index: isSelected ? 1 : 0,
+                            children: [
+                              _buildNavSvg(iconAsset, selected: false),
+                              _buildNavSvg(
+                                activeIconAsset ?? iconAsset,
+                                selected: true,
                               ),
-                              errorBuilder: (_, _, _) => Icon(
-                                Icons.menu_book_outlined,
-                                color: isSelected
-                                    ? const Color(0xFF087A65)
-                                    : const Color(0xFFA8AAAD),
-                                size: 30,
-                              ),
-                            )
-                          : Icon(
-                              isSelected ? activeIcon : icon,
-                              color: isSelected
-                                  ? const Color(0xFF087A65)
-                                  : const Color(0xFFA8AAAD),
-                              size: 32,
-                            ),
-                    ),
+                            ],
+                          )
+                        : Icon(
+                            isSelected ? activeIcon : icon,
+                            color: isSelected
+                                ? const Color(0xFF087A65)
+                                : const Color(0xFFA8AAAD),
+                            size: 32,
+                          ),
                   ),
                   if (hasNotification)
                     Positioned(
@@ -3595,6 +3764,21 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildNavSvg(String asset, {required bool selected}) {
+    final fallbackColor = selected
+        ? const Color(0xFF087A65)
+        : const Color(0xFFA8AAAD);
+    return SvgPicture.asset(
+      asset,
+      width: 56,
+      height: 56,
+      fit: BoxFit.contain,
+      placeholderBuilder: (_) => const SizedBox(width: 56, height: 56),
+      errorBuilder: (_, _, _) =>
+          Icon(Icons.menu_book_outlined, color: fallbackColor, size: 30),
     );
   }
 
