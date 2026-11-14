@@ -70,7 +70,7 @@ class _PatientPassportScreenState extends State<PatientPassportScreen> {
   @override
   void initState() {
     super.initState();
-    SecureScreen.enable();
+    SecureScreen.acquire();
   }
 
   @override
@@ -128,7 +128,7 @@ class _PatientPassportScreenState extends State<PatientPassportScreen> {
 
   @override
   void dispose() {
-    SecureScreen.disable();
+    SecureScreen.release();
     _passportScrollController.dispose();
     super.dispose();
   }

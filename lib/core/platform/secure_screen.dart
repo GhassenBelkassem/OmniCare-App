@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
@@ -11,9 +13,26 @@ abstract final class SecureScreen {
   static bool get _supported =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
-  static Future<void> enable() => _call('enable');
+  static int _holders = 0;
 
-  static Future<void> disable() => _call('disable');
+  /// Requests the flag. Reference-counted: the window flag only changes when
+  /// the first holder acquires or the last one releases, so nested holders
+  /// (the patient shell and the « Dossier médical » screen) never toggle it.
+  static void acquire() {
+    if (_holders++ == 0) unawaited(_call('enable'));
+  }
+
+  /// Releases one [acquire]. Extra releases are ignored.
+  static void release() {
+    if (_holders == 0) return;
+    if (--_holders == 0) unawaited(_call('disable'));
+  }
+
+  @visibleForTesting
+  static int get debugHolderCount => _holders;
+
+  @visibleForTesting
+  static void debugReset() => _holders = 0;
 
   static Future<void> _call(String method) async {
     if (!_supported) return;

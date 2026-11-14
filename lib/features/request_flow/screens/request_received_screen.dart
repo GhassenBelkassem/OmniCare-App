@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/theme/omni_theme.dart';
+import '../../home/patient_shell_scope.dart';
 import '../../request_core/application/request_submission_controller.dart';
 import '../../request_history/presentation/patient_request_detail_screen.dart';
 
@@ -75,10 +76,14 @@ class RequestReceivedScreen extends StatelessWidget {
                   width: double.infinity,
                   child: TextButton(
                     onPressed: () {
-                      Navigator.of(context).pushNamedAndRemoveUntil(
-                        '/home',
-                        (route) => false,
-                      );
+                      final shell = PatientShellScope.maybeOf(context);
+                      if (shell != null) {
+                        shell.showHome();
+                        return;
+                      }
+                      Navigator.of(
+                        context,
+                      ).pushNamedAndRemoveUntil('/home', (route) => false);
                     },
                     child: const Text('Back to home'),
                   ),
